@@ -37,10 +37,10 @@ const baseProps = {
   needsYouCount: 0,
   needsYouOpen: false,
   onToggleNeedsYou: vi.fn(),
-} satisfies WorkbenchHeaderProps;
+} satisfies Omit<WorkbenchHeaderProps, "now">;
 
 function renderHeader(overrides: Partial<WorkbenchHeaderProps> = {}) {
-  return render(<WorkbenchHeader {...baseProps} {...overrides} />);
+  return render(<WorkbenchHeader {...baseProps} now={Date.now()} {...overrides} />);
 }
 
 afterEach(() => {
@@ -106,7 +106,7 @@ describe("WorkbenchHeader", () => {
     await user.click(preview);
     expect(baseProps.onTogglePreview).toHaveBeenCalledOnce();
 
-    rerender(<WorkbenchHeader {...baseProps} previewOpen />);
+    rerender(<WorkbenchHeader {...baseProps} now={Date.now()} previewOpen />);
     expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByRole("tab", { name: "Preview" }));
     expect(baseProps.onTogglePreview).toHaveBeenCalledOnce();
@@ -159,12 +159,12 @@ describe("WorkbenchHeader", () => {
     const { rerender } = renderHeader({ needsYouCount: 0, onToggleNeedsYou });
     expect(screen.queryByRole("button", { name: /^Needs you/ })).not.toBeInTheDocument();
 
-    rerender(<WorkbenchHeader {...baseProps} needsYouCount={1} onToggleNeedsYou={onToggleNeedsYou} />);
+    rerender(<WorkbenchHeader {...baseProps} now={Date.now()} needsYouCount={1} onToggleNeedsYou={onToggleNeedsYou} />);
     const single = screen.getByRole("button", { name: "Needs you, 1 session" });
     expect(single).toHaveTextContent("1 needs you");
     expect(single).toHaveAttribute("aria-expanded", "false");
 
-    rerender(<WorkbenchHeader {...baseProps} needsYouCount={3} needsYouOpen onToggleNeedsYou={onToggleNeedsYou} />);
+    rerender(<WorkbenchHeader {...baseProps} now={Date.now()} needsYouCount={3} needsYouOpen onToggleNeedsYou={onToggleNeedsYou} />);
     const trigger = screen.getByRole("button", { name: "Needs you, 3 sessions" });
     expect(trigger).toHaveTextContent("3 need you");
     expect(trigger).toHaveAttribute("aria-expanded", "true");

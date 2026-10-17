@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { SessionTile } from "../session-state";
 import { sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -17,6 +17,7 @@ const STACK_GROUPS: ReadonlyArray<{ label: string; kinds: readonly SessionStateK
 
 type SessionStackProps = {
   asleepCount: number;
+  now: number;
   planLine?: ReactNode;
   sessions: SessionTile[];
   tabs?: ReactNode;
@@ -25,8 +26,7 @@ type SessionStackProps = {
   onOpenAsleep: () => void;
 };
 
-export function SessionStack({ asleepCount, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
-  const now = useStackClock(sessions.length > 0);
+export function SessionStack({ asleepCount, now, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
   const states = new Map(sessions.map((session) => [session.id, sessionState(session, "ready", now)]));
   const groups = STACK_GROUPS.map((group) => ({
     ...group,
@@ -114,16 +114,4 @@ export function stackPreviewLine(session: Pick<SessionTile, "activityEvents">): 
     if (event.kind !== "lifecycle") return event.detail || event.title;
   }
   return null;
-}
-
-// Working decays to Your turn or Idle without new events, so the stack needs its own clock.
-export function useStackClock(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    setNow(Date.now());
-    const intervalId = window.setInterval(() => setNow(Date.now()), 5_000);
-    return () => window.clearInterval(intervalId);
-  }, [active]);
-  return now;
 }

@@ -91,6 +91,8 @@ type TerminalDeskProps = {
   armedRecoverySessionIds: Set<string>;
   /** Asleep conversations as History counts them (one per lineage). */
   asleepCount: number;
+  /** The app's one session clock, shared with every other surface. */
+  now: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   /** Details or Preview takes the stack's column while open, so the focused terminal keeps a usable width. */
@@ -135,6 +137,7 @@ export function TerminalDesk({
   activeWorkspaceId,
   armedRecoverySessionIds,
   asleepCount,
+  now,
   selectedSessionId,
   sessions,
   stackHidden,
@@ -281,6 +284,7 @@ export function TerminalDesk({
                 cwd={session.cwd}
                 createdAt={session.createdAt}
                 key={session.id}
+                now={now}
                 sessionKey={session.id}
                 runtimeId={session.runtimeId}
                 runtimeStatus={session.runtimeStatus}
@@ -334,6 +338,7 @@ export function TerminalDesk({
         {stackVisible && (
           <SessionStack
             asleepCount={asleepCount}
+            now={now}
             planLine={hasDrafts ? planLine : null}
             sessions={stackSessions}
             tabs={stackTabs}
@@ -551,6 +556,7 @@ function usableTerminalDimensions(dimensions: { cols: number; rows: number } | u
 function ManualTerminalTile({
   cwd,
   createdAt,
+  now,
   agentKind,
   detectedAgentKind,
   isolation,
@@ -599,6 +605,7 @@ function ManualTerminalTile({
 }: {
   cwd: string;
   createdAt?: number | undefined;
+  now: number;
   agentKind?: SessionTile["agentKind"];
   detectedAgentKind?: SessionTile["detectedAgentKind"];
   isolation?: SessionTile["isolation"] | undefined;
@@ -670,7 +677,6 @@ function ManualTerminalTile({
   const [renameDraft, setRenameDraft] = useState(title);
   const kind = sessionTileKind({ agentKind, detectedAgentKind, source });
   const kindMeta = tileKindMeta(kind);
-  const displayClock = useStatusClock(createdAt ?? lastOutputAt);
   const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
   const tileStatus = restoredTranscript ? "restored" : status;
   const displaySession = {
@@ -684,7 +690,7 @@ function ManualTerminalTile({
     ...(shellBusy === undefined ? {} : { shellBusy }),
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof sessionState>[0];
-  const displayStatus = sessionState(displaySession, tileStatus, displayClock);
+  const displayStatus = sessionState(displaySession, tileStatus, now);
   const restartable = isRestartable(displayStatus);
   const discardableSession = displayStatus.kind === "asleep" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({
@@ -722,7 +728,7 @@ function ManualTerminalTile({
     relaunchArmed,
   );
   const latestActivity = latestVisibleActivity(activityEvents);
-  const startedLabel = sessionStartedLabel(createdAt, displayClock);
+  const startedLabel = sessionStartedLabel(createdAt, now);
   // Contract vocabulary: a session is Claude, Codex or Terminal.
   const kindLabel = kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Terminal";
   const sessionLocationTitle = isolatedCheckout
@@ -1477,20 +1483,4 @@ function hasIsolatedCheckoutMetadata({
 function focusEnteredTile(event: ReactFocusEvent<HTMLElement>): boolean {
   const relatedTarget = event.relatedTarget;
   return !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget);
-}
-
-function useStatusClock(lastOutputAt: number | undefined): number {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    setNow(Date.now());
-    if (lastOutputAt === undefined) return;
-
-    const intervalId = window.setInterval(() => setNow(Date.now()), 5_000);
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [lastOutputAt]);
-
-  return now;
 }
