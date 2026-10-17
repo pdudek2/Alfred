@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/terminal-ipc.js";
 import type { AlfredApi } from "../shared/alfred-ipc.js";
@@ -201,5 +201,7 @@ contextBridge.exposeInMainWorld("alfredDesktop", {
   layout,
   workspace,
   sessions,
+  // A dropped File carries no path in the page since Electron 32; only the preload can read it.
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
   version: "desktop-launcher-v0",
 });

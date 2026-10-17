@@ -1689,6 +1689,33 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-area: 1 / 1;
 }
 
+/* v4 Drop board: a dragged file dims the terminal and says where its path goes. The OS draws the file itself.
+   It lets the pointer through, so the terminal underneath keeps receiving the drag. */
+.terminal-drop-overlay {
+  grid-area: 1 / 1;
+  z-index: 2;
+  margin: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-terminal) 84%, transparent);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  pointer-events: none;
+}
+
+.terminal-drop-overlay strong {
+  font: 500 15px/20px var(--sans);
+  color: var(--text-primary);
+}
+
+.terminal-drop-overlay span {
+  font: 400 13px/18px var(--sans);
+  color: var(--text-muted);
+}
+
 /* The session strip: at most one action row, then who runs here, where, since when, and the menu.
    It precedes the terminal in the DOM for keyboard order and is drawn below it. */
 .session-strip {

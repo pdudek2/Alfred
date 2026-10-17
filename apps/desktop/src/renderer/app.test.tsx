@@ -63,9 +63,14 @@ vi.mock("@xterm/xterm", () => ({
     loadAddon = vi.fn((addon: { activate?: (terminal: unknown) => void }) => {
       addon.activate?.(this);
     });
+    inputHandlers: Array<(data: string) => void> = [];
     onData = vi.fn((callback: (data: string) => void) => {
       terminalInputHandlers.push(callback);
+      this.inputHandlers.push(callback);
       return { dispose: vi.fn() };
+    });
+    paste = vi.fn((data: string) => {
+      for (const handler of this.inputHandlers) handler(data);
     });
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
@@ -3940,6 +3945,29 @@ describe("App integration", () => {
     expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
       "Browser could not open this preview.",
     );
+  });
+
+  it("pastes the escaped paths of files dropped on a live terminal", async () => {
+    const { writeTerminal } = installDesktopBridge(undefined, null, [manualLiveSnapshot("drop", "Drop target")]);
+    window.alfredDesktop!.pathForFile = (file) => file.name === "from-browser.png" ? "" : `/Users/p/Desktop/${file.name}`;
+    render(<App />);
+    const host = within(await screen.findByRole("article", { name: /Drop target/i })).getByTestId("xterm-host");
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
+    const files = [new File(["png"], "Screenshot 11.52.png"), new File(["png"], "from-browser.png")];
+    const dataTransfer = { types: ["Files"], files, dropEffect: "none" };
+
+    // Dragging selected text is not a file drag and leaves the terminal alone.
+    fireEvent.dragEnter(host, { dataTransfer: { types: ["text/plain"], files: [] } });
+    expect(screen.queryByText("Drop to paste the file path")).not.toBeInTheDocument();
+
+    fireEvent.dragEnter(host, { dataTransfer });
+    fireEvent.dragOver(host, { dataTransfer });
+    expect(screen.getByText("Drop to paste the file path")).toBeVisible();
+    expect(screen.getByText("The file path goes into the prompt")).toBeVisible();
+
+    fireEvent.drop(host, { dataTransfer });
+    expect(screen.queryByText("Drop to paste the file path")).not.toBeInTheDocument();
+    expect(writeTerminal).toHaveBeenCalledWith({ id: "runtime-drop", data: "/Users/p/Desktop/Screenshot\\ 11.52.png " });
   });
 
   it("adds preview URLs from live terminal output", async () => {
