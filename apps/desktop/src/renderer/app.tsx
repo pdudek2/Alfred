@@ -177,6 +177,8 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
+  // At most one session per project kept under the focus (contract: Pin). It lasts for this run of the app.
+  const [pinnedSessionIdsByWorkspace, setPinnedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [shellActionError, setShellActionError] = useState<string | null>(null);
   const [pendingPlans, setPendingPlans] = useState<Record<string, SquadPlan>>({});
@@ -295,6 +297,7 @@ export function App() {
   const previewVisible = activePreviewCandidates.length > 0;
   const activePreviewDockOpen = previewVisible && (previewDockOpenByWorkspace[activeWorkspace.id] ?? false);
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
+  const activePinnedSessionId = pinnedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
       ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null
@@ -893,6 +896,12 @@ export function App() {
     commitAddedSession,
   ]);
 
+  const handlePinSession = useCallback((sessionId: string | null) => {
+    setPinnedSessionIdsByWorkspace((current) => {
+      const { [activeWorkspace.id]: _previous, ...others } = current;
+      return sessionId === null ? others : { ...others, [activeWorkspace.id]: sessionId };
+    });
+  }, [activeWorkspace.id]);
   const handleFocusSession = useCallback((sessionId: string) => {
     setActiveSurface("work");
     showTerminalInWorkspace(activeWorkspace.id);
@@ -2745,6 +2754,7 @@ export function App() {
                       onSelectUrl={handleSelectPreviewUrl}
                     />
                   ) : null}
+                  pinnedSessionId={activePinnedSessionId}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
                   stackHidden={activeContextDrawerOpen}
@@ -2785,6 +2795,7 @@ export function App() {
                   onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
                   onRenameSession={handleRenameSession}
                   onFocusSession={handleFocusSession}
+                  onPinSession={handlePinSession}
                   onSelectSession={handleSelectSession}
                   planLine={
                     <PlanLine
@@ -2916,6 +2927,7 @@ export function App() {
             activeWorkspaceId={activeWorkspace.id}
             allSessions={workSessions}
             now={now}
+            pinnedSessionId={activePinnedSessionId}
             query={commandQuery}
             reviewQueuePreview={reviewQueuePreview}
             selectedSessionId={activeSelectedSessionId}
@@ -2944,6 +2956,7 @@ export function App() {
             onOpenNeedsYou={handleOpenNeedsYou}
             onOpenContext={handleOpenContextFromCommandPalette}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
+            onPinSession={handlePinSession}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
           />

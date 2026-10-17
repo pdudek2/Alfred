@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { SessionTile } from "../session-state";
 import { sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -24,9 +24,10 @@ type SessionStackProps = {
   workspaceLabel: string;
   onFocusSession: (sessionId: string) => void;
   onOpenAsleep: () => void;
+  onPinSession: (sessionId: string) => void;
 };
 
-export function SessionStack({ asleepCount, now, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
+export function SessionStack({ asleepCount, now, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep, onPinSession }: SessionStackProps) {
   const states = new Map(sessions.map((session) => [session.id, sessionState(session, "ready", now)]));
   const groups = STACK_GROUPS.map((group) => ({
     ...group,
@@ -53,6 +54,7 @@ export function SessionStack({ asleepCount, now, planLine, sessions, tabs, works
                   session={session}
                   status={states.get(session.id)!}
                   onFocus={() => onFocusSession(session.id)}
+                  onPin={() => onPinSession(session.id)}
                 />
               ))}
             </ul>
@@ -81,23 +83,30 @@ function StackCard({
   session,
   status,
   onFocus,
+  onPin,
 }: {
   now: number;
   preview: string | null;
   session: SessionTile;
   status: SessionDisplayStatus;
   onFocus: () => void;
+  onPin: () => void;
 }) {
   const age = sessionAgeLabel(session.lastOutputAt ?? session.createdAt, now);
+  const titleId = useId();
   return (
-    <li>
+    <li className="session-stack-item">
       <button type="button" className="session-stack-card" data-session-id={session.id} onClick={onFocus}>
         <span className="session-stack-card-head">
           <SessionStatusGlyph kind={status.kind} label={status.label} />
-          <span className="session-stack-title">{session.title}</span>
+          <span className="session-stack-title" id={titleId}>{session.title}</span>
           {age && <span className="session-stack-age">{age}</span>}
         </span>
         {preview && <span className="session-stack-preview">{preview}</span>}
+      </button>
+      {/* A sibling of the card, not inside it: a button cannot hold another. It takes the age's place on hover. */}
+      <button type="button" className="session-stack-pin" aria-label="Pin under the focus" aria-describedby={titleId} onClick={onPin}>
+        Pin
       </button>
     </li>
   );
