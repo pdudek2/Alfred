@@ -12,6 +12,8 @@ export type AgentTimelinePanelProps = {
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
   onUpdateStagedSession?: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
   session: SessionTile | null;
+  /** The app's one session clock, shared with every other surface. */
+  now: number;
   projectName?: string;
   changes?: ReactNode;
 };
@@ -22,10 +24,10 @@ export function AgentTimelinePanel({
   onRevealActivityFile,
   onUpdateStagedSession,
   session,
+  now,
   projectName,
   changes,
 }: AgentTimelinePanelProps) {
-  const ageClock = useSessionAgeClock(session?.createdAt);
   const commandInputRef = useRef<HTMLInputElement | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editDraft, setEditDraft] = useState<StagedEditDraft>(() => emptyEditDraft());
@@ -66,7 +68,7 @@ export function AgentTimelinePanel({
     );
   }
 
-  const displayStatus = sessionState(session);
+  const displayStatus = sessionState(session, "ready", now);
   const activityEvents = session.activityEvents ?? [];
   const presentedActivity = presentActivityEvents(activityEvents, {
     includeRaw: showRawActivity,
@@ -301,7 +303,7 @@ export function AgentTimelinePanel({
                         <span className="details-activity-text" title={event.detail || undefined}>{activitySentence(event)}</span>
                       )}
                       {event.at > 0 && <time dateTime={new Date(event.at).toISOString()} title={formatActivityTime(event.at)}>
-                        {ageClock - event.at < 60_000 ? `${Math.max(0, Math.floor((ageClock - event.at) / 1000))}s` : sessionAgeLabel(event.at, ageClock)}
+                        {now - event.at < 60_000 ? `${Math.max(0, Math.floor((now - event.at) / 1000))}s` : sessionAgeLabel(event.at, now)}
                       </time>}
                     </li>
                   );
@@ -459,21 +461,6 @@ function activityGlyph(event: SessionActivityEvent, waitsOnIt: boolean): { kind:
   if (event.kind === "error") return { kind: "failed", label: "failed" };
   if (event.kind === "warning") return { kind: "idle", label: "warning" };
   return { kind: "done", label: "done" };
-}
-
-function useSessionAgeClock(createdAt: number | undefined): number {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    setNow(Date.now());
-
-    const intervalId = window.setInterval(() => setNow(Date.now()), 5_000);
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [createdAt]);
-
-  return now;
 }
 
 function formatActivityTime(value: number): string {

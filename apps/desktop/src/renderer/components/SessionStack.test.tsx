@@ -29,6 +29,7 @@ describe("SessionStack", () => {
     render(
       <SessionStack
         asleepCount={0}
+        now={now}
         workspaceLabel="Alfred"
         sessions={[
           session("idle shell", { shellBusy: false }),
@@ -71,6 +72,7 @@ describe("SessionStack", () => {
     render(
       <SessionStack
         asleepCount={3}
+        now={now}
         workspaceLabel="Alfred"
         sessions={[session("pnpm dev", { shellBusy: true })]}
         onFocusSession={onFocusSession}
@@ -88,7 +90,7 @@ describe("SessionStack", () => {
 
   it("says so when nothing else runs in the project", () => {
     render(
-      <SessionStack asleepCount={0} workspaceLabel="Alfred" sessions={[]} onFocusSession={vi.fn()} onOpenAsleep={vi.fn()} />,
+      <SessionStack asleepCount={0} now={now} workspaceLabel="Alfred" sessions={[]} onFocusSession={vi.fn()} onOpenAsleep={vi.fn()} />,
     );
 
     expect(screen.getByText("No other sessions in this project.")).toBeInTheDocument();
@@ -99,6 +101,7 @@ describe("SessionStack", () => {
     render(
       <SessionStack
         asleepCount={2}
+        now={now}
         planLine={<div data-testid="plan-line" />}
         workspaceLabel="Alfred"
         sessions={[session("idle shell", { shellBusy: false })]}

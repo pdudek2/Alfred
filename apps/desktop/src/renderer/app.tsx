@@ -309,14 +309,8 @@ export function App() {
   const unavailableWorkspaceIds = new Set(
     workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
   );
-  const [, setApprovalRevealTick] = useState(0);
-  const approvalRevealAt = nextApprovalRevealAt(terminalSessions);
-  useEffect(() => {
-    if (approvalRevealAt === null) return;
-    const timer = setTimeout(() => setApprovalRevealTick((tick) => tick + 1), Math.max(0, approvalRevealAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [approvalRevealAt]);
-  const attentionItems = buildAttentionProjection(workspaces, terminalSessions).filter((item) => {
+  const now = useSessionClock(terminalSessions);
+  const attentionItems = buildAttentionProjection(workspaces, terminalSessions, now).filter((item) => {
     if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
     const session = terminalSessions.find((candidate) => candidate.id === item.sessionId);
     return item.section !== "recovery"
@@ -413,7 +407,7 @@ export function App() {
     let nextAnnouncement: string | null = null;
 
     for (const session of terminalSessions) {
-      const status = sessionState(session).label;
+      const status = sessionState(session, "ready", now).label;
       nextStatuses.set(session.id, status);
       const previousStatus = previousStatuses.get(session.id);
       if (previousStatus && previousStatus !== status) {
@@ -431,7 +425,7 @@ export function App() {
     if (nextAnnouncement) {
       setSessionStatusAnnouncement(nextAnnouncement);
     }
-  }, [terminalSessions]);
+  }, [now, terminalSessions]);
 
   useEffect(() => {
     const desktopStateApi = getDesktopStateApi();
@@ -2613,6 +2607,7 @@ export function App() {
           activeWorkspaceId={activeWorkspace.id}
           attentionCountsByWorkspace={attentionCountsByWorkspace}
           inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
+          now={now}
           sessions={terminalSessions}
           settingsTriggerRef={settingsTriggerRef}
           workspaces={workspaces}
@@ -2659,6 +2654,7 @@ export function App() {
             needsYouOpen={needsYouOpen}
             needsYouTriggerRef={needsYouTriggerRef}
             newSessionTriggerRef={newSessionTriggerRef}
+            now={now}
             previewAvailable={previewVisible}
             previewOpen={activePreviewDockOpen}
             projectDetail={workspaceDetail(activeWorkspace)}
@@ -2737,6 +2733,7 @@ export function App() {
                   activeWorkspaceId={activeWorkspace.id}
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   asleepCount={activeSavedSessionCount}
+                  now={now}
                   previewPane={activePreviewDockOpen ? (
                     <WorkspacePreviewPanel
                       candidates={activePreviewCandidates}
@@ -2811,6 +2808,7 @@ export function App() {
                   externalSessions={externalCodexSessions}
                   externalSessionsError={externalCodexSessionsError}
                   loadingExternalSessions={externalCodexSessionsLoading}
+                  now={now}
                   sessions={terminalSessions}
                   sessionsApi={getDesktopSessionsApi()}
                   state={sessionsViewState}
@@ -2848,6 +2846,7 @@ export function App() {
             onCloseContext={handleCloseContextDrawer}
             timelineProps={{
               session: activeInspectedSession,
+              now,
               projectName: activeWorkspace.label,
               changes: <DetailsChanges
                 open={detailsVisible}
@@ -2916,6 +2915,7 @@ export function App() {
           <CommandPalette
             activeWorkspaceId={activeWorkspace.id}
             allSessions={workSessions}
+            now={now}
             query={commandQuery}
             reviewQueuePreview={reviewQueuePreview}
             selectedSessionId={activeSelectedSessionId}
@@ -3583,6 +3583,22 @@ function workspacePlanContext(
           }),
         }),
   };
+}
+
+/**
+ * The one clock every surface reads a session's state from, so the rail, the deck, Details and Needs you
+ * never disagree. It ticks every 5 s for ages and decaying busy states, and at the moment an approval
+ * stops being masked by recent output.
+ */
+function useSessionClock(sessions: SessionTile[]): number {
+  const [now, setNow] = useState(() => Date.now());
+  const revealAt = nextApprovalRevealAt(sessions, now);
+  useEffect(() => {
+    const nextAt = Math.min(now + 5_000, revealAt ?? Infinity);
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, nextAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [now, revealAt]);
+  return now;
 }
 
 function workspaceDetail(workspace: Workspace): string {

@@ -5,7 +5,6 @@ import type { SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { moveTabFocus } from "../tab-keys";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
-import { useStackClock } from "./SessionStack";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 export type PrimarySurface = "work" | "sessions";
@@ -19,6 +18,7 @@ export type WorkbenchHeaderProps = {
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
   newSessionTriggerRef?: Ref<HTMLButtonElement>;
+  now: number;
   previewAvailable: boolean;
   previewOpen: boolean;
   projectDetail: string;
@@ -39,6 +39,7 @@ export function WorkbenchHeader({
   needsYouOpen,
   needsYouTriggerRef,
   newSessionTriggerRef,
+  now,
   previewAvailable,
   previewOpen,
   projectDetail,
@@ -52,7 +53,6 @@ export function WorkbenchHeader({
 }: WorkbenchHeaderProps) {
   const onDeck = activeSurface === "work";
   const session = onDeck ? selectedSession : null;
-  const now = useStackClock(session !== null);
   const state = session ? sessionState(session, "ready", now) : null;
   const key = (letter: string) => shortcutModifier === "Cmd" ? `⌘${letter}` : `Ctrl ${letter}`;
 
