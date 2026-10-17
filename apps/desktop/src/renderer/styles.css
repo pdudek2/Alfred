@@ -1689,6 +1689,79 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-area: 1 / 1;
 }
 
+/* v4 Pinned board: a second session kept under the focus, 3:2. The tiles keep their DOM order and only
+   change rows, so pinning never remounts a terminal. */
+.terminal-grid.has-pin {
+  grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 12px;
+}
+
+.terminal-grid.has-pin > .terminal-tile:not(.pinned) {
+  grid-row: 1;
+}
+
+.terminal-grid.has-pin > .terminal-tile.pinned {
+  grid-row: 2;
+}
+
+/* The pinned tile names itself in a header row instead of the session strip. */
+.terminal-tile.pinned {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.terminal-tile.pinned > .xterm-host,
+.terminal-tile.pinned > .terminal-drop-overlay {
+  grid-area: 2 / 1;
+}
+
+.terminal-pinned-head {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.terminal-pinned-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font: 500 13px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-pinned-kind {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font: 400 12px/16px var(--sans);
+}
+
+.terminal-pinned-unpin {
+  margin-left: auto;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 400 13px/18px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.terminal-pinned-unpin:hover {
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+.terminal-pinned-unpin:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
 /* v4 Drop board: a dragged file dims the terminal and says where its path goes. The OS draws the file itself.
    It lets the pointer through, so the terminal underneath keeps receiving the drag. */
 .terminal-drop-overlay {
