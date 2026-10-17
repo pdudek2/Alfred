@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
@@ -11,7 +11,7 @@ afterEach(() => {
 
 describe("AgentTimelinePanel", () => {
   it("renders an empty state when no session is focused", () => {
-    render(<AgentTimelinePanel session={null} />);
+    render(<AgentTimelinePanel now={Date.now()} session={null} />);
     expect(screen.getByLabelText("Agent activity")).toBeInTheDocument();
     expect(screen.getByText("no selected session")).toBeInTheDocument();
     expect(screen.getByText(/select a session to see its location/i)).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe("AgentTimelinePanel", () => {
       runtimeId: "runtime-1",
       lastOutputAt: Date.now(),
     };
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
     expect(screen.getByText("claude — alfred")).toBeInTheDocument();
     expect(screen.getByText("working")).toBeInTheDocument();
     expect(screen.getByTitle("/tmp")).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("AgentTimelinePanel", () => {
       runtimeId: "runtime-1",
     };
 
-    const { container } = render(<AgentTimelinePanel session={session} />);
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     expect(container.querySelectorAll(".agent-context-zone-heading")).toHaveLength(0);
     expect(container.querySelectorAll(".agent-section-heading")).toHaveLength(0);
@@ -81,7 +81,7 @@ describe("AgentTimelinePanel", () => {
       lastOutputAt: Date.now(),
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const location = screen.getByRole("region", { name: "Location" });
     expect(within(location).queryByText("Branch")).not.toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    const { container } = render(<AgentTimelinePanel session={session} />);
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const activity = within(container).getByRole("region", { name: "Activity" });
     const rows = within(activity).getAllByRole("listitem");
@@ -116,7 +116,7 @@ describe("AgentTimelinePanel", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-02T12:00:00Z"));
     try {
-      const { container } = render(<AgentTimelinePanel session={{
+      const { container } = render(<AgentTimelinePanel now={Date.now()} session={{
         id: "s1", title: "Review", workspaceId: "w1", cwd: "/repo", source: "manual", stage: "live",
         activityEvents: [40, 120, 1080].map((seconds) => ({
           id: String(seconds), kind: "command", title: `Command ${seconds}`, detail: "", at: Date.now() - seconds * 1000,
@@ -131,9 +131,9 @@ describe("AgentTimelinePanel", () => {
 
   it("uses the worktree folder name then the project label when no branch is available", () => {
     const session: SessionTile = { id: "s1", title: "Review", workspaceId: "w1", cwd: "/repo/.worktrees/review/", source: "manual", stage: "live", isolation: "worktree" };
-    const { rerender } = render(<AgentTimelinePanel session={session} projectName="Alfred" />);
+    const { rerender } = render(<AgentTimelinePanel now={Date.now()} session={session} projectName="Alfred" />);
     expect(within(screen.getByRole("region", { name: "Location" })).getByText("review")).toBeVisible();
-    rerender(<AgentTimelinePanel session={{ ...session, isolation: "shared", cwd: "/repo" }} projectName="Alfred" />);
+    rerender(<AgentTimelinePanel now={Date.now()} session={{ ...session, isolation: "shared", cwd: "/repo" }} projectName="Alfred" />);
     expect(within(screen.getByRole("region", { name: "Location" })).getByText("Alfred")).toBeVisible();
   });
 
@@ -151,9 +151,9 @@ describe("AgentTimelinePanel", () => {
       baseCwd: "/repo/alfred",
     };
 
-    const { rerender } = render(<AgentTimelinePanel session={baseSession} />);
+    const { rerender } = render(<AgentTimelinePanel now={Date.now()} session={baseSession} />);
     expect(screen.getByRole("region", { name: "Location" })).toHaveTextContent("feature-one");
-    rerender(<AgentTimelinePanel session={{ ...baseSession, id: "s2", title: "codex — two", branchName: "feature-two" }} />);
+    rerender(<AgentTimelinePanel now={Date.now()} session={{ ...baseSession, id: "s2", title: "codex — two", branchName: "feature-two" }} />);
     expect(screen.getByRole("region", { name: "Location" })).toHaveTextContent("feature-two");
     expect(screen.queryByText("feature-one")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Activity" })).toBeVisible();
@@ -178,6 +178,7 @@ describe("AgentTimelinePanel", () => {
 
     render(
       <AgentTimelinePanel
+        now={Date.now()}
         session={session}
         onCopyActivityText={onCopyActivityText}
         onOpenExternalTerminal={onOpenExternalTerminal}
@@ -216,7 +217,7 @@ describe("AgentTimelinePanel", () => {
       baseCwd,
     };
 
-    const { container } = render(<AgentTimelinePanel session={session} onCopyActivityText={onCopyActivityText} />);
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} onCopyActivityText={onCopyActivityText} />);
 
     const path = screen.getByTitle(cwd);
     expect(path).toHaveTextContent(cwd);
@@ -243,12 +244,13 @@ describe("AgentTimelinePanel", () => {
       baseCwd: "/repo",
     };
 
-    const { rerender, container } = render(<AgentTimelinePanel session={legacyWorktreeSession} />);
+    const { rerender, container } = render(<AgentTimelinePanel now={Date.now()} session={legacyWorktreeSession} />);
     expect(within(container).getByTitle(legacyWorktreeSession.cwd)).toBeVisible();
     expect(within(container).getByText("alfred-codex-isolated")).toBeVisible();
 
     rerender(
       <AgentTimelinePanel
+        now={Date.now()}
         session={{
           id: "s2",
           title: "codex — shared",
@@ -296,7 +298,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    const { container } = render(<AgentTimelinePanel session={session} />);
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
 
     const timeline = within(container).getByRole("list");
@@ -324,7 +326,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    const { container } = render(<AgentTimelinePanel session={session} />);
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
     const timeline = within(container).getByRole("list");
 
     expect(within(timeline).getByText("Ran pnpm test")).toBeInTheDocument();
@@ -377,7 +379,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    const { container } = render(<AgentTimelinePanel session={session} />);
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
     const objects = Array.from(container.querySelectorAll("button.details-activity-text"));
     expect(objects.map((object) => object.getAttribute("title"))).toEqual([
       "Allow edit in app.tsx?", "Alfred terminal UX", "apps/desktop/src/renderer/app.tsx", "pnpm test",
@@ -417,7 +419,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     expect(screen.getByText("apps/desktop/src/renderer/app.tsx(modified)")).toBeInTheDocument();
     expect(screen.queryByText("SessionStart hook (completed)")).not.toBeInTheDocument();
@@ -456,7 +458,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     expect(screen.getByRole("button", { name: "Show raw (1)" })).toBeInTheDocument();
 
@@ -500,6 +502,7 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(
       <AgentTimelinePanel
+        now={Date.now()}
         session={session}
         onCopyActivityText={onCopyActivityText}
         onRevealActivityFile={onRevealActivityFile}
@@ -540,6 +543,7 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(
       <AgentTimelinePanel
+        now={Date.now()}
         session={session}
         onCopyActivityText={() => {
           throw new Error("Clipboard is unavailable.");
@@ -572,7 +576,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     expect(screen.queryByRole("region", { name: "Activity digest" })).not.toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Activity" })).getAllByRole("listitem")).toHaveLength(6);
@@ -594,7 +598,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse).toBeDefined();
@@ -622,7 +626,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse).toBeDefined();
@@ -646,7 +650,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse).toBeDefined();
@@ -667,7 +671,7 @@ describe("AgentTimelinePanel", () => {
       args: ["test", "--filter", "@alfred/desktop"],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse).toBeDefined();
@@ -692,7 +696,7 @@ describe("AgentTimelinePanel", () => {
       args: ["old"],
     };
 
-    render(<AgentTimelinePanel session={session} onUpdateStagedSession={onUpdateStagedSession} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} onUpdateStagedSession={onUpdateStagedSession} />);
 
     await user.click(screen.getByRole("button", { name: "Edit command" }));
     await user.clear(screen.getByLabelText("Command"));
@@ -727,7 +731,7 @@ describe("AgentTimelinePanel", () => {
 
     const { rerender } = render(
       <div data-context-open="true">
-        <AgentTimelinePanel session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
+        <AgentTimelinePanel now={Date.now()} session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
       </div>,
     );
 
@@ -737,12 +741,12 @@ describe("AgentTimelinePanel", () => {
 
     rerender(
       <div data-context-open="false" inert>
-        <AgentTimelinePanel session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
+        <AgentTimelinePanel now={Date.now()} session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
       </div>,
     );
     rerender(
       <div data-context-open="true">
-        <AgentTimelinePanel session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
+        <AgentTimelinePanel now={Date.now()} session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
       </div>,
     );
 
@@ -767,7 +771,7 @@ describe("AgentTimelinePanel", () => {
         args: ["--old"],
       };
 
-      render(<AgentTimelinePanel session={session} onUpdateStagedSession={onUpdateStagedSession} />);
+      render(<AgentTimelinePanel now={Date.now()} session={session} onUpdateStagedSession={onUpdateStagedSession} />);
       await user.click(screen.getByRole("button", { name: "Edit command" }));
       await user.clear(screen.getByLabelText("Arguments"));
       await user.type(screen.getByLabelText("Arguments"), "--new");
@@ -799,6 +803,7 @@ describe("AgentTimelinePanel", () => {
 
       render(
         <AgentTimelinePanel
+          now={Date.now()}
           session={{ ...sessionFixture, runtimeStatus }}
           onUpdateStagedSession={vi.fn()}
         />,
@@ -808,9 +813,7 @@ describe("AgentTimelinePanel", () => {
     },
   );
 
-  it("keeps relative activity time moving while the panel stays open", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+  it("keeps relative activity time moving with the app clock while the panel stays open", () => {
     const session: SessionTile = {
       id: "s1",
       title: "codex — long task",
@@ -823,19 +826,11 @@ describe("AgentTimelinePanel", () => {
       activityEvents: [{ id: "e1", kind: "command", title: "Ran command", detail: "", at: new Date("2026-05-09T11:50:00Z").getTime() }],
     };
 
-    try {
-      render(<AgentTimelinePanel session={session} />);
-      expect(screen.getByText("10m")).toBeInTheDocument();
+    const { rerender } = render(<AgentTimelinePanel now={new Date("2026-05-09T12:00:00Z").getTime()} session={session} />);
+    expect(screen.getByText("10m")).toBeInTheDocument();
 
-      await act(async () => {
-        vi.setSystemTime(new Date("2026-05-09T12:12:00Z"));
-        await vi.advanceTimersByTimeAsync(5_000);
-      });
-
-      expect(screen.getByText("22m")).toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+    rerender(<AgentTimelinePanel now={new Date("2026-05-09T12:12:00Z").getTime()} session={session} />);
+    expect(screen.getByText("22m")).toBeInTheDocument();
   });
 
   it("surfaces safety notes for staged sessions", () => {
@@ -851,7 +846,7 @@ describe("AgentTimelinePanel", () => {
       safetyNote: "rm -rf detected",
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     expect(screen.getByText("needs you")).toBeInTheDocument();
     expect(screen.queryByText("Current state")).not.toBeInTheDocument();
@@ -872,7 +867,7 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} />);
+    render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse).toBeDefined();

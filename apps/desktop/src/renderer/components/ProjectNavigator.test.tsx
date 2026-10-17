@@ -78,6 +78,7 @@ function navigator(props: Partial<ProjectNavigatorProps> = {}) {
       activeSurface="work"
       activeWorkspaceId="A"
       attentionCountsByWorkspace={new Map()}
+      now={Date.now()}
       sessions={sessions}
       workspaces={workspaces}
       workspaceActions={<button type="button">Project actions</button>}

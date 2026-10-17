@@ -22,7 +22,6 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { historySummarySentence, type HistorySelection } from "../history-presentation";
 import { SessionsNavigator } from "./SessionsNavigator";
-import { useStackClock } from "./SessionStack";
 import "./history.css";
 import {
   SessionsReader,
@@ -48,6 +47,7 @@ export type SessionsSurfaceProps = {
   externalSessions: ExternalSessionSummary[];
   externalSessionsError: string | null;
   loadingExternalSessions: boolean;
+  now: number;
   sessions: SessionTile[];
   sessionsApi: SessionsApi | null;
   state: SessionsViewState;
@@ -71,6 +71,7 @@ export function SessionsSurface({
   externalSessions,
   externalSessionsError,
   loadingExternalSessions,
+  now,
   sessions,
   sessionsApi,
   state,
@@ -135,8 +136,6 @@ export function SessionsSurface({
     }),
     [externalSessions, ranSessions, workspaces],
   );
-  // Live sessions change state without new events, so their glyphs need a clock.
-  const now = useStackClock(projection.items.some((item) => item.lifecycle === "live"));
   const statusByKey = useMemo(() => {
     const statuses = new Map<string, SessionDisplayStatus>();
     for (const item of projection.items) {

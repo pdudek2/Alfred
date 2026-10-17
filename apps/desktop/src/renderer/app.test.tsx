@@ -606,6 +606,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       activeWorkspaceId="A"
       armedRecoverySessionIds={new Set()}
       asleepCount={0}
+      now={Date.now()}
       selectedSessionId={selectedSessionId}
       sessions={nextSessions}
       stackHidden={false}
@@ -6526,6 +6527,61 @@ describe("App integration", () => {
     expect(within(waiting).getByRole("button", {
       name: "Open Immediate approval in Alfred",
     })).toBeEnabled();
+  });
+
+  it("surfaces a masked approval on every surface at the same moment", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(undefined, null, [manualLiveSnapshot("asks", "Asking shell")]);
+    render(<App />);
+    const tile = await screen.findByRole("article", { name: /Asking shell/i });
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
+    await selectSurface(user, "Details");
+    const details = screen.getByRole("complementary", { name: "Details" });
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const project = within(screen.getByTestId("project-navigator")).getByRole("button", { name: "Alfred project" });
+
+    vi.useFakeTimers();
+    try {
+      const askedAt = Date.now();
+      act(() => {
+        bridge.emitDataNow({
+          id: "runtime-asks",
+          data: "Approval required: continue?\n",
+          at: askedAt,
+          activities: [{
+            id: "asks-activity-1",
+            kind: "approval",
+            title: "Approval required",
+            detail: "Approval required: continue?",
+            at: askedAt,
+          }],
+        });
+        // A key echoed after the question is fresh output, which masks the prompt for a while.
+        bridge.emitDataNow({ id: "runtime-asks", data: "^[", at: askedAt + 50, activities: [] });
+      });
+      const surfacesNeedingYou = () => [
+        within(breadcrumb).queryByLabelText("status needs you") !== null,
+        within(tile).queryByRole("note") !== null,
+        screen.queryByRole("button", { name: /^Needs you, / }) !== null,
+        document.getElementById(project.getAttribute("aria-describedby") ?? "")?.textContent === "needs you",
+        within(details).queryByLabelText("status needs you") !== null,
+      ];
+      expect(within(breadcrumb).getByLabelText("status running")).toBeInTheDocument();
+      expect(surfacesNeedingYou()).toEqual([false, false, false, false, false]);
+
+      // Each tick renders before the next one is scheduled, so the clock advances a second at a time.
+      for (let second = 1; second <= 16; second += 1) {
+        act(() => { vi.advanceTimersByTime(1_000); });
+        const states = surfacesNeedingYou();
+        expect(new Set(states).size, `surfaces disagree after ${second} s: ${states.join(", ")}`).toBe(1);
+      }
+
+      expect(surfacesNeedingYou()).toEqual([true, true, true, true, true]);
+      expect(within(tile).getByRole("note")).toHaveTextContent("Approval required: continue?");
+      expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("routes approval output by client id before terminal creation resolves", async () => {

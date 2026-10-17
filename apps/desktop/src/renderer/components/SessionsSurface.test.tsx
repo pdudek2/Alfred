@@ -114,13 +114,13 @@ const baseProps = {
   onBackToWork: vi.fn(),
   onPrimaryAction: vi.fn(),
   onRefreshExternalSessions: vi.fn(),
-} satisfies Omit<SessionsSurfaceProps, "state" | "onStateChange">;
+} satisfies Omit<SessionsSurfaceProps, "now" | "state" | "onStateChange">;
 
 function renderSurface(
   overrides: Partial<Omit<SessionsSurfaceProps, "state" | "onStateChange">> = {},
   initialState: SessionsViewState = createInitialSessionsViewState(),
 ) {
-  const props = { ...baseProps, ...overrides };
+  const props = { now: Date.now(), ...baseProps, ...overrides };
   let currentState = initialState;
 
   function Harness() {
