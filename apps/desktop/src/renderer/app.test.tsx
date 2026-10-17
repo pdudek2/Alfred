@@ -602,6 +602,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionUnavailable: vi.fn(),
     onRenameSession: vi.fn(),
     onFocusSession: vi.fn(),
+    onPinSession: vi.fn(),
     onSelectSession: vi.fn(),
     onApproveTile: vi.fn(),
     onRejectTile: vi.fn(),
@@ -612,6 +613,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       armedRecoverySessionIds={new Set()}
       asleepCount={0}
       now={Date.now()}
+      pinnedSessionId={null}
       selectedSessionId={selectedSessionId}
       sessions={nextSessions}
       stackHidden={false}
@@ -2393,6 +2395,52 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · two");
     expect(screen.getAllByTestId("xterm-host")[0]).toBe(firstHost);
     expect(terminalDisposeCalls).toHaveLength(0);
+  });
+
+  it("pins a stack session under the focus and unpins it without replacing either xterm", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · one/i });
+    const hostOf = (id: string) => document.querySelector(`[data-testid="xterm-host"][data-session-id="${id}"]`);
+    const [focusHost, stackHost] = [hostOf("one"), hostOf("two")];
+    const stack = () => screen.getByRole("complementary", { name: "Other sessions in Alfred" });
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+
+    await user.click(within(stack()).getByRole("button", { name: "Pin under the focus", description: /Codex · two/ }));
+
+    const pinned = screen.getByRole("article", { name: /^Pinned: Codex · two/ });
+    expect(pinned).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByRole("article", { name: /^Codex · one/ })).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("has-pin");
+    expect(within(stack()).queryByRole("button", { name: /Codex · two/ })).not.toBeInTheDocument();
+    expect(within(pinned).getByRole("button", { name: "Unpin Codex · two" })).toHaveFocus();
+    expect(hostOf("one")).toBe(focusHost);
+    expect(hostOf("two")).toBe(stackHost);
+
+    // Typing in the pinned terminal leaves the focus, the breadcrumb and Details on the focused session.
+    fireEvent.focusIn(within(pinned).getByTestId("xterm-host"));
+    expect(breadcrumb).toHaveTextContent("Codex · one");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · one");
+
+    await user.click(within(pinned).getByRole("button", { name: "Unpin Codex · two" }));
+
+    expect(screen.queryByRole("article", { name: /^Pinned:/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-grid")).not.toHaveClass("has-pin");
+    expect(within(stack()).getByRole("button", { name: /Codex · two/ })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /^Codex · one/ })).toHaveFocus();
+    expect(hostOf("one")).toBe(focusHost);
+    expect(hostOf("two")).toBe(stackHost);
+    expect(terminalDisposeCalls).toHaveLength(0);
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true }));
+    });
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "pin");
+    expect(within(palette).queryByRole("option", { name: /Pin Codex · one/ })).not.toBeInTheDocument();
+    await user.click(within(palette).getByRole("option", { name: /Pin Codex · two under the focus/ }));
+    expect(screen.getByRole("article", { name: /^Pinned: Codex · two/ })).toBeInTheDocument();
   });
 
   it("keeps drafts on the plan line while Focus shows only a live terminal", async () => {

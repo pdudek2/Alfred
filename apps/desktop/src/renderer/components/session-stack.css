@@ -88,6 +88,46 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Pin takes the age's place while the card is hovered or holds focus. */
+.session-stack-item {
+  position: relative;
+}
+
+.session-stack-pin {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--sans);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.session-stack-item:hover .session-stack-pin,
+.session-stack-item:focus-within .session-stack-pin {
+  opacity: 1;
+}
+
+.session-stack-item:hover .session-stack-age,
+.session-stack-item:focus-within .session-stack-age {
+  visibility: hidden;
+}
+
+.session-stack-pin:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.session-stack-pin:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
 .session-stack-preview {
   padding-left: 22px;
   overflow: hidden;
