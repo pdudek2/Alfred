@@ -47,6 +47,7 @@ describe("SessionStack", () => {
         ]}
         onFocusSession={vi.fn()}
         onOpenAsleep={vi.fn()}
+        onPinSession={vi.fn()}
       />,
     );
 
@@ -77,6 +78,7 @@ describe("SessionStack", () => {
         sessions={[session("pnpm dev", { shellBusy: true })]}
         onFocusSession={onFocusSession}
         onOpenAsleep={onOpenAsleep}
+        onPinSession={vi.fn()}
       />,
     );
 
@@ -90,7 +92,7 @@ describe("SessionStack", () => {
 
   it("says so when nothing else runs in the project", () => {
     render(
-      <SessionStack asleepCount={0} now={now} workspaceLabel="Alfred" sessions={[]} onFocusSession={vi.fn()} onOpenAsleep={vi.fn()} />,
+      <SessionStack asleepCount={0} now={now} workspaceLabel="Alfred" sessions={[]} onFocusSession={vi.fn()} onOpenAsleep={vi.fn()} onPinSession={vi.fn()} />,
     );
 
     expect(screen.getByText("No other sessions in this project.")).toBeInTheDocument();
@@ -107,6 +109,7 @@ describe("SessionStack", () => {
         sessions={[session("idle shell", { shellBusy: false })]}
         onFocusSession={vi.fn()}
         onOpenAsleep={vi.fn()}
+        onPinSession={vi.fn()}
       />,
     );
 

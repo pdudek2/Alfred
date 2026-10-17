@@ -28,6 +28,7 @@ type CommandPaletteProps = {
   activeWorkspaceId: string;
   allSessions: SessionTile[];
   now: number;
+  pinnedSessionId: string | null;
   query: string;
   reviewQueuePreview: AttentionProjection | null;
   selectedSessionId: string | null;
@@ -56,6 +57,7 @@ type CommandPaletteProps = {
   onOpenContext: () => void;
   onOpenNeedsYou: () => void;
   onOpenPrivacyControls: () => void;
+  onPinSession: (sessionId: string | null) => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
 };
@@ -64,6 +66,7 @@ export function CommandPalette({
   activeWorkspaceId,
   allSessions,
   now,
+  pinnedSessionId,
   query,
   reviewQueuePreview,
   selectedSessionId,
@@ -92,6 +95,7 @@ export function CommandPalette({
   onOpenContext,
   onOpenNeedsYou,
   onOpenPrivacyControls,
+  onPinSession,
   onRestartSession,
   onSelectWorkspace,
 }: CommandPaletteProps) {
@@ -258,6 +262,21 @@ export function CommandPalette({
           run: () => onFocusSessionInWorkspace(session.workspaceId, session.id),
         };
       }),
+      // Pinning is found by typing; listing it for every session would double the default list.
+      ...(normalizedQuery ? sessions : [])
+        .filter((session) => session.stage === "live" && session.id !== selectedSessionId && session.id !== pinnedSessionId)
+        .map((session) => ({
+          id: `pin-session-${session.id}`,
+          label: `Pin ${session.title} under the focus`,
+          detail: "Keep it in view under the session you work in",
+          run: () => onPinSession(session.id),
+        })),
+      ...sessions.filter((session) => session.id === pinnedSessionId).map((session) => ({
+        id: `unpin-session-${session.id}`,
+        label: `Unpin ${session.title}`,
+        detail: "Return it to the stack",
+        run: () => onPinSession(null),
+      })),
       {
         id: "local-data-privacy",
         label: "Local Data & Privacy",
@@ -373,11 +392,15 @@ export function CommandPalette({
       onOpenContext,
       onOpenNeedsYou,
       onOpenPrivacyControls,
+      onPinSession,
       onRestartSession,
       onSelectWorkspace,
+      normalizedQuery,
+      pinnedSessionId,
       reviewQueuePreview,
       selectedRestartable,
       selectedSession,
+      selectedSessionId,
       sessions,
       shortcutModifier,
       searchableSessions,

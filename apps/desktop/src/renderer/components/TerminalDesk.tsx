@@ -95,6 +95,7 @@ type TerminalDeskProps = {
   asleepCount: number;
   /** The app's one session clock, shared with every other surface. */
   now: number;
+  pinnedSessionId: string | null;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   /** Details or Preview takes the stack's column while open, so the focused terminal keeps a usable width. */
@@ -128,6 +129,8 @@ type TerminalDeskProps = {
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
+  /** Keeps a session under the focus in a 3:2 split, or none. */
+  onPinSession: (sessionId: string | null) => void;
   onSelectSession: (sessionId: string) => void;
   planLine?: ReactNode;
   /** The project preview, when the Preview tab is selected. It takes the terminal's place in the focused box. */
@@ -140,6 +143,7 @@ export function TerminalDesk({
   armedRecoverySessionIds,
   asleepCount,
   now,
+  pinnedSessionId,
   selectedSessionId,
   sessions,
   stackHidden,
@@ -172,6 +176,7 @@ export function TerminalDesk({
   onRuntimeSessionUnavailable,
   onRenameSession,
   onFocusSession,
+  onPinSession,
   onSelectSession,
   planLine,
   previewPane,
@@ -197,7 +202,9 @@ export function TerminalDesk({
   const draftSelected = activeSessions.some((session) => session.id === selectedSessionId && session.stage === "staged");
   // One focused terminal; the rest wait in the stack. Focus follows the selection only, never runtime events.
   const focusSession = liveSessions.find((session) => session.id === selectedSessionId) ?? liveSessions[0] ?? null;
-  const stackSessions = liveSessions.filter((session) => session.id !== focusSession?.id);
+  // Opening the pinned session makes it the focus; its pin waits until the focus moves on.
+  const pinnedSession = liveSessions.find((session) => session.id === pinnedSessionId && session.id !== focusSession?.id) ?? null;
+  const stackSessions = liveSessions.filter((session) => session.id !== focusSession?.id && session.id !== pinnedSession?.id);
   // The plan line belongs to the stack and hides with it. A project with nothing live has no stack,
   // so there it sits above the empty state.
   const stackVisible = focusSession !== null && !stackHidden && !worktreeDiffView;
@@ -231,6 +238,24 @@ export function TerminalDesk({
     onCloseWorktreeDiff();
   }, [focusSession?.id, onCloseWorktreeDiff, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
 
+  // Pin and Unpin remove the control you pressed, so focus goes to the inverse action or back to the focus.
+  const pinFocusRef = useRef<"unpin" | "focus" | null>(null);
+  const pinSession = (sessionId: string | null) => {
+    pinFocusRef.current = sessionId === null ? "focus" : "unpin";
+    onPinSession(sessionId);
+  };
+  useEffect(() => {
+    const target = pinFocusRef.current;
+    pinFocusRef.current = null;
+    if (!target) return;
+    const grid = gridRef.current;
+    const element = target === "unpin"
+      ? grid?.querySelector<HTMLElement>(".terminal-tile.pinned .terminal-pinned-unpin")
+      : Array.from(grid?.querySelectorAll<HTMLElement>(".terminal-tile") ?? [])
+        .find((tile) => tile.dataset.sessionId === focusSession?.id);
+    element?.focus({ preventScroll: true });
+  }, [focusSession?.id, pinnedSession?.id]);
+
   useEffect(() => {
     if (worktreeDiffView || !closeDiffFocusRef.current) return;
     const { fallback, reason, returnFocus } = closeDiffFocusRef.current;
@@ -260,7 +285,7 @@ export function TerminalDesk({
           inert={worktreeDiffView ? true : undefined}
         >
           {hasDrafts && focusSession === null && planLine}
-          <div className="terminal-grid" data-testid="terminal-grid" ref={gridRef}>
+          <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""}`} data-testid="terminal-grid" ref={gridRef}>
           {liveSessions.length === 0 && (
             <EmptyWorkspaceState
               armedSessionIds={armedRecoverySessionIds}
@@ -280,7 +305,8 @@ export function TerminalDesk({
           {renderedSessions.map((session) => {
             // Every live terminal stays mounted; switching focus or project only hides it.
             const workspaceHidden = session.workspaceId !== activeWorkspaceId;
-            const layoutHidden = !workspaceHidden && session.id !== focusSession?.id;
+            const pinned = !workspaceHidden && session.id === pinnedSession?.id;
+            const layoutHidden = !workspaceHidden && session.id !== focusSession?.id && !pinned;
             return (
               <ManualTerminalTile
                 cwd={session.cwd}
@@ -298,7 +324,8 @@ export function TerminalDesk({
                 title={session.title}
                 layoutHidden={layoutHidden}
                 workspaceHidden={workspaceHidden}
-                preview={workspaceHidden || layoutHidden ? null : previewPane}
+                pinned={pinned}
+                preview={workspaceHidden || layoutHidden || pinned ? null : previewPane}
                 source={session.source}
                 agentKind={session.agentKind}
                 detectedAgentKind={session.detectedAgentKind}
@@ -321,7 +348,9 @@ export function TerminalDesk({
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
                 onRestartSession={() => onRestartSession(session.id)}
-                onSelectSession={() => onSelectSession(session.id)}
+                // Typing in the pinned terminal keeps the focus, the breadcrumb and Details where they are.
+                onSelectSession={pinned ? () => {} : () => onSelectSession(session.id)}
+                onUnpin={() => pinSession(null)}
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
@@ -347,6 +376,7 @@ export function TerminalDesk({
             workspaceLabel={workspaceLabel}
             onFocusSession={onFocusSession}
             onOpenAsleep={onOpenAsleep}
+            onPinSession={pinSession}
           />
         )}
         {worktreeDiffView && (
@@ -585,6 +615,8 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable,
   onOpenExternalTerminal,
   onRenameSession,
+  onUnpin,
+  pinned = false,
   selected,
   surfaceActive,
   terminalFocusRequestKey,
@@ -634,6 +666,9 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onRenameSession: (sessionId: string, title: string) => void;
+  onUnpin: () => void;
+  /** Shown under the focus with its own header instead of the session strip (v4 Pinned board). */
+  pinned?: boolean;
   selected: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
@@ -1321,10 +1356,10 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${pinned ? "pinned" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
-      aria-label={latestActivity ? `${title}, ${activitySentence(latestActivity)}` : title}
+      aria-label={`${pinned ? "Pinned: " : ""}${latestActivity ? `${title}, ${activitySentence(latestActivity)}` : title}`}
       aria-hidden={workspaceHidden || layoutHidden ? "true" : undefined}
       inert={workspaceHidden || layoutHidden ? true : undefined}
       tabIndex={workspaceHidden || layoutHidden ? -1 : 0}
@@ -1335,74 +1370,83 @@ function ManualTerminalTile({
       {/* The v4 canvas strip: at most one action row, then who runs here, where, since when, and the menu.
           It is drawn under the terminal but comes first in the DOM: the terminal keeps Tab for the shell,
           so anything after it could not be reached by tabbing forward. */}
-      <footer className="session-strip">
-        {stripNote && <p className="session-strip-note" role="note">{stripNote}</p>}
-        {resumeAction && (
-          <div className="session-strip-action">
-            <span>{relaunchNeedsReview ? relaunchSafety.reason : resumeAction.copy}</span>
-            <button
-              type="button"
-              className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-              aria-label={`${resumeAction.label} ${title}`}
-              title={relaunchNeedsReview ? undefined : resumeAction.title}
-              onClick={resumeAction.run}
-            >
-              {resumeAction.label}
-            </button>
-          </div>
-        )}
-        <div className="session-strip-info">
-          {renaming ? (
-            <form
-              className="session-rename-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitRename();
-              }}
-            >
-              <input
-                aria-label={`Rename ${title}`}
-                value={renameDraft}
-                maxLength={80}
-                onChange={(event) => setRenameDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    submitRename();
-                    return;
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    endRename();
-                  }
-                }}
-                autoFocus
-              />
-              <button type="submit" aria-label={`Save title for ${title}`} disabled={!renameDraft.trim()}>
-                <Check size={12} />
+      {pinned ? (
+        <header className="terminal-pinned-head">
+          <SessionStatusGlyph kind={displayStatus.kind} label={displayStatus.label} />
+          <span className="terminal-pinned-title">{title}</span>
+          <span className="terminal-pinned-kind">{kindLabel}</span>
+          <button type="button" className="terminal-pinned-unpin" aria-label={`Unpin ${title}`} onClick={onUnpin}>Unpin</button>
+        </header>
+      ) : (
+        <footer className="session-strip">
+          {stripNote && <p className="session-strip-note" role="note">{stripNote}</p>}
+          {resumeAction && (
+            <div className="session-strip-action">
+              <span>{relaunchNeedsReview ? relaunchSafety.reason : resumeAction.copy}</span>
+              <button
+                type="button"
+                className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
+                aria-label={`${resumeAction.label} ${title}`}
+                title={relaunchNeedsReview ? undefined : resumeAction.title}
+                onClick={resumeAction.run}
+              >
+                {resumeAction.label}
               </button>
-            </form>
-          ) : (
-            <>
-              <span className="session-strip-kind">{kindLabel}</span>
-              {locationLabel && (
-                <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
-              )}
-              <span className="session-strip-spacer" />
-              {startedLabel && (
-                <span className="session-strip-age" title={sessionAgeTitle(createdAt)}>{startedLabel}</span>
-              )}
-              <div className="session-strip-menu">
-                <ChromeMenu label={`More actions for ${title}`} title={`${title} actions`} items={actionItems}>
-                  <Ellipsis size={14} />
-                </ChromeMenu>
-              </div>
-            </>
+            </div>
           )}
-        </div>
-      </footer>
+          <div className="session-strip-info">
+            {renaming ? (
+              <form
+                className="session-rename-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitRename();
+                }}
+              >
+                <input
+                  aria-label={`Rename ${title}`}
+                  value={renameDraft}
+                  maxLength={80}
+                  onChange={(event) => setRenameDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      submitRename();
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      endRename();
+                    }
+                  }}
+                  autoFocus
+                />
+                <button type="submit" aria-label={`Save title for ${title}`} disabled={!renameDraft.trim()}>
+                  <Check size={12} />
+                </button>
+              </form>
+            ) : (
+              <>
+                <span className="session-strip-kind">{kindLabel}</span>
+                {locationLabel && (
+                  <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
+                )}
+                <span className="session-strip-spacer" />
+                {startedLabel && (
+                  <span className="session-strip-age" title={sessionAgeTitle(createdAt)}>{startedLabel}</span>
+                )}
+                <div className="session-strip-menu">
+                  <ChromeMenu label={`More actions for ${title}`} title={`${title} actions`} items={actionItems}>
+                    <Ellipsis size={14} />
+                  </ChromeMenu>
+                </div>
+              </>
+            )}
+          </div>
+        </footer>
+      )}
       {/* Preview covers the terminal's cell. The terminal stays mounted and keeps its size underneath. */}
       {preview && <div className="terminal-tile-preview">{preview}</div>}
       {fileDragOver && (
