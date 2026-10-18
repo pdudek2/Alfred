@@ -425,6 +425,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             ),
             TERM: "xterm-256color",
             COLORTERM: "truecolor",
+            // xterm.js renders OSC 8 links. Claude Code links a sent [Image #N] to its file only when told so.
+            FORCE_HYPERLINK: "1",
             ...options.agentSignals?.env(id),
           },
         });
