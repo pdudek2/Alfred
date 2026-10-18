@@ -4138,6 +4138,13 @@ describe("terminal-manager IPC", () => {
       fire(created.id, { state: "your-turn" });
       emit(terminalChannels.write, { id: created.id, data: "h" });
       expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "hook" } });
+
+      // The answer a turn ended with takes the approval's place as the latest activity.
+      fire(created.id, { state: "your-turn", detail: "Created hello world.txt on the desktop." });
+      expect(lastDataEvent()).toMatchObject({
+        agentSignal: { state: "your-turn", source: "hook", detail: "Created hello world.txt on the desktop." },
+        activities: [expect.objectContaining({ kind: "output", detail: "Created hello world.txt on the desktop." })],
+      });
     });
 
     it("reads Codex OSC 9 notifications that only your input clears, not the terminal's own reports", async () => {
