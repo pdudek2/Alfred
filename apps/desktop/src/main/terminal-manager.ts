@@ -45,7 +45,7 @@ import {
   type TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc.js";
 import {
-  isFocusReport,
+  isTerminalReport,
   isShellProcess,
   parseOsc9,
   signalFromOsc9,
@@ -555,8 +555,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     session.commandInput = input.buffer;
     if (input.submitted) session.submittedAgentKind = input.agentKind;
     session.pty.write(request.data);
-    // Clicking into a waiting Codex terminal sends a focus report; only your own input answers it.
-    if (!isFocusReport(request.data) && clearWaitingSignal(session)) sendSignalUpdate(session, { agentSignal: null });
+    // Moving the mouse over or clicking into a waiting Codex terminal sends mouse and focus reports; only your own
+    // input answers it.
+    if (!isTerminalReport(request.data) && clearWaitingSignal(session)) sendSignalUpdate(session, { agentSignal: null });
     scheduleShellBusySample(session);
   });
 

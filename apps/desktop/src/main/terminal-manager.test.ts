@@ -4140,7 +4140,7 @@ describe("terminal-manager IPC", () => {
       expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "hook" } });
     });
 
-    it("reads Codex OSC 9 notifications that only your input clears, not the terminal's focus reports", async () => {
+    it("reads Codex OSC 9 notifications that only your input clears, not the terminal's own reports", async () => {
       const { bridge } = fakeBridge();
       const pty = new FakePty();
       registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
@@ -4158,14 +4158,17 @@ describe("terminal-manager IPC", () => {
         agentSignal: { state: "needs-you", source: "osc9", detail: "Approval requested: /bin/zsh -lc 'ls'" },
       });
 
-      // Clicking into the terminal and out again still reaches Codex, but it is not an answer.
+      // Clicking into the terminal and out again, or moving the mouse over it while Codex tracks the mouse,
+      // still reaches Codex, but it is not an answer.
       emit(terminalChannels.write, { id: created.id, data: "\x1b[I" });
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[<35;40;12M" });
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[<0;40;12M\x1b[<0;40;12m" });
       emit(terminalChannels.write, { id: created.id, data: "\x1b[O" });
       expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "needs-you", source: "osc9" } });
 
       emit(terminalChannels.write, { id: created.id, data: "y" });
       expect(lastDataEvent()).toMatchObject({ data: "", agentSignal: null });
-      expect(pty.writes).toEqual(["\x1b[I", "\x1b[O", "y"]);
+      expect(pty.writes).toEqual(["\x1b[I", "\x1b[<35;40;12M", "\x1b[<0;40;12M\x1b[<0;40;12m", "\x1b[O", "y"]);
     });
 
     it("tracks whether a plain terminal has a program in the foreground", async () => {

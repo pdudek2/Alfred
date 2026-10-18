@@ -71,10 +71,25 @@ export function signalFromOsc9(message: string): AgentSignalUpdate | null {
   return CODEX_WAITING.test(detail) ? { state: "needs-you", detail } : { state: "your-turn", detail };
 }
 
-/** The focus in and out reports a terminal sends on its own once a program asks for them, as Codex does. */
-export function isFocusReport(data: string): boolean {
-  // eslint-disable-next-line no-control-regex
-  return /^(?:\x1b\[[IO])+$/.test(data);
+/**
+ * What a terminal sends on its own once a program asks for it, as Codex does: focus in and out, mouse
+ * movement, clicks and scrolling (Codex 0.163 turns on any-motion tracking), and answers to cursor
+ * position, device, mode, keyboard-flag and colour queries. None of it answers an agent.
+ */
+const TERMINAL_REPORT = new RegExp(`^(?:${[
+  String.raw`\x1b\[[IO]`,
+  String.raw`\x1b\[<\d+;\d+;\d+[Mm]`,
+  String.raw`\x1b\[M[\s\S]{3}`,
+  String.raw`\x1b\[\??\d+;\d+(?:;\d+)?R`,
+  String.raw`\x1b\[[?>=][\d;]*c`,
+  String.raw`\x1b\[\?[\d;]*\$y`,
+  String.raw`\x1b\[\?\d*u`,
+  String.raw`\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`,
+].join("|")})+$`);
+
+// ponytail: Ctrl+F3 is encoded like a cursor position report (CSI 1;5 R), so it does not clear Needs you either.
+export function isTerminalReport(data: string): boolean {
+  return TERMINAL_REPORT.test(data);
 }
 
 export function signalFromHook(event: string, payload: unknown): AgentSignalUpdate | null {

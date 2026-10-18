@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createAgentSignalBridge,
-  isFocusReport,
+  isTerminalReport,
   isShellProcess,
   parseOsc9,
   signalFromHook,
@@ -59,12 +59,28 @@ describe("signals", () => {
     expect(signalFromOsc9("Question: Which database?")).toEqual({ state: "your-turn", detail: "Question: Which database?" });
   });
 
-  it("tells the terminal's focus reports apart from typed input", () => {
-    expect(isFocusReport("\x1b[I")).toBe(true);
-    expect(isFocusReport("\x1b[O\x1b[I")).toBe(true);
-    expect(isFocusReport("\x1b[A")).toBe(false);
-    expect(isFocusReport("\x1b[Iy")).toBe(false);
-    expect(isFocusReport("")).toBe(false);
+  it("tells what the terminal reports on its own apart from typed input", () => {
+    for (const report of [
+      "\x1b[I",
+      "\x1b[O\x1b[I",
+      // Mouse movement, a click and a scroll, as SGR and as X10 reports.
+      "\x1b[<35;40;12M\x1b[<35;41;12M",
+      "\x1b[<0;10;5M\x1b[<0;10;5m",
+      "\x1b[<64;10;5M",
+      "\x1b[M #!",
+      // Answers to cursor position, device attributes, a mode, keyboard flags and a colour query.
+      "\x1b[12;40R",
+      "\x1b[?62;22c",
+      "\x1b[?2004;1$y",
+      "\x1b[?0u",
+      "\x1b]11;rgb:0000/0000/0000\x1b\\",
+      "\x1b]10;rgb:ffff/ffff/ffff\x07",
+    ]) {
+      expect(isTerminalReport(report)).toBe(true);
+    }
+    for (const typed of ["y", "\r", "\x1b", "\x1b[A", "\x1b[Iy", "\x1b[<35;40;12My", "\x1b[200~text\x1b[201~", ""]) {
+      expect(isTerminalReport(typed)).toBe(false);
+    }
   });
 
   it("maps Claude hooks to states and describes the permission request", () => {
