@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { WorkspaceRevealPathRequest, WorkspaceRevealPathResult } from "../shared/workspace-ipc.js";
+import {
+  ATTACHABLE_IMAGE_PATH,
+  type WorkspaceRevealPathRequest,
+  type WorkspaceRevealPathResult,
+} from "../shared/workspace-ipc.js";
 
 export type WorkspacePathAccessOptions = {
   allowedRoots?: string[];
@@ -29,6 +33,36 @@ export async function resolveWorkspacePathForReveal(
     await fs.access(resolvedPath);
   } catch {
     return { ok: false, error: "Path does not exist.", resolvedPath };
+  }
+
+  return { ok: true, resolvedPath };
+}
+
+// ponytail: a cap so a hover never decodes a huge file; raise it if real screenshots hit it.
+const LINKED_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
+
+/**
+ * An image a terminal links to, for its hover preview and Quick Look. Agents keep pasted images outside
+ * the workspace (Claude in its temp folder), so any image file passes, but nothing else does.
+ */
+export async function resolveLinkedImage(
+  request: unknown,
+): Promise<{ ok: true; resolvedPath: string } | { ok: false; error: string }> {
+  const { path: rawPath, cwd } = typeof request === "object" && request !== null ? request as Record<string, unknown> : {};
+  // A relative path needs the session's folder; anything else as a base is ignored.
+  const base = typeof cwd === "string" && path.isAbsolute(cwd) ? cwd : undefined;
+  if (typeof rawPath !== "string" || (!path.isAbsolute(rawPath) && !rawPath.startsWith("~/") && !base)) {
+    return { ok: false, error: "Invalid image path." };
+  }
+
+  const resolvedPath = resolveWorkspacePath(rawPath, base);
+  if (!ATTACHABLE_IMAGE_PATH.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
+  try {
+    const stat = await fs.stat(resolvedPath);
+    if (!stat.isFile()) return { ok: false, error: "Not an image file." };
+    if (stat.size > LINKED_IMAGE_MAX_BYTES) return { ok: false, error: "Image is too large." };
+  } catch {
+    return { ok: false, error: "Image does not exist." };
   }
 
   return { ok: true, resolvedPath };

@@ -1498,6 +1498,7 @@ describe("terminal-manager IPC", () => {
       ALFRED_TEST_USER_TOKEN: "synthetic-user-token",
       PATH: process.env.PATH,
       TERM: "xterm-256color",
+      FORCE_HYPERLINK: "1",
     });
   });
 
