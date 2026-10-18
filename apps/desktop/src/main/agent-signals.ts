@@ -97,13 +97,28 @@ export function signalFromHook(event: string, payload: unknown): AgentSignalUpda
     case "UserPromptSubmit":
     case "PostToolUse":
       return { state: "working" };
-    case "Stop":
-      return { state: "your-turn" };
+    case "Stop": {
+      const detail = describeTurnEnd(payload);
+      return detail ? { state: "your-turn", detail } : { state: "your-turn" };
+    }
     case "PermissionRequest":
       return { state: "needs-you", detail: describePermissionRequest(payload) };
     default:
       return null;
   }
+}
+
+/** The first line of the agent's last answer, without Markdown marks. Claude and Codex both send it with Stop. */
+function describeTurnEnd(payload: unknown): string | undefined {
+  const message = typeof payload === "object" && payload !== null
+    ? (payload as { last_assistant_message?: unknown }).last_assistant_message
+    : undefined;
+  if (typeof message !== "string") return undefined;
+  const line = message
+    .split("\n")
+    .map((part) => part.replace(/^\s*(?:#+|[-*>]|\d+\.)\s+/, "").replace(/`|\*\*|__/g, "").trim())
+    .find(Boolean);
+  return line?.slice(0, MAX_DETAIL);
 }
 
 function describePermissionRequest(payload: unknown): string {
