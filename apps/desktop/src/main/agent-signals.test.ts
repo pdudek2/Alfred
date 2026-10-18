@@ -77,6 +77,14 @@ describe("signals", () => {
     ).toEqual({ state: "needs-you", detail: "Bash: touch probe.txt" });
     expect(signalFromHook("PermissionRequest", undefined)).toEqual({ state: "needs-you", detail: "Waiting for approval" });
   });
+
+  it("names the file a Codex edit approval is about instead of the patch", () => {
+    const patch = "*** Begin Patch\n*** Update File: src/session-status.ts\n@@\n-old\n+new\n*** End Patch";
+    expect(signalFromHook("PermissionRequest", { tool_name: "apply_patch", tool_input: { command: patch } })).toEqual({
+      state: "needs-you",
+      detail: "Edit src/session-status.ts",
+    });
+  });
 });
 
 describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
@@ -134,7 +142,8 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
   it("adds launch arguments only for claude and codex", async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
     bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
-    expect(bridge!.launchArgs("codex")).toEqual([
+    const codex = bridge!.launchArgs("codex");
+    expect(codex.slice(0, 6)).toEqual([
       "-c",
       "tui.notifications=true",
       "-c",
@@ -142,7 +151,35 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
       "-c",
       'tui.notification_condition="always"',
     ]);
+    expect(codex.slice(6).filter((_, index) => index % 2 === 1).map((override) => override.split("=", 1)[0])).toEqual([
+      "hooks.UserPromptSubmit",
+      "hooks.PermissionRequest",
+      "hooks.PostToolUse",
+      "hooks.Stop",
+    ]);
+    // The same definition every launch, so Codex's trust in it lasts.
+    expect(bridge!.launchArgs("codex")).toEqual(codex);
     expect(bridge!.launchArgs("npm")).toEqual([]);
     expect(bridge!.launchArgs(undefined)).toEqual([]);
+  });
+
+  it("delivers a Codex hook event through the relay command in its launch override", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
+    const received: Array<[string, AgentSignalUpdate]> = [];
+    bridge!.setListener((sessionId, update) => received.push([sessionId, update]));
+
+    const override = bridge!.launchArgs("codex").find((arg) => arg.startsWith("hooks.Stop="))!;
+    const command = JSON.parse(/command=("(?:[^"\\]|\\.)*")/.exec(override)![1]!) as string;
+    const output = await new Promise<string>((resolve, reject) => {
+      const child = execFile("sh", ["-c", command], { env: { ...process.env, ...bridge!.env("codex-1") } }, (error, stdout) =>
+        error ? reject(error) : resolve(stdout),
+      );
+      child.stdin!.end(JSON.stringify({ hook_event_name: "Stop", turn_id: "t1", last_assistant_message: "Done" }));
+    });
+    await expect.poll(() => received.length).toBe(1);
+    expect(received[0]).toEqual(["codex-1", { state: "your-turn" }]);
+    // Codex adds a UserPromptSubmit hook's plain output to the model's context, so the relay prints nothing.
+    expect(output).toBe("");
   });
 });
