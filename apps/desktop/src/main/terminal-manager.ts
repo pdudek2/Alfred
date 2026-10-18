@@ -1339,15 +1339,19 @@ function applyAgentSignal(
     ...(update.detail === undefined ? {} : { detail: update.detail }),
   };
   session.agentSignal = signal;
-  const approval = update.state === "needs-you"
+  const activity = update.state === "needs-you"
     ? recordSessionActivity(session, {
         kind: "approval",
         title: "Waiting for approval",
         detail: update.detail ?? "Waiting for approval",
         payload: { type: "approval", prompt: update.detail ?? "Waiting for approval" },
       }, now)
-    : null;
-  return { activities: approval ? [approval] : [], signal };
+    // The answer a turn ended with replaces the approval it asked for on the stack card.
+    // ponytail: hooks only; a Codex notification's turn-end preview would repeat the same answer next to it.
+    : update.state === "your-turn" && source === "hook" && update.detail
+      ? recordSessionActivity(session, { kind: "output", title: "Turn finished", detail: update.detail }, now)
+      : null;
+  return { activities: activity ? [activity] : [], signal };
 }
 
 /** Your answer resolves an approval; a Codex notification also ends when you type. Claude's Stop stays until its next hook. */

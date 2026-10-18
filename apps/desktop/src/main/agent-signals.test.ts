@@ -94,6 +94,18 @@ describe("signals", () => {
     expect(signalFromHook("PermissionRequest", undefined)).toEqual({ state: "needs-you", detail: "Waiting for approval" });
   });
 
+  it("says what a turn ended with: the first line of the agent's last answer", () => {
+    expect(signalFromHook("Stop", {
+      last_assistant_message: "## Done\n\nUtworzyłem plik `hello world.txt` na **pulpicie**.",
+      stop_hook_active: false,
+    })).toEqual({ state: "your-turn", detail: "Done" });
+    expect(signalFromHook("Stop", { last_assistant_message: "\n- Pobrano `example.com` (kod 0).\n- Nie zapisywałem pliku." }))
+      .toEqual({ state: "your-turn", detail: "Pobrano example.com (kod 0)." });
+    expect(signalFromHook("Stop", { last_assistant_message: "x".repeat(500) })?.detail).toHaveLength(240);
+    expect(signalFromHook("Stop", { last_assistant_message: "  \n " })).toEqual({ state: "your-turn" });
+    expect(signalFromHook("Stop", { last_assistant_message: null })).toEqual({ state: "your-turn" });
+  });
+
   it("names the file a Codex edit approval is about instead of the patch", () => {
     const patch = "*** Begin Patch\n*** Update File: src/session-status.ts\n@@\n-old\n+new\n*** End Patch";
     expect(signalFromHook("PermissionRequest", { tool_name: "apply_patch", tool_input: { command: patch } })).toEqual({
@@ -194,7 +206,7 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
       child.stdin!.end(JSON.stringify({ hook_event_name: "Stop", turn_id: "t1", last_assistant_message: "Done" }));
     });
     await expect.poll(() => received.length).toBe(1);
-    expect(received[0]).toEqual(["codex-1", { state: "your-turn" }]);
+    expect(received[0]).toEqual(["codex-1", { state: "your-turn", detail: "Done" }]);
     // Codex adds a UserPromptSubmit hook's plain output to the model's context, so the relay prints nothing.
     expect(output).toBe("");
   });
