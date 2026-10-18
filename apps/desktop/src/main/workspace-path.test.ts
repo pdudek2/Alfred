@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { isAllowedWorkspacePath, resolveWorkspacePathForReveal } from "./workspace-path.js";
+import { isAllowedWorkspacePath, resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
 
 let temporaryDirectory = "";
 
@@ -164,5 +164,35 @@ describe("workspace-path", () => {
       ok: false,
       error: "Invalid reveal cwd.",
     });
+  });
+
+  it("resolves only existing image files a terminal links to", async () => {
+    const image = path.join(temporaryDirectory, "out", "Screenshot 11.52.png");
+    const notes = path.join(temporaryDirectory, "notes.txt");
+    const folder = path.join(temporaryDirectory, "looks-like.png");
+    await fs.mkdir(path.dirname(image), { recursive: true });
+    await fs.writeFile(image, "png");
+    await fs.writeFile(notes, "text");
+    await fs.mkdir(folder);
+
+    await expect(resolveLinkedImage({ path: image })).resolves.toEqual({ ok: true, resolvedPath: image });
+    // An agent prints paths relative to the session's folder.
+    await expect(resolveLinkedImage({ path: "out/Screenshot 11.52.png", cwd: temporaryDirectory })).resolves.toEqual({
+      ok: true,
+      resolvedPath: image,
+    });
+    await expect(resolveLinkedImage({ path: "out/Screenshot 11.52.png" })).resolves.toEqual({ ok: false, error: "Invalid image path." });
+    await expect(resolveLinkedImage({ path: image, cwd: "relative" })).resolves.toEqual({ ok: true, resolvedPath: image });
+    await expect(resolveLinkedImage({ path: "out/Screenshot 11.52.png", cwd: "relative" })).resolves.toEqual({
+      ok: false,
+      error: "Invalid image path.",
+    });
+    await expect(resolveLinkedImage({ path: notes })).resolves.toEqual({ ok: false, error: "Invalid image path." });
+    await expect(resolveLinkedImage({ path: folder })).resolves.toEqual({ ok: false, error: "Not an image file." });
+    await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "gone.png") })).resolves.toEqual({
+      ok: false,
+      error: "Image does not exist.",
+    });
+    await expect(resolveLinkedImage(null)).resolves.toEqual({ ok: false, error: "Invalid image path." });
   });
 });

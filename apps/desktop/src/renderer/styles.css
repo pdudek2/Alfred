@@ -1789,6 +1789,43 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-muted);
 }
 
+/* The image a terminal link points at, beside the pointer while it rests on the link. The link keeps
+   the pointer: the card lets it through. 320px wide, as IMAGE_PEEK_WIDTH in TerminalDesk. */
+.terminal-image-peek {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  width: 320px;
+  padding: 6px 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-panel);
+  pointer-events: none;
+}
+
+.terminal-image-peek img {
+  width: 100%;
+  max-height: 200px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: var(--surface-control);
+  object-fit: contain;
+}
+
+.terminal-image-peek span {
+  padding: 0 2px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-image-peek .terminal-image-peek-hint {
+  color: var(--text-faint);
+}
+
 /* The session strip: at most one action row, then who runs here, where, since when, and the menu.
    It precedes the terminal in the DOM for keyboard order and is drawn below it. */
 .session-strip {

@@ -46,6 +46,8 @@ const workspaceChannels = {
   get: "alfred:workspace:get",
   openExternalUrl: "alfred:workspace:open-external-url",
   openExternalTerminal: "alfred:workspace:open-external-terminal",
+  imageThumbnail: "alfred:workspace:image-thumbnail",
+  quickLookImage: "alfred:workspace:quick-look-image",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
 } as const;
@@ -148,6 +150,10 @@ const workspace: WorkspaceApi = {
     ipcRenderer.invoke(workspaceChannels.openExternalUrl, request) as ReturnType<WorkspaceApi["openExternalUrl"]>,
   openExternalTerminal: (request) =>
     ipcRenderer.invoke(workspaceChannels.openExternalTerminal, request) as ReturnType<WorkspaceApi["openExternalTerminal"]>,
+  imageThumbnail: (request) =>
+    ipcRenderer.invoke(workspaceChannels.imageThumbnail, request) as ReturnType<WorkspaceApi["imageThumbnail"]>,
+  quickLookImage: (request) =>
+    ipcRenderer.invoke(workspaceChannels.quickLookImage, request) as ReturnType<WorkspaceApi["quickLookImage"]>,
   revealPath: (request) =>
     ipcRenderer.invoke(workspaceChannels.revealPath, request) as ReturnType<WorkspaceApi["revealPath"]>,
   setWorkspaceState: (request) =>

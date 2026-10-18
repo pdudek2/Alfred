@@ -11,8 +11,9 @@ import {
   type ReactNode,
 } from "react";
 import { activitySentence, waitingSentence } from "../activity-presentation";
-import { getDesktopPathForFile, getDesktopTerminalApi } from "../desktop-api";
+import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
+import { imagePathFromLink, imagePathsInLine } from "../terminal-image-links";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
@@ -710,6 +711,10 @@ function ManualTerminalTile({
     }
   }, [tileHidden]);
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
+  const resolvedCwdRef = useRef(resolvedCwd);
+  resolvedCwdRef.current = resolvedCwd;
+  const tileRef = useRef<HTMLElement>(null);
+  const [hoveredImage, setHoveredImage] = useState<HoveredImage | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);
   const kind = sessionTileKind({ agentKind, detectedAgentKind, source });
@@ -986,9 +991,32 @@ function ManualTerminalTile({
       return;
     }
 
+    // An image a terminal links to shows while the pointer rests on the link; ⌘-click opens it, as in Ghostty.
+    const showImage = (path: string, event: MouseEvent) => {
+      const tile = tileRef.current?.getBoundingClientRect();
+      if (!tile) return;
+      setHoveredImage({ path, x: event.clientX - tile.left, y: event.clientY - tile.top, width: tile.width, height: tile.height });
+    };
+    const hideImage = () => setHoveredImage(null);
+    const openImage = (path: string, event: MouseEvent) => {
+      if (event.metaKey) void getDesktopWorkspaceApi()?.quickLookImage({ path, cwd: resolvedCwdRef.current });
+    };
     const terminal = new Terminal({
       allowProposedApi: false,
       convertEol: true,
+      // OSC 8 links, such as the one Claude Code puts on a sent [Image #1]. Only image files react.
+      linkHandler: {
+        allowNonHttpProtocols: true,
+        activate: (event, uri) => {
+          const path = imagePathFromLink(uri);
+          if (path) openImage(path, event);
+        },
+        hover: (event, uri) => {
+          const path = imagePathFromLink(uri);
+          if (path) showImage(path, event);
+        },
+        leave: hideImage,
+      },
       cursorBlink: ghosttyVesperTerminalProfile.cursorBlink,
       cursorStyle: ghosttyVesperTerminalProfile.cursorStyle,
       disableStdin: metadata.restoredTranscript || !terminalApi,
@@ -1006,6 +1034,21 @@ function ManualTerminalTile({
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    // Image paths printed as plain text, such as an agent's "saved to out/shot.png" or a pasted path.
+    terminal.registerLinkProvider({
+      provideLinks(y, callback) {
+        // ponytail: one buffer row, with string offsets taken as cells; a path that wraps or follows wide characters is not linked.
+        const text = terminal.buffer.active.getLine(y - 1)?.translateToString(true) ?? "";
+        const links = imagePathsInLine(text).map(({ start, end, path }) => ({
+          range: { start: { x: start + 1, y }, end: { x: end, y } },
+          text: path,
+          activate: (event: MouseEvent) => openImage(path, event),
+          hover: (event: MouseEvent) => showImage(path, event),
+          leave: hideImage,
+        }));
+        callback(links.length > 0 ? links : undefined);
+      },
+    });
     terminal.attachCustomWheelEventHandler((event) => {
       if (event.deltaY === 0) return true;
 
@@ -1356,6 +1399,7 @@ function ManualTerminalTile({
 
   return (
     <article
+      ref={tileRef}
       className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${pinned ? "pinned" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
@@ -1455,6 +1499,7 @@ function ManualTerminalTile({
           <span>The file path goes into the prompt</span>
         </div>
       )}
+      {hoveredImage && <TerminalImagePeek image={hoveredImage} cwd={resolvedCwd} />}
       <div
         className="xterm-host"
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
@@ -1482,6 +1527,37 @@ function ManualTerminalTile({
         onDrop={dropFiles}
       />
     </article>
+  );
+}
+
+// Where the pointer rests on an image link, in the tile's own coordinates, and the tile's size.
+type HoveredImage = { path: string; x: number; y: number; width: number; height: number };
+
+const IMAGE_PEEK_WIDTH = 320;
+const IMAGE_PEEK_HEIGHT = 260;
+
+function TerminalImagePeek({ image, cwd }: { image: HoveredImage; cwd: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    setDataUrl(null);
+    void getDesktopWorkspaceApi()?.imageThumbnail({ path: image.path, cwd }).then((result) => {
+      if (current && result.ok) setDataUrl(result.dataUrl);
+    });
+    return () => {
+      current = false;
+    };
+  }, [cwd, image.path]);
+  if (!dataUrl) return null;
+  // Below and right of the pointer, flipped to the other side near the tile's edge.
+  const left = image.x + 14 + IMAGE_PEEK_WIDTH > image.width ? image.x - 14 - IMAGE_PEEK_WIDTH : image.x + 14;
+  const top = image.y + 18 + IMAGE_PEEK_HEIGHT > image.height ? image.y - 8 - IMAGE_PEEK_HEIGHT : image.y + 18;
+  return (
+    <div className="terminal-image-peek" style={{ left: Math.max(8, left), top: Math.max(8, top) }} aria-hidden="true">
+      <img src={dataUrl} alt="" />
+      <span>{image.path.split("/").at(-1)}</span>
+      <span className="terminal-image-peek-hint">⌘-click to open</span>
+    </div>
   );
 }
 

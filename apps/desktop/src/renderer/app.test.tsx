@@ -29,11 +29,20 @@ import type { ExternalSessionSummary, SessionsApi } from "../shared/sessions-ipc
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
-const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionIds, terminalInputHandlers } = vi.hoisted(() => ({
+const {
+  terminalConstructorOptions,
+  terminalDisposeCalls,
+  terminalFocusSessionIds,
+  terminalInputHandlers,
+  terminalLines,
+  terminalLinkProviders,
+} = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
   terminalFocusSessionIds: [] as string[],
   terminalInputHandlers: [] as Array<(data: string) => void>,
+  terminalLines: [] as string[],
+  terminalLinkProviders: [] as unknown[],
 }));
 
 const worktreeDiffPanelStyles = readFileSync(
@@ -44,7 +53,13 @@ const worktreeDiffPanelStyles = readFileSync(
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
     attachCustomWheelEventHandler = vi.fn();
-    buffer = { active: { baseY: 0, viewportY: 0 } };
+    buffer = {
+      active: {
+        baseY: 0,
+        viewportY: 0,
+        getLine: (y: number) => (terminalLines[y] === undefined ? undefined : { translateToString: () => terminalLines[y] }),
+      },
+    };
     cols = 80;
     rows = 24;
     element: HTMLElement | null = null;
@@ -71,6 +86,10 @@ vi.mock("@xterm/xterm", () => ({
     });
     paste = vi.fn((data: string) => {
       for (const handler of this.inputHandlers) handler(data);
+    });
+    registerLinkProvider = vi.fn((provider: unknown) => {
+      terminalLinkProviders.push(provider);
+      return { dispose: vi.fn() };
     });
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
@@ -214,6 +233,8 @@ function installDesktopBridge(
   killTerminal: ReturnType<typeof vi.fn>;
   renameTerminal: ReturnType<typeof vi.fn>;
   openExternalTerminal: ReturnType<typeof vi.fn>;
+  imageThumbnail: ReturnType<typeof vi.fn>;
+  quickLookImage: ReturnType<typeof vi.fn>;
   revealPath: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
@@ -332,6 +353,8 @@ function installDesktopBridge(
     return () => saveStatusListeners.delete(callback);
   });
   const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
+  const imageThumbnail = vi.fn().mockResolvedValue({ ok: true, dataUrl: "data:image/png;base64,thumb" });
+  const quickLookImage = vi.fn().mockResolvedValue({ ok: true });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
       workspaces: [
@@ -445,6 +468,8 @@ function installDesktopBridge(
       getWorkspaceState,
       openExternalTerminal,
       openExternalUrl,
+      imageThumbnail,
+      quickLookImage,
       revealPath,
       setWorkspaceState,
     },
@@ -462,6 +487,8 @@ function installDesktopBridge(
     killTerminal,
     renameTerminal,
     openExternalTerminal,
+    imageThumbnail,
+    quickLookImage,
     revealPath,
     requestPlan,
     resolveStagedPlan,
@@ -566,6 +593,8 @@ beforeEach(() => {
   terminalDisposeCalls.length = 0;
   terminalFocusSessionIds.length = 0;
   terminalInputHandlers.length = 0;
+  terminalLines.length = 0;
+  terminalLinkProviders.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -3993,6 +4022,47 @@ describe("App integration", () => {
     expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
       "Browser could not open this preview.",
     );
+  });
+
+  it("previews the image behind a terminal link while the pointer rests on it and opens it on ⌘-click", async () => {
+    type Link = { range: unknown; text: string; hover(event: MouseEvent): void; leave(): void };
+    type Handler = { hover(event: MouseEvent, uri: string): void; leave(): void; activate(event: MouseEvent, uri: string): void };
+    const { imageThumbnail, quickLookImage } = installDesktopBridge(undefined, null, [manualLiveSnapshot("links", "Image links")]);
+    render(<App />);
+    const tile = await screen.findByRole("article", { name: /Image links/i });
+    await waitFor(() => expect(terminalLinkProviders).toHaveLength(1));
+    const linkHandler = (terminalConstructorOptions.at(-1) as { linkHandler: Handler }).linkHandler;
+    const pointer = new MouseEvent("mousemove", { clientX: 40, clientY: 30 });
+    // Claude Code links a sent [Image #1] to its own copy of the image.
+    const uri = "file:///private/tmp/claude-501/project/session/images/1.png";
+    const imagePath = "/private/tmp/claude-501/project/session/images/1.png";
+
+    act(() => linkHandler.hover(pointer, uri));
+    expect(await within(tile).findByText("1.png")).toBeInTheDocument();
+    expect(tile.querySelector(".terminal-image-peek img")).toHaveAttribute("src", "data:image/png;base64,thumb");
+    expect(imageThumbnail).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/patryk/Desktop/Alfred" });
+    act(() => linkHandler.leave());
+    expect(within(tile).queryByText("1.png")).not.toBeInTheDocument();
+
+    // A plain click only focuses the terminal.
+    act(() => linkHandler.activate(new MouseEvent("click"), uri));
+    expect(quickLookImage).not.toHaveBeenCalled();
+    act(() => linkHandler.activate(new MouseEvent("click", { metaKey: true }), uri));
+    expect(quickLookImage).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/patryk/Desktop/Alfred" });
+    // Web links and other files are not images.
+    act(() => linkHandler.hover(pointer, "https://example.com/a.png"));
+    act(() => linkHandler.hover(pointer, "file:///Users/p/notes.txt"));
+    expect(imageThumbnail).toHaveBeenCalledTimes(1);
+
+    // A path an agent prints as plain text links too, relative to the session's folder.
+    terminalLines[0] = "Saved to out/shot.png";
+    let links: Link[] | undefined;
+    (terminalLinkProviders[0] as { provideLinks(y: number, callback: (found?: Link[]) => void): void })
+      .provideLinks(1, (found) => { links = found; });
+    expect(links).toEqual([expect.objectContaining({ range: { start: { x: 10, y: 1 }, end: { x: 21, y: 1 } }, text: "out/shot.png" })]);
+    act(() => links![0]!.hover(pointer));
+    expect(await within(tile).findByText("shot.png")).toBeInTheDocument();
+    expect(imageThumbnail).toHaveBeenLastCalledWith({ path: "out/shot.png", cwd: "/Users/patryk/Desktop/Alfred" });
   });
 
   it("pastes the escaped paths of files dropped on a live terminal", async () => {
