@@ -99,6 +99,9 @@ function describePermissionRequest(payload: unknown): string {
     (value): value is string => typeof value === "string" && value.trim() !== "",
   );
   const toolName = typeof tool === "string" && tool ? tool : "a tool";
+  // Codex sends a file edit as the whole patch; its first file says what waits better than the patch text.
+  const patchedFile = toolName === "apply_patch" ? /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(target ?? "")?.[1] : undefined;
+  if (patchedFile) return `Edit ${patchedFile}`.slice(0, MAX_DETAIL);
   return `${toolName}: ${target ?? "waiting for approval"}`.slice(0, MAX_DETAIL);
 }
 
@@ -141,6 +144,13 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     }),
     { mode: 0o600 },
   );
+  // Codex reads the same hooks as launch overrides. It runs them only once you trust them in its own terminal,
+  // and remembers that by the definition's hash, so the command must not change between launches.
+  // ponytail: a Codex without hooks (before mid 2026) would need a version check here.
+  const codexHookArgs = HOOK_EVENTS.flatMap((event) => [
+    "-c",
+    `hooks.${event}=[{hooks=[{type="command",command=${JSON.stringify(relayCommand(event))}}]}]`,
+  ]);
 
   let listener: ((sessionId: string, update: AgentSignalUpdate) => void) | null = null;
   const server = net.createServer((connection) => {
@@ -191,8 +201,12 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     launchArgs: (command) => {
       if (command === "claude") return ["--settings", settingsPath];
       // ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
+      // The notifications stay as the fallback for hooks you chose not to trust.
       if (command === "codex") {
-        return ["-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"'];
+        return [
+          "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
+          ...codexHookArgs,
+        ];
       }
       return [];
     },
