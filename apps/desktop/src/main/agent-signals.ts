@@ -71,10 +71,25 @@ export function signalFromOsc9(message: string): AgentSignalUpdate | null {
   return CODEX_WAITING.test(detail) ? { state: "needs-you", detail } : { state: "your-turn", detail };
 }
 
-/** The focus in and out reports a terminal sends on its own once a program asks for them, as Codex does. */
-export function isFocusReport(data: string): boolean {
-  // eslint-disable-next-line no-control-regex
-  return /^(?:\x1b\[[IO])+$/.test(data);
+/**
+ * What a terminal sends on its own once a program asks for it, as Codex does: focus in and out, mouse
+ * movement, clicks and scrolling (Codex 0.163 turns on any-motion tracking), and answers to cursor
+ * position, device, mode, keyboard-flag and colour queries. None of it answers an agent.
+ */
+const TERMINAL_REPORT = new RegExp(`^(?:${[
+  String.raw`\x1b\[[IO]`,
+  String.raw`\x1b\[<\d+;\d+;\d+[Mm]`,
+  String.raw`\x1b\[M[\s\S]{3}`,
+  String.raw`\x1b\[\??\d+;\d+(?:;\d+)?R`,
+  String.raw`\x1b\[[?>=][\d;]*c`,
+  String.raw`\x1b\[\?[\d;]*\$y`,
+  String.raw`\x1b\[\?\d*u`,
+  String.raw`\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`,
+].join("|")})+$`);
+
+// ponytail: Ctrl+F3 is encoded like a cursor position report (CSI 1;5 R), so it does not clear Needs you either.
+export function isTerminalReport(data: string): boolean {
+  return TERMINAL_REPORT.test(data);
 }
 
 export function signalFromHook(event: string, payload: unknown): AgentSignalUpdate | null {
@@ -99,6 +114,9 @@ function describePermissionRequest(payload: unknown): string {
     (value): value is string => typeof value === "string" && value.trim() !== "",
   );
   const toolName = typeof tool === "string" && tool ? tool : "a tool";
+  // Codex sends a file edit as the whole patch; its first file says what waits better than the patch text.
+  const patchedFile = toolName === "apply_patch" ? /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(target ?? "")?.[1] : undefined;
+  if (patchedFile) return `Edit ${patchedFile}`.slice(0, MAX_DETAIL);
   return `${toolName}: ${target ?? "waiting for approval"}`.slice(0, MAX_DETAIL);
 }
 
@@ -141,6 +159,13 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     }),
     { mode: 0o600 },
   );
+  // Codex reads the same hooks as launch overrides. It runs them only once you trust them in its own terminal,
+  // and remembers that by the definition's hash, so the command must not change between launches.
+  // ponytail: a Codex without hooks (before mid 2026) would need a version check here.
+  const codexHookArgs = HOOK_EVENTS.flatMap((event) => [
+    "-c",
+    `hooks.${event}=[{hooks=[{type="command",command=${JSON.stringify(relayCommand(event))}}]}]`,
+  ]);
 
   let listener: ((sessionId: string, update: AgentSignalUpdate) => void) | null = null;
   const server = net.createServer((connection) => {
@@ -191,8 +216,12 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     launchArgs: (command) => {
       if (command === "claude") return ["--settings", settingsPath];
       // ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
+      // The notifications stay as the fallback for hooks you chose not to trust.
       if (command === "codex") {
-        return ["-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"'];
+        return [
+          "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
+          ...codexHookArgs,
+        ];
       }
       return [];
     },
