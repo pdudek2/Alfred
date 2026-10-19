@@ -1077,6 +1077,9 @@ function ManualTerminalTile({
       },
     });
     terminal.attachCustomWheelEventHandler((event) => {
+      // A program on the alternate screen, such as Codex, vim or less, or one that tracks the mouse scrolls itself:
+      // xterm passes it the wheel as mouse reports or arrow keys, and keeps the event from the deck column.
+      if (terminal.buffer.active.type === "alternate" || terminal.modes.mouseTrackingMode !== "none") return true;
       if (event.deltaY === 0) return true;
 
       const direction = Math.sign(event.deltaY);
