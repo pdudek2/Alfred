@@ -51,6 +51,10 @@ export type CodexSentMessages = { messages: string[]; index: number };
  * The sent Codex messages the terminal shows, top to bottom, and which of them buffer row `y` belongs to; null when
  * the row is in none. Codex 0.163 draws a sent message with "› " on its first row and a two-space indent on the rows
  * after it. The last message drawn that way is its composer, which holds what you have not sent yet.
+ * Once a message scrolls off the top while its reply is still on screen, Codex pins a copy of it to the top row: one
+ * row, lines joined, cut with "…" when longer, and the reply drawn right under it.
+ * ponytail: a real message whose "› " row is exactly the top row is read as that row too, and a cut copy is left out;
+ * both only lose links. The rows' background, which Codex shades for a message, could tell them apart.
  */
 export function codexSentMessagesAt(row: (y: number) => string, y: number, rowCount: number): CodexSentMessages | null {
   const continues = (text: string) => text.startsWith("  ") && text.trim() !== "";
@@ -58,7 +62,8 @@ export function codexSentMessagesAt(row: (y: number) => string, y: number, rowCo
   for (let start = 0; start < rowCount; start += 1) {
     if (!row(start).startsWith(CODEX_MESSAGE_START)) continue;
     let end = start + 1;
-    while (end < rowCount && continues(row(end))) end += 1;
+    if (start === 0 && row(0).trimEnd().endsWith("…")) continue;
+    while (start > 0 && end < rowCount && continues(row(end))) end += 1;
     blocks.push({ start, end });
     start = end - 1;
   }
