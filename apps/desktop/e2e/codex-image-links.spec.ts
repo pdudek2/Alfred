@@ -16,11 +16,11 @@ const MOUSE_TRACKING = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
 
 test("previews the file behind a sent Codex [Image #1] from the rollout its hook names", async ({ harness }) => {
   const { page } = harness;
-  const { marker, tile } = await startCodexWithSentImage(harness);
+  const { marker, tile } = await startCodexWithSentMessages(harness, [{ text: "[Image #1] look", image: "Screenshot 11.52.png" }]);
 
   // The sent message, then the composer.
   await appendFile(marker, `${MOUSE_TRACKING}› [Image #1] look\n\n› Ask Codex to do anything\n`);
-  await hoverPlaceholder(page, tile);
+  await hoverPlaceholder(page, sentRow(tile, /^›\s\[Image\s#1\]\slook\s*$/));
   const peek = tile.locator(".terminal-image-peek");
   await expect(peek).toContainText("Screenshot 11.52.png");
   // The terminal reported the movement to Codex (the PTY echoes it), so tracking was on during the hover.
@@ -32,9 +32,15 @@ test("previews the file behind a sent Codex [Image #1] from the rollout its hook
   await harness.closeActiveTerminals();
 });
 
-test("keeps the preview and opens it on ⌘-click while Codex redraws the message", async ({ harness }) => {
-  const { app, page } = harness;
-  const { image, marker, tile } = await startCodexWithSentImage(harness);
+test("tells screenshots sent on their own apart and keeps their preview while Codex redraws", async ({ harness }) => {
+  const { app, page, paths } = harness;
+  // Screenshots sent with no words are all "[Image #1]"; the message before them pins which is which.
+  const { marker, tile } = await startCodexWithSentMessages(harness, [
+    { text: "[Image #1]", image: "first.png" },
+    { text: "kontynuuj" },
+    { text: "[Image #1]", image: "second.png" },
+    { text: "[Image #1]", image: "third.png" },
+  ]);
   // Quick Look would open on screen; record what it was asked to show instead.
   await app.evaluate(({ BrowserWindow }) => {
     const shown: string[] = [];
@@ -44,8 +50,8 @@ test("keeps the preview and opens it on ⌘-click while Codex redraws the messag
     };
   });
 
-  // Codex draws on its alternate screen and, while it works, redraws the rows around the message many times a second.
-  const frame = "\x1b[5;1H› [Image #1] look\x1b[7;1H› Ask Codex to do anything";
+  // Codex draws on its alternate screen and, while it works, redraws the rows around the messages many times a second.
+  const frame = "\x1b[3;1H› kontynuuj\x1b[5;1H› [Image #1]\x1b[7;1H› [Image #1]\x1b[9;1H› Ask Codex to do anything";
   await appendFile(marker, `\x1b[?1049h\x1b[H\x1b[2J${MOUSE_TRACKING}${frame}`);
   let working = true;
   const redraws = (async () => {
@@ -56,9 +62,13 @@ test("keeps the preview and opens it on ⌘-click while Codex redraws the messag
   })();
 
   try {
-    await hoverPlaceholder(page, tile);
+    const screenshots = sentRow(tile, /^›\s\[Image\s#1\]\s*$/);
+    await expect(screenshots).toHaveCount(2);
     const peek = tile.locator(".terminal-image-peek");
-    await expect(peek).toContainText("Screenshot 11.52.png");
+    await hoverPlaceholder(page, screenshots.first());
+    await expect(peek).toContainText("second.png");
+    await hoverPlaceholder(page, screenshots.last());
+    await expect(peek).toContainText("third.png");
     const visible: boolean[] = [];
     for (let sample = 0; sample < 20; sample += 1) {
       visible.push(await peek.isVisible());
@@ -74,7 +84,8 @@ test("keeps the preview and opens it on ⌘-click while Codex redraws the messag
       await page.waitForTimeout(60);
     }
     await page.keyboard.up("Meta");
-    await expect.poll(() => app.evaluate(() => (globalThis as { alfredQuickLook?: string[] }).alfredQuickLook)).toEqual(Array(5).fill(image));
+    await expect.poll(() => app.evaluate(() => (globalThis as { alfredQuickLook?: string[] }).alfredQuickLook))
+      .toEqual(Array(5).fill(path.join(paths.root, "third.png")));
   } finally {
     working = false;
     await redraws;
@@ -83,8 +94,10 @@ test("keeps the preview and opens it on ⌘-click while Codex redraws the messag
   await harness.closeActiveTerminals();
 });
 
-/** A Codex session whose hook named a rollout with one sent message, "[Image #1] look", and its screenshot. */
-async function startCodexWithSentImage(harness: ElectronHarness): Promise<{ image: string; marker: string; tile: Locator }> {
+type SentMessage = { text: string; image?: string };
+
+/** A Codex session whose hook named a rollout with these sent messages, as Codex 0.163 records them. */
+async function startCodexWithSentMessages(harness: ElectronHarness, sent: SentMessage[]): Promise<{ marker: string; tile: Locator }> {
   const { page, paths } = harness;
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("radio", { name: /^Codex/ }).click();
@@ -97,34 +110,40 @@ async function startCodexWithSentImage(harness: ElectronHarness): Promise<{ imag
     .trim()
     .split("\n");
 
-  // What Codex 0.163 records for a message sent with a pasted screenshot.
-  const image = path.join(paths.root, "Screenshot 11.52.png");
-  await writeFile(image, PIXEL_PNG);
+  // Each message is the user message carrying its image's path, then the UserMessage that marks it as sent.
   const rollout = path.join(paths.root, "rollout-2026-10-19T10-56-29.jsonl");
-  const content = [
-    { type: "input_text", text: `<image name=[Image #1] path="${image}">` },
-    { type: "input_text", text: "</image>" },
-    { type: "input_text", text: "[Image #1] look" },
-  ];
-  await writeFile(rollout, `${JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content } })}\n`);
-  // The hook Codex runs when the message is sent, as Alfred's relay forwards it.
+  const lines: string[] = [];
+  for (const { text, image } of sent) {
+    const imagePath = image ? path.join(paths.root, image) : undefined;
+    if (imagePath) await writeFile(imagePath, PIXEL_PNG);
+    const tags = imagePath ? [{ type: "input_text", text: `<image name=[Image #1] path="${imagePath}">` }, { type: "input_text", text: "</image>" }] : [];
+    const content = [...tags, { type: "input_text", text }];
+    const item = { type: "UserMessage", content: [...(imagePath ? [{ type: "local_image", path: imagePath }] : []), { type: "text", text }] };
+    lines.push(JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content } }));
+    lines.push(JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item } }));
+  }
+  await writeFile(rollout, `${lines.join("\n")}\n`);
+  // The hook Codex runs when a message is sent, as Alfred's relay forwards it.
   await new Promise<void>((resolve, reject) => {
-    const payload = JSON.stringify({ hook_event_name: "UserPromptSubmit", transcript_path: rollout, prompt: "[Image #1] look" });
+    const payload = JSON.stringify({ hook_event_name: "UserPromptSubmit", transcript_path: rollout, prompt: sent.at(-1)!.text });
     const socket = net.connect(socketPath!, () => socket.end(`${JSON.stringify({ sessionId, event: "UserPromptSubmit", payload })}\n`));
     socket.on("error", reject);
     socket.on("close", () => resolve());
   });
   await expect(tile).toHaveClass(/session-working/);
-  return { image, marker, tile };
+  return { marker, tile };
 }
 
-async function hoverPlaceholder(page: Page, tile: Locator): Promise<void> {
-  // xterm draws spaces as no-break spaces, which \s matches.
-  const sent = tile.locator(".xterm-rows > div").filter({ hasText: /^›\s\[Image\s#1\]\slook\s*$/ });
-  await expect(sent).toHaveCount(1);
+// xterm draws spaces as no-break spaces, which \s matches.
+function sentRow(tile: Locator, text: RegExp): Locator {
+  return tile.locator(".xterm-rows > div").filter({ hasText: text });
+}
+
+async function hoverPlaceholder(page: Page, row: Locator): Promise<void> {
+  await expect(row).toHaveCount(1);
   // Where the "[" of the placeholder is drawn, however xterm splits the row into elements.
-  const bracket = await sent.evaluate((row) => {
-    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+  const bracket = await row.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const index = node.textContent!.indexOf("[Image");
       if (index < 0) continue;

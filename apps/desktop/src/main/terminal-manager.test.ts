@@ -4198,17 +4198,25 @@ describe("terminal-manager IPC", () => {
         { type: "input_text", text: "</image>" },
         { type: "input_text", text: "[Image #1] look" },
       ];
-      await fs.writeFile(rollout, `${JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content } })}\n`);
+      const item = { type: "UserMessage", content: [{ type: "local_image", path: "/Users/p/Desktop/shot.png" }, { type: "text", text: "[Image #1] look" }] };
+      await fs.writeFile(
+        rollout,
+        `${JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content } })}\n`
+          + `${JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item } })}\n`,
+      );
+      const request = { clientId: "codex-1", messages: ["[Image #1] look"], index: 0 };
 
       // Before any hook there is no rollout to read.
-      await expect(invoke(terminalChannels.codexImages, { clientId: "codex-1", text: "[Image #1] look" })).resolves.toEqual({ images: {} });
+      await expect(invoke(terminalChannels.codexImages, request)).resolves.toEqual({ images: {} });
       fire(codex.id, { state: "working" }, rollout);
       fire(claude.id, { state: "working" }, rollout);
-      await expect(invoke(terminalChannels.codexImages, { clientId: "codex-1", text: "[Image #1] look" })).resolves.toEqual({
+      await expect(invoke(terminalChannels.codexImages, request)).resolves.toEqual({
         images: { "[Image #1]": "/Users/p/Desktop/shot.png" },
       });
       // Claude links its own images, so only Codex sessions are looked up.
-      await expect(invoke(terminalChannels.codexImages, { clientId: "claude-1", text: "[Image #1] look" })).resolves.toEqual({ images: {} });
+      await expect(invoke(terminalChannels.codexImages, { ...request, clientId: "claude-1" })).resolves.toEqual({ images: {} });
+      // The message asked about must be one of those shown.
+      await expect(invoke(terminalChannels.codexImages, { ...request, index: 1 })).resolves.toEqual({ images: {} });
     });
 
     it("tracks whether a plain terminal has a program in the foreground", async () => {
