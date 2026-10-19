@@ -194,19 +194,21 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
   it("delivers a Codex hook event through the relay command in its launch override", async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
     bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
-    const received: Array<[string, AgentSignalUpdate]> = [];
-    bridge!.setListener((sessionId, update) => received.push([sessionId, update]));
+    const received: Array<[string, AgentSignalUpdate, string | undefined]> = [];
+    bridge!.setListener((sessionId, update, transcriptPath) => received.push([sessionId, update, transcriptPath]));
 
     const override = bridge!.launchArgs("codex").find((arg) => arg.startsWith("hooks.Stop="))!;
     const command = JSON.parse(/command=("(?:[^"\\]|\\.)*")/.exec(override)![1]!) as string;
+    const rollout = "/Users/p/.codex/sessions/2026/10/19/rollout-2026-10-19T10-42-49-01a15353.jsonl";
     const output = await new Promise<string>((resolve, reject) => {
       const child = execFile("sh", ["-c", command], { env: { ...process.env, ...bridge!.env("codex-1") } }, (error, stdout) =>
         error ? reject(error) : resolve(stdout),
       );
-      child.stdin!.end(JSON.stringify({ hook_event_name: "Stop", turn_id: "t1", last_assistant_message: "Done" }));
+      child.stdin!.end(JSON.stringify({ hook_event_name: "Stop", turn_id: "t1", transcript_path: rollout, last_assistant_message: "Done" }));
     });
     await expect.poll(() => received.length).toBe(1);
-    expect(received[0]).toEqual(["codex-1", { state: "your-turn", detail: "Done" }]);
+    // The rollout is where Codex keeps the paths of the images it shows as [Image #1].
+    expect(received[0]).toEqual(["codex-1", { state: "your-turn", detail: "Done" }, rollout]);
     // Codex adds a UserPromptSubmit hook's plain output to the model's context, so the relay prints nothing.
     expect(output).toBe("");
   });

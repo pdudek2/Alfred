@@ -72,7 +72,10 @@ export async function createDesktopFixture(
       ...["codex", "claude"].map((agent) =>
         writeFile(
           path.join(paths.home, "bin", agent),
-          `#!/bin/sh\nmarker="\${TMPDIR:-/tmp}/alfred-${agent}-fixture-$$"\nprintf '${agent} fixture ready\\n' > "$marker"\nexec /usr/bin/tail -f "$marker"\n`,
+          // Appending to the marker makes the agent print; the hook file says where its hooks would report.
+          `#!/bin/sh\nmarker="\${TMPDIR:-/tmp}/alfred-${agent}-fixture-$$"\n`
+            + `printf '%s\\n%s\\n' "$ALFRED_HOOK_SOCKET" "$ALFRED_SESSION_ID" > "\${TMPDIR:-/tmp}/alfred-${agent}-hook-$$"\n`
+            + `printf '${agent} fixture ready\\n' > "$marker"\nexec /usr/bin/tail -f "$marker"\n`,
           { encoding: "utf8", mode: 0o755 },
         )
       ),

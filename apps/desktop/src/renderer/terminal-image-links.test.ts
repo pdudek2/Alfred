@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imagePathFromLink, imagePathsInLine } from "./terminal-image-links";
+import { codexSentMessageAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "./terminal-image-links";
 
 describe("terminal image links", () => {
   it("reads the image file behind an OSC 8 link and ignores every other link", () => {
@@ -33,5 +33,37 @@ describe("terminal image links", () => {
 
   it("leaves bare names, web addresses and other files alone", () => {
     expect(imagePathsInLine("logo.png https://example.com/a.png /Users/p/notes.txt /Users/p/build")).toEqual([]);
+  });
+
+  it("finds the sent Codex message a row belongs to", () => {
+    // Rows as Codex 0.163 leaves them in the terminal.
+    const rows = [
+      "› [Image #1] [Image #2] look",
+      "",
+      "• [Image #1] shows the sidebar",
+      "  and [Image #2] the header.",
+      "",
+      "› [Image #1] please compare this screenshot with the layout we agreed on yesterday and tell me which spacing tokens",
+      "  drift [Image #2]",
+      "",
+      "› [Image #1] not sent yet",
+      "",
+      "  GPT-6.1-Sol default · ~/Desktop/Alfred",
+    ];
+    const row = (y: number) => rows[y] ?? "";
+    expect(imagePlaceholdersInLine(rows[0]!)).toEqual([
+      { start: 2, end: 12, placeholder: "[Image #1]" },
+      { start: 13, end: 23, placeholder: "[Image #2]" },
+    ]);
+    expect(codexSentMessageAt(row, 0, rows.length)).toBe("[Image #1] [Image #2] look");
+    // A long message continues on indented rows, so both rows give the whole message.
+    const long = `${rows[5]!.slice(2)}\n${rows[6]}`;
+    expect(codexSentMessageAt(row, 5, rows.length)).toBe(long);
+    expect(codexSentMessageAt(row, 6, rows.length)).toBe(long);
+    // Codex's answer quoting a placeholder is not a message you sent.
+    expect(codexSentMessageAt(row, 2, rows.length)).toBeNull();
+    expect(codexSentMessageAt(row, 3, rows.length)).toBeNull();
+    // The last message is Codex's composer: a draft has no images in the rollout yet, or an earlier message's.
+    expect(codexSentMessageAt(row, 8, rows.length)).toBeNull();
   });
 });
