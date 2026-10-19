@@ -1050,6 +1050,12 @@ function ManualTerminalTile({
       },
     });
     // Codex shows a sent image as an unlinked [Image #1], numbered again in every message; its rollout says which file it is.
+    // While Codex works it redraws the rows around a message many times a second, and xterm drops the link and asks
+    // again after each redraw. Answering from the last answer for that row keeps the link, so the preview stays and a
+    // ⌘-click lands. The answer lives briefly, so a later message with the same text on the same row is asked about.
+    // ponytail: a message with the same text that Codex scrolls onto a hovered row can show the earlier one's file for up
+    // to 1.5 s, as it can anyway until Codex writes it to the rollout; key on the message's place in the transcript if seen.
+    const recentCodexImages = new Map<string, { images: Record<string, string>; at: number }>();
     terminal.registerLinkProvider({
       provideLinks(y, callback) {
         const buffer = terminal.buffer.active;
@@ -1060,7 +1066,7 @@ function ManualTerminalTile({
           callback(undefined);
           return;
         }
-        void terminalApi.codexImages({ clientId: sessionKey, text }).then(({ images }) => {
+        const answer = (images: Record<string, string>) => {
           const links = placeholders.flatMap(({ start, end, placeholder }) => {
             const path = images[placeholder];
             if (!path) return [];
@@ -1073,10 +1079,28 @@ function ManualTerminalTile({
             }];
           });
           callback(links.length > 0 ? links : undefined);
-        }, () => callback(undefined));
+        };
+        const key = `${y}\n${text}`;
+        const fetchImages = () => terminalApi.codexImages({ clientId: sessionKey, text }).then(({ images }) => {
+          if (recentCodexImages.size > 64) recentCodexImages.clear();
+          recentCodexImages.set(key, { images, at: Date.now() });
+          return images;
+        });
+        const recent = recentCodexImages.get(key);
+        const age = recent ? Date.now() - recent.at : Infinity;
+        if (recent && age < CODEX_IMAGES_FRESH_MS) {
+          // Refreshed while the pointer rests, so a long hover over a working Codex keeps answering at once.
+          if (age > CODEX_IMAGES_FRESH_MS / 2) void fetchImages().catch(() => {});
+          answer(recent.images);
+          return;
+        }
+        void fetchImages().then(answer, () => callback(undefined));
       },
     });
     terminal.attachCustomWheelEventHandler((event) => {
+      // A program on the alternate screen, such as Codex, vim or less, or one that tracks the mouse scrolls itself:
+      // xterm passes it the wheel as mouse reports or arrow keys, and keeps the event from the deck column.
+      if (terminal.buffer.active.type === "alternate" || terminal.modes.mouseTrackingMode !== "none") return true;
       if (event.deltaY === 0) return true;
 
       const direction = Math.sign(event.deltaY);
@@ -1561,6 +1585,8 @@ function ManualTerminalTile({
 type HoveredImage = { path: string; x: number; y: number; width: number; height: number };
 
 const IMAGE_PEEK_WIDTH = 320;
+/** How long the images of a Codex message answer a redrawn row without asking the main process again. */
+const CODEX_IMAGES_FRESH_MS = 1500;
 const IMAGE_PEEK_HEIGHT = 260;
 
 function TerminalImagePeek({ image, cwd }: { image: HoveredImage; cwd: string }) {

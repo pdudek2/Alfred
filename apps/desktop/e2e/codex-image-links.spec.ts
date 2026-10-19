@@ -1,9 +1,9 @@
 import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
-import { expect, test } from "./support/electron-app";
+import { expect, test, type ElectronHarness } from "./support/electron-app";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
@@ -11,8 +11,80 @@ type DesktopTerminalWindow = Window & {
 
 // The smallest valid PNG: one transparent pixel.
 const PIXEL_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+// Codex 0.163 tracks the mouse, including bare movement.
+const MOUSE_TRACKING = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
 
 test("previews the file behind a sent Codex [Image #1] from the rollout its hook names", async ({ harness }) => {
+  const { page } = harness;
+  const { marker, tile } = await startCodexWithSentImage(harness);
+
+  // The sent message, then the composer.
+  await appendFile(marker, `${MOUSE_TRACKING}› [Image #1] look\n\n› Ask Codex to do anything\n`);
+  await hoverPlaceholder(page, tile);
+  const peek = tile.locator(".terminal-image-peek");
+  await expect(peek).toContainText("Screenshot 11.52.png");
+  // The terminal reported the movement to Codex (the PTY echoes it), so tracking was on during the hover.
+  await expect.poll(() => terminalBuffer(page)).toContain("[<35;");
+  await expect.poll(() => peek.locator("img").evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  await page.mouse.move(5, 5);
+  await expect(peek).toHaveCount(0);
+  harness.assertNoRuntimeErrors();
+  await harness.closeActiveTerminals();
+});
+
+test("keeps the preview and opens it on ⌘-click while Codex redraws the message", async ({ harness }) => {
+  const { app, page } = harness;
+  const { image, marker, tile } = await startCodexWithSentImage(harness);
+  // Quick Look would open on screen; record what it was asked to show instead.
+  await app.evaluate(({ BrowserWindow }) => {
+    const shown: string[] = [];
+    (globalThis as { alfredQuickLook?: string[] }).alfredQuickLook = shown;
+    BrowserWindow.prototype.previewFile = (file: string) => {
+      shown.push(file);
+    };
+  });
+
+  // Codex draws on its alternate screen and, while it works, redraws the rows around the message many times a second.
+  const frame = "\x1b[5;1H› [Image #1] look\x1b[7;1H› Ask Codex to do anything";
+  await appendFile(marker, `\x1b[?1049h\x1b[H\x1b[2J${MOUSE_TRACKING}${frame}`);
+  let working = true;
+  const redraws = (async () => {
+    while (working) {
+      await appendFile(marker, frame);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  })();
+
+  try {
+    await hoverPlaceholder(page, tile);
+    const peek = tile.locator(".terminal-image-peek");
+    await expect(peek).toContainText("Screenshot 11.52.png");
+    const visible: boolean[] = [];
+    for (let sample = 0; sample < 20; sample += 1) {
+      visible.push(await peek.isVisible());
+      await page.waitForTimeout(25);
+    }
+    expect(visible).toEqual(Array(20).fill(true));
+
+    await page.keyboard.down("Meta");
+    for (let click = 0; click < 5; click += 1) {
+      await page.mouse.down();
+      await page.waitForTimeout(60);
+      await page.mouse.up();
+      await page.waitForTimeout(60);
+    }
+    await page.keyboard.up("Meta");
+    await expect.poll(() => app.evaluate(() => (globalThis as { alfredQuickLook?: string[] }).alfredQuickLook)).toEqual(Array(5).fill(image));
+  } finally {
+    working = false;
+    await redraws;
+  }
+  harness.assertNoRuntimeErrors();
+  await harness.closeActiveTerminals();
+});
+
+/** A Codex session whose hook named a rollout with one sent message, "[Image #1] look", and its screenshot. */
+async function startCodexWithSentImage(harness: ElectronHarness): Promise<{ image: string; marker: string; tile: Locator }> {
   const { page, paths } = harness;
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("radio", { name: /^Codex/ }).click();
@@ -43,27 +115,31 @@ test("previews the file behind a sent Codex [Image #1] from the rollout its hook
     socket.on("close", () => resolve());
   });
   await expect(tile).toHaveClass(/session-working/);
+  return { image, marker, tile };
+}
 
-  // Codex 0.163 tracks the mouse, including bare movement; then the sent message and its composer.
-  await appendFile(marker, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h› [Image #1] look\n\n› Ask Codex to do anything\n");
+async function hoverPlaceholder(page: Page, tile: Locator): Promise<void> {
   // xterm draws spaces as no-break spaces, which \s matches.
   const sent = tile.locator(".xterm-rows > div").filter({ hasText: /^›\s\[Image\s#1\]\slook\s*$/ });
   await expect(sent).toHaveCount(1);
-  const box = (await sent.boundingBox())!;
-  const cell = await sent.locator("span").first().evaluate((element) => element.getBoundingClientRect().width / element.textContent!.length);
-  // A move inside the row first, so xterm sees the pointer arrive over the placeholder.
-  await page.mouse.move(box.x + cell * 4, box.y + box.height / 2);
-  await page.mouse.move(box.x + cell * 6.5, box.y + box.height / 2);
-  const peek = tile.locator(".terminal-image-peek");
-  await expect(peek).toContainText("Screenshot 11.52.png");
-  // The terminal reported the movement to Codex (the PTY echoes it), so tracking was on during the hover.
-  await expect.poll(() => terminalBuffer(page)).toContain("[<35;");
-  await expect.poll(() => peek.locator("img").evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
-  await page.mouse.move(5, 5);
-  await expect(peek).toHaveCount(0);
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
-});
+  // Where the "[" of the placeholder is drawn, however xterm splits the row into elements.
+  const bracket = await sent.evaluate((row) => {
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const index = node.textContent!.indexOf("[Image");
+      if (index < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, index);
+      range.setEnd(node, index + 1);
+      const { x, y, width, height } = range.getBoundingClientRect();
+      return { x, y: y + height / 2, width };
+    }
+    throw new Error("Expected [Image in the row.");
+  });
+  // Two moves, so xterm sees the pointer arrive over the placeholder.
+  await page.mouse.move(bracket.x + bracket.width * 0.5, bracket.y);
+  await page.mouse.move(bracket.x + bracket.width * 3.5, bracket.y);
+}
 
 async function terminalBuffer(page: Page): Promise<string> {
   const result = await page.evaluate(() => (window as DesktopTerminalWindow).alfredDesktop!.terminal.list());

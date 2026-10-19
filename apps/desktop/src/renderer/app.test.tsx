@@ -4084,6 +4084,10 @@ describe("App integration", () => {
     expect(await within(tile).findByText("shot 2.png")).toBeInTheDocument();
     act(() => codexLinks![0]!.activate(new MouseEvent("click", { metaKey: true })));
     expect(quickLookImage).toHaveBeenLastCalledWith({ path: "/Users/p/Desktop/shot 2.png", cwd: "/Users/patryk/Desktop/Alfred" });
+    // xterm asks again each time Codex redraws the row; the last answer comes back at once.
+    let redrawnLinks: Link[] | undefined;
+    (terminalLinkProviders[1] as Provider).provideLinks(1, (found) => { redrawnLinks = found; });
+    expect(redrawnLinks).toEqual([expect.objectContaining({ range: { start: { x: 3, y: 1 }, end: { x: 12, y: 1 } }, text: "[Image #1]" })]);
     // The composer at the bottom holds a draft, which has no files yet.
     terminalLines[2] = "› [Image #1] look";
     let draftLinks: Link[] | undefined = [];
