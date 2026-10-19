@@ -1,9 +1,9 @@
-import { mkdir, symlink, unlink, utimes, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, unlink, utimes, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createCodexSessionsReader } from "./codex-sessions.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { SUMMARY_CACHE_COUNT_LIMIT, SUMMARY_CACHE_TEXT_LIMIT } from "../shared/sessions-ipc.js";
@@ -16,9 +16,16 @@ import {
 // the default 5s timeout is too tight when the full suite contends for disk I/O.
 const RESOURCE_TEST_TIMEOUT_MS = 60_000;
 
+// A folder for one test, removed when it ends; the resource tests fill theirs with up to 20 MB.
+function temporaryDirectory(prefix: string): string {
+  const directory = mkdtempSync(path.join(tmpdir(), prefix));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+  return directory;
+}
+
 describe("Codex sessions reader", () => {
   it("maps sessions from Alfred-managed worktrees back to their project", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const projectRoot = path.join(codexHome, "project");
     const managedWorktreeRootPath = path.join(codexHome, "user-data", "worktrees");
     const managedCheckout = path.join(managedProjectWorktreeRoot(managedWorktreeRootPath, projectRoot), "feature-a");
@@ -48,7 +55,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("assigns a nested project by its longest matching root", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const parentRoot = path.join(codexHome, "very-long-parent-project-name");
     const childRoot = path.join(parentRoot, "x");
     const managedWorktreeRootPath = path.join(codexHome, "managed-worktrees-with-a-long-root-name");
@@ -71,7 +78,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const workspaceA = "/workspaces/alfred";
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     const sessionId = "019fff00-1111-7222-8333-444444444444";
@@ -109,7 +116,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("classifies dot-segment and symlink escapes outside a project as read-only", async () => {
-    const temporaryRoot = mkdtempSync(path.join(tmpdir(), "alfred-session-trust-"));
+    const temporaryRoot = temporaryDirectory("alfred-session-trust-");
     const workspaceRoot = path.join(temporaryRoot, "workspace");
     const outsideRoot = path.join(temporaryRoot, "outside");
     const symlinkEscape = path.join(workspaceRoot, "linked-outside");
@@ -141,7 +148,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("discovers summaries once for a multi-page cursor snapshot and rediscovers on refresh", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
     const onSummaryDiscovery = vi.fn();
     const reader = createCodexSessionsReader({
@@ -171,7 +178,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("releases an unfinished list snapshot without clearing aliases for published rows", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
     const reader = createCodexSessionsReader({ codexHome });
     const request = {
@@ -234,7 +241,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("rejects unknown content-shaped transcript keys without exposing local paths", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const reader = createCodexSessionsReader({ codexHome });
     const error = await reader.readTranscriptPage({ sessionKey: "external-codex:not-listed" }).catch((reason: unknown) => reason);
 
@@ -244,7 +251,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("keeps the newest duplicate and prioritizes the Codex title index", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const olderDir = path.join(codexHome, "sessions", "2026", "07", "19");
     const newerDir = path.join(codexHome, "sessions", "2026", "07", "20");
     const sessionId = "019fff11-1111-7222-8333-444444444444";
@@ -312,7 +319,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("rejects invalid cursors and clamps the requested page limit", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     await Promise.all(Array.from({ length: 101 }, async (_, index) => {
@@ -326,7 +333,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("keeps oversized metadata pages within the 512 KiB response ceiling", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     await writeFile(
@@ -355,7 +362,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("skips an oversized session id without hiding the next valid session", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     const oversizedFile = path.join(sessionDir, "oversized-id.jsonl");
     const validFile = path.join(sessionDir, "valid-id.jsonl");
@@ -391,7 +398,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("skips an oversized session cwd without hiding the next valid session", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     const oversizedFile = path.join(sessionDir, "oversized-cwd.jsonl");
     const validFile = path.join(sessionDir, "valid-cwd.jsonl");
@@ -427,7 +434,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("advances the cursor when the byte ceiling shortens a metadata page", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     const largeMetadata = "ࠀ".repeat(512);
     await mkdir(sessionDir, { recursive: true });
@@ -452,7 +459,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("rejects an oversized project id before it can stall a byte-limited cursor", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const reader = createCodexSessionsReader({ codexHome });
 
     await expect(reader.listExternalSessions({
@@ -696,7 +703,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("accounts for private source data when evicting summary cache entries", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     const privateCwd = `/repo/${"x".repeat(3 * 1024 * 1024)}`;
@@ -729,7 +736,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("evicts transcript pages by session LRU and respects decoded byte diagnostics", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     for (let index = 0; index < 4; index += 1) {
@@ -744,7 +751,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("bounds summary cache diagnostics beyond the configured entry limit", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     await Promise.all(Array.from({ length: 5 }, (_, index) => writeFile(
@@ -771,7 +778,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("indexes 5,000 deterministic summaries while keeping summary diagnostics capped", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, 5_000, "/fixture/project");
     const reader = createCodexSessionsReader({ codexHome });
 
@@ -794,7 +801,7 @@ describe("Codex sessions reader", () => {
   }, RESOURCE_TEST_TIMEOUT_MS);
 
   it("bounds and releases a renderer-consumed snapshot when discovery exceeds the 5,000 summary cap", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, SUMMARY_CACHE_COUNT_LIMIT + 1, "/fixture/project");
     const onSummaryDiscovery = vi.fn();
     const reader = createCodexSessionsReader({ codexHome, onSummaryDiscovery });
@@ -842,7 +849,7 @@ describe("Codex sessions reader", () => {
   }, RESOURCE_TEST_TIMEOUT_MS);
 
   it("keeps summaries beyond the cache cap reachable through a fresh query", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, SUMMARY_CACHE_COUNT_LIMIT + 25, "/fixture/project");
     const oldestId = `summary-fixture-${String(SUMMARY_CACHE_COUNT_LIMIT + 24).padStart(5, "0")}`;
     await writeFile(
@@ -865,7 +872,7 @@ describe("Codex sessions reader", () => {
   }, RESOURCE_TEST_TIMEOUT_MS);
 
   it("bounds revision-driven resume aliases across repeated refreshes", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     const file = path.join(sessionDir, "refreshing.jsonl");
@@ -895,7 +902,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("keeps summary cache and active snapshot bytes bounded", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
     await Promise.all(Array.from({ length: 5 }, (_, index) => writeFile(
@@ -923,7 +930,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("reads the latest six messages of a 10 MiB 100k-line transcript within the reference budget", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const codexHome = temporaryDirectory("alfred-codex-home-");
     const resource = await writeLargeCodexTranscriptFixture(codexHome);
     const reader = createCodexSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/fixture/project" }], limit: 1 });
@@ -953,7 +960,7 @@ describe("Codex sessions reader", () => {
 });
 
 async function transcriptFixture(id: string, records: Array<unknown>): Promise<{ codexHome: string; file: string }> {
-  const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+  const codexHome = temporaryDirectory("alfred-codex-home-");
   const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
   await mkdir(sessionDir, { recursive: true });
   const file = path.join(sessionDir, `${id}.jsonl`);
