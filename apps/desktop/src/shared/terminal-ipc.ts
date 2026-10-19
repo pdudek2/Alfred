@@ -135,6 +135,15 @@ export type TerminalRenameRequest = {
   title: string;
 };
 
+export type TerminalCodexImagesRequest = {
+  clientId: string;
+  /** A sent message as the terminal shows it; spaces and line breaks need not match. */
+  text: string;
+};
+
+/** The message's image files by placeholder, such as "[Image #1]"; empty when it is not known. */
+export type TerminalCodexImagesResult = { images: Record<string, string> };
+
 export type TerminalWorktreeDiffRequest = {
   clientId: string;
 };
@@ -191,6 +200,7 @@ export type TerminalApi = {
   kill(request: TerminalKillRequest): void;
   forget(request: TerminalForgetRequest): Promise<TerminalForgetResult>;
   rename(request: TerminalRenameRequest): Promise<void>;
+  codexImages(request: TerminalCodexImagesRequest): Promise<TerminalCodexImagesResult>;
   worktreeDiff(request: TerminalWorktreeDiffRequest): Promise<TerminalWorktreeDiffResult>;
   worktreeApply(request: TerminalWorktreeApplyRequest): Promise<TerminalWorktreeApplyResult>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
@@ -208,6 +218,7 @@ export const terminalChannels = {
   kill: "alfred:terminal:kill",
   forget: "alfred:terminal:forget",
   rename: "alfred:terminal:rename",
+  codexImages: "alfred:terminal:codex-images",
   worktreeDiff: "alfred:terminal:worktree-diff",
   worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
