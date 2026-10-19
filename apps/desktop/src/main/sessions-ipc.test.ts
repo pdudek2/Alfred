@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
@@ -208,6 +208,7 @@ describe("sessions IPC", () => {
 
   it("clears populated reader sources when the privacy transition requests cache clearing", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    onTestFinished(() => rm(codexHome, { recursive: true, force: true }));
     const cwd = "/repo";
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
