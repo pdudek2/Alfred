@@ -72,4 +72,29 @@ describe("terminal image links", () => {
     // The last message is Codex's composer: a draft has no images in the rollout yet, or an earlier message's.
     expect(codexSentMessagesAt(row, 12, rows.length)).toBeNull();
   });
+
+  it("reads Codex's pinned copy of the message whose reply runs off the top as that one row", () => {
+    // As Codex 0.163 draws a scrolled transcript: the pinned copy has the reply right under it, indented like a message.
+    const rows = [
+      "› kontynuuj",
+      "  Worked for 24s • Oct 18 at 12:14",
+      "",
+      "",
+      "› [Image #1]",
+      "",
+      "",
+      "• Widzę pusty, ciemny obszar.",
+      "",
+      "› hej",
+      "",
+      "› Ask Codex to do anything",
+    ];
+    const row = (y: number) => rows[y] ?? "";
+    expect(codexSentMessagesAt(row, 4, rows.length)).toEqual({ messages: ["kontynuuj", "[Image #1]", "hej"], index: 1 });
+
+    // A long or multi-line message is pinned cut with "…", which matches no sent message, so it is left out.
+    rows[0] = "› [Image #1] porównaj ten zrzut z układem, który ustaliliśmy wczoraj, i powiedz, które odstępy się rozjeżdżają…";
+    expect(codexSentMessagesAt(row, 4, rows.length)).toEqual({ messages: ["[Image #1]", "hej"], index: 0 });
+    expect(codexSentMessagesAt(row, 0, rows.length)).toBeNull();
+  });
 });
