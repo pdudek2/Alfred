@@ -137,8 +137,10 @@ export type TerminalRenameRequest = {
 
 export type TerminalCodexImagesRequest = {
   clientId: string;
-  /** A sent message as the terminal shows it; spaces and line breaks need not match. */
-  text: string;
+  /** The sent messages the terminal shows, top to bottom, as drawn; spaces and line breaks need not match. */
+  messages: string[];
+  /** Which of them holds the placeholder. */
+  index: number;
 };
 
 /** The message's image files by placeholder, such as "[Image #1]"; empty when it is not known. */

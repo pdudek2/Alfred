@@ -4078,7 +4078,7 @@ describe("App integration", () => {
     let codexLinks: Link[] | undefined;
     (terminalLinkProviders[1] as Provider).provideLinks(1, (found) => { codexLinks = found; });
     await waitFor(() => expect(codexLinks).toBeDefined());
-    expect(codexImages).toHaveBeenCalledWith({ clientId: "links", text: "[Image #1] look" });
+    expect(codexImages).toHaveBeenCalledWith({ clientId: "links", messages: ["[Image #1] look"], index: 0 });
     expect(codexLinks).toEqual([expect.objectContaining({ range: { start: { x: 3, y: 1 }, end: { x: 12, y: 1 } }, text: "[Image #1]" })]);
     act(() => codexLinks![0]!.hover(pointer));
     expect(await within(tile).findByText("shot 2.png")).toBeInTheDocument();
