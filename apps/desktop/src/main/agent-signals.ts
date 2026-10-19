@@ -135,13 +135,23 @@ function describePermissionRequest(payload: unknown): string {
   return `${toolName}: ${target ?? "waiting for approval"}`.slice(0, MAX_DETAIL);
 }
 
+/** The agent's own transcript file, which Claude and Codex name in every hook. */
+function transcriptPathFrom(payload: unknown): string | undefined {
+  const transcript = typeof payload === "object" && payload !== null
+    ? (payload as { transcript_path?: unknown }).transcript_path
+    : undefined;
+  return typeof transcript === "string" && path.isAbsolute(transcript) && transcript.endsWith(".jsonl") ? transcript : undefined;
+}
+
+export type AgentSignalListener = (sessionId: string, update: AgentSignalUpdate, transcriptPath?: string) => void;
+
 export type AgentSignalBridge = {
   close(): Promise<void>;
   /** Environment for a session's PTY; the relay uses it to find Alfred. */
   env(sessionId: string): Record<string, string>;
   /** Extra leading arguments that make `claude` or `codex` report their state. */
   launchArgs(command: string | undefined): string[];
-  setListener(listener: ((sessionId: string, update: AgentSignalUpdate) => void) | null): void;
+  setListener(listener: AgentSignalListener | null): void;
 };
 
 type BridgeOptions = {
@@ -182,7 +192,7 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     `hooks.${event}=[{hooks=[{type="command",command=${JSON.stringify(relayCommand(event))}}]}]`,
   ]);
 
-  let listener: ((sessionId: string, update: AgentSignalUpdate) => void) | null = null;
+  let listener: AgentSignalListener | null = null;
   const server = net.createServer((connection) => {
     let received = "";
     connection.setEncoding("utf8");
@@ -205,7 +215,7 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
         payload = undefined;
       }
       const update = signalFromHook(message.event, payload);
-      if (update) listener?.(message.sessionId, update);
+      if (update) listener?.(message.sessionId, update, transcriptPathFrom(payload));
     } catch {
       // A malformed hook message must never disturb a session.
     }

@@ -34,3 +34,33 @@ export function imagePathsInLine(line: string): LineImagePath[] {
     return [{ start, end: start + token.length, path }];
   });
 }
+
+export type LinePlaceholder = { start: number; end: number; placeholder: string };
+
+const PLACEHOLDER = /\[Image #\d+\]/g;
+const CODEX_MESSAGE_START = "› ";
+
+/** "[Image #N]" placeholders in one line of terminal text, as Codex shows an image. */
+export function imagePlaceholdersInLine(line: string): LinePlaceholder[] {
+  return [...line.matchAll(PLACEHOLDER)].map((match) => ({ start: match.index, end: match.index + match[0].length, placeholder: match[0] }));
+}
+
+/**
+ * The text of the sent Codex message that buffer row `y` belongs to, or null. Codex 0.163 draws a sent message
+ * with "› " on its first row and a two-space indent on the rows after it. The last message drawn that way is
+ * its composer, which holds what you have not sent yet.
+ */
+export function codexSentMessageAt(row: (y: number) => string, y: number, rowCount: number): string | null {
+  const continues = (text: string) => text.startsWith("  ") && text.trim() !== "";
+  let start = y;
+  while (!row(start).startsWith(CODEX_MESSAGE_START)) {
+    if (start === 0 || !continues(row(start))) return null;
+    start -= 1;
+  }
+  let end = start + 1;
+  while (end < rowCount && continues(row(end))) end += 1;
+  let next = end;
+  while (next < rowCount && !row(next).startsWith(CODEX_MESSAGE_START)) next += 1;
+  if (next === rowCount) return null;
+  return Array.from({ length: end - start }, (_, offset) => row(start + offset)).join("\n").slice(CODEX_MESSAGE_START.length);
+}
