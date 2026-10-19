@@ -16,11 +16,14 @@ import {
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
+import { createCodexImageIndex } from "./codex-images.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import {
   terminalChannels,
   type PersistedTerminalSessionSnapshot,
   type TerminalAgentSignal,
+  type TerminalCodexImagesRequest,
+  type TerminalCodexImagesResult,
   type TerminalCreateRequest,
   type TerminalCreateResult,
   type TerminalForgetRequest,
@@ -130,6 +133,8 @@ type TerminalSession = {
   activityStream: TerminalOutputActivityStreamState;
   commandInput: string;
   agentSignal?: TerminalAgentSignal | undefined;
+  /** The agent's transcript, as its last hook named it. */
+  transcriptPath?: string;
   oscCarry: string;
   shellBusy?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
@@ -217,12 +222,28 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const clientIdsBeingForgotten = new Set<string>();
   const launchPreparationsInFlight = new Map<string, number>();
 
-  options.agentSignals?.setListener((sessionId, update) => {
+  const codexImages = createCodexImageIndex();
+
+  options.agentSignals?.setListener((sessionId, update, transcriptPath) => {
     const session = sessions.get(sessionId);
     if (!session) return;
+    if (transcriptPath) session.transcriptPath = transcriptPath;
     const applied = applyAgentSignal(session, update, "hook", Date.now());
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal });
   });
+
+  // Codex shows a sent image as an unlinked [Image #1]; its rollout says which file that is.
+  trustedIpc.handle(
+    terminalChannels.codexImages,
+    async (event, request: TerminalCodexImagesRequest): Promise<TerminalCodexImagesResult> => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const session = [...sessions.values()].find(
+        (candidate) => candidate.clientId === request?.clientId && window !== null && canAttachToWindow(candidate, window),
+      );
+      if (!session?.transcriptPath || !isCodexSession(session) || typeof request.text !== "string") return { images: {} };
+      return { images: await codexImages.imagesFor(session.transcriptPath, request.text) };
+    },
+  );
 
   trustedIpc.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);

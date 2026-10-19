@@ -57,6 +57,9 @@ vi.mock("@xterm/xterm", () => ({
       active: {
         baseY: 0,
         viewportY: 0,
+        get length() {
+          return terminalLines.length;
+        },
         getLine: (y: number) => (terminalLines[y] === undefined ? undefined : { translateToString: () => terminalLines[y] }),
       },
     };
@@ -232,6 +235,7 @@ function installDesktopBridge(
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   killTerminal: ReturnType<typeof vi.fn>;
   renameTerminal: ReturnType<typeof vi.fn>;
+  codexImages: ReturnType<typeof vi.fn>;
   openExternalTerminal: ReturnType<typeof vi.fn>;
   imageThumbnail: ReturnType<typeof vi.fn>;
   quickLookImage: ReturnType<typeof vi.fn>;
@@ -367,6 +371,7 @@ function installDesktopBridge(
   const killTerminal = vi.fn();
   const forgetTerminal = vi.fn(async () => ({ ok: true as const }));
   const renameTerminal = vi.fn().mockResolvedValue(undefined);
+  const codexImages = vi.fn().mockResolvedValue({ images: {} });
   const prepareLaunch = vi.fn().mockResolvedValue({ launchTicketId: "ticket-1", expiresAt: Date.now() + 120_000 });
   const writeTerminal = vi.fn();
   const worktreeApply = vi.fn().mockResolvedValue({ ok: true, appliedFiles: 2 });
@@ -420,6 +425,7 @@ function installDesktopBridge(
     prepareLaunch,
     reconcile: reconcileTerminal,
     rename: renameTerminal,
+    codexImages,
     snapshot: snapshotTerminal,
     onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
       dataListeners.add(callback);
@@ -486,6 +492,7 @@ function installDesktopBridge(
     getStagedPlans,
     killTerminal,
     renameTerminal,
+    codexImages,
     openExternalTerminal,
     imageThumbnail,
     quickLookImage,
@@ -4025,12 +4032,13 @@ describe("App integration", () => {
   });
 
   it("previews the image behind a terminal link while the pointer rests on it and opens it on ⌘-click", async () => {
-    type Link = { range: unknown; text: string; hover(event: MouseEvent): void; leave(): void };
+    type Link = { range: unknown; text: string; activate(event: MouseEvent): void; hover(event: MouseEvent): void; leave(): void };
     type Handler = { hover(event: MouseEvent, uri: string): void; leave(): void; activate(event: MouseEvent, uri: string): void };
-    const { imageThumbnail, quickLookImage } = installDesktopBridge(undefined, null, [manualLiveSnapshot("links", "Image links")]);
+    type Provider = { provideLinks(y: number, callback: (found?: Link[]) => void): void };
+    const { codexImages, imageThumbnail, quickLookImage } = installDesktopBridge(undefined, null, [manualLiveSnapshot("links", "Image links")]);
     render(<App />);
     const tile = await screen.findByRole("article", { name: /Image links/i });
-    await waitFor(() => expect(terminalLinkProviders).toHaveLength(1));
+    await waitFor(() => expect(terminalLinkProviders).toHaveLength(2));
     const linkHandler = (terminalConstructorOptions.at(-1) as { linkHandler: Handler }).linkHandler;
     const pointer = new MouseEvent("mousemove", { clientX: 40, clientY: 30 });
     // Claude Code links a sent [Image #1] to its own copy of the image.
@@ -4057,12 +4065,31 @@ describe("App integration", () => {
     // A path an agent prints as plain text links too, relative to the session's folder.
     terminalLines[0] = "Saved to out/shot.png";
     let links: Link[] | undefined;
-    (terminalLinkProviders[0] as { provideLinks(y: number, callback: (found?: Link[]) => void): void })
-      .provideLinks(1, (found) => { links = found; });
+    (terminalLinkProviders[0] as Provider).provideLinks(1, (found) => { links = found; });
     expect(links).toEqual([expect.objectContaining({ range: { start: { x: 10, y: 1 }, end: { x: 21, y: 1 } }, text: "out/shot.png" })]);
     act(() => links![0]!.hover(pointer));
     expect(await within(tile).findByText("shot.png")).toBeInTheDocument();
     expect(imageThumbnail).toHaveBeenLastCalledWith({ path: "out/shot.png", cwd: "/Users/patryk/Desktop/Alfred" });
+    act(() => links![0]!.leave());
+
+    // Codex shows a sent image as [Image #1] without a link; the message it was sent with says which file it is.
+    terminalLines.splice(0, terminalLines.length, "› [Image #1] look", "", "› Ask Codex to do anything");
+    codexImages.mockResolvedValueOnce({ images: { "[Image #1]": "/Users/p/Desktop/shot 2.png" } });
+    let codexLinks: Link[] | undefined;
+    (terminalLinkProviders[1] as Provider).provideLinks(1, (found) => { codexLinks = found; });
+    await waitFor(() => expect(codexLinks).toBeDefined());
+    expect(codexImages).toHaveBeenCalledWith({ clientId: "links", text: "[Image #1] look" });
+    expect(codexLinks).toEqual([expect.objectContaining({ range: { start: { x: 3, y: 1 }, end: { x: 12, y: 1 } }, text: "[Image #1]" })]);
+    act(() => codexLinks![0]!.hover(pointer));
+    expect(await within(tile).findByText("shot 2.png")).toBeInTheDocument();
+    act(() => codexLinks![0]!.activate(new MouseEvent("click", { metaKey: true })));
+    expect(quickLookImage).toHaveBeenLastCalledWith({ path: "/Users/p/Desktop/shot 2.png", cwd: "/Users/patryk/Desktop/Alfred" });
+    // The composer at the bottom holds a draft, which has no files yet.
+    terminalLines[2] = "› [Image #1] look";
+    let draftLinks: Link[] | undefined = [];
+    (terminalLinkProviders[1] as Provider).provideLinks(3, (found) => { draftLinks = found; });
+    expect(draftLinks).toBeUndefined();
+    expect(codexImages).toHaveBeenCalledTimes(1);
   });
 
   it("pastes the escaped paths of files dropped on a live terminal", async () => {

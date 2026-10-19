@@ -4079,7 +4079,11 @@ describe("terminal-manager IPC", () => {
   });
 
   describe("agent state signals", () => {
-    type Listener = (sessionId: string, update: { detail?: string; state: "working" | "needs-you" | "your-turn" }) => void;
+    type Listener = (
+      sessionId: string,
+      update: { detail?: string; state: "working" | "needs-you" | "your-turn" },
+      transcriptPath?: string,
+    ) => void;
 
     function fakeBridge() {
       let listener: Listener | null = null;
@@ -4093,7 +4097,8 @@ describe("terminal-manager IPC", () => {
             listener = next;
           },
         },
-        fire: (sessionId: string, update: Parameters<Listener>[1]) => listener?.(sessionId, update),
+        fire: (sessionId: string, update: Parameters<Listener>[1], transcriptPath?: string) =>
+          listener?.(sessionId, update, transcriptPath),
       };
     }
 
@@ -4176,6 +4181,34 @@ describe("terminal-manager IPC", () => {
       emit(terminalChannels.write, { id: created.id, data: "y" });
       expect(lastDataEvent()).toMatchObject({ data: "", agentSignal: null });
       expect(pty.writes).toEqual(["\x1b[I", "\x1b[<35;40;12M", "\x1b[<0;40;12M\x1b[<0;40;12m", "\x1b[O", "y"]);
+    });
+
+    it("finds the file behind a Codex [Image #1] in the rollout its hooks name", async () => {
+      const { bridge, fire } = fakeBridge();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+      const codex = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+      });
+      const claude = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      const rollout = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "alfred-rollout-")), "rollout.jsonl");
+      const content = [
+        { type: "input_text", text: '<image name=[Image #1] path="/Users/p/Desktop/shot.png">' },
+        { type: "input_text", text: "</image>" },
+        { type: "input_text", text: "[Image #1] look" },
+      ];
+      await fs.writeFile(rollout, `${JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content } })}\n`);
+
+      // Before any hook there is no rollout to read.
+      await expect(invoke(terminalChannels.codexImages, { clientId: "codex-1", text: "[Image #1] look" })).resolves.toEqual({ images: {} });
+      fire(codex.id, { state: "working" }, rollout);
+      fire(claude.id, { state: "working" }, rollout);
+      await expect(invoke(terminalChannels.codexImages, { clientId: "codex-1", text: "[Image #1] look" })).resolves.toEqual({
+        images: { "[Image #1]": "/Users/p/Desktop/shot.png" },
+      });
+      // Claude links its own images, so only Codex sessions are looked up.
+      await expect(invoke(terminalChannels.codexImages, { clientId: "claude-1", text: "[Image #1] look" })).resolves.toEqual({ images: {} });
     });
 
     it("tracks whether a plain terminal has a program in the foreground", async () => {

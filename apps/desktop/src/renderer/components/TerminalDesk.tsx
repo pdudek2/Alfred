@@ -13,7 +13,7 @@ import {
 import { activitySentence, waitingSentence } from "../activity-presentation";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
-import { imagePathFromLink, imagePathsInLine } from "../terminal-image-links";
+import { codexSentMessageAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
@@ -1047,6 +1047,33 @@ function ManualTerminalTile({
           leave: hideImage,
         }));
         callback(links.length > 0 ? links : undefined);
+      },
+    });
+    // Codex shows a sent image as an unlinked [Image #1], numbered again in every message; its rollout says which file it is.
+    terminal.registerLinkProvider({
+      provideLinks(y, callback) {
+        const buffer = terminal.buffer.active;
+        const row = (index: number) => buffer.getLine(index)?.translateToString(true) ?? "";
+        const placeholders = imagePlaceholdersInLine(row(y - 1));
+        const text = placeholders.length > 0 ? codexSentMessageAt(row, y - 1, buffer.length) : null;
+        if (!text || !terminalApi) {
+          callback(undefined);
+          return;
+        }
+        void terminalApi.codexImages({ clientId: sessionKey, text }).then(({ images }) => {
+          const links = placeholders.flatMap(({ start, end, placeholder }) => {
+            const path = images[placeholder];
+            if (!path) return [];
+            return [{
+              range: { start: { x: start + 1, y }, end: { x: end, y } },
+              text: placeholder,
+              activate: (event: MouseEvent) => openImage(path, event),
+              hover: (event: MouseEvent) => showImage(path, event),
+              leave: hideImage,
+            }];
+          });
+          callback(links.length > 0 ? links : undefined);
+        }, () => callback(undefined));
       },
     });
     terminal.attachCustomWheelEventHandler((event) => {
