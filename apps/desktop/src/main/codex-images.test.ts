@@ -1,8 +1,8 @@
-import { appendFile, writeFile } from "node:fs/promises";
+import { appendFile, rm, writeFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { createCodexImageIndex, readRecord } from "./codex-images.js";
 
 // One sent message as Codex 0.163 writes it to its rollout: the user message with its images, then its UserMessage.
@@ -21,8 +21,11 @@ function sentLines(text: string, images: string[] = []): string {
   return `${JSON.stringify(sent)}\n${JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item } })}\n`;
 }
 
+// A rollout in a folder of its own, removed when the test ends; one test writes 9 MiB.
 function rolloutPath(): string {
-  return path.join(mkdtempSync(path.join(tmpdir(), "alfred-codex-images-")), "rollout.jsonl");
+  const directory = mkdtempSync(path.join(tmpdir(), "alfred-codex-images-"));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+  return path.join(directory, "rollout.jsonl");
 }
 
 describe("Codex image index", () => {

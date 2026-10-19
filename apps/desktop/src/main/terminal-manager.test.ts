@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
@@ -4192,7 +4192,9 @@ describe("terminal-manager IPC", () => {
       const claude = await invoke<{ id: string }>(terminalChannels.create, {
         agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
       });
-      const rollout = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "alfred-rollout-")), "rollout.jsonl");
+      const rolloutDir = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-rollout-"));
+      onTestFinished(() => fs.rm(rolloutDir, { recursive: true, force: true }));
+      const rollout = path.join(rolloutDir, "rollout.jsonl");
       const content = [
         { type: "input_text", text: '<image name=[Image #1] path="/Users/p/Desktop/shot.png">' },
         { type: "input_text", text: "</image>" },
