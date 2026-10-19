@@ -167,6 +167,8 @@ const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
 const MAX_PERSISTED_BUFFER_LENGTH = 80_000;
 const MAX_RECENT_TERMINAL_EXITS = 64;
+/** More sent messages than a terminal's scrollback can show. */
+const MAX_CODEX_VISIBLE_MESSAGES = 1_000;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 let persistenceHydrated = false;
 let persistenceHydration: Promise<void> | null = null;
@@ -240,8 +242,15 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       const session = [...sessions.values()].find(
         (candidate) => candidate.clientId === request?.clientId && window !== null && canAttachToWindow(candidate, window),
       );
-      if (!session?.transcriptPath || !isCodexSession(session) || typeof request.text !== "string") return { images: {} };
-      return { images: await codexImages.imagesFor(session.transcriptPath, request.text) };
+      const { messages, index } = request ?? {};
+      const validRequest = Array.isArray(messages)
+        && messages.length <= MAX_CODEX_VISIBLE_MESSAGES
+        && messages.every((message) => typeof message === "string")
+        && Number.isInteger(index)
+        && index >= 0
+        && index < messages.length;
+      if (!session?.transcriptPath || !isCodexSession(session) || !validRequest) return { images: {} };
+      return { images: await codexImages.imagesFor(session.transcriptPath, messages, index) };
     },
   );
 

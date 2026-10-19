@@ -13,7 +13,7 @@ import {
 import { activitySentence, waitingSentence } from "../activity-presentation";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
-import { codexSentMessageAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";
+import { codexSentMessagesAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
@@ -1049,20 +1049,21 @@ function ManualTerminalTile({
         callback(links.length > 0 ? links : undefined);
       },
     });
-    // Codex shows a sent image as an unlinked [Image #1], numbered again in every message; its rollout says which file it is.
+    // Codex shows a sent image as an unlinked [Image #1], numbered again in every message; its rollout says which file it
+    // is, and the messages shown around it say which sent message it is.
     // While Codex works it redraws the rows around a message many times a second, and xterm drops the link and asks
-    // again after each redraw. Answering from the last answer for that row keeps the link, so the preview stays and a
-    // ⌘-click lands. The answer lives briefly, so a later message with the same text on the same row is asked about.
-    // ponytail: a message with the same text that Codex scrolls onto a hovered row can show the earlier one's file for up
-    // to 1.5 s, as it can anyway until Codex writes it to the rollout; key on the message's place in the transcript if seen.
+    // again after each redraw. Answering from the last answer for the same messages on screen keeps the link, so the
+    // preview stays and a ⌘-click lands. The answer lives briefly, so what Codex sends next is asked about.
+    // ponytail: if the screen then shows the same messages again, with the newest one sent since, the earlier answer
+    // can stand for up to 1.5 s, as it can anyway until Codex writes the new message to its rollout.
     const recentCodexImages = new Map<string, { images: Record<string, string>; at: number }>();
     terminal.registerLinkProvider({
       provideLinks(y, callback) {
         const buffer = terminal.buffer.active;
         const row = (index: number) => buffer.getLine(index)?.translateToString(true) ?? "";
         const placeholders = imagePlaceholdersInLine(row(y - 1));
-        const text = placeholders.length > 0 ? codexSentMessageAt(row, y - 1, buffer.length) : null;
-        if (!text || !terminalApi) {
+        const sent = placeholders.length > 0 ? codexSentMessagesAt(row, y - 1, buffer.length) : null;
+        if (!sent || !terminalApi) {
           callback(undefined);
           return;
         }
@@ -1080,8 +1081,8 @@ function ManualTerminalTile({
           });
           callback(links.length > 0 ? links : undefined);
         };
-        const key = `${y}\n${text}`;
-        const fetchImages = () => terminalApi.codexImages({ clientId: sessionKey, text }).then(({ images }) => {
+        const key = `${sent.index}\n${sent.messages.join("\n\0")}`;
+        const fetchImages = () => terminalApi.codexImages({ clientId: sessionKey, ...sent }).then(({ images }) => {
           if (recentCodexImages.size > 64) recentCodexImages.clear();
           recentCodexImages.set(key, { images, at: Date.now() });
           return images;

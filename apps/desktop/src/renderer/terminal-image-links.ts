@@ -45,22 +45,28 @@ export function imagePlaceholdersInLine(line: string): LinePlaceholder[] {
   return [...line.matchAll(PLACEHOLDER)].map((match) => ({ start: match.index, end: match.index + match[0].length, placeholder: match[0] }));
 }
 
+export type CodexSentMessages = { messages: string[]; index: number };
+
 /**
- * The text of the sent Codex message that buffer row `y` belongs to, or null. Codex 0.163 draws a sent message
- * with "› " on its first row and a two-space indent on the rows after it. The last message drawn that way is
- * its composer, which holds what you have not sent yet.
+ * The sent Codex messages the terminal shows, top to bottom, and which of them buffer row `y` belongs to; null when
+ * the row is in none. Codex 0.163 draws a sent message with "› " on its first row and a two-space indent on the rows
+ * after it. The last message drawn that way is its composer, which holds what you have not sent yet.
  */
-export function codexSentMessageAt(row: (y: number) => string, y: number, rowCount: number): string | null {
+export function codexSentMessagesAt(row: (y: number) => string, y: number, rowCount: number): CodexSentMessages | null {
   const continues = (text: string) => text.startsWith("  ") && text.trim() !== "";
-  let start = y;
-  while (!row(start).startsWith(CODEX_MESSAGE_START)) {
-    if (start === 0 || !continues(row(start))) return null;
-    start -= 1;
+  const blocks: Array<{ start: number; end: number }> = [];
+  for (let start = 0; start < rowCount; start += 1) {
+    if (!row(start).startsWith(CODEX_MESSAGE_START)) continue;
+    let end = start + 1;
+    while (end < rowCount && continues(row(end))) end += 1;
+    blocks.push({ start, end });
+    start = end - 1;
   }
-  let end = start + 1;
-  while (end < rowCount && continues(row(end))) end += 1;
-  let next = end;
-  while (next < rowCount && !row(next).startsWith(CODEX_MESSAGE_START)) next += 1;
-  if (next === rowCount) return null;
-  return Array.from({ length: end - start }, (_, offset) => row(start + offset)).join("\n").slice(CODEX_MESSAGE_START.length);
+  blocks.pop();
+  const index = blocks.findIndex(({ start, end }) => y >= start && y < end);
+  if (index < 0) return null;
+  const messages = blocks.map(({ start, end }) =>
+    Array.from({ length: end - start }, (_, offset) => row(start + offset)).join("\n").slice(CODEX_MESSAGE_START.length),
+  );
+  return { messages, index };
 }
