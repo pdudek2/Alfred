@@ -94,6 +94,45 @@ test("tells screenshots sent on their own apart and keeps their preview while Co
   await harness.closeActiveTerminals();
 });
 
+test("keeps the previews while Codex pins a scrolled-off message to the top row", async ({ harness }) => {
+  const { page } = harness;
+  const { marker, tile } = await startCodexWithSentMessages(harness, [
+    { text: "stworz plik hello word na desktopie" },
+    { text: "kontynuuj" },
+    { text: "[Image #1]", image: "first.png" },
+    { text: "[Image #1]", image: "second.png" },
+    { text: "hej" },
+  ]);
+  // As Codex 0.163 draws a resumed session: "kontynuuj" scrolled off, so a copy of it is pinned to the top row,
+  // and the end of its reply is drawn right under it.
+  const screen = (underPinned: string) => [
+    "\x1b[H\x1b[2J",
+    `\x1b[1;1H› kontynuuj\x1b[2;1H${underPinned}`,
+    "\x1b[5;1H› [Image #1]\x1b[8;1H• Komunikat dotyczył pierwszej próby.\x1b[10;1H  Worked for 11s • 11:52",
+    "\x1b[13;1H› [Image #1]\x1b[16;1H• Widzę pusty, ciemny obszar.\x1b[18;1H  Worked for 5s • 13:32",
+    "\x1b[21;1H› hej\x1b[24;1H› Ask Codex to do anything",
+  ].join("");
+  await appendFile(marker, `\x1b[?1049h${MOUSE_TRACKING}${screen("  Worked for 24s • Oct 18 at 12:14")}`);
+
+  const screenshots = sentRow(tile, /^›\s\[Image\s#1\]\s*$/);
+  await expect(screenshots).toHaveCount(2);
+  const peek = tile.locator(".terminal-image-peek");
+  await hoverPlaceholder(page, screenshots.first());
+  await expect(peek).toContainText("first.png");
+  await hoverPlaceholder(page, screenshots.last());
+  await expect(peek).toContainText("second.png");
+
+  // Scrolled by a row, a blank row is under the pinned copy instead.
+  await page.mouse.move(5, 5);
+  await expect(peek).toHaveCount(0);
+  await appendFile(marker, screen(""));
+  await expect(sentRow(tile, /Worked\sfor\s24s/)).toHaveCount(0);
+  await hoverPlaceholder(page, screenshots.first());
+  await expect(peek).toContainText("first.png");
+  harness.assertNoRuntimeErrors();
+  await harness.closeActiveTerminals();
+});
+
 type SentMessage = { text: string; image?: string };
 
 /** A Codex session whose hook named a rollout with these sent messages, as Codex 0.163 records them. */
