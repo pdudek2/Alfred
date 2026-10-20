@@ -68,6 +68,8 @@ import {
 } from "./git-worktree.js";
 import {
   DEFAULT_PRIVACY_SETTINGS,
+  MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH,
+  SCROLLBACK_REDACTION_MARGIN,
   sanitizePersistedTerminalSession,
   type DesktopPrivacySettings,
   type PersistedDesktopStateStore,
@@ -165,7 +167,8 @@ const pendingPtyExits = new Set<Promise<void>>();
 const require = createRequire(import.meta.url);
 const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
-const MAX_PERSISTED_BUFFER_LENGTH = 80_000;
+// What saving gets: the tail it keeps and the margin redaction reads before it.
+const MAX_PERSISTED_BUFFER_LENGTH = MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN;
 const MAX_RECENT_TERMINAL_EXITS = 64;
 /** More sent messages than a terminal's scrollback can show. */
 const MAX_CODEX_VISIBLE_MESSAGES = 1_000;

@@ -26,6 +26,12 @@ import { isAlfredManagedBranchName, workspaceRootFingerprint } from "./git-workt
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
 export const MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH = 80_000;
+/**
+ * Redaction needs a secret's start, such as "ghp_" or a key's BEGIN line, so it reads this much of the scrollback
+ * before the tail that is kept.
+ * ponytail: a secret longer than this that the tail cuts through keeps its end; redacting output as it arrives would not.
+ */
+export const SCROLLBACK_REDACTION_MARGIN = 16_000;
 
 export type TerminalScrollbackRetention = "off" | "redactedTail";
 
@@ -664,7 +670,12 @@ export function sanitizePersistedTerminalSession(
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.buffer === undefined
       ? {}
-      : { buffer: redactText(tailText(session.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH)) }),
+      : {
+          buffer: tailText(
+            redactText(tailText(session.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN)),
+            MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH,
+          ),
+        }),
     ...(session.activityEvents === undefined
       ? {}
       : { activityEvents: redactActivityEvents(session.activityEvents) }),
