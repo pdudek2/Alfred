@@ -17,6 +17,8 @@ import {
   recordSessionOutputActivity,
   rejectStaged,
   relaunchRestoredSession,
+  generatedTitleForDetectedAgent,
+  isGeneratedSessionTitle,
   renameSession,
   restartSession,
   type SessionTile,
@@ -72,7 +74,7 @@ describe("desktop session state", () => {
         source: "manual",
         stage: "live",
         runtimeStatus: "starting",
-        title: "Manual · zsh 1",
+        title: "zsh",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
       },
@@ -89,7 +91,7 @@ describe("desktop session state", () => {
       source: "manual",
       stage: "live",
       runtimeStatus: "starting",
-      title: "Manual · zsh 2",
+      title: "zsh 2",
       workspaceId: "A",
       cwd: "/Users/patryk/Desktop/Alfred",
     });
@@ -102,7 +104,29 @@ describe("desktop session state", () => {
     const next = addManualSession(closedFirst, "/Users/patryk/Desktop/Alfred");
 
     expect(next.map((session) => session.id)).toEqual(["manual-2", "manual-3"]);
-    expect(next.map((session) => session.title)).toEqual(["Manual · zsh 2", "Manual · zsh 3"]);
+    expect(next.map((session) => session.title)).toEqual(["zsh 2", "zsh 3"]);
+  });
+
+  it("titles a session by its shell or agent and numbers only another one of the same title in its project", () => {
+    let sessions = createInitialSessions("/repo");
+    sessions = addManualSession(sessions, "/repo");
+    sessions = addManualSession(sessions, "/other", "B");
+    sessions = addAgentSession(sessions, "codex", "/repo");
+    sessions = addAgentSession(sessions, "codex", "/repo");
+    sessions = addAgentSession(sessions, "claude", "/other", "B");
+
+    expect(sessions.map(({ title, workspaceId }) => `${workspaceId} ${title}`)).toEqual([
+      "A zsh", "A zsh 2", "B zsh", "A Codex", "A Codex 2", "B Claude",
+    ]);
+  });
+
+  it("lets a detected agent replace its own titles and those older builds wrote, keeping the number", () => {
+    for (const [title, detected] of [["zsh", "Codex"], ["zsh 2", "Codex 2"], ["Manual · zsh 3", "Codex 3"], ["Claude · session 4", "Codex 4"]]) {
+      expect(isGeneratedSessionTitle(title!)).toBe(true);
+      expect(generatedTitleForDetectedAgent({ title: title! }, "codex")).toBe(detected);
+    }
+    expect(isGeneratedSessionTitle("Release reviewer")).toBe(false);
+    expect(generatedTitleForDetectedAgent({ title: "Release reviewer" }, "codex")).toBe("Release reviewer");
   });
 
   it("renames a session with normalized display text", () => {
@@ -153,7 +177,7 @@ describe("desktop session state", () => {
       cwd: "/repo",
       shell: "/bin/zsh",
       buffer: "",
-    }])[0]?.title).toBe("Manual session");
+    }])[0]?.title).toBe("Terminal");
 
     expect(hydratePersistedTerminalSessions([{
       clientId: "restored-codex",
@@ -164,7 +188,7 @@ describe("desktop session state", () => {
       args: [],
       cwd: "/repo",
       shell: "codex",
-    }])[0]?.title).toBe("Codex session");
+    }])[0]?.title).toBe("Codex");
 
     expect(hydrateStagedPlanSessions({
       workspaceId: "A",
@@ -177,7 +201,7 @@ describe("desktop session state", () => {
         command: "claude",
         args: [],
       }],
-    }, "/repo")[0]?.title).toBe("Claude session");
+    }, "/repo")[0]?.title).toBe("Claude");
   });
 
   it("adds new Codex sessions in the shared workspace by default", () => {
@@ -186,7 +210,7 @@ describe("desktop session state", () => {
     expect(next).toEqual([
       {
         id: "codex-1",
-        title: "Codex · session 1",
+        title: "Codex",
         workspaceId: "A",
         cwd: "/repo",
         source: "manual",
@@ -208,7 +232,7 @@ describe("desktop session state", () => {
     expect(withClaude.slice(1)).toEqual([
       {
         id: "codex-1",
-        title: "Codex · session 1",
+        title: "Codex",
         workspaceId: "A",
         cwd: "/repo",
         source: "manual",
@@ -221,7 +245,7 @@ describe("desktop session state", () => {
       },
       {
         id: "claude-1",
-        title: "Claude · session 1",
+        title: "Claude",
         workspaceId: "A",
         cwd: "/repo",
         source: "manual",
@@ -241,7 +265,7 @@ describe("desktop session state", () => {
 
     expect(withCodex[1]).toMatchObject({
       id: "codex-1",
-      title: "Codex · session 1",
+      title: "Codex",
       cwd: "/plain-folder",
       agentKind: "codex",
       command: "codex",
@@ -816,8 +840,8 @@ describe("desktop session state", () => {
   });
 
   it.each([
-    ["codex", "Codex · session 4"],
-    ["claude", "Claude · session 4"],
+    ["codex", "Codex 4"],
+    ["claude", "Claude 4"],
   ] as const)("renames a generated manual title for detected %s", (kind, expectedTitle) => {
     const next = recordSessionOutputActivity(
       [{
@@ -1140,7 +1164,7 @@ describe("staged sessions", () => {
       },
     ], "/repo");
 
-    expect(next.slice(1).map((session) => session.title)).toEqual(["Review PR", "Claude session"]);
+    expect(next.slice(1).map((session) => session.title)).toEqual(["Review PR", "Claude"]);
     expect(next.slice(1).map((session) => session.id)).toEqual(["alfred-1", "alfred-2"]);
   });
 

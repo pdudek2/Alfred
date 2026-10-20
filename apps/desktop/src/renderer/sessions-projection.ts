@@ -215,7 +215,7 @@ function normalizeManagedSession(
     kind,
     title: sessionPresentationTitle(
       session.title,
-      `${kind === "codex" ? "Codex" : kind === "claude" ? "Claude" : "Manual"} session`,
+      kind === "codex" ? "Codex" : kind === "claude" ? "Claude" : "Terminal",
     ),
     project,
     locationLabel: displayLocation(session),
