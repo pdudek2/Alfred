@@ -220,7 +220,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
   await expectSansFont(diff.locator(".worktree-diff-panel__line").first());
   await diff.getByRole("button", { name: "Close diff" }).click();
-  // Focus Manual · zsh 2 from the stack unless it already holds focus.
+  // Focus zsh 2 from the stack unless it already holds focus.
   const secondCard = page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-2"]');
   if (await secondCard.count()) await secondCard.click();
   const hiddenFirstTerminal = page.locator(

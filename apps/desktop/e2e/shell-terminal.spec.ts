@@ -56,7 +56,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     `R0 shell geometry: ${JSON.stringify(r0)}`,
   ).toBe(r0.workspaceLayoutHeight);
   const wideTile = visibleTerminalTiles(page).first();
-  await expect(wideTile.getByRole("button", { name: "More actions for Manual · zsh 1" })).toBeVisible();
+  await expect(wideTile.getByRole("button", { name: "More actions for zsh" })).toBeVisible();
   await expect(wideTile.locator("header")).toHaveCount(0);
   const bannerAlert = await proveBannerAlertGeometry(page);
   expect(bannerAlert.alertStackHeight).toBeGreaterThan(0);
@@ -92,7 +92,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   );
 
   await page.getByRole("complementary", { name: /^Other sessions in / })
-    .getByRole("button", { name: /Manual · zsh 1/ }).click();
+    .getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }).click();
   await expect(visibleTerminalTiles(page).first()).toHaveAttribute("data-session-id", "manual-1");
   const identityTransitions: Record<string, boolean> = {
     "R0→zsh 2→stack→zsh 1": await isSameConnectedNode(firstScreenHandle, firstScreen),

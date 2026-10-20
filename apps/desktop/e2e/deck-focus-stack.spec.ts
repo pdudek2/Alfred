@@ -12,11 +12,11 @@ test("swaps the focused terminal from the stack without remounting any xterm", a
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
   const stack = page.getByRole("complementary", { name: /^Other sessions in / });
-  await expect(stack.getByRole("button", { name: /Manual · zsh/ })).toHaveCount(3);
+  await expect(stack.getByRole("button", { name: /(?<!\/)zsh(?! ·)/ })).toHaveCount(3);
 
   const beforeHosts = await captureHosts(page, 4);
   const focusedBefore = await visibleSessionId(page);
-  const target = stack.getByRole("button", { name: /Manual · zsh/ }).first();
+  const target = stack.getByRole("button", { name: /(?<!\/)zsh(?! ·)/ }).first();
   const targetId = await target.getAttribute("data-session-id");
   expect(targetId).not.toBe(focusedBefore);
 

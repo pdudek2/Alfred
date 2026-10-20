@@ -396,7 +396,7 @@ function installDesktopBridge(
     return Promise.resolve({
       id: "runtime-1",
       clientId: request.clientId ?? "manual-1",
-      title: request.title ?? "Manual · zsh 1",
+      title: request.title ?? "zsh",
       source: request.source ?? "manual",
       workspaceId: request.workspaceId ?? "A",
       cwd,
@@ -781,7 +781,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
 
     await act(async () => {
@@ -800,7 +800,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
     await act(async () => {
       pending.reject(new Error("start rejected"));
       try { await pending.promise; } catch { /* expected */ }
@@ -822,7 +822,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
@@ -848,11 +848,11 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
 
     await act(async () => {
       first.resolve(liveSnapshot("manual-1", { id: "old-runtime" }));
@@ -875,7 +875,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
     await user.click(screen.getByRole("button", { name: "Add project" }));
     await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -926,7 +926,7 @@ describe("App integration", () => {
     renderTerminalDeskForSessions([
       {
         id: "live-1",
-        title: "Manual · zsh 1",
+        title: "zsh",
         workspaceId: "A",
         cwd: "/repo",
         source: "manual",
@@ -945,7 +945,7 @@ describe("App integration", () => {
       },
     ]);
 
-    const liveTile = screen.getByRole("article", { name: "Manual · zsh 1" });
+    const liveTile = screen.getByRole("article", { name: "zsh" });
     expect(liveTile).toHaveClass("real-terminal");
     expect(liveTile.querySelector("[data-testid='xterm-host']")).toBeInTheDocument();
     expect(within(screen.getByTestId("terminal-grid")).getAllByRole("article")).toEqual([liveTile]);
@@ -956,7 +956,7 @@ describe("App integration", () => {
     const { emitData, renameTerminal } = installDesktopBridge();
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const kind = () => tile.querySelector(".session-strip-kind");
     expect(kind()).toHaveTextContent("Terminal");
     await waitForTerminalStartsToSettle();
@@ -970,8 +970,8 @@ describe("App integration", () => {
     } as TerminalDataEvent);
 
     expect(kind()).toHaveTextContent("Codex");
-    expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
-    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Codex · session 1" });
+    expect(await screen.findByRole("article", { name: "Codex" })).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Codex" });
 
     await emitData({
       id: "runtime-1",
@@ -981,8 +981,8 @@ describe("App integration", () => {
       foregroundAgentKind: "claude",
     } as TerminalDataEvent);
 
-    expect(await screen.findByRole("article", { name: "Claude · session 1" })).toBeInTheDocument();
-    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Claude · session 1" });
+    expect(await screen.findByRole("article", { name: "Claude" })).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Claude" });
 
     await emitData({
       id: "runtime-1",
@@ -1019,11 +1019,11 @@ describe("App integration", () => {
 
   it("uses the first submitted Codex prompt as the generated session title", async () => {
     const { renameTerminal } = installDesktopBridge(undefined, null, [
-      liveSnapshot("codex-1", { title: "Codex · session 1" }),
+      liveSnapshot("codex-1", { title: "Codex" }),
     ]);
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Codex" })).toBeInTheDocument();
     // The tile registers its input handler in an effect, which may not have run yet.
     await waitFor(() => expect(terminalInputHandlers).toHaveLength(1));
 
@@ -1047,7 +1047,7 @@ describe("App integration", () => {
       null,
       [
         liveSnapshot("codex-generated", {
-          title: "Codex · session 1",
+          title: "Codex",
           args: ["resume", externalSessionId],
           resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
         }),
@@ -1057,11 +1057,11 @@ describe("App integration", () => {
           resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
         }),
         liveSnapshot("codex-buffered", {
-          title: "Codex · session 2",
+          title: "Codex 2",
           buffer: `Failed to resume /tmp/rollout-2026-08-09T12-07-35-${bufferedSessionId}.jsonl`,
         }),
         liveSnapshot("codex-timed", {
-          title: "Codex · session 3",
+          title: "Codex 3",
           createdAt: 1_786_271_998_928,
           cwd: "/Users/patryk/Documents/Codex/2026-08-09/alfred-W16",
         }),
@@ -1158,7 +1158,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     expect(screen.queryByTestId("primary-nav-rail")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     const trigger = screen.getByRole("button", { name: "New" });
     const dispatch = await openNewPlan(user);
@@ -1176,7 +1176,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await openNewPlan(user);
     await user.type(screen.getByRole("textbox", { name: "Goal" }), "keep this draft");
     await user.keyboard("{Escape}");
@@ -1193,13 +1193,13 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "History");
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toHaveClass("selected");
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toHaveClass("selected");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
   });
 
@@ -1209,7 +1209,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "History");
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "rename current project");
@@ -1240,7 +1240,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await selectSurface(user, "History");
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
 
@@ -1267,9 +1267,9 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     expect(within(panel).getByText("Projects")).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(within(panel).getByRole("list", { name: /projects/i })).toBeInTheDocument();
   });
 
@@ -1337,7 +1337,7 @@ describe("App integration", () => {
         {
           id: "runtime-manual",
           clientId: "manual-a",
-          title: "Manual · zsh 1",
+          title: "zsh",
           source: "manual",
           workspaceId: "A",
           cwd: "/Users/patryk/Desktop/Alfred",
@@ -1514,7 +1514,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
 
@@ -1677,7 +1677,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await selectSurface(user, "History");
 
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
@@ -1767,7 +1767,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await bridge.emitSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: 123 });
 
     const alert = screen.getByRole("alert");
@@ -1783,7 +1783,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
@@ -1850,7 +1850,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     const runtimeSurface = screen.getByTestId("desk-runtime-surface");
     const xtermHost = screen.getByTestId("xterm-host");
     await waitFor(() => {
@@ -1869,7 +1869,7 @@ describe("App integration", () => {
 
     await selectSurface(user, "Work");
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(runtimeSurface).not.toHaveAttribute("aria-hidden");
     expect(xtermHost.isConnected).toBe(true);
     expect(terminalConstructorOptions).toHaveLength(constructorCountBeforeSurfaceSwitch);
@@ -1905,7 +1905,7 @@ describe("App integration", () => {
     };
     const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [], undefined, legacyLayouts);
     const { unmount } = render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
 
     await selectSurface(user, "Details");
@@ -1918,7 +1918,7 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     unmount();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true");
@@ -1928,7 +1928,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const stack = screen.getByRole("complementary", { name: /^Other sessions in / });
     await user.click(within(stack).getByRole("tab", { name: "Details" }));
     // The stack gives its place to Details, which draws the same tabs with Details selected.
@@ -1944,7 +1944,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("tab", { name: "Details" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     screen.getByRole("button", { name: "New" }).focus();
@@ -1957,7 +1957,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("tab", { name: "Details" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     // xterm takes keys through a textarea inside its host.
@@ -1977,7 +1977,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("tab", { name: "Details" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     await user.click(screen.getByRole("button", { name: /^Project menu for / }));
@@ -1990,7 +1990,7 @@ describe("App integration", () => {
   it("returns focus to the previous element after opening Details with Command I", async () => {
     installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const previous = screen.getByRole("button", { name: "New" });
     previous.focus();
     fireEvent.keyDown(previous, { key: "i", metaKey: true });
@@ -2055,7 +2055,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
     await openNewPlan(user);
 
@@ -2151,7 +2151,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
     await selectSurface(user, "Local Data & Privacy");
     screen.getByRole("button", { name: "Close privacy controls" }).focus();
@@ -2167,7 +2167,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
     await user.click(screen.getByRole("button", { name: "Project menu for Alfred" }));
 
@@ -2260,11 +2260,11 @@ describe("App integration", () => {
     const bridge = installDesktopBridge();
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
-    await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i });
     const initialHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
     expect(initialHosts.length).toBeGreaterThan(0);
     const initialHost = initialHosts[0];
@@ -2294,10 +2294,10 @@ describe("App integration", () => {
 
     // The new terminal took focus; the first one waits in the stack and comes back as the same node.
     const stack = screen.getByRole("complementary", { name: "Other sessions in Alfred" });
-    await user.click(within(stack).getByRole("button", { name: /Manual · zsh 1/ }));
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBe(tile);
+    await user.click(within(stack).getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }));
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBe(tile);
     expect(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Manual · zsh 2/ })).toBeInTheDocument();
+      .getByRole("button", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/ })).toBeInTheDocument();
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
@@ -2637,7 +2637,7 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByTestId("terminal-tile");
-    const firstUtility = within(tile).getByRole("button", { name: "More actions for Manual · zsh 1" });
+    const firstUtility = within(tile).getByRole("button", { name: "More actions for zsh" });
     await screen.findByRole("button", { name: "Alfred project" });
 
     await act(async () => {
@@ -2657,7 +2657,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     const dispatch = await openNewPlan(user);
     expect(dispatch).toHaveAccessibleName("New session");
     expect(screen.queryByRole("form", { name: /alfred composer/i })).not.toBeInTheDocument();
@@ -2675,7 +2675,7 @@ describe("App integration", () => {
           label: "Alfred",
         }),
         workspace: expect.objectContaining({
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "zsh" })]),
         }),
       }),
     );
@@ -2765,7 +2765,7 @@ describe("App integration", () => {
     const session: SessionTile = {
       id: "codex-a",
       runtimeId: "runtime-a",
-      title: "Codex · session 1",
+      title: "Codex",
       source: "manual",
       agentKind: "codex",
       workspaceId: "A",
@@ -2778,7 +2778,7 @@ describe("App integration", () => {
     };
     const { rerender, renderDesk } = renderTerminalDeskForSessions([session]);
 
-    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    const tile = await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await waitFor(() => {
       expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
     });
@@ -3155,7 +3155,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
@@ -3197,7 +3197,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
@@ -3836,7 +3836,7 @@ describe("App integration", () => {
     installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
       {
         clientId: "manual-9",
-        title: "Manual · zsh 9",
+        title: "zsh 9",
         cwd: "/repo",
         source: "manual",
         shell: "/bin/zsh",
@@ -3862,7 +3862,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const paletteTrigger = screen.getByRole("button", { name: "Open command palette" });
     await openNeedsYouFromCommandPalette(user);
 
@@ -4391,9 +4391,9 @@ describe("App integration", () => {
     expect(createTerminal.mock.calls[0]?.[0]).not.toHaveProperty("cwd");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "manual terminal");
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "new terminal");
     const palette = screen.getByRole("dialog", { name: "Command palette" });
-    expect(within(palette).getByText("New manual terminal")).toBeInTheDocument();
+    expect(within(palette).getByText("New terminal")).toBeInTheDocument();
     expect(within(palette).getByText(/(?:Cmd|Ctrl) T · start a shell in the scratch project/)).toBeInTheDocument();
     await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -4553,7 +4553,7 @@ describe("App integration", () => {
     await user.click(within(emptyState).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await waitFor(() => {
       expect(within(tile).getByText("This session is unavailable.")).toBeInTheDocument();
       // An unavailable terminal is not an active state, so the project row carries no glyph.
@@ -4577,8 +4577,8 @@ describe("App integration", () => {
       "aria-current",
       "location",
     );
-    expect(screen.getAllByRole("article", { name: /Manual · zsh/i })).toHaveLength(1);
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("article", { name: /(?<!\/)zsh(?! ·)/i })).toHaveLength(1);
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
   });
 
   it("creates scratch workspaces and scopes terminals to the active workspace", async () => {
@@ -4589,7 +4589,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("button", { name: "Alfred project" })).toBeInTheDocument();
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Alfred")).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add project" }));
 
@@ -4603,11 +4603,12 @@ describe("App integration", () => {
       "location",
     );
     expect(screen.getByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
-    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
 
     await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    // Titles are numbered per project, so this project's first terminal is "zsh" too.
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toHaveAttribute("data-session-id", "manual-2");
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(
         expect.objectContaining({ workspaceId: "W2" }),
@@ -4616,8 +4617,7 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Alfred project" }));
 
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toHaveAttribute("data-session-id", "manual-1");
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
@@ -4657,7 +4657,7 @@ describe("App integration", () => {
       </StrictMode>,
     );
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const trigger = screen.getByRole("button", { name: "Project menu for Alfred" });
 
     await user.click(trigger);
@@ -4712,7 +4712,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("button", { name: "Project menu for Alfred" }));
     await user.click(
       within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Reveal/ }),
@@ -4758,7 +4758,7 @@ describe("App integration", () => {
       </StrictMode>,
     );
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("button", { name: "Project menu for Alfred" }));
     await user.click(
       within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", {
@@ -4876,7 +4876,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add project" }));
 
@@ -4932,7 +4932,7 @@ describe("App integration", () => {
       "location",
     );
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Project 2")).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/workspace-2" }));
     });
@@ -4955,14 +4955,14 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
-    const selectedTile = await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    const selectedTile = await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i });
     expect(selectedTile).toHaveClass("selected");
 
     await act(async () => {
       hydration.resolve({
         sessions: [
-          manualLiveSnapshot("manual-1", "Manual · zsh 1"),
-          manualLiveSnapshot("manual-2", "Manual · zsh 2"),
+          manualLiveSnapshot("manual-1", "zsh"),
+          manualLiveSnapshot("manual-2", "zsh 2"),
         ],
         restoredSessions: [],
       });
@@ -4996,7 +4996,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-1" }));
     });
@@ -5008,7 +5008,7 @@ describe("App integration", () => {
 
     const hydrationAlert = screen.getByRole("alert");
     expect(hydrationAlert).toHaveTextContent("Project not loaded");
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Empty project" })).not.toBeInTheDocument();
     expect(setWorkspaceState).not.toHaveBeenCalled();
 
@@ -5070,7 +5070,7 @@ describe("App integration", () => {
       "aria-current",
       "location",
     );
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByText("Project not loaded")).not.toBeInTheDocument();
       expect(bridge.setWorkspaceState).toHaveBeenCalled();
@@ -5083,7 +5083,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
@@ -5101,7 +5101,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
@@ -5113,19 +5113,19 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Alfred project" }));
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    ["New manual terminal", "Manual · zsh 2"],
-    ["New Codex session", "Codex · session 1"],
+    ["New terminal", "zsh 2"],
+    ["New Codex session", "Codex"],
   ] as const)("focuses a newly added %s and records its layout slot", async (menuItem, title) => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: menuItem.includes("Codex") ? /^Codex/ : /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -5433,7 +5433,7 @@ describe("App integration", () => {
       return Promise.resolve({
         id: `runtime-${request.clientId ?? "manual-1"}`,
         clientId: request.clientId ?? "manual-1",
-        title: request.title ?? "Manual · zsh 1",
+        title: request.title ?? "zsh",
         source: request.source ?? "manual",
         workspaceId: request.workspaceId ?? "A",
         cwd: request.cwd ?? "/Users/patryk/Desktop/Alfred",
@@ -5446,7 +5446,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -5455,13 +5455,13 @@ describe("App integration", () => {
       const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
       expect(codexCalls).toHaveLength(1);
     });
-    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toHaveTextContent("spawn failed");
+    expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
 
     const stack = () => screen.getByRole("complementary", { name: "Other sessions in Alfred" });
-    await user.click(within(stack()).getByRole("button", { name: /Manual · zsh 1/ }));
-    await user.click(within(stack()).getByRole("button", { name: /Codex · session 1/ }));
+    await user.click(within(stack()).getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }));
+    await user.click(within(stack()).getByRole("button", { name: /(?<!\/)Codex(?! \d)(?! ·)/ }));
 
-    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toHaveTextContent("spawn failed");
+    expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
     const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
     expect(codexCalls).toHaveLength(1);
   });
@@ -5472,10 +5472,10 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("bash is running in …/Desktop/Alfred.");
     });
@@ -5493,7 +5493,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const paletteTrigger = screen.getByRole("button", { name: "Open command palette" });
     await user.click(paletteTrigger);
     await submitCommandPalette(user, "details");
@@ -5512,7 +5512,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "manual-1",
-        title: "Manual · zsh 1",
+        title: "zsh",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -5522,7 +5522,7 @@ describe("App integration", () => {
       {
         id: "runtime-b",
         clientId: "manual-2",
-        title: "Manual · zsh 2",
+        title: "zsh 2",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -5533,42 +5533,42 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Manual · zsh 2/ }));
+      .getByRole("button", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/ }));
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
-    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 2");
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "History" })).not.toBeInTheDocument();
     expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
     await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Manual · zsh 1/ }));
+      .getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }));
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).not.toBeInTheDocument();
   });
 
   it("focuses a project session picked in the stack without touching layouts", async () => {
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(undefined, null, [
-      manualLiveSnapshot("manual-1", "Manual · zsh 1"),
-      manualLiveSnapshot("manual-2", "Manual · zsh 2"),
+      manualLiveSnapshot("manual-1", "zsh"),
+      manualLiveSnapshot("manual-2", "zsh 2"),
     ]);
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
 
     await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Manual · zsh 2/ }));
+      .getByRole("button", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/ }));
 
-    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
@@ -5585,7 +5585,7 @@ describe("App integration", () => {
         {
           id: "runtime-a",
           clientId: "manual-1",
-          title: "Manual · zsh 1",
+          title: "zsh",
           source: "manual",
           workspaceId: "A",
           cwd: "/Users/patryk/Desktop/Alfred",
@@ -5595,7 +5595,7 @@ describe("App integration", () => {
         {
           id: "runtime-b",
           clientId: "manual-2",
-          title: "Manual · zsh 2",
+          title: "zsh 2",
           source: "manual",
           workspaceId: "A",
           cwd: "/Users/patryk/Desktop/Alfred",
@@ -5619,15 +5619,15 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    const newTerminal = await screen.findByRole("article", { name: /Manual · zsh 3/i });
+    const newTerminal = await screen.findByRole("article", { name: /(?<!\/)zsh 3(?! \d)(?! ·)/i });
     expect(newTerminal).toHaveStyle({ gridColumn: "", gridRow: "" });
-    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 3");
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 3");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
       viewState: { workMode: "focus", selectedSessionId: "manual-3" },
@@ -5648,7 +5648,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "no such alfred command");
@@ -5662,7 +5662,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.keyboard("{Control>}k{/Control}");
 
@@ -5673,7 +5673,7 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitForTerminalStartsToSettle();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -5707,11 +5707,11 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "zsh 2");
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 2");
 
     fireEvent.keyDown(window, { key: "[", code: "BracketLeft", ctrlKey: true, shiftKey: true });
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
   });
 
   it("does not offer saved memory as a command-palette Work target", async () => {
@@ -5756,7 +5756,7 @@ describe("App integration", () => {
         {
           id: "runtime-manual",
           clientId: "manual-a",
-          title: "Manual · zsh 1",
+          title: "zsh",
           source: "manual",
           workspaceId: "A",
           cwd: "/Users/patryk/Desktop/Alfred",
@@ -5788,12 +5788,12 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "close focused session");
 
     await waitFor(() => {
-      expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     });
     await user.click(screen.getByRole("button", { name: /ClientApp project/i }));
 
@@ -5806,14 +5806,14 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "codex");
     expect(screen.getByRole("radio", { name: /^Codex/ })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    const codexTile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    const codexTile = await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -5837,7 +5837,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     const palette = screen.getByRole("dialog", { name: "Command palette" });
@@ -5848,7 +5848,7 @@ describe("App integration", () => {
     expect(screen.getByRole("checkbox")).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -6202,7 +6202,7 @@ describe("App integration", () => {
         }),
       );
     });
-    const newTile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    const newTile = await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
 
     resolveApply({ ok: true, appliedFiles: 1 });
     await waitFor(() => expect(applyPromiseSettled).toBe(true));
@@ -6276,13 +6276,13 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -6302,13 +6302,13 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: /^Claude/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(await screen.findByRole("article", { name: /Claude · session 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)Claude(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -6331,7 +6331,7 @@ describe("App integration", () => {
         {
           id: "runtime-manual",
           clientId: "manual-a",
-          title: "Manual · zsh 1",
+          title: "zsh",
           source: "manual",
           workspaceId: "A",
           cwd: "/Users/patryk/Desktop/Alfred",
@@ -6962,7 +6962,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "manual-a",
-        title: "Manual · zsh 9",
+        title: "zsh 9",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -6973,10 +6973,10 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
-    await sessionMenuAction(user, "Manual · zsh 9", /^Close/);
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).toBeInTheDocument();
+    await sessionMenuAction(user, "zsh 9", /^Close/);
 
-    expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
   });
 
@@ -6997,12 +6997,12 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
 
-    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
+    await sessionMenuAction(user, "zsh", /^Close/);
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
     expect(emptyState).toHaveTextContent("Start a session in this project.");
@@ -7010,7 +7010,7 @@ describe("App integration", () => {
     await user.click(within(emptyState).getByRole("button", { name: "Codex" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -7029,7 +7029,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "manual-a",
-        title: "Manual · zsh 9",
+        title: "zsh 9",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -7040,12 +7040,12 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "w", ctrlKey: true });
 
     await waitFor(() => {
-      expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
       expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
     });
   });
@@ -7219,7 +7219,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "manual-a",
-        title: "Manual · zsh 9",
+        title: "zsh 9",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -7232,7 +7232,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 9/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i });
     expect(createTerminal).not.toHaveBeenCalled();
 
     await waitFor(() => {
@@ -7240,7 +7240,7 @@ describe("App integration", () => {
     });
     await emitExit({ id: "runtime-a", exitCode: 0 });
 
-    const history = await openHistorySession(user, "Manual · zsh 9");
+    const history = await openHistorySession(user, "zsh 9");
     await user.click(within(history).getByRole("button", { name: "Resume" }));
 
     expect(forgetTerminal).not.toHaveBeenCalled();
@@ -7320,7 +7320,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "manual-a",
-        title: "Manual · zsh 9",
+        title: "zsh 9",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -7331,7 +7331,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.getAllByTestId("session-status-announcer")).toHaveLength(1);
     expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("");
 
@@ -7341,7 +7341,7 @@ describe("App integration", () => {
     await emitExit({ id: "runtime-a", exitCode: 1 });
 
     await waitFor(() => {
-      expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Manual · zsh 9 is now failed.");
+      expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("zsh 9 is now failed.");
     });
   });
 
@@ -7350,7 +7350,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7375,7 +7375,7 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", {
-      name: /Codex · session 1, Asked: Do you want to proceed\? y\/N/i,
+      name: /(?<!\/)Codex(?! \d)(?! ·), Asked: Do you want to proceed\? y\/N/i,
     });
 
     // Once the session is attached and needs you, the strip under the terminal says what the agent waits for.
@@ -7389,7 +7389,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7412,13 +7412,13 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Codex · session 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse.querySelector("details")).toBeNull();
     expect(pulse).toHaveTextContent("Asked: Do you want to proceed? y/N");
-    expect(screen.queryByRole("group", { name: "Approval actions for Codex · session 1" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Approval actions for Codex" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send no" })).not.toBeInTheDocument();
     expect(writeTerminal).not.toHaveBeenCalled();
@@ -7430,7 +7430,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7454,7 +7454,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Codex · session 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
     await user.click(
       screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
@@ -7500,7 +7500,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7514,9 +7514,9 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Codex · session 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
-    await user.click(screen.getByRole("button", { name: "Open in terminal for Codex · session 1" }));
+    await user.click(screen.getByRole("button", { name: "Open in terminal for Codex" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
@@ -7584,7 +7584,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7598,8 +7598,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Codex · session 1/i });
-    await sessionMenuAction(user, "Codex · session 1", /Open in external terminal/);
+    await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
+    await sessionMenuAction(user, "Codex", /Open in external terminal/);
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
@@ -7648,7 +7648,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "manual-a",
-        title: "Manual · zsh 1",
+        title: "zsh",
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -7659,7 +7659,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.keyboard("{Meta>}{Shift>}o{/Shift}{/Meta}");
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
@@ -7671,7 +7671,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7685,11 +7685,11 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    await sessionMenuAction(user, "Codex · session 1", "Rename session");
-    const input = within(tile).getByRole("textbox", { name: "Rename Codex · session 1" });
+    const tile = await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
+    await sessionMenuAction(user, "Codex", "Rename session");
+    const input = within(tile).getByRole("textbox", { name: "Rename Codex" });
     await user.clear(input);
-    expect(within(tile).getByRole("button", { name: "Save title for Codex · session 1" })).toBeDisabled();
+    expect(within(tile).getByRole("button", { name: "Save title for Codex" })).toBeDisabled();
     await user.type(input, "Spec reviewer{Enter}");
 
     // The new name shows where the title lives now: in the breadcrumb.
@@ -7704,7 +7704,7 @@ describe("App integration", () => {
       {
         id: "runtime-a",
         clientId: "codex-a",
-        title: "Codex · session 1",
+        title: "Codex",
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
@@ -7718,7 +7718,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /Codex · session 1/i });
+    await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "open focused session");
@@ -7741,8 +7741,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
   });
 
   it("moves a session that starts waiting to the top of the stack without taking focus", async () => {
@@ -7825,7 +7825,7 @@ describe("App integration", () => {
           command: "claude",
           agentSignal: { state: "needs-you", source: "hook", at: Date.now(), detail: "Bash: ls" },
         }),
-        { ...manualLiveSnapshot("shell", "Manual · zsh 1"), shellBusy: true },
+        { ...manualLiveSnapshot("shell", "zsh"), shellBusy: true },
         liveSnapshot("two"),
         liveSnapshot("other", { workspaceId: "B", cwd: "/Users/patryk/Desktop/IronLog" }),
       ],
@@ -7922,7 +7922,7 @@ describe("App integration", () => {
         workspace: expect.objectContaining({
           id: "A",
           label: "Alfred",
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "zsh" })]),
         }),
       }),
     );
@@ -7944,7 +7944,7 @@ describe("App integration", () => {
         workspace: expect.objectContaining({
           id: "A",
           label: "Alfred",
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "zsh" })]),
         }),
       }),
     );
@@ -7959,7 +7959,7 @@ describe("App integration", () => {
 
     expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
     await selectSurface(user, "Details");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
 
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalledWith(
@@ -8170,7 +8170,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Shell · edited");
+    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Terminal · edited");
   });
 
   it("hydrates Alfred drafts on the plan line from the desktop runtime", async () => {
@@ -8308,7 +8308,7 @@ describe("App integration", () => {
     const { createTerminal, forgetTerminal, setWorkspaceLayout } = installDesktopBridge(
       undefined,
       null,
-      [manualLiveSnapshot("manual-1", "Manual · zsh 1")],
+      [manualLiveSnapshot("manual-1", "zsh")],
       undefined,
       {
         layoutsByWorkspace: { A: { "manual-1": customLayout } },
@@ -8318,7 +8318,7 @@ describe("App integration", () => {
       [
         {
           clientId: "codex-9",
-          title: "Codex · session 9",
+          title: "Codex 9",
           cwd: "/repo",
           source: "alfred",
           agentKind: "codex",
@@ -8343,13 +8343,13 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId("xterm-host")).not.toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalled();
 
     setWorkspaceLayout.mockClear();
     await openSavedSessions(user);
-    await user.click(await screen.findByRole("option", { name: /Codex · session 9/i }));
+    await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Resume" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
@@ -8362,7 +8362,7 @@ describe("App integration", () => {
         workspaceId: "A",
       }),
     );
-    expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Codex · asleep sibling/i })).not.toBeInTheDocument();
     await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
@@ -8372,7 +8372,7 @@ describe("App integration", () => {
         "codex-9": expect.objectContaining({ tileId: "codex-9" }),
       }),
     });
-    expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /(?<!\/)zsh 10(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
@@ -8969,7 +8969,7 @@ describe("App integration", () => {
       [
         {
           clientId: "codex-9",
-          title: "Codex · session 9",
+          title: "Codex 9",
           cwd: "/repo/.worktrees/codex-9",
           baseCwd: "/repo",
           branchName: "alfred-codex-9",
@@ -8984,8 +8984,8 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
-    const history = await openHistorySession(user, "Codex · session 9");
+    expect(screen.queryByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
+    const history = await openHistorySession(user, "Codex 9");
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-9" });
@@ -8996,13 +8996,13 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
     expect(history).toBeVisible();
-    expect(within(history).getByRole("option", { name: /Codex · session 9/ })).toBeInTheDocument();
+    expect(within(history).getByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/ })).toBeInTheDocument();
 
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
 
-    expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
-    await waitFor(() => expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument());
+    expect(screen.queryByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(history).queryByText("Codex 9")).not.toBeInTheDocument());
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
   });
 
@@ -9017,7 +9017,7 @@ describe("App integration", () => {
       undefined,
       [{
         clientId: "codex-9",
-        title: "Codex · session 9",
+        title: "Codex 9",
         source: "alfred",
         agentKind: "codex",
         workspaceId: "A",
@@ -9037,7 +9037,7 @@ describe("App integration", () => {
 
     render(<App />);
     await openSavedSessions(user);
-    await user.click(await screen.findByRole("option", { name: /Codex · session 9/i }));
+    await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
     await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
 
@@ -9105,7 +9105,7 @@ describe("App integration", () => {
       undefined,
       [{
         clientId: "codex-9",
-        title: "Codex · session 9",
+        title: "Codex 9",
         source: "alfred",
         agentKind: "codex",
         workspaceId: "A",
@@ -9126,7 +9126,7 @@ describe("App integration", () => {
 
     render(<App />);
     await openSavedSessions(user);
-    await user.click(await screen.findByRole("option", { name: /Codex · session 9/i }));
+    await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
     await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
 
@@ -9369,7 +9369,7 @@ describe("App integration", () => {
       undefined,
       [{
         clientId: "codex-9",
-        title: "Codex · session 9",
+        title: "Codex 9",
         source: "alfred",
         agentKind: "codex",
         workspaceId: "A",
@@ -9383,7 +9383,7 @@ describe("App integration", () => {
     forgetTerminal.mockReturnValue(pendingForget.promise);
 
     render(<App />);
-    const history = await openHistorySession(user, "Codex · session 9");
+    const history = await openHistorySession(user, "Codex 9");
     const discard = within(history).getByRole("button", { name: "Discard asleep session" });
     fireEvent.click(discard);
     fireEvent.click(discard);
@@ -9393,7 +9393,7 @@ describe("App integration", () => {
     expect(forgetTerminal).toHaveBeenCalledTimes(1);
     await act(async () => pendingForget.resolve({ ok: true }));
     await waitFor(() => {
-      expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument();
+      expect(within(history).queryByText("Codex 9")).not.toBeInTheDocument();
     });
   });
 
@@ -9571,7 +9571,7 @@ describe("App integration", () => {
       [
         {
           clientId: "codex-9",
-          title: "Codex · session 9",
+          title: "Codex 9",
           cwd: "/.alfred-worktrees/repo/alfred-codex-9",
           baseCwd: "/repo",
           branchName: "alfred-codex-9",
@@ -9587,7 +9587,7 @@ describe("App integration", () => {
 
     render(<App />);
     await openSavedSessions(user);
-    await user.click(await screen.findByRole("option", { name: /Codex · session 9/i }));
+    await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
@@ -9664,7 +9664,7 @@ describe("App integration", () => {
       [
         {
           clientId: "codex-9",
-          title: "Codex · session 9",
+          title: "Codex 9",
           cwd: "/repo",
           source: "alfred",
           agentKind: "codex",
@@ -9678,12 +9678,12 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    const history = await openHistorySession(user, "Codex · session 9");
+    const history = await openHistorySession(user, "Codex 9");
     expect(within(history).queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
-    await waitFor(() => expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument());
+    await waitFor(() => expect(within(history).queryByText("Codex 9")).not.toBeInTheDocument());
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
   });
 
@@ -9698,7 +9698,7 @@ describe("App integration", () => {
       undefined,
       [{
         clientId: "manual-9",
-        title: "Manual · zsh 9",
+        title: "zsh 9",
         cwd: "/repo",
         source: "manual",
         shell: "/bin/zsh",
@@ -9718,14 +9718,14 @@ describe("App integration", () => {
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
       null,
-      [manualLiveSnapshot("manual-1", "Manual · zsh 1")],
+      [manualLiveSnapshot("manual-1", "zsh")],
       undefined,
       undefined,
       undefined,
       [
         {
           clientId: "manual-9",
-          title: "Manual · zsh 9",
+          title: "zsh 9",
           cwd: "/repo",
           source: "manual",
           shell: "/bin/zsh",
@@ -9735,7 +9735,7 @@ describe("App integration", () => {
         },
         {
           clientId: "codex-9",
-          title: "Codex · session 9",
+          title: "Codex 9",
           cwd: "/repo",
           source: "manual",
           agentKind: "codex",
@@ -9764,15 +9764,15 @@ describe("App integration", () => {
     // History opens on what Alfred ran in this project, with an asleep session already in the reader.
     expect(screen.getByRole("combobox", { name: "Project scope" })).toHaveValue("A");
     expect(screen.getByRole("tab", { name: "From Alfred" })).toHaveAttribute("aria-selected", "true");
-    expect(await screen.findByRole("option", { name: /Manual · zsh 9/i })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Codex · session 9/i })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Destructive restored shell/i })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     const preselected = within(screen.getByRole("listbox", { name: "Session results" }))
       .getByRole("option", { selected: true });
     expect(within(preselected).getByLabelText("status asleep")).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "Scrollback" })).toHaveTextContent("asleep output");
-    await user.click(screen.getByRole("option", { name: /Codex · session 9/i }));
+    await user.click(screen.getByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
@@ -9788,7 +9788,7 @@ describe("App integration", () => {
     installDesktopBridge(
       undefined,
       null,
-      [manualLiveSnapshot("live-scratch", "Manual · zsh 1")],
+      [manualLiveSnapshot("live-scratch", "zsh")],
       undefined,
       undefined,
       {
@@ -9893,7 +9893,7 @@ describe("App integration", () => {
       [
         {
           clientId: "manual-9",
-          title: "Manual · zsh 9",
+          title: "zsh 9",
           cwd: "/repo",
           source: "manual",
           shell: "/bin/zsh",
@@ -9922,7 +9922,7 @@ describe("App integration", () => {
       [
         {
           clientId: "manual-9",
-          title: "Manual · zsh 9",
+          title: "zsh 9",
           cwd: "/repo",
           source: "manual",
           shell: "/bin/zsh",
@@ -9932,7 +9932,7 @@ describe("App integration", () => {
         },
         {
           clientId: "manual-10",
-          title: "Manual · zsh 10",
+          title: "zsh 10",
           cwd: "/repo",
           source: "manual",
           shell: "/bin/zsh",
@@ -9947,7 +9947,7 @@ describe("App integration", () => {
     render(<App />);
 
     const user = userEvent.setup();
-    const history = await openHistorySession(user, "Manual · zsh 9");
+    const history = await openHistorySession(user, "zsh 9");
     await user.click(within(history).getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
@@ -9955,8 +9955,8 @@ describe("App integration", () => {
     });
     if (!screen.queryByRole("region", { name: "History" })) await selectSurface(user, "History");
     const reopenedHistory = screen.getByRole("region", { name: "History" });
-    expect(reopenedHistory).toHaveTextContent("Manual · zsh 9");
-    expect(reopenedHistory).toHaveTextContent("Manual · zsh 10");
+    expect(reopenedHistory).toHaveTextContent("zsh 9");
+    expect(reopenedHistory).toHaveTextContent("zsh 10");
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
@@ -10384,7 +10384,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("Shell");
+    expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("Terminal");
     expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("pnpm test");
     const blocked = screen.getByRole("listitem", { name: /Draft Blocked Codex/i });
     expect(blocked).toHaveTextContent("Blocked: Project has uncommitted or untracked changes.");
@@ -10512,7 +10512,7 @@ describe("App integration", () => {
       return Promise.resolve({
         id: `runtime-${request.clientId ?? "manual"}`,
         clientId: request.clientId ?? "manual-1",
-        title: request.title ?? "Manual · zsh 1",
+        title: request.title ?? "zsh",
         source: request.source ?? "manual",
         workspaceId: request.workspaceId ?? "A",
         cwd,
@@ -10593,7 +10593,7 @@ describe("App integration", () => {
       return Promise.resolve({
         id: `runtime-${request.clientId ?? "manual"}`,
         clientId: request.clientId ?? "manual-1",
-        title: request.title ?? "Manual · zsh 1",
+        title: request.title ?? "zsh",
         source: request.source ?? "manual",
         workspaceId: request.workspaceId ?? "A",
         cwd: request.cwd ?? "/tmp",
@@ -10812,7 +10812,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/ });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
     await user.keyboard("{Meta>}n{/Meta}");
     expect(screen.getByRole("radio", { name: /^Codex/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /^Claude/ }));
@@ -10834,7 +10834,7 @@ describe("App integration", () => {
       ], activeWorkspaceId: "A",
     });
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/ });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("button", { name: "Choose project" }));
     await user.click(screen.getByRole("menuitemradio", { name: "Beta" }));
@@ -10860,7 +10860,7 @@ describe("App integration", () => {
     });
     requestPlan.mockReturnValueOnce(pending.promise);
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/ });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
     await openNewPlan(user);
     await user.type(screen.getByLabelText("Goal"), "Alpha draft");
     await user.click(screen.getByRole("button", { name: "Choose project" }));
@@ -10882,7 +10882,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/ });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
     await user.click(screen.getByRole("button", { name: "New" }));
     expect(screen.getByRole("checkbox")).not.toBeChecked();
     await user.keyboard("{Meta>}k{/Meta}");
@@ -10904,7 +10904,7 @@ describe("App integration", () => {
     });
     requestPlan.mockReturnValueOnce(pending.promise);
     render(<App />);
-    await screen.findByRole("article", { name: /Manual · zsh 1/ });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
     await openNewPlan(user);
     await user.click(screen.getByRole("button", { name: "Choose project" }));
     await user.click(screen.getByRole("menuitemradio", { name: "Beta" }));

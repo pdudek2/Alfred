@@ -55,7 +55,10 @@ export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInp
 const MANUAL_SESSION_PREFIX = "manual-";
 const ALFRED_SESSION_PREFIX = "alfred-";
 const MAX_ACTIVITY_EVENTS = 40;
-const GENERATED_TERMINAL_TITLE = /^(?:Manual · zsh|Codex · session|Claude · session) (\d+)$/;
+// Titles Alfred gives, which a detected agent or the first prompt may replace: "zsh", "Codex 2". Builds before
+// 2026-10-20 wrote "Manual · zsh 3" and "Codex · session 3", which a main process still running can hand over.
+// ponytail: a session you named exactly "Codex" or "zsh" reads as generated too.
+const GENERATED_TERMINAL_TITLE = /^(?:(?:zsh|Codex|Claude)(?: (\d+))?|(?:Manual · zsh|Codex · session|Claude · session) (\d+))$/;
 
 export function isGeneratedSessionTitle(title: string): boolean {
   return GENERATED_TERMINAL_TITLE.test(title);
@@ -68,7 +71,9 @@ export function generatedTitleForDetectedAgent(
   if (!kind) return session.title;
   const match = GENERATED_TERMINAL_TITLE.exec(session.title);
   if (!match) return session.title;
-  return `${kind === "codex" ? "Codex" : "Claude"} · session ${match[1]}`;
+  // ponytail: keeps the shell's number, so it can repeat another session's title in the project.
+  const number = match[1] ?? match[2];
+  return `${kind === "codex" ? "Codex" : "Claude"}${number ? ` ${number}` : ""}`;
 }
 
 type SessionTitleFallbackInput = {
@@ -77,9 +82,9 @@ type SessionTitleFallbackInput = {
 };
 
 function fallbackSessionTitle({ agentKind, command }: SessionTitleFallbackInput): string {
-  if (agentKind === "codex" || command === "codex") return "Codex session";
-  if (agentKind === "claude" || command === "claude") return "Claude session";
-  return "Manual session";
+  if (agentKind === "codex" || command === "codex") return "Codex";
+  if (agentKind === "claude" || command === "claude") return "Claude";
+  return "Terminal";
 }
 
 function normalizedSessionTitleWithFallback(title: string, fallback: SessionTitleFallbackInput): string {
@@ -87,12 +92,12 @@ function normalizedSessionTitleWithFallback(title: string, fallback: SessionTitl
 }
 
 export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTile[] {
-  return [createManualSession(1, cwd, workspaceId)];
+  return [createManualSession(1, cwd, workspaceId, SHELL_TITLE)];
 }
 
 export function addManualSession(sessions: SessionTile[], cwd: string, workspaceId = "A"): SessionTile[] {
   const nextIndex = nextManualSessionIndex(sessions);
-  return [...sessions, createManualSession(nextIndex, cwd, workspaceId)];
+  return [...sessions, createManualSession(nextIndex, cwd, workspaceId, nextGeneratedTitle(sessions, workspaceId, SHELL_TITLE))];
 }
 
 export function addAgentSession(
@@ -104,7 +109,7 @@ export function addAgentSession(
   prompt = "",
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
-  const title = `${kind === "codex" ? "Codex" : "Claude"} · session ${nextIndex}`;
+  const title = nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : "Claude");
   return [
     ...sessions,
     {
@@ -403,10 +408,25 @@ function planSessionIsolation(session: AlfredPlanSession): TerminalSessionIsolat
   return session.isolation;
 }
 
-function createManualSession(index: number, cwd: string, workspaceId: string): SessionTile {
+// ponytail: names the shell zsh whatever $SHELL is, as titles always have; the created session's resolved shell
+// would name bash or fish, with a rename so the next list does not bring "zsh" back.
+const SHELL_TITLE = "zsh";
+
+/** The title on its own for the first in the project, then "zsh 2", "zsh 3"; ids are numbered apart from titles. */
+function nextGeneratedTitle(sessions: SessionTile[], workspaceId: string, base: string): string {
+  let highest = 0;
+  for (const session of sessions) {
+    if (session.workspaceId !== workspaceId) continue;
+    const match = new RegExp(`^${base}(?: (\\d+))?$`).exec(session.title);
+    if (match) highest = Math.max(highest, match[1] ? Number(match[1]) : 1);
+  }
+  return highest === 0 ? base : `${base} ${highest + 1}`;
+}
+
+function createManualSession(index: number, cwd: string, workspaceId: string, title: string): SessionTile {
   return {
     id: `${MANUAL_SESSION_PREFIX}${index}`,
-    title: `Manual · zsh ${index}`,
+    title,
     workspaceId,
     cwd,
     source: "manual",

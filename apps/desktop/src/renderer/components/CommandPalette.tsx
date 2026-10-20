@@ -156,7 +156,7 @@ export function CommandPalette({
     () => [
       {
         id: "new-terminal",
-        label: "New manual terminal",
+        label: "New terminal",
         detail: activeWorkspaceAvailable
           ? `${shortcutModifier} T · start a shell in ${activeWorkspaceBound ? "this project" : "the scratch project"}`
           : "Choose the project folder first",
