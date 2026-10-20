@@ -10,6 +10,9 @@ import { resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { allowedWorkspaceRoots } from "./workspace-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
+// Importing the real module downloads Electron's binary when it is missing, as on CI's Linux runner.
+vi.mock("electron", () => ({ BrowserWindow: {}, dialog: {}, nativeImage: {}, shell: {} }));
+
 function fakeWorkspaceStore(rootPaths: Array<string | undefined>): WorkspaceStore {
   return {
     bindWorkspaceToPath: vi.fn(),
