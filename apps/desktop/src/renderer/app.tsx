@@ -3646,6 +3646,9 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
 
     return {
       ...liveSession,
+      // The main process sends these again only when they change, so a list read before the last change keeps them.
+      ...(liveSession.agentSignal === undefined && session.agentSignal !== undefined ? { agentSignal: session.agentSignal } : {}),
+      ...(liveSession.shellBusy === undefined && session.shellBusy !== undefined ? { shellBusy: session.shellBusy } : {}),
       ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
       ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
       ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),

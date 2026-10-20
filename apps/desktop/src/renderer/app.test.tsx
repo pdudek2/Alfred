@@ -7721,6 +7721,63 @@ describe("App integration", () => {
     expect(focused).not.toHaveAttribute("aria-hidden");
   });
 
+  it("keeps what a session waits on and a busy shell across a project switch", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(
+      undefined,
+      null,
+      [
+        liveSnapshot("one"),
+        liveSnapshot("claude", {
+          title: "Claude · claude",
+          agentKind: "claude",
+          command: "claude",
+          agentSignal: { state: "needs-you", source: "hook", at: Date.now(), detail: "Bash: ls" },
+        }),
+        { ...manualLiveSnapshot("shell", "Manual · zsh 1"), shellBusy: true },
+        liveSnapshot("two"),
+        liveSnapshot("other", { workspaceId: "B", cwd: "/Users/patryk/Desktop/IronLog" }),
+      ],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: { A: { workMode: "focus", selectedSessionId: "one" } } },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/patryk/Desktop/IronLog" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+    const list = vi.mocked(window.alfredDesktop!.terminal.list);
+    const groups = () => within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
+      .getAllByRole("region")
+      .map((region) => region.getAttribute("aria-label"));
+
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · one/i });
+    await waitFor(() => expect(groups()).toEqual(["Needs you", "Your turn", "Running"]));
+    // A signal the main process sent after the list was read, which the list then lacks.
+    await bridge.emitData({
+      id: "runtime-two",
+      clientId: "two",
+      data: "",
+      activities: [],
+      agentSignal: { state: "needs-you", source: "osc9", at: Date.now(), detail: "Approval requested" },
+    });
+    await waitFor(() => expect(groups()).toEqual(["Needs you", "Running"]));
+
+    const listed = list.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "IronLog project" }));
+    await user.click(screen.getByRole("button", { name: "Alfred project" }));
+    await waitFor(() => expect(list.mock.calls.length).toBe(listed + 2));
+    await act(async () => {});
+
+    // The refreshed list must not reset them: no output arrives that would bring them back.
+    expect(groups()).toEqual(["Needs you", "Running"]);
+    expect(within(screen.getByRole("region", { name: "Needs you" })).getAllByRole("button", { name: /Claude · claude|Codex · two/ }))
+      .toHaveLength(2);
+  });
+
   it("persists the session focused from the stack as workspace view state", async () => {
     const user = userEvent.setup();
     const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
