@@ -4391,9 +4391,9 @@ describe("App integration", () => {
     expect(createTerminal.mock.calls[0]?.[0]).not.toHaveProperty("cwd");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "manual terminal");
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "new terminal");
     const palette = screen.getByRole("dialog", { name: "Command palette" });
-    expect(within(palette).getByText("New manual terminal")).toBeInTheDocument();
+    expect(within(palette).getByText("New terminal")).toBeInTheDocument();
     expect(within(palette).getByText(/(?:Cmd|Ctrl) T · start a shell in the scratch project/)).toBeInTheDocument();
     await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -5118,7 +5118,7 @@ describe("App integration", () => {
   });
 
   it.each([
-    ["New manual terminal", "Manual · zsh 2"],
+    ["New terminal", "Manual · zsh 2"],
     ["New Codex session", "Codex · session 1"],
   ] as const)("focuses a newly added %s and records its layout slot", async (menuItem, title) => {
     const user = userEvent.setup();
@@ -8170,7 +8170,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Shell · edited");
+    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Terminal · edited");
   });
 
   it("hydrates Alfred drafts on the plan line from the desktop runtime", async () => {
@@ -10384,7 +10384,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("Shell");
+    expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("Terminal");
     expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("pnpm test");
     const blocked = screen.getByRole("listitem", { name: /Draft Blocked Codex/i });
     expect(blocked).toHaveTextContent("Blocked: Project has uncommitted or untracked changes.");
