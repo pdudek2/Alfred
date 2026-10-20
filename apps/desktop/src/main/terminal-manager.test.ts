@@ -4137,8 +4137,13 @@ describe("terminal-manager IPC", () => {
         activities: [expect.objectContaining({ kind: "approval", detail: "Bash: ls" })],
       });
 
+      // Your answer also settles the prompt, so the quiet that follows does not read as a prompt left waiting.
       emit(terminalChannels.write, { id: created.id, data: "\r" });
-      expect(lastDataEvent()).toMatchObject({ data: "", agentSignal: null });
+      expect(lastDataEvent()).toMatchObject({
+        data: "",
+        agentSignal: null,
+        activities: [expect.objectContaining({ kind: "lifecycle", title: "Prompt answered" })],
+      });
 
       fire(created.id, { state: "your-turn" });
       emit(terminalChannels.write, { id: created.id, data: "h" });
@@ -4178,9 +4183,18 @@ describe("terminal-manager IPC", () => {
       emit(terminalChannels.write, { id: created.id, data: "\x1b[O" });
       expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "needs-you", source: "osc9" } });
 
+      // Declining with Esc answers it too.
+      emit(terminalChannels.write, { id: created.id, data: "\x1b" });
+      expect(lastDataEvent()).toMatchObject({
+        data: "",
+        agentSignal: null,
+        activities: [expect.objectContaining({ kind: "lifecycle", title: "Prompt answered" })],
+      });
+      expect(pty.writes).toEqual(["\x1b[I", "\x1b[<35;40;12M", "\x1b[<0;40;12M\x1b[<0;40;12m", "\x1b[O", "\x1b"]);
+      // Further input has nothing left to answer.
+      const events = sentEvents.length;
       emit(terminalChannels.write, { id: created.id, data: "y" });
-      expect(lastDataEvent()).toMatchObject({ data: "", agentSignal: null });
-      expect(pty.writes).toEqual(["\x1b[I", "\x1b[<35;40;12M", "\x1b[<0;40;12M\x1b[<0;40;12m", "\x1b[O", "y"]);
+      expect(sentEvents.slice(events).filter((event) => event.channel === terminalChannels.data)).toEqual([]);
     });
 
     it("finds the file behind a Codex [Image #1] in the rollout its hooks name", async () => {
