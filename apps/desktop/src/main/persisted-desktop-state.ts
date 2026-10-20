@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText, redactUnknown } from "@alfred/schema";
@@ -134,6 +134,7 @@ export function createPersistedDesktopStateStore(
 
     const hydration = enqueueMutation(async () => {
       if (hydrated) return;
+      await removeUnfinishedSaves(filePath);
       const result = await readDesktopStateFile(filePath, options.onWarning);
       cachedState = result.state;
       hydrated = true;
@@ -808,8 +809,27 @@ async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapsh
   };
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
 
-  await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, "utf8");
-  await rename(temporaryPath, filePath);
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, "utf8");
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    // The copy holds scrollback and commands, which Clear saved transcripts would not reach.
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Copies that saves left unfinished, cut short by a quit or a crash. Alfred holds a single-instance lock before it
+ * opens its state, so no other process is writing one.
+ */
+async function removeUnfinishedSaves(filePath: string): Promise<void> {
+  const directory = path.dirname(filePath);
+  const prefix = `${path.basename(filePath)}.`;
+  const names = await readdir(directory).catch(() => []);
+  await Promise.all(names
+    .filter((name) => name.startsWith(prefix) && name.endsWith(".tmp"))
+    .map((name) => rm(path.join(directory, name), { force: true }).catch(() => undefined)));
 }
 
 function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
