@@ -55,5 +55,14 @@ describe("checkSafety", () => {
       const result = checkSafety(command, args);
       expect(result).toEqual({ unsafe: false });
     });
+
+    // A first prompt is text for the agent, whatever words it uses.
+    it.each([
+      ["codex", ["--", "check why sudo is needed to run the deploy script"]],
+      ["claude", ["--", "replace the rm -rf in clean.sh with something safer"]],
+      ["claude", ["drop database alfred_test after the migration test, then git push --force"]],
+    ])("allows %s with the prompt %j", (command, args) => {
+      expect(checkSafety(command, args)).toEqual({ unsafe: false });
+    });
   });
 });
