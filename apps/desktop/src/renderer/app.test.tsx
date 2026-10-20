@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1949,6 +1949,26 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+  });
+
+  it("leaves Escape typed in a terminal to the terminal while Details is open", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    // xterm takes keys through a textarea inside its host.
+    const input = document.createElement("textarea");
+    screen.getByTestId("xterm-host").append(input);
+    let reached = false;
+    input.addEventListener("keydown", (event) => {
+      reached = event.key === "Escape" && !event.defaultPrevented;
+    });
+    input.focus();
+    await user.keyboard("{Escape}");
+    expect(reached).toBe(true);
+    expect(screen.getByTestId("context-column")).not.toHaveClass("closed");
   });
 
   it("lets an open project menu consume Escape before Details", async () => {
@@ -7026,6 +7046,31 @@ describe("App integration", () => {
       expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
       expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
     });
+  });
+
+  it("keeps the Deck's session shortcuts off History, where its sessions are out of sight", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, killTerminal } = installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · one/i });
+    await selectSurface(user, "History");
+    const created = createTerminal.mock.calls.length;
+
+    for (const init of [{ key: "w" }, { key: "t" }, { key: "]", code: "BracketRight", shiftKey: true }]) {
+      const event = createEvent.keyDown(window, { metaKey: true, ...init });
+      fireEvent(window, event);
+      // Still taken from the window, whose default menu closes the window on Command W.
+      expect(event.defaultPrevented).toBe(true);
+    }
+    await act(async () => {});
+    expect(killTerminal).not.toHaveBeenCalled();
+    expect(createTerminal).toHaveBeenCalledTimes(created);
+    expect(screen.getByRole("region", { name: "History" })).toBeInTheDocument();
+
+    // Command 1 opens the first project's Deck, as its rail row does, with the focus it had.
+    fireEvent.keyDown(window, { key: "1", metaKey: true });
+    await waitFor(() => expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument());
+    expect(screen.getByRole("article", { name: /Codex · one/i })).not.toHaveAttribute("aria-hidden");
   });
 
   it("does not close saved memory with the desktop close shortcut", async () => {
