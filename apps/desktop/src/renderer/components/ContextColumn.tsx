@@ -38,6 +38,8 @@ export function ContextColumn({
     if (!contextOpen || dismissalSuspended) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented || document.querySelector('[role="menu"]')) return;
+      // Escape typed in a terminal is its program's: it interrupts an agent or declines its prompt, and ends vim's insert mode.
+      if (event.target instanceof Element && event.target.closest(".xterm-host")) return;
       event.preventDefault();
       event.stopPropagation();
       requestCloseContext();

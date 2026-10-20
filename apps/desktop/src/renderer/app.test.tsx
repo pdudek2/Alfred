@@ -1951,6 +1951,26 @@ describe("App integration", () => {
     await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
   });
 
+  it("leaves Escape typed in a terminal to the terminal while Details is open", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    // xterm takes keys through a textarea inside its host.
+    const input = document.createElement("textarea");
+    screen.getByTestId("xterm-host").append(input);
+    let reached = false;
+    input.addEventListener("keydown", (event) => {
+      reached = event.key === "Escape" && !event.defaultPrevented;
+    });
+    input.focus();
+    await user.keyboard("{Escape}");
+    expect(reached).toBe(true);
+    expect(screen.getByTestId("context-column")).not.toHaveClass("closed");
+  });
+
   it("lets an open project menu consume Escape before Details", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
