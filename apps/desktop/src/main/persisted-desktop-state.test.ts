@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -1009,6 +1009,29 @@ describe("persisted-desktop-state", () => {
     await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
     expect(warnings).toEqual(["Failed to persist desktop state."]);
     expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed", message: "Failed to persist desktop state." });
+  });
+
+  it("leaves no partial copy of the state behind when a save fails", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+    await store.getState();
+    // A folder where the state file goes lets the copy be written, then fails the rename over it.
+    await mkdir(path.join(filePath, "blocker"), { recursive: true });
+
+    await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
+    expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
+  });
+
+  it("removes the copies earlier saves left unfinished, and nothing else", async () => {
+    const filePath = await temporaryStateFile();
+    const directory = path.dirname(filePath);
+    // A quit or a crash during a save leaves its copy, cut wherever the write stopped.
+    await writeFile(path.join(directory, "desktop-state.json.4242.0d4c9f.tmp"), '{"version":2,"restoredTerminalSessions":[{"buffer":"');
+    await writeFile(path.join(directory, "desktop-state.json.invalid-1760000000000.json"), "{}");
+    await writeFile(path.join(directory, "notes.tmp"), "");
+
+    await createPersistedDesktopStateStore({ filePath }).getState();
+    expect((await readdir(directory)).sort()).toEqual(["desktop-state.json.invalid-1760000000000.json", "notes.tmp"]);
   });
 
   it("preserves a failed mutation through the next successful update", async () => {

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText, redactUnknown } from "@alfred/schema";
@@ -26,6 +26,12 @@ import { isAlfredManagedBranchName, workspaceRootFingerprint } from "./git-workt
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
 export const MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH = 80_000;
+/**
+ * Redaction needs a secret's start, such as "ghp_" or a key's BEGIN line, so it reads this much of the scrollback
+ * before the tail that is kept.
+ * ponytail: a secret longer than this that the tail cuts through keeps its end; redacting output as it arrives would not.
+ */
+export const SCROLLBACK_REDACTION_MARGIN = 16_000;
 
 export type TerminalScrollbackRetention = "off" | "redactedTail";
 
@@ -134,6 +140,7 @@ export function createPersistedDesktopStateStore(
 
     const hydration = enqueueMutation(async () => {
       if (hydrated) return;
+      await removeUnfinishedSaves(filePath);
       const result = await readDesktopStateFile(filePath, options.onWarning);
       cachedState = result.state;
       hydrated = true;
@@ -663,7 +670,12 @@ export function sanitizePersistedTerminalSession(
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.buffer === undefined
       ? {}
-      : { buffer: redactText(tailText(session.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH)) }),
+      : {
+          buffer: tailText(
+            redactText(tailText(session.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN)),
+            MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH,
+          ),
+        }),
     ...(session.activityEvents === undefined
       ? {}
       : { activityEvents: redactActivityEvents(session.activityEvents) }),
@@ -808,8 +820,27 @@ async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapsh
   };
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
 
-  await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, "utf8");
-  await rename(temporaryPath, filePath);
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, "utf8");
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    // The copy holds scrollback and commands, which Clear saved transcripts would not reach.
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Copies that saves left unfinished, cut short by a quit or a crash. Alfred holds a single-instance lock before it
+ * opens its state, so no other process is writing one.
+ */
+async function removeUnfinishedSaves(filePath: string): Promise<void> {
+  const directory = path.dirname(filePath);
+  const prefix = `${path.basename(filePath)}.`;
+  const names = await readdir(directory).catch(() => []);
+  await Promise.all(names
+    .filter((name) => name.startsWith(prefix) && name.endsWith(".tmp"))
+    .map((name) => rm(path.join(directory, name), { force: true }).catch(() => undefined)));
 }
 
 function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
