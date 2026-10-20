@@ -2176,7 +2176,7 @@ export function App() {
         activityEvents: [
           {
             id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}-resume`,
-            kind: "approval",
+            kind: "lifecycle",
             title: "External Codex session resumed",
             detail: "Alfred is opening this Codex transcript in a managed terminal.",
             at: now,
@@ -3646,6 +3646,9 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
 
     return {
       ...liveSession,
+      // The main process sends these again only when they change, so a list read before the last change keeps them.
+      ...(liveSession.agentSignal === undefined && session.agentSignal !== undefined ? { agentSignal: session.agentSignal } : {}),
+      ...(liveSession.shellBusy === undefined && session.shellBusy !== undefined ? { shellBusy: session.shellBusy } : {}),
       ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
       ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
       ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
