@@ -7721,6 +7721,50 @@ describe("App integration", () => {
     expect(focused).not.toHaveAttribute("aria-hidden");
   });
 
+  it("keeps a waiting session counted, listed and described when activity follows its prompt", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(undefined, null, [liveSnapshot("one")]);
+    const at = Date.now();
+
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · one/i });
+    await bridge.emitData({
+      id: "runtime-one",
+      clientId: "one",
+      data: "",
+      activities: [{
+        id: "one-approval",
+        kind: "approval",
+        title: "Waiting for approval",
+        detail: "Allow edit in app.tsx?",
+        payload: { type: "approval", prompt: "Allow edit in app.tsx?" },
+        at,
+      }],
+      agentSignal: { state: "needs-you", source: "osc9", at, detail: "Allow edit in app.tsx?" },
+    });
+    expect(await screen.findByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
+    // Any output line that reads like a warning is recorded after the prompt.
+    await bridge.emitData({
+      id: "runtime-one",
+      clientId: "one",
+      data: "npm warn deprecated glob@7.2.3\n",
+      activities: [{
+        id: "one-warning",
+        kind: "warning",
+        title: "Warning reported",
+        detail: "npm warn deprecated glob@7.2.3",
+        payload: { type: "warning", message: "npm warn deprecated glob@7.2.3" },
+        at: at + 1,
+      }],
+    });
+
+    expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: /Codex · one/i })).getByRole("note"))
+      .toHaveTextContent("Allow edit in app.tsx?");
+    await user.click(screen.getByRole("button", { name: "Needs you, 1 session" }));
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Allow edit in app.tsx?");
+  });
+
   it("keeps what a session waits on and a busy shell across a project switch", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(
