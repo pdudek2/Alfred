@@ -23,7 +23,7 @@ test("keeps New session and global session actions continuous across surfaces", 
   await page.keyboard.press("Escape");
 
   await selectSurface(page, "History");
-  await openLaunchItem(page, "New manual terminal");
+  await openLaunchItem(page, "New terminal");
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/surface-work/);
   await expect(page.getByRole("article", { name: /Manual · zsh 2/i })).toHaveClass(/selected/);
 

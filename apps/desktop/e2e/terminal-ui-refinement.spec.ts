@@ -51,7 +51,7 @@ test("scrolls the focused terminal, not the deck column, under the wheel", async
   const initialTerminalRowCount = await host.locator(".xterm-rows > div").count();
   expect(initialTerminalRowCount).toBeGreaterThan(0);
   for (let index = 0; index < 5; index += 1) {
-    await addSession(page, "New manual terminal");
+    await addSession(page, "New terminal");
   }
   await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
   await expect(terminalTile).not.toHaveAttribute("aria-hidden", "true");
