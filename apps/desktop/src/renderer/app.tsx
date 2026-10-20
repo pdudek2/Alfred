@@ -2336,8 +2336,20 @@ export function App() {
         const workspace = railOrder(workspaces)[index];
         if (workspace) {
           event.preventDefault();
-          handleSelectWorkspace(workspace.id);
+          handleSelectWorkspaceFromRail(workspace.id);
         }
+        return;
+      }
+
+      // The Deck's session shortcuts act on sessions you can see; History hides the Deck. The keys are still taken,
+      // or Command W would reach the window menu.
+      const key = event.key.toLowerCase();
+      const sessionShortcut = (event.metaKey || event.ctrlKey) && (
+        key === "t" || key === "w"
+        || (event.shiftKey && (key === "o" || event.code === "BracketRight" || event.code === "BracketLeft"))
+      );
+      if (sessionShortcut && activeSurface !== "work") {
+        event.preventDefault();
         return;
       }
 
@@ -2413,7 +2425,7 @@ export function App() {
     handleFocusSessionByDelta,
     handleOpenCommandPalette,
     handleOpenSessionTerminal,
-    handleSelectWorkspace,
+    handleSelectWorkspaceFromRail,
     handleToggleNeedsYou,
     handleToggleContextDrawer,
     workspaceMenuOpen,
