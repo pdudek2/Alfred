@@ -1009,7 +1009,8 @@ describe("App integration", () => {
     } as TerminalDataEvent);
 
     expect(screen.getByRole("article", { name: "Release reviewer" })).toBeInTheDocument();
-    expect(terminalInputHandlers).toHaveLength(1);
+    // The tile registers its input handler in an effect, which may not have run yet.
+    await waitFor(() => expect(terminalInputHandlers).toHaveLength(1));
     act(() => {
       terminalInputHandlers[0]?.("Replace the custom title\r");
     });
@@ -1023,7 +1024,8 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
-    expect(terminalInputHandlers).toHaveLength(1);
+    // The tile registers its input handler in an effect, which may not have run yet.
+    await waitFor(() => expect(terminalInputHandlers).toHaveLength(1));
 
     act(() => {
       terminalInputHandlers[0]?.("\u001b]0;spoof");
