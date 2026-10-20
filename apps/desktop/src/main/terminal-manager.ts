@@ -587,7 +587,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     session.pty.write(request.data);
     // Moving the mouse over or clicking into a waiting Codex terminal sends mouse and focus reports; only your own
     // input answers it.
-    if (!isTerminalReport(request.data) && clearWaitingSignal(session)) sendSignalUpdate(session, { agentSignal: null });
+    if (!isTerminalReport(request.data)) {
+      const cleared = clearWaitingSignal(session);
+      const answered = answerApproval(session);
+      if (cleared || answered) {
+        sendSignalUpdate(session, { ...(cleared ? { agentSignal: null } : {}), ...(answered ? { activities: [answered] } : {}) });
+      }
+    }
     scheduleShellBusySample(session);
   });
 
@@ -1390,6 +1396,15 @@ function clearWaitingSignal(session: TerminalSession): boolean {
   if (!signal || (signal.state !== "needs-you" && signal.source !== "osc9")) return false;
   session.agentSignal = undefined;
   return true;
+}
+
+/**
+ * Your input settles the prompt the session last asked, so the quiet after a declined prompt does not read as one still
+ * waiting. Details leaves this event out, as it does every lifecycle event it does not name.
+ */
+function answerApproval(session: TerminalSession): SessionActivityEvent | null {
+  if (session.activityEvents?.at(-1)?.kind !== "approval") return null;
+  return recordSessionActivity(session, { kind: "lifecycle", title: "Prompt answered", detail: "You answered in the terminal." });
 }
 
 function sendSignalUpdate(
