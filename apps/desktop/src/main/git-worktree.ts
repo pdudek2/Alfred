@@ -260,6 +260,15 @@ export function isSafeAgentWorktreeCleanupRequest(
   }
 }
 
+/** The root of the Git repository a folder is in, which checkouts are made from; null outside one. */
+export async function gitRepositoryRoot(cwd: string, options: Pick<PrepareAgentWorktreeOptions, "execFile"> = {}): Promise<string | null> {
+  try {
+    return await gitOutput(options.execFile ?? execFile, ["-C", cwd, "rev-parse", "--show-toplevel"], "Workspace is not a Git repository.");
+  } catch {
+    return null;
+  }
+}
+
 export async function preflightAgentWorktree(
   request: AgentWorktreeRequest,
   options: Pick<PrepareAgentWorktreeOptions, "execFile" | "now" | "randomSuffix" | "worktreeStoreRoot"> = {},
