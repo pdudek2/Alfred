@@ -389,6 +389,50 @@ describe("terminal-manager IPC", () => {
     expect(state.restoredTerminalSessions[0]?.buffer).toBe(retainedTail);
   });
 
+  const keyLines = Array.from({ length: 25 }, () => "K".repeat(70));
+  it.each([
+    { name: "a token", secret: `ghp_${"S".repeat(36)}`, cutInto: 2, body: "S".repeat(36) },
+    {
+      name: "a private key",
+      secret: ["-----BEGIN OPENSSH PRIVATE KEY-----", ...keyLines, "-----END OPENSSH PRIVATE KEY-----"].join("\n"),
+      cutInto: 10,
+      body: keyLines[0]!,
+    },
+  ])("redacts $name that the saved tail cuts through", async ({ secret, cutInto, body }) => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-secret-tail",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Manual terminal",
+    });
+
+    // The 80k tail starts `cutInto` characters into the secret, past "gh" or into the key's BEGIN line.
+    pty.onDataHandler?.(`${"a".repeat(1_000)}\n${secret}\n${"b".repeat(80_000 - secret.length - 1 + cutInto)}`);
+    await flushTerminalPersistence();
+
+    const saved = state.restoredTerminalSessions[0]?.buffer ?? "";
+    expect(saved.length).toBeLessThanOrEqual(80_000);
+    expect(saved).not.toContain(body);
+  });
+
   it("redacts persisted terminal scrollback and activity", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
