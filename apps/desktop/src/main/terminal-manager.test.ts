@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
+import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
   applyTerminalPrivacyPolicyInMemory,
   configureTerminalPersistence,
@@ -2905,6 +2907,52 @@ describe("terminal-manager IPC", () => {
       baseCwd: "/repo",
       branchName: "alfred-codex-sanitized",
     }, {});
+  });
+
+  it("manages a checkout of a project that is a folder inside its repository", async () => {
+    const temporaryRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "alfred-subfolder-project-")));
+    const repository = path.join(temporaryRoot, "monorepo");
+    const project = path.join(repository, "packages", "app");
+    const worktreeStoreRoot = path.join(temporaryRoot, "user-data", "worktrees");
+    const branchName = "alfred-codex-subfolder";
+    try {
+      await fs.mkdir(project, { recursive: true });
+      await fs.mkdir(worktreeStoreRoot, { recursive: true });
+      await promisify(execFileCallback)("git", ["init", "-q", repository]);
+      // Checkouts are made from the repository's root, and the session starts in the project's folder inside one.
+      const worktree = path.join(managedProjectWorktreeRoot(worktreeStoreRoot, repository), branchName);
+      await fs.mkdir(path.join(worktree, "packages", "app"), { recursive: true });
+      const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "" }));
+      configureTerminalPersistence(storeWithRestoredSessions([{
+        clientId: "subfolder",
+        title: "Codex",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: workspaceRootFingerprint(repository),
+        cwd: path.join(worktree, "packages", "app"),
+        baseCwd: repository,
+        isolation: "worktree",
+        branchName,
+        createdAt: 1,
+        shell: "codex",
+        command: "codex",
+        buffer: "",
+      }]), { debounceMs: 0 });
+      registerTerminalIpc({ inspectAgentWorktree, managedWorktreeRootPath: worktreeStoreRoot, resolveWorkspaceRoot: async () => project });
+
+      await expect(invoke(terminalChannels.worktreeDiff, { clientId: "subfolder" })).resolves.toEqual({
+        ok: true,
+        summary: "1 changed file",
+        files: [],
+        patch: "",
+      });
+      expect(inspectAgentWorktree).toHaveBeenCalledWith(expect.objectContaining({ baseCwd: repository, branchName }), {
+        worktreeStoreRoot,
+      });
+    } finally {
+      await fs.rm(temporaryRoot, { recursive: true, force: true });
+    }
   });
 
   it("reviews a recovered checkout when the authoritative workspace root uses a filesystem alias", async () => {

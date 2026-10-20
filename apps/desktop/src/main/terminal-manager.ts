@@ -59,6 +59,7 @@ import { checkSafety } from "./alfred-safety.js";
 import {
   applyAgentWorktreePatch as defaultApplyAgentWorktreePatch,
   cleanupAgentWorktree as defaultCleanupAgentWorktree,
+  gitRepositoryRoot,
   inspectAgentWorktree as defaultInspectAgentWorktree,
   isSafeAgentWorktreeCleanupRequest,
   prepareAgentWorktree as defaultPrepareAgentWorktree,
@@ -1082,9 +1083,14 @@ async function worktreeOperationRequest(
   if (session.isolation === "shared" || (!session.baseCwd && !session.branchName)) {
     return { ok: false, error: "Session is not an isolated checkout." };
   }
-  const baseCwd = session.workspaceId && session.workspaceRootFingerprint
+  const projectRoot = session.workspaceId && session.workspaceRootFingerprint
     ? await options.resolveWorkspaceRoot?.(session.workspaceId)
     : session.baseCwd;
+  // A project can be a folder inside its repository, as in a monorepo. The checkout was made from the repository's
+  // root, which its fingerprint names; a folder outside any repository is compared as it is.
+  const baseCwd = projectRoot && session.workspaceRootFingerprint
+    ? (await gitRepositoryRoot(projectRoot)) ?? projectRoot
+    : projectRoot;
   if (!baseCwd) {
     return { ok: false, error: "Reattach the original project before managing this checkout." };
   }
