@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { normalizeLocalPreviewUrl, openExternalUrl } from "./external-url.js";
 
+// Importing the real module downloads Electron's binary when it is missing, as on CI's Linux runner.
+vi.mock("electron", () => ({ shell: {} }));
+
 describe("external-url", () => {
   it("accepts localhost preview URLs and normalizes them", () => {
     expect(normalizeLocalPreviewUrl(" http://localhost:4310/path ")).toEqual({
