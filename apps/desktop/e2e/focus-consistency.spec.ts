@@ -15,7 +15,7 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   // A narrow focus column folds Close into the overflow menu; either way one tile control takes the ring.
   const tileUtility = page.locator('[data-testid="terminal-tile"]:visible')
-    .getByRole("button", { name: /^(Close|More actions for) Manual/ }).first();
+    .getByRole("button", { name: /^(Close|More actions for) zsh/ }).first();
   // A second terminal puts the first one in the stack.
   await openNewTerminalSheet(page);
   await page.getByRole("button", { name: "Start", exact: true }).click();
@@ -23,7 +23,7 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]').getByRole("textbox", { name: "Terminal input" }))
     .toBeFocused();
   const stackCard = page.getByRole("complementary", { name: /^Other sessions in / })
-    .getByRole("button", { name: /Manual · zsh 1/ });
+    .getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
   await expect(stackCard).toBeVisible();
 
   const controls = [

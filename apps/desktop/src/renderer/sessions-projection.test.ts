@@ -343,7 +343,7 @@ describe("buildSessionsProjection", () => {
       externalSessions: [],
     });
 
-    expect(projection.items[0]?.title).toBe("Codex session");
+    expect(projection.items[0]?.title).toBe("Codex");
     expect(JSON.stringify(projection.items)).not.toContain("recommended_plugins");
   });
 

@@ -9,7 +9,7 @@ type DesktopTerminalWindow = Window & {
 
 test("keeps New session and global session actions continuous across surfaces", async ({ harness }) => {
   const { page } = harness;
-  await expect(page.getByRole("article", { name: /Manual · zsh 1/i })).toBeVisible();
+  await expect(page.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeVisible();
 
   await openLaunchItem(page, "New session");
   const draft = page.getByRole("textbox", { name: "Goal" });
@@ -23,9 +23,9 @@ test("keeps New session and global session actions continuous across surfaces", 
   await page.keyboard.press("Escape");
 
   await selectSurface(page, "History");
-  await openLaunchItem(page, "New manual terminal");
+  await openLaunchItem(page, "New terminal");
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/surface-work/);
-  await expect(page.getByRole("article", { name: /Manual · zsh 2/i })).toHaveClass(/selected/);
+  await expect(page.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toHaveClass(/selected/);
 
   await selectSurface(page, "History");
   await page.getByRole("button", { name: "Open command palette" }).click();
@@ -40,7 +40,7 @@ test("keeps New session and global session actions continuous across surfaces", 
 
 test("reads final scrollback after a managed terminal exits", async ({ harness }) => {
   const { page } = harness;
-  await expect(page.getByRole("article", { name: /Manual · zsh 1/i })).toBeVisible();
+  await expect(page.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeVisible();
   await expect.poll(() => page.evaluate(async () => {
     const terminal = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
     return (await terminal?.list())?.sessions.length ?? 0;
@@ -64,8 +64,8 @@ test("reads final scrollback after a managed terminal exits", async ({ harness }
 
   await selectSurface(page, "History");
   const results = page.getByRole("listbox", { name: "Session results" });
-  await results.getByRole("option", { name: /Manual · zsh 1/i }).click();
-  await expect(page.getByRole("article", { name: /Manual · zsh 1/i }))
+  await results.getByRole("option", { name: /(?<!\/)zsh(?! \d)(?! ·)/i }).click();
+  await expect(page.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i }))
     .toContainText("final scrollback proof");
 
   harness.assertNoRuntimeErrors();

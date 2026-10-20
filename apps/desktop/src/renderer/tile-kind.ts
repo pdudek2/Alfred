@@ -4,8 +4,8 @@ export type TileKind = "manual" | "codex" | "claude" | "dev-server" | "shell";
 
 type TileKindMeta = {
   className: TileKind;
-  label: string;
-  shortLabel: string;
+  /** Contract vocabulary: a session is Claude, Codex or Terminal. */
+  label: "Claude" | "Codex" | "Terminal";
 };
 
 export function sessionTileKind(session: {
@@ -19,14 +19,12 @@ export function sessionTileKind(session: {
 export function tileKindMeta(kind: TileKind): TileKindMeta {
   switch (kind) {
     case "claude":
-      return { className: kind, label: "Claude", shortLabel: "Cl" };
+      return { className: kind, label: "Claude" };
     case "codex":
-      return { className: kind, label: "Codex", shortLabel: "Cx" };
+      return { className: kind, label: "Codex" };
     case "dev-server":
-      return { className: kind, label: "Server", shortLabel: "Srv" };
     case "manual":
-      return { className: kind, label: "Manual", shortLabel: "M" };
     case "shell":
-      return { className: kind, label: "Shell", shortLabel: "Sh" };
+      return { className: kind, label: "Terminal" };
   }
 }

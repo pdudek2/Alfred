@@ -18,7 +18,7 @@ test("pins the shell under a Claude focus 3:2, types into it, and unpins it with
   const focusHost = await handle(focusTile.getByTestId("xterm-host"));
   const shellHost = await handle(shellTile.getByTestId("xterm-host"));
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
-  await expect(breadcrumb).toContainText("Claude · session 1");
+  await expect(breadcrumb).toContainText("Claude");
 
   const stack = page.getByRole("complementary", { name: /^Other sessions in / });
   await stack.locator('[data-session-id="manual-1"]').hover();
@@ -40,7 +40,7 @@ test("pins the shell under a Claude focus 3:2, types into it, and unpins it with
   await page.keyboard.type("echo pinned-input");
   await page.keyboard.press("Enter");
   await expect.poll(() => terminalBuffer(page, "manual-1")).toContain("pinned-input");
-  await expect(breadcrumb).toContainText("Claude · session 1");
+  await expect(breadcrumb).toContainText("Claude");
 
   await shellTile.getByRole("button", { name: /^Unpin / }).click();
   await expect(shellTile).toHaveAttribute("aria-hidden", "true");

@@ -27,8 +27,8 @@ test("keeps a workspace recoverable when its saved folder is missing", async ({ 
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Open command palette" }).click();
-  await page.getByRole("textbox", { name: "Search commands" }).fill("manual terminal");
-  await expect(page.getByRole("option", { name: /New manual terminal/ })).toBeDisabled();
+  await page.getByRole("textbox", { name: "Search commands" }).fill("new terminal");
+  await expect(page.getByRole("option", { name: /New terminal/ })).toBeDisabled();
 
   harness.assertNoRuntimeErrors();
 });
