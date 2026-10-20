@@ -10,7 +10,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type ReactNode,
 } from "react";
-import { activitySentence, waitingSentence } from "../activity-presentation";
+import { activitySentence, pendingApproval, waitingSentence } from "../activity-presentation";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
 import { codexSentMessagesAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";
@@ -940,8 +940,11 @@ function ManualTerminalTile({
     setRenaming(true);
   };
   // What the agent waits for, in one sentence, when the focused session needs you: "Claude wants to edit app.tsx".
-  const attentionCopy = displayStatus.kind === "needs-you" && latestActivity
-    ? waitingSentence(latestActivity, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
+  const waitingOn = displayStatus.kind === "needs-you" && displayStatus.reason === "approval"
+    ? pendingApproval(activityEvents)
+    : latestActivity;
+  const attentionCopy = displayStatus.kind === "needs-you" && waitingOn
+    ? waitingSentence(waitingOn, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
     : null;
   const resumeAction = tileStatus === "restored" && relaunchCapable
     ? {
