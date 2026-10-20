@@ -51,6 +51,11 @@ For help, see: https://nodejs.org/en/docs/inspector
       ),
     ).toBe(false);
     expect(isAllowedElectronMainOutput("main-stderr", "Debugger ending on ws://attacker.example/abc")).toBe(false);
+    // Electron main can write the two lines as two stderr chunks.
+    const [ending, help] = inspectorShutdown.split(/(?<=\n)/);
+    expect(isAllowedElectronMainOutput("main-stderr", ending!)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", help!)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", `${help}unexpected output`)).toBe(false);
   });
 
   it("allows one or more canonical macOS backupd XPC lines from Electron main stderr", () => {

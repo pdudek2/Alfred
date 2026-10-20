@@ -6,8 +6,9 @@ const ELECTRON_42_CSP_WARNING = [
   "This warning will not show up once the app is packaged.",
 ].join(" ");
 
+// Either line may come as its own stderr chunk.
 const PLAYWRIGHT_INSPECTOR_SHUTDOWN =
-  /^Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\nFor help, see: https:\/\/nodejs\.org\/en\/docs\/inspector\n?$/;
+  /^(?=.)(?:Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\n|$))?(?:For help, see: https:\/\/nodejs\.org\/en\/docs\/inspector\n?)?$/;
 const MACOS_BACKUPD_XPC_LINE =
   String.raw`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} Electron Helper\[\d+:\d+\] XPC error for connection com\.apple\.backupd\.sandbox\.xpc: Connection invalid`;
 const MACOS_BACKUPD_XPC_OUTPUT = new RegExp(
