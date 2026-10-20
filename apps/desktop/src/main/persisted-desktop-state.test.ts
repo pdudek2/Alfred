@@ -138,7 +138,7 @@ describe("persisted-desktop-state", () => {
       restoredTerminalSessions: [
         {
           clientId: "manual-1",
-          title: "Manual · zsh 1",
+          title: "zsh",
           source: "manual",
           cwd: "/Users/patryk/Desktop/Interface",
           shell: "/bin/zsh",
@@ -514,10 +514,32 @@ describe("persisted-desktop-state", () => {
 
     expect(state.restoredTerminalSessions[0]).toMatchObject({
       clientId: "manual-63",
+      title: "Codex 63",
       agentKind: "codex",
       command: "codex",
       args: [],
     });
+  });
+
+  it("gives saved sessions the titles new ones get, once", async () => {
+    const filePath = await temporaryStateFile();
+    const saved = (clientId: string, title: string) => ({ clientId, title, source: "manual", cwd: "/repo", shell: "/bin/zsh", buffer: "" });
+    await writeFile(filePath, JSON.stringify({
+      ...DEFAULT_DESKTOP_STATE,
+      version: DESKTOP_STATE_VERSION,
+      restoredTerminalSessions: [
+        saved("manual-1", "Manual · zsh 1"),
+        saved("manual-3", "Manual · zsh 3"),
+        saved("claude-2", "Claude · session 2"),
+        saved("manual-4", "Release reviewer"),
+      ],
+    }));
+
+    const state = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(state.restoredTerminalSessions.map((session) => session.title)).toEqual(["zsh", "zsh 3", "Claude 2", "Release reviewer"]);
+    // The file was rewritten with them, so the next start reads it as it is.
+    const rewritten = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(rewritten.restoredTerminalSessions.map((session) => session.title)).toEqual(["zsh", "zsh 3", "Claude 2", "Release reviewer"]);
   });
 
   it("keeps only safe isolated recovery identity when retention is off", () => {
