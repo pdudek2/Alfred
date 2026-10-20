@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from "react";
+import { activitySentence, pendingApproval, waitingSentence } from "../activity-presentation";
 import type { SessionTile } from "../session-state";
 import { sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -50,7 +51,7 @@ export function SessionStack({ asleepCount, now, planLine, sessions, tabs, works
                 <StackCard
                   key={session.id}
                   now={now}
-                  preview={group.preview ? stackPreviewLine(session) : null}
+                  preview={group.preview ? stackPreviewLine(session, states.get(session.id)!) : null}
                   session={session}
                   status={states.get(session.id)!}
                   onFocus={() => onFocusSession(session.id)}
@@ -115,12 +116,15 @@ function StackCard({
 /**
  * The card's second line. The contract asks for the last output lines, but the bottom of an agent's
  * screen is its input box, so the latest classified activity stands in. Swap the source here.
+ * It uses the sentences of the other surfaces: what a waiting session asks as Needs you says it, the rest as Details.
  */
-export function stackPreviewLine(session: Pick<SessionTile, "activityEvents">): string | null {
+export function stackPreviewLine(session: Pick<SessionTile, "activityEvents">, status: SessionDisplayStatus): string | null {
+  const approval = status.kind === "needs-you" && status.reason === "approval" ? pendingApproval(session.activityEvents) : undefined;
+  if (approval) return waitingSentence(approval);
   const events = session.activityEvents ?? [];
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!;
-    if (event.kind !== "lifecycle") return event.detail || event.title;
+    if (event.kind !== "lifecycle") return activitySentence(event);
   }
   return null;
 }
