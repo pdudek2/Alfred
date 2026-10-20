@@ -7,6 +7,8 @@ const UNSAFE_PATTERNS: Array<{ re: RegExp; reason: string }> = [
 ];
 
 const SHELL_METACHARS = /[&;|<>`$()\s'"]/;
+// An agent's arguments are its options and the prompt written for it: text it reads, not a command line to run.
+const AGENT_COMMANDS = new Set(["codex", "claude"]);
 
 export function checkSafety(
   command: string,
@@ -18,7 +20,7 @@ export function checkSafety(
   if (isForcePush(command, args)) {
     return { unsafe: true, reason: "git push --force" };
   }
-  const fullLine = [command, ...args].join(" ");
+  const fullLine = AGENT_COMMANDS.has(command) ? command : [command, ...args].join(" ");
   for (const { re, reason } of UNSAFE_PATTERNS) {
     if (re.test(fullLine)) return { unsafe: true, reason };
   }
