@@ -1,4 +1,4 @@
-import { waitingSentence } from "./activity-presentation";
+import { pendingApproval, waitingSentence } from "./activity-presentation";
 import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { sessionState, type SessionDisplayStatus } from "./session-status";
@@ -159,8 +159,8 @@ function projectAgentWaiting(
   status: SessionDisplayStatus,
 ): AttentionProjection | null {
   if (status.kind !== "needs-you" || status.reason !== "approval") return null;
-  const approval = session.activityEvents?.at(-1);
-  if (approval?.kind !== "approval") return null;
+  const approval = pendingApproval(session.activityEvents);
+  if (!approval) return null;
 
   const reason = waitingSentence(approval);
 

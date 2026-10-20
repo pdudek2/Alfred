@@ -158,6 +158,11 @@ export function activitySentence(event: SessionActivityEvent): string {
 }
 
 /** Why a session waits, as Needs you and the session strip say it: "Wants to edit session-status.ts", or "Claude wants to …". */
+/** The prompt a waiting session asked, whatever activity was recorded after it. */
+export function pendingApproval(events: SessionActivityEvent[] | undefined): SessionActivityEvent | undefined {
+  return events?.slice().reverse().find((event) => event.kind === "approval");
+}
+
 export function waitingSentence(event: SessionActivityEvent, subject?: string): string {
   if (event.kind !== "approval") return activitySentence(event);
   const ask = readApproval(event.payload?.type === "approval" ? event.payload.prompt : event.detail);
