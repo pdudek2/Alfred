@@ -5,7 +5,6 @@ const BEL = String.fromCharCode(0x07);
 const OSC_SEQUENCE = new RegExp(`${ESCAPE}\\][\\s\\S]*?(?:${BEL}|${ESCAPE}\\\\)`, "g");
 const CSI_SEQUENCE = new RegExp(`${ESCAPE}\\[[0-?]*[ -/]*[@-~]`, "g");
 const ESCAPE_SEQUENCE = new RegExp(`${ESCAPE}(?:[ -/]*[@-~]|[78])?`, "g");
-const INCOMPLETE_OSC_SEQUENCE = new RegExp(`${ESCAPE}\\](?:(?!${BEL}|${ESCAPE}\\\\)[\\s\\S])*$`);
 const INCOMPLETE_CSI_SEQUENCE = new RegExp(`${ESCAPE}\\[[0-?]*[ -/]*$`);
 const INCOMPLETE_ESCAPE_SEQUENCE = new RegExp(`${ESCAPE}[ -/]*$`);
 
@@ -19,12 +18,23 @@ export function stripTerminalControlSequences(value: string): string {
 }
 
 export function stripTerminalControlSequencesWithRemainder(value: string): TerminalControlStripResult {
-  const remainder = value.match(INCOMPLETE_OSC_SEQUENCE)?.[0]
+  const remainder = incompleteOscSequence(value)
     ?? value.match(INCOMPLETE_CSI_SEQUENCE)?.[0]
     ?? value.match(INCOMPLETE_ESCAPE_SEQUENCE)?.[0]
     ?? "";
   const text = remainder ? value.slice(0, -remainder.length) : value;
   return { text: text.replace(OSC_SEQUENCE, "").replace(CSI_SEQUENCE, "").replace(ESCAPE_SEQUENCE, ""), remainder };
+}
+
+/**
+ * The OSC sequence still open at the end of the text: from the first "ESC ]" after the last terminator. A search
+ * rather than a regex, which backtracks quadratically over many sequences opened before one terminator.
+ */
+function incompleteOscSequence(value: string): string | undefined {
+  const bel = value.lastIndexOf(BEL);
+  const stringTerminator = value.lastIndexOf(`${ESCAPE}\\`);
+  const start = value.indexOf(`${ESCAPE}]`, Math.max(bel < 0 ? 0 : bel + 1, stringTerminator < 0 ? 0 : stringTerminator + 2));
+  return start < 0 ? undefined : value.slice(start);
 }
 
 /**
@@ -42,7 +52,10 @@ export function terminalOutputLines(value: string): string[] {
     .replace(/(^|\n)% +\r \r/g, "$1")
     .replace(/% +\r \r/g, "\n");
   return text.split("\n").map((line) => {
-    const visible = line.replace(/\r+$/, "");
+    // A loop rather than /\r+$/, which backtracks quadratically over a long run of carriage returns that does not end the line.
+    let end = line.length;
+    while (end > 0 && line[end - 1] === "\r") end -= 1;
+    const visible = line.slice(0, end);
     const characters: string[] = [];
     for (const character of visible.slice(visible.lastIndexOf("\r") + 1)) {
       if (character === "\b") characters.pop();

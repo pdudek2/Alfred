@@ -61,6 +61,15 @@ describe("terminal output lines", () => {
     ]);
   });
 
+  it("reads any program's output in time linear in its length", () => {
+    // Output is whatever a program prints; the 200k a terminal keeps of carriage returns must not stall the reader.
+    const started = performance.now();
+    expect(terminalOutputLines(`${"\r".repeat(200_000)}x\n${"\r".repeat(200_000)}`)).toEqual(["x", ""]);
+    // Many sequences opened and one ended at the very end.
+    expect(terminalOutputLines(`${"\u001b]".repeat(100_000)}\u0007x`)).toEqual(["x"]);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it("keeps output that zsh marks as lacking a final newline", () => {
     // As zsh 5.9 writes it: a reverse-video "%", the row padded to its width, then " \r" past the wrap.
     const mark = `\u001b[1m\u001b[7m%\u001b[27m\u001b[1m\u001b[0m${" ".repeat(103)}\r \r\r\u001b[0m\u001b[27m\u001b[24m\u001b[J`;
