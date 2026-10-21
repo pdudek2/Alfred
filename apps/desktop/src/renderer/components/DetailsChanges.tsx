@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TerminalWorktreeDiffResult } from "../../shared/terminal-ipc";
 import { getDesktopTerminalApi } from "../desktop-api";
 import { isReviewableWorktreeSession } from "../session-scope";
 import { sessionInstanceKey, type SessionTile } from "../session-state";
 import { parseUnifiedDiff } from "../worktree-diff";
+
+// Each read runs git status and git diff on the checkout, and an agent at work records activity many times a second.
+const CHANGES_REREAD_QUIET_MS = 1_500;
 
 export function DetailsChanges({ open, session, projectName, pendingAction, onReview, onApply }: {
   open: boolean;
@@ -18,6 +21,17 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
   const instanceKey = session ? sessionInstanceKey(session) : "";
   const sessionId = session?.id;
   const [snapshot, setSnapshot] = useState<{ key: string; result: TerminalWorktreeDiffResult } | null>(null);
+  const [reread, setReread] = useState(0);
+  const lastActivityAt = session?.lastActivityAt;
+  const seenActivityAtRef = useRef(lastActivityAt);
+  // The changes are read on opening, and again once the session's activity has been quiet for a moment.
+  useEffect(() => {
+    if (lastActivityAt === seenActivityAtRef.current) return;
+    seenActivityAtRef.current = lastActivityAt;
+    if (!open || !reviewable) return;
+    const timer = setTimeout(() => setReread((count) => count + 1), CHANGES_REREAD_QUIET_MS);
+    return () => clearTimeout(timer);
+  }, [open, reviewable, lastActivityAt]);
   useEffect(() => {
     if (!open || !reviewable || !sessionId || pending) return;
     let cancelled = false;
@@ -33,7 +47,7 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
     };
     void inspect();
     return () => { cancelled = true; };
-  }, [open, reviewable, sessionId, instanceKey, pending, session?.lastActivityAt]);
+  }, [open, reviewable, sessionId, instanceKey, pending, reread]);
   const result = snapshot?.key === instanceKey ? snapshot.result : null;
   const diff = result?.ok ? parseUnifiedDiff(result.patch) : null;
   return (
