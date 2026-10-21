@@ -9,6 +9,7 @@ import {
   type TranscriptBlock,
   type TranscriptPage,
 } from "../../shared/sessions-ipc";
+import { terminalOutputLines } from "../../shared/session-title";
 import type { TerminalApi } from "../../shared/terminal-ipc";
 import {
   buildSessionsProjection,
@@ -584,10 +585,9 @@ function terminalTranscriptPage(
   session: SessionTile | null,
 ): TranscriptPage {
   // Terminal manager bounds live and persisted snapshots below this reader's text ceiling,
-  // so stripping CSI first cannot create an unbounded renderer copy or split a sequence.
-  const bounded = tailUtf8(stripAnsiTerminalText(rawText), TRANSCRIPT_TEXT_LIMIT);
-  const boundedText = bounded.text.replace(/\r\n/g, "\n");
-  const lines = boundedText.split("\n");
+  // so reading the whole output first cannot create an unbounded renderer copy or split a sequence.
+  const bounded = tailUtf8(terminalOutputLines(rawText).join("\n"), TRANSCRIPT_TEXT_LIMIT);
+  const lines = bounded.text.split("\n");
   if (lines.at(-1) === "") lines.pop();
   const boundedLines = lines.slice(-120);
   const blocks: TranscriptBlock[] = boundedLines.map((text, index) => ({
@@ -615,8 +615,3 @@ function tailUtf8(value: string, byteLimit: number): { text: string; truncated: 
   };
 }
 
-function stripAnsiTerminalText(value: string): string {
-  // Managed terminal snapshots may contain CSI control sequences (`ESC [` through the final byte).
-  // eslint-disable-next-line no-control-regex
-  return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
-}
