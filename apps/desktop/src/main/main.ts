@@ -2,12 +2,14 @@ import {
   app,
   BrowserWindow,
   dialog,
+  Menu,
   type BrowserWindowConstructorOptions,
   type MessageBoxSyncOptions,
 } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
+import { applicationMenuTemplate } from "./app-menu.js";
 import { resolveDesktopAppIconPath } from "./app-icon.js";
 import {
   configureTerminalPersistence,
@@ -196,6 +198,8 @@ if (!hasSingleInstanceLock) {
     if (process.platform === "darwin" && appIconPath) {
       app.dock?.setIcon(appIconPath);
     }
+    // ponytail: macOS only; Windows and Linux keep Electron's default menu until that build is checked.
+    if (process.platform === "darwin") Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenuTemplate()));
 
     const persistedDesktopStateStore = createPersistedDesktopStateStore({
       userDataPath: app.getPath("userData"),

@@ -90,6 +90,7 @@ vi.mock("electron", () => ({
   app: mocks.app,
   BrowserWindow: mocks.BrowserWindow,
   dialog: mocks.dialog,
+  Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() },
 }));
 
 vi.mock("./agent-signals.js", () => ({
