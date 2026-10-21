@@ -26,6 +26,30 @@ describe("Details Changes", () => {
     expect(props.onApply).toHaveBeenCalledWith("a");
   });
 
+  it("reads the changes on opening, then once more when a burst of activity has gone quiet", async () => {
+    vi.useFakeTimers();
+    try {
+      worktreeDiff.mockResolvedValue(changes);
+      const { rerender } = render(<DetailsChanges {...props} session={{ ...session, lastActivityAt: 1 }} />);
+      await act(async () => {});
+      expect(worktreeDiff).toHaveBeenCalledTimes(1);
+
+      // An agent at work records activity many times a second.
+      for (let at = 2; at <= 11; at += 1) {
+        rerender(<DetailsChanges {...props} session={{ ...session, lastActivityAt: at }} />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+      }
+      expect(worktreeDiff).toHaveBeenCalledTimes(1);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+      expect(worktreeDiff).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(worktreeDiff).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows the neutral empty state for a clean worktree and shared sessions", async () => {
     worktreeDiff.mockResolvedValue({ ...changes, files: [], patch: "" });
     const { rerender } = render(<DetailsChanges {...props} />);
