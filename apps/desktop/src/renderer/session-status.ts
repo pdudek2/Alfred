@@ -94,10 +94,12 @@ export function sessionState(
     | "activityEvents"
     | "agentKind"
     | "agentSignal"
+    | "args"
     | "command"
     | "detectedAgentKind"
     | "lastOutputAt"
     | "launchPreflight"
+    | "promptSubmitted"
     | "runtimeStatus"
     | "safetyNote"
     | "shellBusy"
@@ -134,13 +136,26 @@ export function sessionState(
   }
   if (!agent && session.shellBusy !== undefined) return session.shellBusy ? busy : state("idle");
 
-  if (session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
+  const outputIsWork = !(agent && !signal && awaitsFirstMessage(session));
+  if (outputIsWork && session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
     if (latestEvent?.kind !== "approval" || session.lastOutputAt > latestEvent.at) return busy;
   }
 
   if (latestEvent?.kind === "approval") return needsYou("approval");
 
   return agent ? state("your-turn") : state("idle");
+}
+
+/**
+ * An agent Alfred launched waits for your first message, so what it draws before then (its start screen, the
+ * conversation --continue brings back) is not work. One launched with its first message ("--", prompt) works at once.
+ * An agent typed in a shell runs without Alfred's hooks, so its output stays the only clue.
+ */
+function awaitsFirstMessage(session: Pick<SessionTile, "agentKind" | "args" | "command" | "promptSubmitted">): boolean {
+  const launched = session.agentKind === "codex" || session.agentKind === "claude"
+    || session.command === "codex" || session.command === "claude";
+  const launchedWithMessage = session.args?.[0] === "--" && Boolean(session.args[1]);
+  return launched && !launchedWithMessage && !session.promptSubmitted;
 }
 
 /** Ended sessions and runtime blockers offer Restart; a blocker may outlive its process. */

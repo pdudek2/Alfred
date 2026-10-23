@@ -1648,6 +1648,7 @@ export function App() {
           initialBuffer: snapshot.buffer,
           ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
           ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
+          ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
           ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
           ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
           ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),
@@ -3661,6 +3662,7 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
       // The main process sends these again only when they change, so a list read before the last change keeps them.
       ...(liveSession.agentSignal === undefined && session.agentSignal !== undefined ? { agentSignal: session.agentSignal } : {}),
       ...(liveSession.shellBusy === undefined && session.shellBusy !== undefined ? { shellBusy: session.shellBusy } : {}),
+      ...(session.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
       ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
       ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),

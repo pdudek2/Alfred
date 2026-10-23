@@ -4289,6 +4289,29 @@ describe("terminal-manager IPC", () => {
       expect(sentEvents.slice(events).filter((event) => event.channel === terminalChannels.data)).toEqual([]);
     });
 
+    it("tells the window once that you sent the session a message, not when the terminal reports", async () => {
+      const { bridge } = fakeBridge();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+      });
+      const promptEvents = () =>
+        sentEvents.filter((event) => event.channel === terminalChannels.data && (event.payload as Record<string, unknown>).promptSubmitted);
+
+      // A focus report and a colour reply are the terminal talking, and typing alone sends nothing yet.
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[I" });
+      emit(terminalChannels.write, { id: created.id, data: "\x1b]11;rgb:1010/1010/1010\x1b\\" });
+      emit(terminalChannels.write, { id: created.id, data: "fix the build" });
+      expect(promptEvents()).toEqual([]);
+
+      emit(terminalChannels.write, { id: created.id, data: "\r" });
+      emit(terminalChannels.write, { id: created.id, data: "and the tests\r" });
+      expect(promptEvents()).toHaveLength(1);
+      expect(promptEvents()[0]?.payload).toMatchObject({ data: "", promptSubmitted: true });
+      const listed = await invoke<TerminalListResult>(terminalChannels.list);
+      expect(listed.sessions.find((session) => session.id === created.id)).toMatchObject({ promptSubmitted: true });
+    });
+
     it("finds the file behind a Codex [Image #1] in the rollout its hooks name", async () => {
       const { bridge, fire } = fakeBridge();
       registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });

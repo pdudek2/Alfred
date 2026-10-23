@@ -28,6 +28,8 @@ describe("AgentTimelinePanel", () => {
       command: "claude",
       args: ["--continue"],
       runtimeId: "runtime-1",
+      // Sent a message, so its output reads as work.
+      promptSubmitted: true,
       lastOutputAt: Date.now(),
     };
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
