@@ -33,8 +33,24 @@ const blocker: SessionActivityEvent = {
 };
 
 describe("sessionState", () => {
+  it("gives an agent Alfred launched Your turn until you send it a message, whatever it draws first", () => {
+    // Claude redraws its screen at start and after --continue; that is not work.
+    for (const agentKind of ["claude", "codex"] as const) {
+      expect(sessionState(liveSession({ agentKind, command: agentKind, lastOutputAt: 9_000 }), "ready", 10_000).kind)
+        .toBe("your-turn");
+    }
+    // Launched with its first message, it works from the start.
+    expect(sessionState(liveSession({ agentKind: "claude", command: "claude", args: ["--", "fix the build"], lastOutputAt: 9_000 }), "ready", 10_000).kind)
+      .toBe("working");
+    // Once you have sent one and no hook says otherwise, as with a Codex whose hooks you did not trust, output is work.
+    expect(sessionState(liveSession({ agentKind: "codex", command: "codex", promptSubmitted: true, lastOutputAt: 9_000 }), "ready", 10_000).kind)
+      .toBe("working");
+    // An agent typed in a shell runs without hooks, so its output still counts.
+    expect(sessionState(liveSession({ detectedAgentKind: "claude", lastOutputAt: 9_000 }), "ready", 10_000).kind).toBe("working");
+  });
+
   it("splits recent output into Working for agents and Running for shells", () => {
-    expect(sessionState(liveSession({ agentKind: "codex", lastOutputAt: 1_000 }), "ready", 10_000)).toEqual({
+    expect(sessionState(liveSession({ agentKind: "codex", promptSubmitted: true, lastOutputAt: 1_000 }), "ready", 10_000)).toEqual({
       kind: "working",
       label: "working",
     });
@@ -64,7 +80,7 @@ describe("sessionState", () => {
       reason: "approval",
     });
     expect(
-      sessionState(liveSession({ agentKind: "codex", lastOutputAt: 2_000, activityEvents: [approval] }), "ready", 3_000),
+      sessionState(liveSession({ agentKind: "codex", promptSubmitted: true, lastOutputAt: 2_000, activityEvents: [approval] }), "ready", 3_000),
     ).toEqual({ kind: "working", label: "working" });
   });
 

@@ -48,6 +48,8 @@ export type SessionTile = {
   agentSignal?: TerminalAgentSignal;
   /** True while a program other than the shell holds the foreground (plain terminals only). */
   shellBusy?: boolean;
+  /** You have sent this session a message (the main process saw Enter). */
+  promptSubmitted?: boolean;
 };
 
 export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInput } from "../shared/session-activity";
@@ -292,6 +294,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.foregroundAgentKind === undefined ? {} : { detectedAgentKind: snapshot.foregroundAgentKind }),
     ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
     ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
+    ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
@@ -560,6 +563,7 @@ export function recordSessionOutputActivity(
       ...(event.data === "" ? {} : { lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt) }),
       ...(agentSignal == null ? {} : { agentSignal }),
       ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
+      ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
     };

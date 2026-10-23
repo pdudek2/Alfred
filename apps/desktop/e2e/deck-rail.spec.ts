@@ -31,6 +31,10 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await beta.click();
     await startSession(page, /^Codex/);
     await expect(page.locator('[data-testid="terminal-tile"]:visible')).toContainText("codex fixture ready");
+    // Until you send an agent its first message, it waits for you, whatever it prints.
+    await page.locator('[data-testid="terminal-tile"]:visible').getByTestId("xterm-host").click();
+    await page.keyboard.type("go");
+    await page.keyboard.press("Enter");
     // The fixture agent prints once; keep its output flowing so Beta stays Working, not Your turn.
     const markers = (await readdir(paths.root)).filter((name) => name.startsWith("alfred-codex-fixture-"));
     expect(markers).toHaveLength(1);
