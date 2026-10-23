@@ -611,14 +611,13 @@ function normalizeRestoredTerminalSessions(
 }
 
 /**
- * Builds before 2026-10-20 titled sessions "Manual · zsh 3" and "Codex · session 3"; saved ones get the titles new
- * ones get, keeping the number past 1. The agent kind those titles imply is read from them before this runs.
+ * A saved session is asleep, and a title's number only tells sessions that run side by side apart, so saved ones lose
+ * it: "Codex 3" and what builds before 2026-10-20 wrote, "Manual · zsh 3" and "Codex · session 3", become "Codex" and
+ * "zsh". The agent kind the older titles imply is read from them before this runs.
  */
 function currentGeneratedTitle(title: string): string {
-  const match = /^(?:Manual · (zsh)|(Codex|Claude) · session) (\d+)$/.exec(title);
-  if (!match) return title;
-  const base = match[1] ?? match[2]!;
-  return match[3] === "1" ? base : `${base} ${match[3]}`;
+  const match = /^(?:Manual · (zsh)|(Codex|Claude) · session|(zsh|Codex|Claude)) \d+$/.exec(title);
+  return match ? (match[1] ?? match[2] ?? match[3])! : title;
 }
 
 function legacyGeneratedTerminalAgentKind(
