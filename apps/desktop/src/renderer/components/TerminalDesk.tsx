@@ -1023,8 +1023,10 @@ function ManualTerminalTile({
       cursorBlink: ghosttyVesperTerminalProfile.cursorBlink,
       cursorStyle: ghosttyVesperTerminalProfile.cursorStyle,
       disableStdin: metadata.restoredTranscript || !terminalApi,
+      drawBoldTextInBrightColors: ghosttyVesperTerminalProfile.drawBoldTextInBrightColors,
       fontFamily: ghosttyVesperTerminalProfile.fontFamily,
       fontSize: ghosttyVesperTerminalProfile.fontSize,
+      fontWeight: ghosttyVesperTerminalProfile.fontWeight,
       lineHeight: ghosttyVesperTerminalProfile.lineHeight,
       theme: ghosttyVesperTerminalProfile.theme,
     });

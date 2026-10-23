@@ -25,7 +25,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   const workScreen = page.locator(".xterm-screen").first();
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");
-  await expectFixedCellTerminalFont(page.locator(".xterm-rows").first(), "12.5px");
+  await expectFixedCellTerminalFont(page.locator(".xterm-rows").first(), "13px");
   await expectSansFont(page.locator(".terminal-tile.real-terminal .session-strip-kind").first());
 
   const runtimeId = await page.evaluate(async () => {
@@ -315,6 +315,7 @@ async function expectFixedCellTerminalFont(locator: Locator, size?: string): Pro
     return { family: computed.fontFamily, size: computed.fontSize };
   });
   if (size) expect(style.size).toBe(size);
+  expect(style.family).toContain("Geist Mono");
   expect(style.family).toContain("ui-monospace");
   expect(style.family).toContain("SFMono-Regular");
   expect(style.family).toContain("Menlo");
