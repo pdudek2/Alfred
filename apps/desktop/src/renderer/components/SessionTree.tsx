@@ -1,5 +1,5 @@
 import { ChevronDown, Plus } from "lucide-react";
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 import { activitySentence, pendingApproval, waitingSentence } from "../activity-presentation";
 import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
@@ -21,6 +21,10 @@ const TREE_RANKS: ReadonlyArray<readonly SessionStateKind[]> = [
 const PREVIEW_KINDS: ReadonlySet<SessionStateKind> = new Set(["needs-you", "your-turn", "working", "running"]);
 // A collapsed parent counts its workers by these states, in this order.
 const COUNTED_KINDS: readonly SessionStateKind[] = ["needs-you", "your-turn", "working", "running", "failed", "done"];
+// Widths of the hover actions in session-tree.css: 24px icon buttons, Pin as text, 2px apart.
+const ICON_ACTION_WIDTH = 24;
+const PIN_ACTION_WIDTH = 32;
+const ACTION_GAP = 2;
 
 type SessionTreeProps = {
   asleepCount: number;
@@ -136,11 +140,14 @@ function TreeItem({
   const meta = collapsed ? <WorkerCounts workers={workers} /> : preview;
   const describedBy = [meta ? metaId : null, parentTitle === undefined ? null : parentId].filter(Boolean).join(" ");
   const actions = (workers.length > 0 ? 1 : 0) + (canPin ? 1 : 0) + (canAddWorker ? 1 : 0);
+  // The title makes room for the row's actions on hover instead of running under them.
+  const actionsWidth = (workers.length > 0 ? ICON_ACTION_WIDTH : 0) + (canPin ? PIN_ACTION_WIDTH : 0)
+    + (canAddWorker ? ICON_ACTION_WIDTH : 0) + Math.max(0, actions - 1) * ACTION_GAP;
   const childProps = { focusSessionId, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
 
   return (
     <li className={`session-tree-item${parentTitle === undefined ? "" : " is-worker"}`}>
-      <div className={`session-tree-entry${focused ? " is-focused" : ""}`}>
+      <div className={`session-tree-entry${focused ? " is-focused" : ""}`} style={{ "--tree-actions": `${actionsWidth}px` } as CSSProperties}>
         <button
           type="button"
           className="session-tree-row"
