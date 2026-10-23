@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ghosttyVesperTerminalProfile } from "./terminal-visual-profile";
 
-// Patryk's Ghostty: Geist Mono 13 with the Vesper theme, his own cursor and selection colours.
+// A Ghostty profile: Geist Mono 13 with the Vesper theme and its own cursor and selection colours.
 describe("ghosttyVesperTerminalProfile", () => {
   it("uses Geist Mono 13 with a Nerd Font for the prompt's icons, then the system monospace", () => {
     expect(ghosttyVesperTerminalProfile.fontFamily).toBe(
@@ -17,7 +17,7 @@ describe("ghosttyVesperTerminalProfile", () => {
     expect(ghosttyVesperTerminalProfile.drawBoldTextInBrightColors).toBe(false);
   });
 
-  it("uses the Vesper palette with Patryk's cursor and selection", () => {
+  it("uses the Vesper palette with the profile's cursor and selection", () => {
     expect(ghosttyVesperTerminalProfile.theme).toEqual({
       background: "#101010",
       foreground: "#ffffff",

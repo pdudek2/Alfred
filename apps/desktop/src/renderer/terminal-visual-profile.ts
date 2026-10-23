@@ -11,16 +11,16 @@ export type TerminalVisualProfile = {
   theme: ITheme;
 };
 
-// Patryk's Ghostty: Geist Mono 13 with the Vesper theme, his own cursor and selection colours.
+// A Ghostty profile: Geist Mono 13 with the Vesper theme and its own cursor and selection colours.
 // Geist Mono has no Nerd Font icons, so the p10k prompt's icons and arrows come from the next font that has them.
-// ponytail: fonts installed on Patryk's Mac; elsewhere the terminal falls back to the system monospace.
+// ponytail: Geist Mono and the Nerd Fonts must be installed; without them the terminal falls back to the system monospace.
 export const ghosttyVesperTerminalProfile: TerminalVisualProfile = {
   cursorBlink: true,
   cursorStyle: "bar",
   drawBoldTextInBrightColors: false,
   fontFamily: '"Geist Mono", "JetBrainsMono NFM", "MesloLGS Nerd Font Mono", ui-monospace, "SFMono-Regular", Menlo, monospace',
   fontSize: 13,
-  // Regular, as Patryk chose over Medium (2026-10-23).
+  // Regular: Medium rendered heavier than the Ghostty reference.
   fontWeight: "normal",
   // Ghostty reports an 18 px cell (CSI 16 t); 1.06 gives Geist Mono 13 the same row in xterm.
   lineHeight: 1.06,
