@@ -4,6 +4,16 @@ export function isWorkSession(session: Pick<SessionTile, "runtimeStatus">): bool
   return session.runtimeStatus !== "restored";
 }
 
+/** A project's sessions on the deck: live terminals, not drafts or asleep ones. */
+export function deckSessions(sessions: readonly SessionTile[], workspaceId: string): SessionTile[] {
+  return sessions.filter((session) => session.workspaceId === workspaceId && isWorkSession(session) && session.stage === "live");
+}
+
+/** The deck focuses the selected session, else the project's first. It follows the selection only, never runtime events. */
+export function deckFocusSession(sessions: readonly SessionTile[], selectedSessionId: string | null): SessionTile | null {
+  return sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
+}
+
 export function isReviewableWorktreeSession(
   session: Pick<
     SessionTile,

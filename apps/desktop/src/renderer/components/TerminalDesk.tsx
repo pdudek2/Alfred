@@ -36,12 +36,11 @@ import { shortenPath } from "../path-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { sessionPresentationTitle } from "../../shared/session-presentation";
-import { isWorkSession } from "../session-scope";
+import { deckFocusSession, deckSessions, isWorkSession } from "../session-scope";
 import { pathsReferToSameLocation } from "../workspace-path-matching";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
-import { SessionStack } from "./SessionStack";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { WorktreeDiffPanel, type WorktreeDiffCloseReason } from "./WorktreeDiffPanel";
 import type { WorktreeDiffView } from "../worktree-diff";
@@ -92,15 +91,11 @@ export type TerminalStartAttempt = { readonly workspaceId: string };
 type TerminalDeskProps = {
   activeWorkspaceId: string;
   armedRecoverySessionIds: Set<string>;
-  /** Asleep conversations as History counts them (one per lineage). */
-  asleepCount: number;
   /** The app's one session clock, shared with every other surface. */
   now: number;
   pinnedSessionId: string | null;
   selectedSessionId: string | null;
   sessions: SessionTile[];
-  /** Details or Preview takes the stack's column while open, so the focused terminal keeps a usable width. */
-  stackHidden: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
   worktreeDiffReturnFocus: HTMLElement | null;
@@ -116,7 +111,6 @@ type TerminalDeskProps = {
   onCloseSession: (sessionId: string) => void;
   onCloseWorktreeDiff: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
-  onOpenAsleep: () => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenHistory: () => void;
   onRestartSession: (sessionId: string) => void;
@@ -129,25 +123,21 @@ type TerminalDeskProps = {
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
-  onFocusSession: (sessionId: string) => void;
   /** Keeps a session under the focus in a 3:2 split, or none. */
   onPinSession: (sessionId: string | null) => void;
   onSelectSession: (sessionId: string) => void;
   planLine?: ReactNode;
   /** The project preview, when the Preview tab is selected. It takes the terminal's place in the focused box. */
   previewPane?: ReactNode;
-  stackTabs?: ReactNode;
 };
 
 export function TerminalDesk({
   activeWorkspaceId,
   armedRecoverySessionIds,
-  asleepCount,
   now,
   pinnedSessionId,
   selectedSessionId,
   sessions,
-  stackHidden,
   surfaceActive,
   terminalFocusRequestKey,
   worktreeDiffReturnFocus,
@@ -163,7 +153,6 @@ export function TerminalDesk({
   onCloseSession,
   onCloseWorktreeDiff,
   onContinueRestoredSession,
-  onOpenAsleep,
   onOpenExternalTerminal,
   onOpenHistory,
   onRestartSession,
@@ -176,12 +165,10 @@ export function TerminalDesk({
   onRuntimeSessionStarting,
   onRuntimeSessionUnavailable,
   onRenameSession,
-  onFocusSession,
   onPinSession,
   onSelectSession,
   planLine,
   previewPane,
-  stackTabs,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
@@ -198,17 +185,13 @@ export function TerminalDesk({
   );
   const workspaceUnavailable = workspaceRootStatus === "missing";
   // Drafts live on the plan line, not on the deck.
-  const liveSessions = activeSessions.filter((session) => session.stage === "live");
+  const liveSessions = deckSessions(sessions, activeWorkspaceId);
   const hasDrafts = !workspaceUnavailable && activeSessions.some((session) => session.stage === "staged");
   const draftSelected = activeSessions.some((session) => session.id === selectedSessionId && session.stage === "staged");
-  // One focused terminal; the rest wait in the stack. Focus follows the selection only, never runtime events.
-  const focusSession = liveSessions.find((session) => session.id === selectedSessionId) ?? liveSessions[0] ?? null;
+  // One focused terminal; the rest wait in the rail's session tree.
+  const focusSession = deckFocusSession(liveSessions, selectedSessionId);
   // Opening the pinned session makes it the focus; its pin waits until the focus moves on.
   const pinnedSession = liveSessions.find((session) => session.id === pinnedSessionId && session.id !== focusSession?.id) ?? null;
-  const stackSessions = liveSessions.filter((session) => session.id !== focusSession?.id && session.id !== pinnedSession?.id);
-  // The plan line belongs to the stack and hides with it. A project with nothing live has no stack,
-  // so there it sits above the empty state.
-  const stackVisible = focusSession !== null && !stackHidden && !worktreeDiffView;
   const renderedSessions = sessions.filter((session) => isWorkSession(session) && session.stage === "live");
   // A draft opened in Details must not hand the selection (and terminal focus) to a live tile.
   const inspectedSession = draftSelected ? null : focusSession;
@@ -245,6 +228,13 @@ export function TerminalDesk({
     pinFocusRef.current = sessionId === null ? "focus" : "unpin";
     onPinSession(sessionId);
   };
+  // Pin on a rail row is pressed outside the deck; the new pin's Unpin takes the keyboard all the same.
+  const previousPinnedIdRef = useRef(pinnedSession?.id ?? null);
+  useEffect(() => {
+    const previous = previousPinnedIdRef.current;
+    previousPinnedIdRef.current = pinnedSession?.id ?? null;
+    if (pinnedSession && pinnedSession.id !== previous && pinFocusRef.current === null) pinFocusRef.current = "unpin";
+  }, [pinnedSession]);
   useEffect(() => {
     const target = pinFocusRef.current;
     pinFocusRef.current = null;
@@ -285,7 +275,7 @@ export function TerminalDesk({
           aria-hidden={worktreeDiffView ? "true" : undefined}
           inert={worktreeDiffView ? true : undefined}
         >
-          {hasDrafts && focusSession === null && planLine}
+          {hasDrafts && planLine}
           <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""}`} data-testid="terminal-grid" ref={gridRef}>
           {liveSessions.length === 0 && (
             <EmptyWorkspaceState
@@ -337,6 +327,7 @@ export function TerminalDesk({
                 command={session.command}
                 args={session.args}
                 resumeTarget={session.resumeTarget}
+                parentSessionId={session.parentSessionId}
                 resumeMode={session.resumeMode}
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
@@ -367,26 +358,6 @@ export function TerminalDesk({
           })}
           </div>
         </div>
-        {stackVisible && (
-          <SessionStack
-            asleepCount={asleepCount}
-            emptyContent={workspaceUnavailable || asleepSessions.length === 0 ? null : (
-              <AsleepSessionList
-                armedSessionIds={armedRecoverySessionIds}
-                asleepSessions={asleepSessions}
-                onResumeSession={onContinueRestoredSession}
-              />
-            )}
-            now={now}
-            planLine={hasDrafts ? planLine : null}
-            sessions={stackSessions}
-            tabs={stackTabs}
-            workspaceLabel={workspaceLabel}
-            onFocusSession={onFocusSession}
-            onOpenAsleep={onOpenAsleep}
-            onPinSession={pinSession}
-          />
-        )}
         {worktreeDiffView && (
           <WorktreeDiffPanel view={worktreeDiffView} onClose={handleCloseDiff} />
         )}
@@ -488,7 +459,7 @@ function EmptyWorkspaceState({
   );
 }
 
-/** The project's asleep sessions, newest first; without onOpenHistory the rest are reached from the asleep line. */
+/** The project's asleep sessions, newest first; the rest are a click away in History. */
 function AsleepSessionList({
   armedSessionIds,
   asleepSessions,
@@ -497,7 +468,7 @@ function AsleepSessionList({
 }: {
   armedSessionIds: Set<string>;
   asleepSessions: SessionTile[];
-  onOpenHistory?: (() => void) | undefined;
+  onOpenHistory: () => void;
   onResumeSession: (sessionId: string) => void;
 }) {
   const asleep = [...asleepSessions].sort((a, b) => asleepSessionAt(b) - asleepSessionAt(a));
@@ -539,7 +510,7 @@ function AsleepSessionList({
           );
         })}
       </ul>
-      {onOpenHistory && hiddenAsleepCount > 0 && (
+      {hiddenAsleepCount > 0 && (
         <button type="button" className="terminal-empty-asleep-more" onClick={onOpenHistory}>
           {`${hiddenAsleepCount} more in History`}
         </button>
@@ -668,6 +639,7 @@ function ManualTerminalTile({
   args,
   resumeTarget,
   resumeMode,
+  parentSessionId,
 }: {
   cwd: string;
   createdAt?: number | undefined;
@@ -720,6 +692,7 @@ function ManualTerminalTile({
   args?: string[] | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
   resumeMode?: SessionTile["resumeMode"] | undefined;
+  parentSessionId?: string | undefined;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -866,6 +839,7 @@ function ManualTerminalTile({
     command,
     args,
     resumeTarget,
+    parentSessionId,
     initialBuffer,
     runtimeStatus,
     restoredTranscript,
@@ -907,6 +881,7 @@ function ManualTerminalTile({
       command,
       args,
       resumeTarget,
+      parentSessionId,
       initialBuffer,
       runtimeStatus,
       restoredTranscript,
@@ -927,6 +902,7 @@ function ManualTerminalTile({
     command,
     args,
     resumeTarget,
+    parentSessionId,
     initialBuffer,
     runtimeStatus,
     restoredTranscript,
@@ -1433,6 +1409,7 @@ function ManualTerminalTile({
     if (metadata.resumeTarget) {
       baseRequest.resumeTarget = metadata.resumeTarget;
     }
+    if (metadata.parentSessionId) baseRequest.parentClientId = metadata.parentSessionId;
     const createTerminalSession = metadata.command
       ? terminalApi.prepareLaunch(baseRequest).then((prepared) =>
           terminalApi.create({ ...baseRequest, launchTicketId: prepared.launchTicketId }),

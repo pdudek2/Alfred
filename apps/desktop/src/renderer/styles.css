@@ -183,8 +183,8 @@ button:focus-visible {
   box-shadow: none;
   background: var(--surface-canvas);
   display: grid;
-  /* v4 canvas: a full-height rail, then the top bar over the content. */
-  grid-template-columns: 224px minmax(0, 1fr);
+  /* v4 canvas: a full-height rail, then the top bar over the content. v5: 264px so worker titles fit in the tree. */
+  grid-template-columns: 264px minmax(0, 1fr);
   grid-template-rows: 52px auto minmax(0, 1fr);
 }
 
@@ -856,6 +856,7 @@ button:focus-visible {
 }
 
 .project-row {
+  position: relative;
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -865,6 +866,15 @@ button:focus-visible {
 
 .project-row.is-active {
   background: var(--surface-control);
+}
+
+/* v5: a project showing its session tree reads as its heading; the focused session carries the fill. */
+.project-row.is-active.has-tree {
+  background: transparent;
+}
+
+.project-row.has-tree .project-row-button[aria-current="location"] {
+  font-weight: 600;
 }
 
 /* Contract §4: one row per project, label then one state glyph. */
@@ -930,9 +940,17 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* The project menu takes the state glyph's place on hover, so the glyph lines up with the tree's below. */
 .project-workspace-actions {
-  position: relative;
+  position: absolute;
+  top: 2px;
+  right: 2px;
   min-width: 0;
+}
+
+.project-row.is-active:hover .project-row-state,
+.project-row.is-active:focus-within .project-row-state {
+  visibility: hidden;
 }
 
 /* The project menu stays out of sight until the row is hovered, focused or its menu is open. */

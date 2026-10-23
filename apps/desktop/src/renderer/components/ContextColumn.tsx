@@ -1,72 +1,36 @@
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef } from "react";
 import { AgentTimelinePanel, type AgentTimelinePanelProps } from "./AgentTimelinePanel";
-import { SideColumnTabs } from "./SideColumnTabs";
+import { SideColumnHeader } from "./SideColumnHeader";
 
 export type ContextColumnProps = {
   contextOpen: boolean;
   dismissalSuspended?: boolean;
   focusRequestKey: number;
-  returnFocusRef: RefObject<HTMLElement | null>;
-  /** The stack's own Details tab: where focus lands when the element that opened Details is gone. */
-  triggerRef: RefObject<HTMLElement | null>;
   shortcutModifier: "Cmd" | "Ctrl";
   timelineProps: AgentTimelinePanelProps;
-  onCloseContext: () => void;
 };
 
+/**
+ * Details holds the column the session stack had. It is a column, not a drawer: ⌘I hides and shows it, and Escape
+ * stays with whatever has focus (a confirmation, the plan line, a menu).
+ */
 export function ContextColumn({
   contextOpen,
   dismissalSuspended = false,
   focusRequestKey,
-  returnFocusRef,
-  triggerRef,
   shortcutModifier,
   timelineProps,
-  onCloseContext,
 }: ContextColumnProps) {
-  const detailsTabRef = useRef<HTMLButtonElement | null>(null);
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
   const handledFocusRequestKeyRef = useRef(0);
-  const restoreFocusOnCloseRef = useRef(false);
-  const wasOpenRef = useRef(contextOpen);
-
-  const requestCloseContext = useCallback(() => {
-    restoreFocusOnCloseRef.current = true;
-    onCloseContext();
-  }, [onCloseContext]);
-
-  useEffect(() => {
-    if (!contextOpen || dismissalSuspended) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector('[role="menu"]')) return;
-      // Escape typed in a terminal is its program's: it interrupts an agent or declines its prompt, and ends vim's insert mode.
-      if (event.target instanceof Element && event.target.closest(".xterm-host")) return;
-      event.preventDefault();
-      event.stopPropagation();
-      requestCloseContext();
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [contextOpen, dismissalSuspended, requestCloseContext]);
 
   useEffect(() => {
     if (!contextOpen || focusRequestKey === handledFocusRequestKeyRef.current) return;
     handledFocusRequestKeyRef.current = focusRequestKey;
     if (dismissalSuspended) return;
-    const frame = requestAnimationFrame(() => detailsTabRef.current?.focus());
+    const frame = requestAnimationFrame(() => headingRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [contextOpen, dismissalSuspended, focusRequestKey]);
-
-  useEffect(() => {
-    const wasOpen = wasOpenRef.current;
-    wasOpenRef.current = contextOpen;
-    if (!wasOpen || contextOpen || !restoreFocusOnCloseRef.current) return;
-    restoreFocusOnCloseRef.current = false;
-    const frame = requestAnimationFrame(() => {
-      const target = returnFocusRef.current;
-      (target?.isConnected ? target : triggerRef.current)?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [contextOpen, returnFocusRef, triggerRef]);
 
   return (
     <aside
@@ -80,12 +44,7 @@ export function ContextColumn({
         aria-hidden={contextOpen ? "false" : "true"}
         inert={!contextOpen || undefined}
       >
-        <SideColumnTabs
-          detailsOpen
-          detailsTabRef={detailsTabRef}
-          shortcutModifier={shortcutModifier}
-          onToggleDetails={requestCloseContext}
-        />
+        <SideColumnHeader headingRef={headingRef} shortcutModifier={shortcutModifier} />
         <AgentTimelinePanel {...timelineProps} />
       </div>
     </aside>

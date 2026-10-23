@@ -28,8 +28,8 @@ export const privacySafeScreenshotSelectors = [
   ".terminal-empty-asleep-title",
   ".terminal-empty-asleep-meta",
   ".terminal-empty-asleep-warning",
-  ".session-stack-title",
-  ".session-stack-preview",
+  ".session-tree-title",
+  ".session-tree-meta",
   "time",
 ] as const;
 

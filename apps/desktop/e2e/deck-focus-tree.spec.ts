@@ -1,8 +1,8 @@
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { surfaceButton } from "./support/work-layout";
+import { sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
-test("swaps the focused terminal from the stack without remounting any xterm", async ({ harness }) => {
+test("swaps the focused terminal from the rail's tree without remounting any xterm", async ({ harness }) => {
   const { page } = harness;
 
   await addManualTerminal(page);
@@ -11,12 +11,14 @@ test("swaps the focused terminal from the stack without remounting any xterm", a
 
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
-  const stack = page.getByRole("complementary", { name: /^Other sessions in / });
-  await expect(stack.getByRole("button", { name: /(?<!\/)zsh(?! ·)/ })).toHaveCount(3);
+  // The tree lists every session, the focus included, which it marks as current.
+  const rows = sessionTree(page).locator(".session-tree-row");
+  await expect(rows).toHaveCount(4);
+  await expect(sessionTree(page).locator('.session-tree-row[aria-current="true"]')).toHaveCount(1);
 
   const beforeHosts = await captureHosts(page, 4);
   const focusedBefore = await visibleSessionId(page);
-  const target = stack.getByRole("button", { name: /(?<!\/)zsh(?! ·)/ }).first();
+  const target = sessionTree(page).locator('.session-tree-row:not([aria-current])').first();
   const targetId = await target.getAttribute("data-session-id");
   expect(targetId).not.toBe(focusedBefore);
 
@@ -24,8 +26,9 @@ test("swaps the focused terminal from the stack without remounting any xterm", a
   const promoted = page.locator(`[data-testid="terminal-tile"][data-session-id="${targetId}"]`);
   await expect(promoted).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
-  await expect(stack.locator(`[data-session-id="${focusedBefore}"]`)).toBeVisible();
-  await expectSameHosts(beforeHosts, page, "stack focus swap");
+  await expect(treeRow(page, targetId!)).toHaveAttribute("aria-current", "true");
+  await expect(treeRow(page, focusedBefore!)).not.toHaveAttribute("aria-current", "true");
+  await expectSameHosts(beforeHosts, page, "tree focus swap");
   // A terminal shown again refits to the focus column instead of keeping its hidden size.
   await expect.poll(() => promoted.locator(".xterm-screen").evaluate((node) => node.getBoundingClientRect().width))
     .toBeGreaterThan(400);
@@ -42,7 +45,7 @@ test("swaps the focused terminal from the stack without remounting any xterm", a
 test.describe("draft plan line", () => {
   test.use({ fixtureOptions: { stagedItems: 1 } });
 
-  test("keeps drafts off the deck until launched, then stacks the launched session", async ({ harness }) => {
+  test("keeps drafts off the deck until launched, then lists the launched session in the tree", async ({ harness }) => {
     const { page } = harness;
 
     await addManualTerminal(page);
@@ -50,9 +53,8 @@ test.describe("draft plan line", () => {
     await expect(page.getByTestId("terminal-grid").locator('[data-session-id="fixture-item-1"]')).toHaveCount(0);
 
     await page.locator(".plan-line").getByRole("button", { name: "Launch 1 ready draft" }).click();
-    // Launching does not take focus; the launched session waits in the stack.
-    await expect(page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="fixture-item-1"]'))
-      .toBeVisible();
+    // Launching does not take focus; the launched session waits in the rail's tree.
+    await expect(treeRow(page, "fixture-item-1")).toBeVisible();
     await expect(page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]'))
       .toHaveAttribute("aria-hidden", "true");
   });

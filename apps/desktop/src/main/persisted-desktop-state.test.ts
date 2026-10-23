@@ -521,6 +521,23 @@ describe("persisted-desktop-state", () => {
     });
   });
 
+  it("keeps a worker's parent through load and save and drops a parent that is not a string", () => {
+    const state = normalizeDesktopState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        { clientId: "codex-2", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: "claude-1" },
+        { clientId: "codex-3", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: 7 },
+        // Saved before workers existed.
+        { clientId: "claude-1", title: "Claude", source: "manual", agentKind: "claude", cwd: "/repo" },
+      ],
+    });
+
+    expect(state.restoredTerminalSessions.map((session) => [session.clientId, session.parentClientId]))
+      .toEqual([["codex-2", "claude-1"], ["codex-3", undefined], ["claude-1", undefined]]);
+    expect(sanitizePersistedTerminalSession(state.restoredTerminalSessions[0]!, DEFAULT_PRIVACY_SETTINGS))
+      .toMatchObject({ clientId: "codex-2", parentClientId: "claude-1" });
+  });
+
   it("gives saved sessions the titles new ones get, once", async () => {
     const filePath = await temporaryStateFile();
     const saved = (clientId: string, title: string) => ({ clientId, title, source: "manual", cwd: "/repo", shell: "/bin/zsh", buffer: "" });

@@ -131,6 +131,7 @@ type TerminalSession = {
   command?: string;
   args?: string[];
   resumeTarget?: TerminalCreateResult["resumeTarget"];
+  parentClientId?: string;
   buffer: string;
   activityEvents?: SessionActivityEvent[];
   activityStream: TerminalOutputActivityStreamState;
@@ -857,7 +858,13 @@ function sessionMetadata(
     ...(request.command === undefined ? {} : { command: request.command }),
     ...(request.args === undefined ? {} : { args: request.args }),
     ...(request.resumeTarget === undefined ? {} : { resumeTarget: { ...request.resumeTarget } }),
+    ...(parentClientId(request.parentClientId) ?? {}),
   };
+}
+
+// The renderer names the parent; keep it only when it is a plausible client id.
+function parentClientId(value: unknown): { parentClientId: string } | undefined {
+  return typeof value === "string" && /^[\w.-]{1,128}$/.test(value) ? { parentClientId: value } : undefined;
 }
 
 function normalizedSharedIsolation(request: TerminalCreateRequest): TerminalCreateRequest["isolation"] | undefined {
@@ -886,6 +893,7 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
     ...(session.command === undefined ? {} : { command: session.command }),
     ...(session.args === undefined ? {} : { args: session.args }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
+    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
   };
 }
 
@@ -1201,6 +1209,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(command === undefined ? {} : { command }),
     ...(args === undefined ? {} : { args: [...args] }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
+    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),

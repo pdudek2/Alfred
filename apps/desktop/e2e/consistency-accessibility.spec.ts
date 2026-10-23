@@ -1,7 +1,7 @@
 import { realpath } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { openNewTerminalSheet, settleTerminalTileAnimations, surfaceButton } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet, settleTerminalTileAnimations, surfaceButton, treeRow } from "./support/work-layout";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import { privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -95,7 +95,6 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(paletteTrigger).toBeFocused();
 
   const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
-  const detailsTrigger = page.getByRole("tab", { name: "Details" });
   await selectSurface(page, "Details");
   const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
@@ -112,8 +111,10 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     return style.boxShadow === "none" && style.borderRadius === "0px";
   })).toBe(true);
   const contextScreen = await requiredHandle(workScreen, "Work xterm before closing Context");
-  await context.getByRole("tab", { name: "Sessions" }).click();
-  await expect(detailsTrigger).toBeFocused();
+  // ⌘I hides Details; with nothing else to return to, the keyboard goes back to the focused terminal.
+  await page.keyboard.press("ControlOrMeta+i");
+  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator('[data-testid="terminal-tile"]:visible').getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   const contextScreenAfterClose = await requiredHandle(workScreen, "Work xterm after closing Context");
   expect(await contextScreen.evaluate(
     (before, after) => before.isSameNode(after) && before.isConnected,
@@ -220,9 +221,8 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
   await expectSansFont(diff.locator(".worktree-diff-panel__line").first());
   await diff.getByRole("button", { name: "Close diff" }).click();
-  // Focus zsh 2 from the stack unless it already holds focus.
-  const secondCard = page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-2"]');
-  if (await secondCard.count()) await secondCard.click();
+  // Focus zsh 2 from the rail's tree.
+  await treeRow(page, "manual-2").click();
   const hiddenFirstTerminal = page.locator(
     'article[data-testid="terminal-tile"][data-session-id="manual-1"]',
   );
@@ -230,7 +230,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   expect(await hiddenFirstTerminal.evaluate((node) => (
     node instanceof HTMLElement ? node.style.gridRow : ""
   ))).toBe("");
-  await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
+  await treeRow(page, "manual-1").click();
   const firstTerminalScreen = hiddenFirstTerminal.locator(".xterm-screen");
   await expect(hiddenFirstTerminal).not.toHaveAttribute("aria-hidden", "true");
   await expect(firstTerminalScreen).toBeVisible();
@@ -276,7 +276,7 @@ async function selectSurface(
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
   if (surface === "Details") {
-    await page.getByRole("tab", { name: "Details" }).click();
+    await openDetails(page);
     return;
   }
   await surfaceButton(page, surface).click();
