@@ -24,7 +24,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 import { openPlan } from "./support/plan-line";
-import { surfaceButton } from "./support/work-layout";
+import { openDetails, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -303,7 +303,7 @@ test.describe("New session sheet layout", () => {
 test.describe("work session and project identity", () => {
   test.use({ fixtureOptions: { projectShell: true } });
 
-  test("keeps the stacked sessions and project identity readable", async ({ harness }, testInfo) => {
+  test("keeps the listed sessions and project identity readable", async ({ harness }, testInfo) => {
     const { app, page, paths } = harness;
     await setWindowSize(app, page, 1800, 900);
 
@@ -313,9 +313,9 @@ test.describe("work session and project identity", () => {
     for (let index = 0; index < 4; index += 1) await addManualTerminal(page);
     await expect(page.getByTestId("xterm-host")).toHaveCount(6);
 
-    // One session holds focus; the other five are listed in the stack, none hidden silently.
-    const stackCards = page.getByRole("complementary", { name: /^Other sessions in / }).locator(".session-stack-card");
-    await expect(stackCards).toHaveCount(5);
+    // One session holds focus; all six are listed in the rail's tree, none hidden silently.
+    const treeRows = sessionTree(page).locator(".session-tree-row");
+    await expect(treeRows).toHaveCount(6);
     await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Fixture Alpha");
     await expect(page.locator(".session-location-meta")).toHaveCount(0);
 
@@ -327,7 +327,7 @@ test.describe("work session and project identity", () => {
       navigatorWidth: node.closest<HTMLElement>(".project-navigator")?.getBoundingClientRect().width ?? 0,
     }));
     // The rail has one width on the v4 canvas, whatever the window size.
-    expect(expandedGeometry.navigatorWidth).toBe(224);
+    expect(expandedGeometry.navigatorWidth).toBe(264);
     expect(expandedGeometry.scrollWidth).toBeLessThanOrEqual(expandedGeometry.clientWidth);
 
     const selectedTile = page.locator("[data-testid='terminal-tile'].selected:not([aria-hidden='true'])");
@@ -354,8 +354,8 @@ test.describe("work session and project identity", () => {
     await expect(activeGlyph).toBeVisible();
 
     await setWindowSize(app, page, 1120, 720);
-    await expect(stackCards).toHaveCount(5);
-    await expect(stackCards.last()).toBeInViewport();
+    await expect(treeRows).toHaveCount(6);
+    await expect(treeRows.last()).toBeInViewport();
     await page.screenshot({
       path: testInfo.outputPath("session-and-project-identity-1120x720.png"),
       style: identityScreenshotStyle,
@@ -365,7 +365,7 @@ test.describe("work session and project identity", () => {
     await openContext(page);
     await expect(projectLabel).toBeVisible();
     await expect.poll(() => activeProject.evaluate((node) => node.closest<HTMLElement>(".project-navigator")!.getBoundingClientRect().width))
-      .toBe(224);
+      .toBe(264);
     const compactProjectGeometry = await activeProject.evaluate((node) => {
       const button = node.getBoundingClientRect();
       const signal = node.querySelector<HTMLElement>(".project-row-state")?.getBoundingClientRect();
@@ -454,10 +454,9 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
 
-  await page.getByRole("complementary", { name: /^Other sessions in / })
-    .locator('[data-session-id="manual-1"]').click();
+  await treeRow(page, "manual-1").click();
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "stack swap");
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "tree swap");
   await expectDeck(page);
   await capture("deck-swap", [...frameProbes, ...terminalProbes]);
 
@@ -484,7 +483,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(
     afterContext.workspaceGridColumns.trim().split(/\s+/),
   ).toHaveLength(2);
-  // Details sits in the stack's column: 320px wide, inside the frame's 16px gutter.
+  // Details holds the right column: 320px wide, inside the frame's 16px gutter.
   expect(afterContext.context.position).toBe("static");
   expect(afterContext.context.rightGap).toBeCloseTo(16, 0);
   expect(afterContext.context.width).toBeCloseTo(320, 0);
@@ -495,10 +494,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(wideContextEvidence.documentOverflowX, "Wide Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const wideContext = page.getByRole("complementary", { name: "Details" });
-  // The tab row is 24px high on the canvas; the tabs fill it.
-  for (const tab of await wideContext.getByRole("tab").all()) {
-    expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
-  }
+  // The heading row is 24px high on the canvas, as the tabs it replaced were.
+  expect((await wideContext.locator(".side-column-header").boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
   expect((await wideContext.getByRole("button", { name: /Open in terminal/ }).boundingBox())?.height ?? 0)
     .toBeGreaterThanOrEqual(32);
   expect(await collectControlOverflowEvidence(page, {
@@ -510,7 +507,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }],
   }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
-  await page.getByRole("tab", { name: "Sessions" }).click();
+  // Details stays open beside the deck for the narrow captures.
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
   await expectDeck(page);
@@ -590,7 +587,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   // Details comes back with the deck, as it was left.
   await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
-  await page.getByRole("tab", { name: "Sessions" }).click();
 
   await selectSurface(page, "Local Data & Privacy");
   const narrowPrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
@@ -667,16 +663,15 @@ test("captures deterministic CSS ownership evidence across core states and overl
   }, nestedCwd);
   await page.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
   await page.getByRole("button", { name: "Fixture Alpha project", exact: true }).click();
-  // Leave a busy shell with reported progress in the stack so its preview line is masked too.
+  // Leave a busy shell with reported progress in the tree so its second line is masked too.
   const busyTile = page.locator('[data-testid="terminal-tile"]:visible');
   const busyInput = busyTile.getByRole("textbox", { name: "Terminal input" });
   await busyInput.fill("printf 'Build complete\\n'; sleep 30");
   await busyInput.press("Enter");
   await expect(busyTile.getByTestId("xterm-host")).toContainText("Build complete");
-  await page.getByRole("complementary", { name: /^Other sessions in / })
-    .locator('button.session-stack-card[data-session-id="nested-location"]').click();
+  await treeRow(page, "nested-location").click();
   await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
-  await expect(page.locator(".session-stack-preview").first()).toBeVisible();
+  await expect(page.locator(".session-tree-meta").first()).toBeVisible();
   await expect(page.getByRole("group", { name: "Free Chats" }).locator(".project-session-title")).toBeVisible();
   await recordPrivacyMaskCoverage();
   await page.screenshot({ path: join(evidenceDir, "nested-location.png"), style: privacySafeScreenshotStyle });
@@ -731,7 +726,7 @@ async function selectSurface(
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
   if (surface === "Details") {
-    await page.getByRole("tab", { name: "Details" }).click();
+    await openDetails(page);
     return;
   }
   await surfaceButton(page, surface).click();
@@ -781,22 +776,22 @@ async function expectDeck(page: Page): Promise<void> {
         const bounds = tile.getBoundingClientRect();
         return { height: bounds.height, right: bounds.right, width: bounds.width };
       });
-    const stack = document.querySelector<HTMLElement>(".session-stack")?.getBoundingClientRect() ?? null;
+    const details = document.querySelector<HTMLElement>("[data-testid='context-column']")?.getBoundingClientRect() ?? null;
     return {
       documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       grid: { height: gridBounds.height, width: gridBounds.width },
-      stack: stack ? { left: stack.left, width: stack.width } : null,
+      details: details ? { left: details.left, width: details.width } : null,
       tiles,
     };
   });
 
-  // One focused terminal fills the deck; the stack sits beside it.
+  // One focused terminal fills the deck; Details sits beside it.
   expect(geometry.tiles).toHaveLength(1);
   expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
   expect(geometry.tiles[0]!.width).toBeGreaterThan(geometry.grid.width * 0.9);
   expect(geometry.tiles[0]!.height).toBeGreaterThan(geometry.grid.height * 0.7);
-  expect(geometry.stack).not.toBeNull();
-  expect(geometry.tiles[0]!.right).toBeLessThanOrEqual(geometry.stack!.left);
+  expect(geometry.details).not.toBeNull();
+  expect(geometry.tiles[0]!.right).toBeLessThanOrEqual(geometry.details!.left);
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {

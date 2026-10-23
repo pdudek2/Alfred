@@ -627,7 +627,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onOpenExternalTerminal: vi.fn().mockResolvedValue(true),
     onOpenHistory: vi.fn(),
     onRestartSession: vi.fn(),
-    onOpenAsleep: vi.fn(),
     onRuntimeSessionFailed: vi.fn(),
     onRuntimeSessionExited: vi.fn(),
     onRuntimeSessionOutput: vi.fn(),
@@ -637,7 +636,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionStarting: vi.fn(() => true),
     onRuntimeSessionUnavailable: vi.fn(),
     onRenameSession: vi.fn(),
-    onFocusSession: vi.fn(),
     onPinSession: vi.fn(),
     onSelectSession: vi.fn(),
     onApproveTile: vi.fn(),
@@ -647,12 +645,10 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     <TerminalDesk
       activeWorkspaceId="A"
       armedRecoverySessionIds={new Set()}
-      asleepCount={0}
       now={Date.now()}
       pinnedSessionId={null}
       selectedSessionId={selectedSessionId}
       sessions={nextSessions}
-      stackHidden={false}
       surfaceActive
       terminalFocusRequestKey={0}
       worktreeDiffReturnFocus={null}
@@ -718,18 +714,40 @@ async function openNewPlan(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByRole("dialog", { name: "New session" });
 }
 
-// Deck, History and Settings live in the rail; Details has its own top bar button.
+// Deck, History and Settings live in the rail; Details is the side column.
 const SURFACE_BUTTONS = { Work: "Deck", History: "History", Details: "Details", "Local Data & Privacy": "Settings" } as const;
+
+function detailsOpen(): boolean {
+  return screen.getByTestId("context-column").classList.contains("open");
+}
 
 async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: keyof typeof SURFACE_BUTTONS) {
   if (label === "Details") {
-    // Details is a tab above the session stack. With no stack on screen, or to close it, Command I toggles it.
-    const tab = screen.queryByRole("tab", { name: "Details", selected: false });
-    if (tab) await user.click(tab);
-    else await user.keyboard("{Meta>}i{/Meta}");
+    // Details starts open in the side column; Command I brings it back after you close it.
+    if (!detailsOpen()) await user.keyboard("{Meta>}i{/Meta}");
     return;
   }
   await user.click(screen.getByRole("button", { name: SURFACE_BUTTONS[label] }));
+}
+
+// Command I hides Details, which starts open.
+async function closeDetails(user: ReturnType<typeof userEvent.setup>) {
+  if (detailsOpen()) await user.keyboard("{Meta>}i{/Meta}");
+  expect(screen.getByTestId("context-column")).toHaveClass("closed");
+}
+
+// The active project's sessions hang under its row in the rail.
+function railSessions(projectLabel = "Alfred"): HTMLElement {
+  return within(screen.getByRole("navigation", { name: "Projects and Free Chats" })).getByRole("list", { name: `Sessions in ${projectLabel}` });
+}
+
+// The tree's top-level rows in order, each as "title: state".
+function railRows(projectLabel = "Alfred"): string[] {
+  return Array.from(railSessions(projectLabel).children).map((item) => {
+    const title = item.querySelector(".session-tree-title")?.textContent ?? "";
+    const state = item.querySelector(".session-tree-state")?.className.match(/ status-([\w-]+)/)?.[1] ?? "";
+    return `${title}: ${state}`;
+  });
 }
 
 // Close, Rename and the external terminal live in the menu on the focused session's strip.
@@ -740,7 +758,7 @@ async function sessionMenuAction(user: ReturnType<typeof userEvent.setup>, title
 
 // Review diff and Apply live in Details, under Changes, once the checkout's changes have loaded.
 async function checkoutActions(user: ReturnType<typeof userEvent.setup>) {
-  if (!screen.queryByRole("tab", { name: "Details", selected: true })) await selectSurface(user, "Details");
+  await selectSurface(user, "Details");
   const changes = within(screen.getByRole("complementary", { name: "Details" })).getByRole("region", { name: "Changes" });
   await within(changes).findByRole("button", { name: "Review diff" });
   return changes;
@@ -1145,7 +1163,8 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /terminals/i })).toBeInTheDocument();
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    // Details holds the side column the session stack had, so it starts open.
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
   it("renders New session only on demand and restores focus to its launch trigger", async () => {
@@ -1155,7 +1174,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(screen.queryByTestId("primary-nav-rail")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
@@ -1262,15 +1281,15 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
   });
 
-  it("places projects, but no session rows, inside the project navigator", async () => {
+  it("lists the active project's sessions under its row in the project navigator", async () => {
     installDesktopBridge();
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     expect(within(panel).getByText("Projects")).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
-    expect(within(panel).getByRole("list", { name: /projects/i })).toBeInTheDocument();
+    expect(within(panel).getByRole("list", { name: /^projects$/i })).toBeInTheDocument();
+    expect(within(railSessions()).getByRole("button", { name: /^zsh/ })).toHaveAttribute("aria-current", "true");
   });
 
   it("keeps Recovery out of the project signal and Needs you count", async () => {
@@ -1897,60 +1916,55 @@ describe("App integration", () => {
     expect(screen.getByTestId("xterm-host")).toBe(host);
   });
 
-  it("does not reopen Details after reload or restore the retired drawer field", async () => {
+  it("opens Details again after reload and never saves or reads the retired drawer field", async () => {
     const user = userEvent.setup();
     const legacyLayouts = {
       layoutsByWorkspace: {},
-      viewStateByWorkspace: { A: { workMode: "desk" as const, contextDrawerOpen: true } },
+      viewStateByWorkspace: { A: { workMode: "desk" as const, contextDrawerOpen: false } },
     };
     const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [], undefined, legacyLayouts);
     const { unmount } = render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
 
+    setWorkspaceViewState.mockClear();
+    await closeDetails(user);
+    expect(setWorkspaceViewState).not.toHaveBeenCalled();
     await selectSurface(user, "Details");
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(setWorkspaceViewState.mock.calls.every(([request]) => !("contextDrawerOpen" in request.viewState))).toBe(true);
-
-    setWorkspaceViewState.mockClear();
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
-    expect(setWorkspaceViewState).not.toHaveBeenCalled();
-    await selectSurface(user, "Details");
+    await closeDetails(user);
     unmount();
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+  });
+
+  it("hands the keyboard to the focused terminal when Details closes with nothing to return to", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    terminalFocusSessionIds.length = 0;
+    within(screen.getByRole("complementary", { name: "Details" })).getByRole("heading", { name: "Details" }).focus();
+    await user.keyboard("{Meta>}i{/Meta}");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
   });
 
-  it.each(["Sessions", "Escape"])("returns focus to the stack's Details tab after opening Details from it and using %s", async (dismissal) => {
+  it("keeps Details open on Escape, which stays with the focused element", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    const stack = screen.getByRole("complementary", { name: /^Other sessions in / });
-    await user.click(within(stack).getByRole("tab", { name: "Details" }));
-    // The stack gives its place to Details, which draws the same tabs with Details selected.
-    const details = screen.getByRole("complementary", { name: "Details" });
-    const selected = within(details).getByRole("tab", { name: "Details", selected: true });
-    await waitFor(() => expect(selected).toHaveFocus());
-    if (dismissal === "Escape") await user.keyboard("{Escape}");
-    else await user.click(within(details).getByRole("tab", { name: "Sessions" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details", selected: false })).toHaveFocus());
-  });
-
-  it("closes Details on Escape outside the panel and returns focus to its opener", async () => {
-    const user = userEvent.setup();
-    installDesktopBridge();
-    render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    await user.click(screen.getByRole("tab", { name: "Details" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
-    screen.getByRole("button", { name: "New" }).focus();
+    const palette = screen.getByRole("button", { name: "Open command palette" });
+    palette.focus();
     await user.keyboard("{Escape}");
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(palette).toHaveFocus();
+    within(screen.getByRole("complementary", { name: "Details" })).getByRole("heading", { name: "Details" }).focus();
+    await user.keyboard("{Escape}");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
   it("leaves Escape typed in a terminal to the terminal while Details is open", async () => {
@@ -1958,8 +1972,8 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    await user.click(screen.getByRole("tab", { name: "Details" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    await waitForTerminalStartsToSettle();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
     // xterm takes keys through a textarea inside its host.
     const input = document.createElement("textarea");
     screen.getByTestId("xterm-host").append(input);
@@ -1973,13 +1987,12 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).not.toHaveClass("closed");
   });
 
-  it("lets an open project menu consume Escape before Details", async () => {
+  it("closes an open project menu on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    await user.click(screen.getByRole("tab", { name: "Details" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
     await user.click(screen.getByRole("button", { name: /^Project menu for / }));
     expect(screen.getByRole("dialog", { name: "Project actions" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
@@ -1988,54 +2001,56 @@ describe("App integration", () => {
   });
 
   it("returns focus to the previous element after opening Details with Command I", async () => {
+    const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await closeDetails(user);
     const previous = screen.getByRole("button", { name: "New" });
     previous.focus();
     fireEvent.keyDown(previous, { key: "i", metaKey: true });
-    const close = screen.getByRole("tab", { name: "Details" });
-    await waitFor(() => expect(close).toHaveFocus());
-    fireEvent.keyDown(close, { key: "Escape" });
+    const heading = screen.getByRole("heading", { name: "Details" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    fireEvent.keyDown(heading, { key: "i", metaKey: true });
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(previous).toHaveFocus());
   });
 
-  it("toggles Details with Command I and lands on the stack's Details tab on Escape", async () => {
+  it("toggles Details with Command I and hands the keyboard to the terminal when it closes", async () => {
     installDesktopBridge();
     render(<App />);
-    await screen.findByTestId("workbench-surface");
-    fireEvent.keyDown(window, { key: "i", metaKey: true });
-    expect(screen.getByTestId("context-column")).toHaveClass("open");
-    const close = screen.getByRole("tab", { name: "Details" });
-    await waitFor(() => expect(close).toHaveFocus());
-    fireEvent.keyDown(close, { key: "Escape" });
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
-    fireEvent.keyDown(window, { key: "i", metaKey: true });
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     fireEvent.keyDown(window, { key: "i", metaKey: true });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    fireEvent.keyDown(window, { key: "i", metaKey: true });
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    const heading = screen.getByRole("heading", { name: "Details" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    terminalFocusSessionIds.length = 0;
+    fireEvent.keyDown(heading, { key: "i", metaKey: true });
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
   });
 
-  it("uses Details as a right column and restores focus to Details when it closes", async () => {
+  it("uses Details as a right column beside the terminals", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
     const workbench = await screen.findByTestId("workbench-surface");
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("context-visible");
 
+    await closeDetails(user);
+    expect(screen.getByTestId("workbench-shell")).not.toHaveClass("context-visible");
+    expect(workbench).toBeInTheDocument();
     await selectSurface(user, "Details");
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(workbench).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
-    expect(workbench).toBeInTheDocument();
   });
 
-  it("lets the Command palette consume Escape before Details", async () => {
+  it("closes the Command palette on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -2050,7 +2065,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
-  it("lets New session consume Escape before Details", async () => {
+  it("closes New session on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -2146,7 +2161,7 @@ describe("App integration", () => {
     expect(xtermHost.isConnected).toBe(true);
   });
 
-  it("lets Privacy consume Escape before Details", async () => {
+  it("closes Privacy on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -2162,7 +2177,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
-  it("lets workspace actions consume Escape before Details", async () => {
+  it("closes workspace actions on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -2189,20 +2204,21 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByTestId("project-navigator");
-    await selectSurface(user, "Details");
+    // Details is open or closed per project: closed here, open in ClientApp, which starts with it open.
+    await closeDetails(user);
     const alfredWorkspace = screen.getByRole("button", { name: "Alfred project" });
     const clientWorkspace = screen.getByRole("button", { name: "ClientApp project" });
 
     await user.click(clientWorkspace);
 
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
     await waitFor(() => expect(clientWorkspace).toHaveFocus());
+    expect(screen.getByRole("heading", { name: "Details" })).not.toHaveFocus();
 
     await user.click(alfredWorkspace);
 
-    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(alfredWorkspace).toHaveFocus());
-    expect(screen.getByRole("tab", { name: "Details" })).not.toHaveFocus();
   });
 
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {
@@ -2283,21 +2299,19 @@ describe("App integration", () => {
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
+    await closeDetails(user);
+    expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
     await selectSurface(user, "Details");
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
-    expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
-    expect(initialHost.isConnected).toBe(true);
-    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    // The new terminal took focus; the first one waits in the stack and comes back as the same node.
-    const stack = screen.getByRole("complementary", { name: "Other sessions in Alfred" });
-    await user.click(within(stack).getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }));
+    // The new terminal took focus; the first one waits in the rail's tree and comes back as the same node.
+    await user.click(within(railSessions()).getByRole("button", { name: /^zsh(?! \d)/ }));
     expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBe(tile);
-    expect(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/ })).toBeInTheDocument();
+    expect(within(railSessions()).getByRole("button", { name: /^zsh 2(?! \d)/ })).toBeInTheDocument();
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
@@ -2312,7 +2326,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
-  it("lists the other sessions in the stack instead of counting them in chrome", async () => {
+  it("lists the project's sessions in the rail instead of counting them in chrome", async () => {
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
     render(<App />);
@@ -2323,8 +2337,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: /Project menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
     expect(within(workbenchHeader).queryByRole("toolbar")).not.toBeInTheDocument();
     expect(workbenchHeader).not.toHaveTextContent("2 sessions");
-    expect(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Codex · two/ })).toBeInTheDocument();
+    expect(within(railSessions()).getByRole("button", { name: /^Codex · two/ })).toBeInTheDocument();
     expect(screen.queryByLabelText("Terminal grid controls")).not.toBeInTheDocument();
     expect(screen.queryByText(/2 tiles · 0 draft/i)).not.toBeInTheDocument();
   });
@@ -2399,7 +2412,7 @@ describe("App integration", () => {
     expect(within(asleep).queryByText(/Draft one|Draft two/)).not.toBeInTheDocument();
   });
 
-  it("fills the stack with the project's asleep sessions while nothing else runs there", async () => {
+  it("counts the project's asleep sessions at the foot of its rail tree", async () => {
     const restoredSessions: PersistedTerminalSessionSnapshot[] = [
       {
         clientId: "restored-claude",
@@ -2417,11 +2430,11 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const stack = await screen.findByRole("complementary", { name: "Other sessions in Alfred" });
-    const asleep = within(stack).getByRole("region", { name: "Asleep sessions" });
-    expect(within(asleep).getByText("Review the release notes")).toBeInTheDocument();
-    expect(within(asleep).getByRole("button", { name: /Review the release notes/ })).toBeInTheDocument();
-    expect(within(stack).queryByText("No other sessions in this project.")).not.toBeInTheDocument();
+    await screen.findByRole("article", { name: /^Claude/ });
+    const rail = screen.getByRole("navigation", { name: "Projects and Free Chats" });
+    expect(within(railSessions()).getByRole("button", { name: /^Claude/ })).toBeInTheDocument();
+    expect(within(railSessions()).queryByRole("button", { name: /^Review the release notes/ })).not.toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Browse 1 asleep session" })).toHaveTextContent("1 asleep");
   });
 
   it("keeps one-session Focus compact with one focused tile", async () => {
@@ -2457,7 +2470,7 @@ describe("App integration", () => {
     expect(visibleTiles[0]?.querySelector(".session-strip")).toHaveTextContent(/^Codex/);
   });
 
-  it("uses the session stack to change Focus sessions without replacing xterm", async () => {
+  it("uses the rail tree to change Focus sessions without replacing xterm", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
@@ -2467,7 +2480,7 @@ describe("App integration", () => {
     const firstHost = screen.getAllByTestId("xterm-host")[0];
     expect(firstHost).toBeInstanceOf(HTMLElement);
 
-    await user.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" })).getByRole("button", { name: /Codex · two/i }));
+    await user.click(within(railSessions()).getByRole("button", { name: /^Codex · two/i }));
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
@@ -2480,23 +2493,26 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(0);
   });
 
-  it("pins a stack session under the focus and unpins it without replacing either xterm", async () => {
+  it("pins a rail session under the focus and unpins it without replacing either xterm", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
     render(<App />);
     await screen.findByRole("article", { name: /Codex · one/i });
     const hostOf = (id: string) => document.querySelector(`[data-testid="xterm-host"][data-session-id="${id}"]`);
     const [focusHost, stackHost] = [hostOf("one"), hostOf("two")];
-    const stack = () => screen.getByRole("complementary", { name: "Other sessions in Alfred" });
+    const pinTwo = () => within(railSessions()).queryByRole("button", { name: "Pin under the focus", description: /Codex · two/ });
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
 
-    await user.click(within(stack()).getByRole("button", { name: "Pin under the focus", description: /Codex · two/ }));
+    await user.click(pinTwo()!);
 
     const pinned = screen.getByRole("article", { name: /^Pinned: Codex · two/ });
     expect(pinned).not.toHaveAttribute("aria-hidden");
     expect(screen.getByRole("article", { name: /^Codex · one/ })).not.toHaveAttribute("aria-hidden");
     expect(screen.getByTestId("terminal-grid")).toHaveClass("has-pin");
-    expect(within(stack()).queryByRole("button", { name: /Codex · two/ })).not.toBeInTheDocument();
+    // The pinned session keeps its row; only its Pin goes.
+    expect(within(railSessions()).getByRole("button", { name: /^Codex · two/ })).toBeInTheDocument();
+    expect(pinTwo()).not.toBeInTheDocument();
+    // Pin went with its row's control, so the keyboard lands on the new pin's Unpin.
     expect(within(pinned).getByRole("button", { name: "Unpin Codex · two" })).toHaveFocus();
     expect(hostOf("one")).toBe(focusHost);
     expect(hostOf("two")).toBe(stackHost);
@@ -2510,7 +2526,7 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("article", { name: /^Pinned:/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("terminal-grid")).not.toHaveClass("has-pin");
-    expect(within(stack()).getByRole("button", { name: /Codex · two/ })).toBeInTheDocument();
+    expect(pinTwo()).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /^Codex · one/ })).toHaveFocus();
     expect(hostOf("one")).toBe(focusHost);
     expect(hostOf("two")).toBe(stackHost);
@@ -2710,7 +2726,7 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
   });
 
-  it("keeps the Details tab mounted and closed by default with an important-session signal", async () => {
+  it("keeps Details mounted, open by default, with an important-session signal", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [
       {
@@ -2738,14 +2754,10 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /Manual · failed/i })).toBeInTheDocument();
     const drawer = screen.getByTestId("context-drawer");
-    expect(drawer).toHaveAttribute("aria-hidden", "true");
-
-    await selectSurface(user, "Details");
-
     expect(drawer).toHaveAttribute("aria-hidden", "false");
     expect(within(drawer).getByLabelText("Agent activity")).toHaveTextContent("Manual · failed");
 
-    await user.click(within(drawer).getByRole("tab", { name: "Sessions" }));
+    await closeDetails(user);
     expect(drawer).toHaveAttribute("aria-hidden", "true");
     expect(drawer.querySelector('[aria-label="Agent activity"]')).toBeInstanceOf(HTMLElement);
   });
@@ -2775,8 +2787,7 @@ describe("App integration", () => {
     fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });
     fireEvent.change(screen.getByLabelText("Working directory"), { target: { value: "apps/desktop" } });
 
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await closeDetails(user);
 
     await selectSurface(user, "Details");
     expect(screen.getByTestId("context-column")).toHaveClass("open");
@@ -4223,7 +4234,7 @@ describe("App integration", () => {
     // Preview sits in the focused session's box, over a terminal that stays mounted but out of reach.
     expect(terminalHost.closest("article")).toContainElement(preview);
     expect(terminalHost).toHaveAttribute("inert");
-    expect(screen.getByRole("complementary", { name: /^Other sessions in / })).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Details" })).toBeVisible();
 
     await user.click(screen.getByRole("tab", { name: "Terminal" }));
 
@@ -4238,7 +4249,7 @@ describe("App integration", () => {
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
   });
 
-  it("returns to the terminal when another session is picked from the stack during Preview", async () => {
+  it("returns to the terminal when another session is picked from the rail during Preview", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [
       liveSnapshot("preview-server", { buffer: "Ready at http://localhost:5173/\n" }),
@@ -4248,8 +4259,7 @@ describe("App integration", () => {
 
     await user.click(await screen.findByRole("tab", { name: "Preview" }));
     expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
-    const stack = screen.getByRole("complementary", { name: /^Other sessions in / });
-    await user.click(within(stack).getAllByRole("button")[0]!);
+    await user.click(within(railSessions()).getByRole("button", { name: /^Codex · other-work/ }));
 
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Terminal" })).toHaveAttribute("aria-selected", "true");
@@ -4290,7 +4300,7 @@ describe("App integration", () => {
     expect(screen.getByRole("complementary", { name: "Details" })).toBeVisible();
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
 
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
+    await closeDetails(user);
     expect(screen.getByLabelText("Project preview")).toBeVisible();
     expect(screen.getByTestId("workbench-shell")).not.toHaveClass("context-visible");
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
@@ -5232,7 +5242,7 @@ describe("App integration", () => {
     expect(within(asleep).getAllByRole("listitem")).toHaveLength(2);
   });
 
-  it("persists a stack selection exactly once and ignores duplicate focus events", async () => {
+  it("persists a rail selection exactly once and ignores duplicate focus events", async () => {
     const { setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
@@ -5284,9 +5294,9 @@ describe("App integration", () => {
       </StrictMode>,
     );
 
-    const stack = await screen.findByRole("complementary", { name: "Other sessions in Alfred" });
+    const stack = await screen.findByRole("list", { name: "Sessions in Alfred" });
     setWorkspaceViewState.mockClear();
-    fireEvent.click(within(stack).getByRole("button", { name: /Codex - Backend Code Quality Analysis/i }));
+    fireEvent.click(within(stack).getByRole("button", { name: /^Codex - Backend Code Quality Analysis/i }));
     const newlySelectedTile = await screen.findByRole("article", { name: /Codex - Backend Code Quality Analysis/i });
     const terminalHost = newlySelectedTile.querySelector(".xterm-host");
     expect(terminalHost).toBeInstanceOf(HTMLElement);
@@ -5301,7 +5311,7 @@ describe("App integration", () => {
     });
   });
 
-  it("keeps a hydrated selection in focus and the other session in the stack", async () => {
+  it("keeps a hydrated selection in focus and the other session in the rail", async () => {
     const { setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
@@ -5351,8 +5361,8 @@ describe("App integration", () => {
 
     const focusedTile = await screen.findByRole("article", { name: /Claude - UI\/UX Deep Analysis/i });
     expect(focusedTile).toHaveClass("selected");
-    expect(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Codex - Backend Code Quality Analysis/i })).toBeInTheDocument();
+    expect(within(railSessions())
+      .getByRole("button", { name: /^Codex - Backend Code Quality Analysis/i })).toBeInTheDocument();
     expect(setWorkspaceViewState).not.toHaveBeenCalledWith(
       expect.objectContaining({ viewState: expect.objectContaining({ selectedSessionId: "alfred-1" }) }),
     );
@@ -5397,8 +5407,8 @@ describe("App integration", () => {
     expect(alphaHost).toBeInTheDocument();
     expect(betaHost).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Manual · beta/ }));
+    fireEvent.click(within(railSessions())
+      .getByRole("button", { name: /^Manual · beta/ }));
 
     await waitFor(() => {
       expect(beta).toHaveClass("selected");
@@ -5484,16 +5494,16 @@ describe("App integration", () => {
     });
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
 
-    const stack = () => screen.getByRole("complementary", { name: "Other sessions in Alfred" });
-    await user.click(within(stack()).getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }));
-    await user.click(within(stack()).getByRole("button", { name: /(?<!\/)Codex(?! \d)(?! ·)/ }));
+    const stack = () => railSessions();
+    await user.click(within(stack()).getByRole("button", { name: /^zsh(?! \d)(?! ·)/ }));
+    await user.click(within(stack()).getByRole("button", { name: /^Codex(?! \d)(?! ·)/ }));
 
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
     const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
     expect(codexCalls).toHaveLength(1);
   });
 
-  it("shows the focused session's activity in Details and closes it on Escape", async () => {
+  it("shows the focused session's activity in Details and keeps it open on Escape", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
@@ -5507,11 +5517,10 @@ describe("App integration", () => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("bash is running in …/Desktop/Alfred.");
     });
 
-    screen.getByRole("tab", { name: "Details" }).focus();
+    screen.getByRole("heading", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
-    expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
   it("opens Details from the command palette and returns focus to its surviving trigger", async () => {
@@ -5521,14 +5530,15 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await closeDetails(user);
     const paletteTrigger = screen.getByRole("button", { name: "Open command palette" });
     await user.click(paletteTrigger);
     await submitCommandPalette(user, "details");
 
     expect(screen.getByTestId("context-column")).toHaveClass("open");
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Details" })).toHaveFocus());
 
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
+    await user.keyboard("{Meta>}i{/Meta}");
 
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(paletteTrigger).toHaveFocus());
@@ -5562,8 +5572,8 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/ }));
+    await userEvent.click(within(railSessions())
+      .getByRole("button", { name: /^zsh 2(?! \d)(?! ·)/ }));
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 2");
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
@@ -5571,15 +5581,15 @@ describe("App integration", () => {
     expect(screen.queryByRole("tablist", { name: "History" })).not.toBeInTheDocument();
     expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
-    await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }));
+    await userEvent.click(within(railSessions())
+      .getByRole("button", { name: /^zsh(?! \d)(?! ·)/ }));
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
     expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).not.toBeInTheDocument();
   });
 
-  it("focuses a project session picked in the stack without touching layouts", async () => {
+  it("focuses a project session picked in the rail without touching layouts", async () => {
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(undefined, null, [
       manualLiveSnapshot("manual-1", "zsh"),
       manualLiveSnapshot("manual-2", "zsh 2"),
@@ -5591,8 +5601,8 @@ describe("App integration", () => {
     setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
 
-    await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/ }));
+    await userEvent.click(within(railSessions())
+      .getByRole("button", { name: /^zsh 2(?! \d)(?! ·)/ }));
 
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
@@ -7772,7 +7782,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
   });
 
-  it("moves a session that starts waiting to the top of the stack without taking focus", async () => {
+  it("moves a session that starts waiting to the top of the rail tree without taking focus", async () => {
     const bridge = installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two"), liveSnapshot("three")]);
 
     render(<App />);
@@ -7786,11 +7796,7 @@ describe("App integration", () => {
       agentSignal: { state: "needs-you", source: "osc9", at: Date.now(), detail: "Allow the edit?" },
     });
 
-    const stack = screen.getByRole("complementary", { name: "Other sessions in Alfred" });
-    await waitFor(() => {
-      expect(within(stack).getAllByRole("region")[0]).toHaveAccessibleName("Needs you");
-    });
-    expect(within(within(stack).getAllByRole("region")[0]!).getByRole("button", { name: /Codex · three/ })).toBeInTheDocument();
+    await waitFor(() => expect(railRows()[0]).toBe("Codex · three: needs-you"));
     expect(screen.getByRole("article", { name: /Codex · one/i })).toBe(focused);
     expect(focused).not.toHaveAttribute("aria-hidden");
   });
@@ -7867,13 +7873,15 @@ describe("App integration", () => {
       },
     );
     const list = vi.mocked(window.alfredDesktop!.terminal.list);
-    const groups = () => within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getAllByRole("region")
-      .map((region) => region.getAttribute("aria-label"));
 
     render(<App />);
     await screen.findByRole("article", { name: /Codex · one/i });
-    await waitFor(() => expect(groups()).toEqual(["Needs you", "Your turn", "Running"]));
+    await waitFor(() => expect(railRows()).toEqual([
+      "Claude · claude: needs-you",
+      "Codex · one: your-turn",
+      "Codex · two: your-turn",
+      "zsh: running",
+    ]));
     // A signal the main process sent after the list was read, which the list then lacks.
     await bridge.emitData({
       id: "runtime-two",
@@ -7882,7 +7890,8 @@ describe("App integration", () => {
       activities: [],
       agentSignal: { state: "needs-you", source: "osc9", at: Date.now(), detail: "Approval requested" },
     });
-    await waitFor(() => expect(groups()).toEqual(["Needs you", "Running"]));
+    const waiting = ["Claude · claude: needs-you", "Codex · two: needs-you", "Codex · one: your-turn", "zsh: running"];
+    await waitFor(() => expect(railRows()).toEqual(waiting));
 
     const listed = list.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "IronLog project" }));
@@ -7891,20 +7900,37 @@ describe("App integration", () => {
     await act(async () => {});
 
     // The refreshed list must not reset them: no output arrives that would bring them back.
-    expect(groups()).toEqual(["Needs you", "Running"]);
-    expect(within(screen.getByRole("region", { name: "Needs you" })).getAllByRole("button", { name: /Claude · claude|Codex · two/ }))
-      .toHaveLength(2);
+    expect(railRows()).toEqual(waiting);
   });
 
-  it("persists the session focused from the stack as workspace view state", async () => {
+  it("starts a worker from an agent's rail row and hangs it under that agent", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(undefined, null, [liveSnapshot("lead", { title: "Codex · lead" })]);
+
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · lead/i });
+    await user.click(within(railSessions()).getByRole("button", { name: "New worker for Codex · lead" }));
+
+    const sheet = screen.getByRole("dialog", { name: "New session" });
+    expect(sheet).toHaveTextContent("Worker of Codex · lead");
+    expect(within(sheet).queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("radio", { name: /^Terminal/ }));
+    await user.click(within(sheet).getByRole("button", { name: "Start" }));
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ parentClientId: "lead" })));
+    const workers = within(railSessions()).getByRole("list", { name: "Workers of Codex · lead" });
+    expect(within(workers).getByRole("button", { name: /^zsh/ })).toHaveAccessibleDescription(/Worker of Codex · lead/);
+  });
+
+  it("persists the session focused from the rail as workspace view state", async () => {
     const user = userEvent.setup();
     const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · one/i });
-    await user.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Codex · two/ }));
+    await user.click(within(railSessions())
+      .getByRole("button", { name: /^Codex · two/ }));
 
     await waitFor(() => {
       expect(setWorkspaceViewState).toHaveBeenCalledWith({
@@ -8193,9 +8219,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Edit command" }));
     expect(screen.getByLabelText("Command")).toHaveValue("pnpm");
     expect(screen.getByLabelText("Arguments")).toHaveValue("test\n--watch");
-    // Details replaces the stack, plan line included; closing it brings the plan line back.
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
+    // The plan line stays in the centre beside Details.
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Terminal · edited");
   });
@@ -10275,8 +10299,8 @@ describe("App integration", () => {
     expect(screen.queryByRole("listitem", { name: /Draft Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "Draft Risky task" })).toBeInTheDocument();
     // Launching does not steal focus; the new session joins the stack.
-    expect(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
-      .getByRole("button", { name: /Safe task/ })).toBeInTheDocument();
+    expect(within(railSessions())
+      .getByRole("button", { name: /^Safe task/ })).toBeInTheDocument();
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Risky task");
     expect(clearStagedPlan).not.toHaveBeenCalled();
@@ -10354,9 +10378,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
     const createsBefore = createTerminal.mock.calls.length;
 
-    // With a live session in focus the plan line sits in the stack, not above the terminal.
-    const stack = await screen.findByRole("complementary", { name: "Other sessions in Alfred" });
-    expect(await within(stack).findByRole("button", { name: "Launch 2 ready drafts" })).toBeInTheDocument();
+    // The plan line sits above the terminals whenever drafts exist, a live focus or not.
+    const terminals = screen.getByRole("region", { name: /terminals/i });
+    expect(await within(terminals).findByRole("button", { name: "Launch 2 ready drafts" })).toBeInTheDocument();
 
     await user.click(await screen.findByRole("button", { name: "Launch 2 ready drafts" }));
 
@@ -10431,7 +10455,6 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Edit draft command for Blocked Codex" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
 
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Blocked Codex" })).toHaveTextContent(
       "Blocked: Project has uncommitted or untracked changes.",
@@ -10756,7 +10779,7 @@ describe("App integration", () => {
       viewState: { previewDockOpen: false },
     });
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Details" })).toHaveFocus());
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Blocked Codex");
     expect(screen.getByRole("button", { name: "Edit command" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
@@ -10779,7 +10802,6 @@ describe("App integration", () => {
         workspace: expect.any(Object),
       });
     });
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
     const editedDraft = screen.getByRole("listitem", { name: "Draft Blocked Codex" });
     expect(editedDraft).toHaveTextContent("Codex · edited");

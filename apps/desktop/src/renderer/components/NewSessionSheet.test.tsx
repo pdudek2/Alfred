@@ -118,3 +118,12 @@ it("submits command Enter even when Cancel has focus", async () => {
   await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
   expect(props.onStart).toHaveBeenCalledOnce();
 });
+it("names the parent of a worker and offers only sessions, not a plan", () => {
+  const { props, rerender } = setup({ parentTitle: "Redesign History" });
+  expect(screen.getByText("Worker of", { exact: false })).toHaveTextContent("Worker of Redesign History");
+  expect(screen.queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: /^Codex/ })).toBeChecked();
+  rerender(<NewSessionSheet {...props} parentTitle={undefined} />);
+  expect(screen.queryByText("Worker of", { exact: false })).not.toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: /^Plan with Alfred/ })).toBeInTheDocument();
+});

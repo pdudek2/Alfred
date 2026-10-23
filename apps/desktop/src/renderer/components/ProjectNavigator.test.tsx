@@ -77,13 +77,19 @@ function navigator(props: Partial<ProjectNavigatorProps> = {}) {
       activeSessionId="codex-live"
       activeSurface="work"
       activeWorkspaceId="A"
+      asleepCount={0}
       attentionCountsByWorkspace={new Map()}
       now={Date.now()}
+      pinnedSessionId={null}
       sessions={sessions}
       workspaces={workspaces}
       workspaceActions={<button type="button">Project actions</button>}
       onAddWorkspace={vi.fn()}
+      onFocusSession={vi.fn()}
+      onNewWorker={vi.fn()}
+      onOpenAsleep={vi.fn()}
       onOpenSettings={vi.fn()}
+      onPinSession={vi.fn()}
       onSelectSessionInWorkspace={vi.fn()}
       onSelectSurface={vi.fn()}
       onSelectWorkspace={vi.fn()}
@@ -132,7 +138,7 @@ describe("ProjectNavigator", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lists every project as one row without session rows, hints, counts or a collapse button", () => {
+  it("lists every project as one row without hints, counts or a collapse button", () => {
     const { container } = renderNavigator();
 
     const projectList = screen.getByRole("list", { name: "Projects" });
@@ -144,6 +150,65 @@ describe("ProjectNavigator", () => {
     expect(screen.queryByRole("button", { name: /Collapse project navigator|Expand project navigator/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /more projects/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Add project" }).closest("header")).not.toBeNull();
+  });
+
+  it("shows the active project's sessions as a tree under its row and none under the others", () => {
+    const { rerender } = renderNavigator({
+      sessions: [...sessions, liveSession("client-live", "Codex · Client", "CLIENT", "/repo/client", "codex")],
+    });
+
+    const tree = screen.getByRole("list", { name: "Sessions in Alfred" });
+    expect(within(tree).getByRole("button", { name: /^Codex · Atlas/ })).toHaveAttribute("aria-current", "true");
+    expect(within(tree).getByRole("button", { name: /^Claude · CSS/ })).toBeInTheDocument();
+    // Asleep sessions are counted, not listed.
+    expect(within(tree).queryByRole("button", { name: /^Codex · restored/ })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Sessions in ClientApp" })).toBeNull();
+    // The focused session carries the fill, so the project row reads as the tree's heading.
+    expect(railRow("Alfred").closest(".project-row")).toHaveClass("is-active", "has-tree");
+    expect(railRow("ClientApp").closest(".project-row")).not.toHaveClass("has-tree");
+
+    rerender(navigator({ activeSurface: "sessions" }));
+    expect(screen.queryByRole("list", { name: "Sessions in Alfred" })).toBeNull();
+  });
+
+  it("focuses, pins and starts a worker from the tree and opens the asleep list", async () => {
+    const user = userEvent.setup();
+    const onFocusSession = vi.fn();
+    const onPinSession = vi.fn();
+    const onNewWorker = vi.fn();
+    const onOpenAsleep = vi.fn();
+    const { rerender } = renderNavigator({ asleepCount: 2, onFocusSession, onPinSession, onNewWorker, onOpenAsleep });
+
+    const tree = screen.getByRole("list", { name: "Sessions in Alfred" });
+    await user.click(within(tree).getByRole("button", { name: /^Claude · CSS/ }));
+    await user.click(within(tree).getByRole("button", { name: "Pin under the focus", description: /Claude · CSS/ }));
+    await user.click(within(tree).getByRole("button", { name: "New worker for Codex · Atlas" }));
+    await user.click(screen.getByRole("button", { name: "Browse 2 asleep sessions" }));
+
+    expect(onFocusSession).toHaveBeenCalledWith("claude-live");
+    expect(onPinSession).toHaveBeenCalledWith("claude-live");
+    expect(onNewWorker).toHaveBeenCalledWith("codex-live");
+    expect(onOpenAsleep).toHaveBeenCalledOnce();
+
+    rerender(navigator({ pinnedSessionId: "claude-live" }));
+    expect(screen.queryByRole("button", { name: "Pin under the focus", description: /Claude · CSS/ })).toBeNull();
+  });
+
+  it("keeps a parent's workers hidden across a project switch once you hide them", async () => {
+    const user = userEvent.setup();
+    const withWorker = [...sessions, { ...liveSession("worker", "Codex · worker", "A", "/Users/patryk/Desktop/Alfred", "codex"), parentSessionId: "codex-live" }];
+    const { rerender } = renderNavigator({ sessions: withWorker });
+
+    expect(screen.getByRole("list", { name: "Workers of Codex · Atlas" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hide workers of Codex · Atlas" }));
+    expect(screen.queryByRole("list", { name: "Workers of Codex · Atlas" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Codex · Atlas/ })).toHaveTextContent("1 worker");
+
+    rerender(navigator({ sessions: withWorker, activeWorkspaceId: "CLIENT" }));
+    rerender(navigator({ sessions: withWorker }));
+    expect(screen.queryByRole("list", { name: "Workers of Codex · Atlas" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show workers of Codex · Atlas" }));
+    expect(screen.getByRole("list", { name: "Workers of Codex · Atlas" })).toBeInTheDocument();
   });
 
   it("shows one glyph per project for its highest active state and mutes calm projects", () => {

@@ -8,7 +8,7 @@ import type {
   TerminalSnapshotResult,
 } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
-import { openNewTerminalSheet } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet } from "./support/work-layout";
 import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
@@ -84,10 +84,10 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await switchProject(page, "Fixture Beta");
   await switchProject(page, "Fixture Alpha");
 
-  // Sessions live in the stack now, not in the rail: one focused plus five stacked.
+  // The active project lists all six of its sessions, the focus included, in its tree; Free Chats keep their rows.
   await expect(navigator.locator(".project-session[data-session-id^='manual-']")).toHaveCount(0);
-  const activeSessionGroup = page.getByRole("complementary", { name: "Other sessions in Fixture Alpha" });
-  await expect(activeSessionGroup.locator(".session-stack-card")).toHaveCount(5);
+  const activeSessionGroup = page.getByRole("list", { name: "Sessions in Fixture Alpha" });
+  await expect(activeSessionGroup.locator(".session-tree-row")).toHaveCount(6);
   await expect(activeSessionGroup.getByRole("button", { name: new RegExp(longSessionLabel) })).toBeVisible();
   const freeChats = navigator.getByRole("group", { name: "Free Chats" });
   await expect(freeChats.getByRole("button")).toHaveCount(4);
@@ -101,24 +101,32 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
 
   const alphaScreen = page.locator('article[data-session-id="manual-1"] .xterm-screen');
   const before = await requiredHandle(alphaScreen, "Alpha xterm screen");
-  const gridBeforeContext = await terminalGridRect(page);
-
-  const surfacesTrigger = page.getByRole("tab", { name: "Details" });
+  // Details holds the right column and starts open; ⌘I hides it and the focused terminal takes the room.
   await openContext(page);
-  const gridAfterContext = await terminalGridRect(page);
+  const gridWithContext = await terminalGridRect(page);
   const contextWidth = await page.getByTestId("context-column").evaluate(
     (node) => node.getBoundingClientRect().width,
   );
-  // Details takes the stack's column, so the focused terminal keeps roughly its width.
-  await expect(page.getByRole("complementary", { name: /^Other sessions in / })).toHaveCount(0);
-  expect(Math.abs(gridAfterContext.width - gridBeforeContext.width)).toBeLessThanOrEqual(8);
-  expect(gridAfterContext.width).toBeGreaterThanOrEqual(420);
+  expect(gridWithContext.width).toBeGreaterThanOrEqual(420);
   expect(contextWidth).toBe(320);
-  expect(Math.abs(gridAfterContext.height - gridBeforeContext.height)).toBeLessThanOrEqual(1);
-  expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
-  await page.keyboard.press("Escape");
+  const trigger = navigator.getByRole("button", { name: "Settings", exact: true });
+  await trigger.focus();
+  await page.keyboard.press("ControlOrMeta+i");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
-  await expect(surfacesTrigger).toBeFocused();
+  const gridWithoutContext = await terminalGridRect(page);
+  expect(gridWithoutContext.width).toBeGreaterThan(gridWithContext.width + 200);
+  expect(Math.abs(gridWithoutContext.height - gridWithContext.height)).toBeLessThanOrEqual(1);
+  expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
+  // Closed with nothing to return to, Details hands the keyboard to the focused terminal; reopened and closed
+  // again, it returns the keyboard there.
+  const focusedInput = page.locator('[data-testid="terminal-tile"]:visible').getByRole("textbox", { name: "Terminal input" });
+  await expect(focusedInput).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+i");
+  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+  await page.keyboard.press("ControlOrMeta+i");
+  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
+  await expect(focusedInput).toBeFocused();
+  await openContext(page);
 
   await switchProject(page, "Fixture Beta");
   const backgroundMarker = await writeBackgroundMarker(page, "manual-1");
@@ -135,9 +143,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       .some((animation) => animation.playState === "running")
   )).toBe(false);
   const narrow = await readNarrowProjectShell(page);
-  // The rail sits outside the workspace layout, which is one column beside it at every width.
-  expect(narrow.gridTemplateColumns.split(" ")).toHaveLength(1);
-  await expect(navigator).toHaveCSS("width", "224px");
+  // The rail sits outside the workspace layout: the terminals' column, then Details' while it is open.
+  expect(narrow.gridTemplateColumns.split(" ")).toHaveLength(2);
+  await expect(navigator).toHaveCSS("width", "264px");
   expect(narrow.documentOverflow).toBe(0);
   expect(
     narrow.activeControlOverflows,
@@ -176,9 +184,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       longSessionLabelPreserved: true,
     },
     context: {
-      gridBefore: gridBeforeContext,
-      gridAfter: gridAfterContext,
-      focusRestoredToSurfacesTrigger: true,
+      gridWithDetails: gridWithContext,
+      gridWithoutDetails: gridWithoutContext,
+      focusRestoredToTerminal: true,
     },
     projectSwitch: {
       transition: "Fixture Alpha -> Fixture Beta -> Fixture Alpha",
@@ -269,7 +277,7 @@ async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
 }
 
 async function openContext(page: Page): Promise<void> {
-  await page.getByRole("tab", { name: "Details" }).click();
+  await openDetails(page);
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
 }
 

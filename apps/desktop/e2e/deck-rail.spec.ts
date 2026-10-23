@@ -72,7 +72,7 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await setWindowSize(app, page, 1120, 720);
     await page.getByRole("tab", { name: "Preview" }).click();
     await expect(page.getByLabel("Project preview")).toBeVisible();
-    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "224px");
+    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "264px");
     await expect(alpha.locator(".project-row-label")).toBeVisible();
     await expect(alpha.locator(".project-row-state")).toBeVisible();
     await expect(beta.locator(".project-row-state")).toBeVisible();

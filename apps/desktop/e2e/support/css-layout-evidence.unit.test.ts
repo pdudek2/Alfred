@@ -51,7 +51,7 @@ describe("CSS layout evidence support", () => {
       <span class="workbench-breadcrumb-parent">Fixture project</span>
       <span class="workbench-surface-title">Fixture project</span>
       <span class="workbench-session-title workbench-history-title" data-private>Private session</span>
-      <aside class="session-stack"><span class="session-stack-title" data-private>Private session</span><span class="session-stack-preview" data-private>Private output</span></aside>
+      <ul class="session-tree-list"><li><span class="session-tree-title" data-private>Private session</span><span class="session-tree-meta" data-private>Private output</span></li></ul>
       <div class="new-session-prompt"><textarea>fixture prompt</textarea></div>
       <header class="agent-timeline-header"><strong data-private>Private session</strong></header>
       <p class="details-location-name" data-private>private-branch</p>

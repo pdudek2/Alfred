@@ -1,6 +1,7 @@
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { treeRow } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
@@ -20,13 +21,15 @@ test("pins the shell under a Claude focus 3:2, types into it, and unpins it with
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(breadcrumb).toContainText("Claude");
 
-  const stack = page.getByRole("complementary", { name: /^Other sessions in / });
-  await stack.locator('[data-session-id="manual-1"]').hover();
-  await stack.getByRole("button", { name: "Pin under the focus" }).click();
+  // Pin sits on the shell's row in the rail's tree; the pinned row stays listed but offers no second Pin.
+  const shellRow = treeRow(page, "manual-1");
+  const shellEntry = shellRow.locator("xpath=..");
+  await shellRow.hover();
+  await shellEntry.getByRole("button", { name: "Pin under the focus" }).click();
 
   await expect(shellTile).not.toHaveAttribute("aria-hidden", "true");
   await expect(shellTile).toHaveAttribute("aria-label", /^Pinned: /);
-  await expect(stack.locator('[data-session-id="manual-1"]')).toHaveCount(0);
+  await expect(shellEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(0);
   await expect(shellTile.getByRole("button", { name: /^Unpin / })).toBeFocused();
   const [focusBox, shellBox] = [await focusTile.boundingBox(), await shellTile.boundingBox()];
   expect(focusBox && shellBox && focusBox.y + focusBox.height < shellBox.y).toBe(true);
@@ -44,7 +47,7 @@ test("pins the shell under a Claude focus 3:2, types into it, and unpins it with
 
   await shellTile.getByRole("button", { name: /^Unpin / }).click();
   await expect(shellTile).toHaveAttribute("aria-hidden", "true");
-  await expect(stack.locator('[data-session-id="manual-1"]')).toHaveCount(1);
+  await expect(shellEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(1);
   await expect(focusTile).toBeFocused();
   await expectSameNode(focusHost, focusTile.getByTestId("xterm-host"));
   await expectSameNode(shellHost, shellTile.getByTestId("xterm-host"));

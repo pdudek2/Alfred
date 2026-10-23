@@ -27,6 +27,8 @@ export type TerminalCreateRequest = {
   command?: string;
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
+  /** The session this one was started as a worker of. */
+  parentClientId?: string;
 };
 
 export type TerminalPrepareLaunchResult = {
@@ -51,6 +53,7 @@ export type TerminalCreateResult = {
   command?: string;
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
+  parentClientId?: string;
 };
 
 export type TerminalSessionSnapshot = TerminalCreateResult & {
@@ -81,6 +84,7 @@ export type PersistedTerminalSessionSnapshot = {
   command?: string;
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
+  parentClientId?: string;
   buffer?: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;

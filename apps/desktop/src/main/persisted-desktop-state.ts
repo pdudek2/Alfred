@@ -596,6 +596,7 @@ function normalizeRestoredTerminalSessions(
         ? { args: [...item.args] }
         : legacyAgentKind === undefined ? {} : { args: [] }),
       ...(isTerminalResumeTarget(item.resumeTarget) ? { resumeTarget: { ...item.resumeTarget } } : {}),
+      ...(typeof item.parentClientId === "string" ? { parentClientId: item.parentClientId } : {}),
       ...(typeof item.buffer === "string" ? { buffer: item.buffer } : {}),
       ...(activityEvents === undefined ? {} : { activityEvents }),
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
@@ -662,6 +663,7 @@ export function sanitizePersistedTerminalSession(
     ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
     ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
     ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
+    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
   };
 
   if (launchDataCleared) {

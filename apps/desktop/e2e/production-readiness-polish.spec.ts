@@ -2,7 +2,7 @@ import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwri
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./support/electron-app";
-import { openNewTerminalSheet, surfaceButton } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet, sessionTree, surfaceButton } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -31,20 +31,21 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expectFixedCellFont(page.locator(".xterm-rows").first());
   await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".session-strip-kind"));
 
-  // The deck always shows one terminal; every added session lands in focus and the rest join the stack.
-  const stack = page.getByRole("complementary", { name: /^Other sessions in / });
+  // The deck always shows one terminal; every added session lands in focus and joins the rail's tree.
+  const tree = sessionTree(page);
   for (let added = 1; added <= 4; added += 1) {
     await addTerminal(page);
     await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(1);
-    await expect(stack.locator(".session-stack-card")).toHaveCount(added);
+    await expect(tree.locator(".session-tree-row")).toHaveCount(added + 1);
   }
 
   await createRuntimeBlockers(page, paths.root);
   const identityText = await page.locator(".project-session-title, .workbench-session-title").allTextContents();
   expect(identityText.join("\n")).not.toContain("\u001b");
   expect(identityText.join("\n")).not.toContain("hidden-title");
-  await expect(stack.getByRole("region", { name: "Needs you" }).getByText("Claude authentication", { exact: true })).toBeVisible();
-  // The last blocker added holds focus, named in the breadcrumb; the earlier one waits at the top of the stack.
+  const claudeBlocker = tree.locator(".session-tree-row").filter({ hasText: "Claude authentication" });
+  await expect(claudeBlocker.locator(".status-needs-you")).toBeVisible();
+  // The last blocker added holds focus, named in the breadcrumb; both blockers sit at the top of the tree.
   await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Codex MCP startup", { exact: true })).toBeVisible();
   await captureAuditScreenshot(page, "work-live-blockers-wide");
 
@@ -68,8 +69,6 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(context).toBeVisible();
   await expectSans(context);
   await captureAuditScreenshot(page, "context-wide");
-  await context.getByRole("tab", { name: "Sessions" }).click();
-  await expect(page.getByRole("tab", { name: "Details" })).toBeFocused();
 
   await page.getByRole("button", { name: /^Needs you, / }).click();
   const needsYou = page.getByRole("dialog", { name: "Needs you" });
@@ -135,9 +134,8 @@ test("keeps the production Work story trustworthy across every utility surface",
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
     await setWindowSize(app, page, width, height);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    // Focus the Codex session from the stack unless it already holds focus.
-    const codexCard = page.getByRole("complementary", { name: /^Other sessions in / })
-      .getByRole("button", { name: /Codex MCP startup/ });
+    // Focus the Codex session from the rail's tree unless it already holds focus.
+    const codexCard = sessionTree(page).locator(".session-tree-row:not([aria-current])").filter({ hasText: "Codex MCP startup" });
     if (await codexCard.count()) await codexCard.click();
     await expect(codexTile).toBeVisible();
     const terminalInput = codexTile.getByRole("textbox", { name: "Terminal input" });
@@ -215,7 +213,7 @@ async function appendFixtureAgentOutput(root: string, agent: "claude" | "codex",
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History" | "Details" | "Local Data & Privacy"): Promise<void> {
-  if (surface === "Details") await page.getByRole("tab", { name: "Details" }).click();
+  if (surface === "Details") await openDetails(page);
   else await surfaceButton(page, surface).click();
 }
 
