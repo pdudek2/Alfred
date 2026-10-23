@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { preprocessCSS, resolveConfig } from "vite";
+import { ghosttyVesperTerminalProfile } from "./terminal-visual-profile";
 
 const stylesPath = [
   resolve(process.cwd(), "src/renderer/styles.css"),
@@ -276,7 +277,7 @@ describe("renderer CSS contracts", () => {
       "--ink-6": "#CECED2",
       "--ink-7": "#F3F3F4",
       "--signal": "#E29B6E",
-      "--surface-terminal": "#09090A",
+      "--surface-terminal": "#101010",
       "--surface-canvas": "#060607",
       "--surface-panel": "#0E0E10",
       "--surface-raised": "#151518",
@@ -637,11 +638,13 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/--glass:/);
   });
 
-  it("keeps the CSS terminal surface on the approved graphite material", () => {
+  it("paints the terminal's box in the terminal theme's own background", () => {
     const tile = exactBlockFor(".terminal-tile");
     const xtermHost = blockFor(".terminal-tile .xterm-host");
     const standaloneXtermHost = exactBlockFor(".xterm-host");
 
+    // The padding around xterm shows the box, so any other colour draws a frame around the terminal.
+    expect(rootToken("--surface-terminal").toLowerCase()).toBe(ghosttyVesperTerminalProfile.theme.background);
     expect(rootToken("--ink-0")).toBe("#050506");
     expect(tile).toContain("background: var(--surface-terminal)");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
