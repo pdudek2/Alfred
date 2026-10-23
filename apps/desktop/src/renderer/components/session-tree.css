@@ -1,0 +1,225 @@
+/* v5 canvas, boards Main and Rail: the active project's sessions as a tree, workers under their parent. */
+.session-tree {
+  display: grid;
+  gap: 1px;
+  padding-bottom: 6px;
+}
+
+.session-tree-list,
+.session-tree-workers {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-tree-workers {
+  padding-left: 22px;
+}
+
+.session-tree-item {
+  position: relative;
+  min-width: 0;
+}
+
+.session-tree-entry {
+  --tree-row-bg: transparent;
+  position: relative;
+}
+
+.session-tree-entry.is-focused {
+  --tree-row-bg: var(--surface-control);
+}
+
+.session-tree-entry:hover {
+  --tree-row-bg: var(--surface-control-hover);
+}
+
+.session-tree-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 14px;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 1px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px 6px 20px;
+  background: var(--tree-row-bg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-tree-row:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+.session-tree-kind {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.session-tree-kind .kind-brand-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* The Codex mark has more air around it, as on the rail's other session rows. */
+.session-tree-kind.kind-codex .kind-brand-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.session-tree-title {
+  min-width: 0;
+  overflow: hidden;
+  font: 500 13px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-worker .session-tree-title {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.session-tree-state {
+  width: 13px;
+  height: 13px;
+}
+
+.session-tree-meta {
+  grid-column: 2;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tree-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Branch lines from the parent's icon centre (20px padding + 7px) to each worker, as on the Rail board. */
+.session-tree-workers > .session-tree-item::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 0;
+  width: 11px;
+  height: 15px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom-left-radius: 6px;
+  pointer-events: none;
+}
+
+.session-tree-workers > .session-tree-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: -1px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+/* Pin, New worker and the workers toggle take the state glyph's place while the row is hovered or holds focus. */
+.session-tree-actions {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  padding-left: 6px;
+  border-radius: 7px;
+  background: var(--tree-row-bg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.session-tree-entry:hover .session-tree-actions,
+.session-tree-entry:focus-within .session-tree-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.session-tree-entry:focus-within:not(:hover) {
+  --tree-row-bg: var(--surface-control);
+}
+
+.session-tree-entry:hover .session-tree-state,
+.session-tree-entry:focus-within .session-tree-state {
+  visibility: hidden;
+}
+
+.session-tree-action {
+  min-width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.session-tree-action:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.session-tree-action:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+.session-tree-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.session-tree-asleep {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px 0 20px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-tree-asleep:hover,
+.session-tree-asleep:focus-visible {
+  color: var(--text-primary);
+}
+
+.session-tree-asleep:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}

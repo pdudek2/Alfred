@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { SessionTile } from "../session-state";
 import { ContextColumn, type ContextColumnProps } from "./ContextColumn";
 
@@ -24,11 +24,8 @@ const sessionB: SessionTile = {
 const baseProps = {
   contextOpen: true,
   focusRequestKey: 0,
-  returnFocusRef: { current: null },
-  triggerRef: { current: null },
   shortcutModifier: "Cmd" as const,
   timelineProps: { session: sessionA },
-  onCloseContext: vi.fn(),
 };
 
 type ContextOverrides = Partial<ContextColumnProps> & {
@@ -71,11 +68,14 @@ describe("Details tab", () => {
     expect(within(location).getByTitle("/workspace/a")).toHaveTextContent("/workspace/a");
   });
 
-  it("closes Details on Escape even when focus is outside", () => {
-    const onCloseContext = vi.fn();
-    renderContext({ contextOpen: true, onCloseContext });
-    fireEvent.keyDown(document.body, { key: "Escape" });
-    expect(onCloseContext).toHaveBeenCalledOnce();
+  it("leaves Escape to whatever has focus, as a column rather than a drawer", () => {
+    const confirmation = document.createElement("button");
+    document.body.append(confirmation);
+    renderContext({ contextOpen: true });
+    confirmation.focus();
+    expect(fireEvent.keyDown(confirmation, { key: "Escape" })).toBe(true);
+    screen.getByRole("heading", { name: "Details" }).focus();
+    expect(fireEvent.keyDown(document.activeElement!, { key: "Escape" })).toBe(true);
   });
 
   it("exposes one elevated Details boundary with no nested dock card", () => {
@@ -83,97 +83,43 @@ describe("Details tab", () => {
 
     const column = screen.getByRole("complementary", { name: "Details" });
     expect(column).toHaveAttribute("data-testid", "context-column");
-    const tabs = within(column).getByRole("tablist", { name: "Side column" });
-    expect(within(tabs).getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
-    expect(within(tabs).getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "false");
+    // Sessions live in the rail's tree, so the column is headed Details alone.
+    expect(within(column).getByRole("heading", { level: 2, name: "Details" })).toBeInTheDocument();
+    expect(within(column).queryByRole("tablist")).toBeNull();
     expect(column).toHaveTextContent("⌘I");
     expect(within(column).queryByRole("button", { name: "Close Details panel" })).toBeNull();
     expect(column.querySelectorAll(".context-drawer")).toHaveLength(1);
     expect(column.querySelector(".side-dock-stack")).toBeNull();
   });
 
-  it("closes from the Sessions tab and falls back to the stack's Details tab when the opener is gone", async () => {
-    const opener = document.createElement("button");
-    const stackDetailsTab = document.createElement("button");
-    document.body.append(stackDetailsTab);
-    const returnFocusRef = { current: opener };
-    const triggerRef = { current: stackDetailsTab };
-    const onCloseContext = vi.fn();
-    const { rerender } = renderContext({ contextOpen: true, returnFocusRef, triggerRef, onCloseContext });
-
-    fireEvent.click(screen.getByRole("tab", { name: "Sessions" }));
-    expect(onCloseContext).toHaveBeenCalledOnce();
-    rerender(contextWith({ contextOpen: false, returnFocusRef, triggerRef, onCloseContext }));
-    await waitFor(() => expect(stackDetailsTab).toHaveFocus());
-  });
-
-  it("moves between its tabs with the arrow keys without closing", () => {
-    const onCloseContext = vi.fn();
-    renderContext({ contextOpen: true, onCloseContext });
-    const sessions = screen.getByRole("tab", { name: "Sessions" });
-    const details = screen.getByRole("tab", { name: "Details" });
-    // The row is one Tab stop: the selected tab.
-    expect([sessions.tabIndex, details.tabIndex]).toEqual([-1, 0]);
-
-    details.focus();
-    fireEvent.keyDown(details, { key: "ArrowLeft" });
-    expect(sessions).toHaveFocus();
-    fireEvent.keyDown(sessions, { key: "ArrowLeft" });
-    expect(details).toHaveFocus();
-    fireEvent.keyDown(details, { key: "Home" });
-    expect(sessions).toHaveFocus();
-    // A modified arrow belongs to someone else.
-    fireEvent.keyDown(sessions, { key: "ArrowRight", metaKey: true });
-    expect(sessions).toHaveFocus();
-    expect(onCloseContext).not.toHaveBeenCalled();
-  });
-
-  it("closes on Escape and restores focus to the Details trigger", async () => {
-    const trigger = document.createElement("button");
-    document.body.append(trigger);
-    trigger.focus();
-    const returnFocusRef = { current: trigger };
-    const onCloseContext = vi.fn();
-    const { rerender } = renderContext({ contextOpen: true, returnFocusRef, onCloseContext });
-
-    screen.getByRole("tab", { name: "Details" }).focus();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    expect(onCloseContext).toHaveBeenCalledOnce();
-    rerender(contextWith({ contextOpen: false, returnFocusRef, onCloseContext }));
-    await waitFor(() => expect(trigger).toHaveFocus());
-  });
-
-  it("leaves Escape for a higher layer while dismissal is suspended", () => {
-    const onCloseContext = vi.fn();
-    renderContext({ contextOpen: true, dismissalSuspended: true, onCloseContext });
-
-    screen.getByRole("tab", { name: "Details" }).focus();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-
-    expect(onCloseContext).not.toHaveBeenCalled();
-  });
-
-  it("focuses its Details tab when Details opens", async () => {
+  it("focuses its heading when Details opens", async () => {
     const { rerender } = renderContext({ contextOpen: false });
 
     rerender(contextWith({ contextOpen: true, focusRequestKey: 1 }));
 
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Details" })).toHaveFocus());
   });
 
-  it("does not restore Details focus when Details closes from external workspace state", async () => {
-    const surfacesTrigger = document.createElement("button");
+  it("leaves focus where it is when Details closes from outside", async () => {
     const workspaceTrigger = document.createElement("button");
-    document.body.append(surfacesTrigger, workspaceTrigger);
-    const returnFocusRef = { current: surfacesTrigger };
-    const { rerender } = renderContext({ contextOpen: true, focusRequestKey: 1, returnFocusRef });
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
+    document.body.append(workspaceTrigger);
+    const { rerender } = renderContext({ contextOpen: true, focusRequestKey: 1 });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Details" })).toHaveFocus());
 
     workspaceTrigger.focus();
-    rerender(contextWith({ contextOpen: false, returnFocusRef }));
+    rerender(contextWith({ contextOpen: false }));
 
     await waitFor(() => expect(workspaceTrigger).toHaveFocus());
-    expect(surfacesTrigger).not.toHaveFocus();
+  });
+
+  it("keeps focus with a higher panel when Details opens under it", async () => {
+    const palette = document.createElement("input");
+    document.body.append(palette);
+    palette.focus();
+    const { rerender } = renderContext({ contextOpen: false });
+    rerender(contextWith({ contextOpen: true, dismissalSuspended: true, focusRequestKey: 1 }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(palette).toHaveFocus();
   });
 
   it("rebinds the visible timeline to the selected session without a second status rail", () => {

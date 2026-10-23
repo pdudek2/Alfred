@@ -1,40 +1,17 @@
 import type { Ref } from "react";
-import { moveTabFocus } from "../tab-keys";
-import "./side-column-tabs.css";
+import "./side-column-header.css";
 
-type SideColumnTabsProps = {
-  detailsOpen: boolean;
-  detailsTabRef?: Ref<HTMLButtonElement>;
+type SideColumnHeaderProps = {
+  /** Where focus lands when Details opens from the keyboard. */
+  headingRef?: Ref<HTMLHeadingElement>;
   shortcutModifier: "Cmd" | "Ctrl";
-  onToggleDetails: () => void;
 };
 
-/** The side column holds the session stack or Details. Both draw this row, so it reads as one set of tabs. */
-export function SideColumnTabs({ detailsOpen, detailsTabRef, shortcutModifier, onToggleDetails }: SideColumnTabsProps) {
+/** The side column's heading. Sessions moved to the rail's tree, so the column holds Details alone; ⌘I hides it. */
+export function SideColumnHeader({ headingRef, shortcutModifier }: SideColumnHeaderProps) {
   return (
-    <div className="side-column-tabs">
-      <div className="text-tabs" role="tablist" aria-label="Side column" onKeyDown={moveTabFocus}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!detailsOpen}
-          tabIndex={detailsOpen ? -1 : 0}
-          onClick={detailsOpen ? onToggleDetails : undefined}
-        >
-          Sessions
-        </button>
-        <button
-          ref={detailsTabRef}
-          type="button"
-          role="tab"
-          aria-selected={detailsOpen}
-          tabIndex={detailsOpen ? 0 : -1}
-          aria-keyshortcuts={shortcutModifier === "Cmd" ? "Meta+i" : "Control+i"}
-          onClick={detailsOpen ? undefined : onToggleDetails}
-        >
-          Details
-        </button>
-      </div>
+    <div className="side-column-header">
+      <h2 ref={headingRef} tabIndex={-1}>Details</h2>
       <kbd>{shortcutModifier === "Cmd" ? "⌘I" : "Ctrl I"}</kbd>
     </div>
   );

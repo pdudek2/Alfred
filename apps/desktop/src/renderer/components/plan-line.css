@@ -1,12 +1,12 @@
-/* The plan row from the v4 canvas. It sits at the bottom of the session stack, and above the
-   empty state when nothing is live; the draft list overlays the terminals so opening it never
-   reflows live xterm tiles. */
+/* The plan row from the v4 canvas. It sits above the terminals (or the empty state) whenever the
+   project has drafts; the draft list overlays the terminals so opening it never reflows live xterm tiles. */
 .plan-line {
   position: relative;
   /* Above dragged tiles (6), below the Work toolbar's menus (10). */
   z-index: 9;
   flex: none;
-  margin: 10px 10px -10px;
+  /* The grid's own 8px top padding keeps it off the focused terminal's frame. */
+  margin: 10px 10px 0;
   font: 400 13px/18px var(--sans);
 }
 
@@ -220,53 +220,6 @@
 .terminal-stage-body:has(.plan-line[data-open]) .terminal-tile {
   opacity: 0.55;
   transition: opacity 120ms ease;
-}
-
-/* In the stack the row is a plain line under a hairline, aligned with the session cards. */
-.session-stack .plan-line {
-  margin: 8px 0 0;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
-.session-stack .plan-line__row {
-  height: 34px;
-  padding: 0 10px 0 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.session-stack .plan-line__disclose {
-  padding: 0 10px;
-}
-
-/* Same 18px box as the stack's state glyphs, so the name lines up with the session titles. */
-.session-stack .plan-line__row .plan-line__glyph {
-  margin: 0 2.5px;
-}
-
-.session-stack .plan-line__disclose:hover,
-.session-stack .plan-line[data-open] .plan-line__disclose {
-  background: var(--surface-control);
-}
-
-.session-stack .plan-line__chevron {
-  display: none;
-}
-
-.session-stack .plan-line + .session-stack-asleep {
-  margin-top: 0;
-  border-top: 0;
-  padding-top: 8px;
-}
-
-/* At the bottom of the stack the list opens upward and spreads left over the focus terminal. */
-.session-stack .plan-line__drafts {
-  top: auto;
-  right: 0;
-  bottom: calc(100% + 6px);
-  left: auto;
-  width: 600px;
 }
 
 @keyframes plan-line-spin {

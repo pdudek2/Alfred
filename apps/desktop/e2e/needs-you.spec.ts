@@ -92,7 +92,7 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await expect(popover).toBeHidden();
   const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
-  await expect(context.getByRole("tab", { name: "Details" })).toBeFocused();
+  await expect(context.getByRole("heading", { name: "Details" })).toBeFocused();
   await expectSameNode(xtermHostBefore, xtermHost, "Needs you Edit replaced the connected xterm host");
   harness.assertNoRuntimeErrors();
 });
@@ -181,8 +181,7 @@ test.describe("mixed Needs you actions", () => {
     expect((await listMainProcessTerminals(page)).sessions.some((session) => session.clientId === "fixture-item-1"))
       .toBe(false);
 
-    // Ready drafts still launch from the plan line using the real handler.
-    await context.getByRole("tab", { name: "Sessions" }).click();
+    // Ready drafts still launch from the plan line, above the terminals, using the real handler.
     const drafts = await openPlan(page);
     await drafts.getByRole("button", { name: "Launch Fixture item 3" }).click();
     await expect.poll(async () => {

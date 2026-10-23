@@ -11,6 +11,8 @@ export type NewSessionSheetProps = {
   kind: NewSessionKind;
   draft: string;
   initialIsolation?: boolean;
+  /** Set when the session starts as a worker of another ("New worker" on its rail row). */
+  parentTitle?: string | undefined;
   triggerRef?: RefObject<HTMLButtonElement | null>;
   blockedReason?: string | undefined;
   requestError?: string | undefined;
@@ -28,7 +30,7 @@ const kinds = [
   ["plan", "Plan with Alfred", "Describe a goal and get drafts to launch"],
 ] as const;
 
-export function NewSessionSheet({ projects, projectId, kind, draft, initialIsolation = false, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
+export function NewSessionSheet({ projects, projectId, kind, draft, initialIsolation = false, parentTitle, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const [isolated, setIsolated] = useState(initialIsolation);
@@ -110,8 +112,9 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialIsola
             items={projects.map((item) => ({ id: item.id, label: item.label, disabled: busy || disabled || item.rootStatus === "missing", run: () => onProjectChange(item.id) }))}>
             <span>{project?.label ?? "Choose project"}</span><ChevronDown aria-hidden="true" size={13} />
           </ChromeMenu></header>
+          {parentTitle !== undefined && <p className="new-session-parent">Worker of <strong>{parentTitle}</strong></p>}
           <fieldset disabled={busy || disabled} className="new-session-kinds"><legend className="visually-hidden">Kind</legend>
-            {kinds.map(([value, title, description]) => <label key={value} className={kind === value ? "selected" : undefined}>
+            {kinds.filter(([value]) => parentTitle === undefined || value !== "plan").map(([value, title, description]) => <label key={value} className={kind === value ? "selected" : undefined}>
               <input type="radio" name="new-session-kind" value={value} checked={kind === value} onChange={() => onKindChange(value)} />
               <span><strong>{title}</strong><small>{description}</small></span>
             </label>)}
