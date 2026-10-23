@@ -293,6 +293,44 @@ describe("desktop session state", () => {
     });
   });
 
+  it("starts a session as the worker of another when New worker names its parent", () => {
+    const initial = createInitialSessions("/repo");
+    const withCodex = addAgentSession(initial, "codex", "/repo", "A", "worktree", "", "manual-1");
+    const withShell = addManualSession(withCodex, "/repo", "A", "codex-1");
+
+    expect(withShell[1]).toMatchObject({ id: "codex-1", parentSessionId: "manual-1", isolation: "worktree" });
+    expect(withShell[2]).toMatchObject({ id: "manual-2", parentSessionId: "codex-1" });
+    expect(addAgentSession(initial, "claude", "/repo")[1]).not.toHaveProperty("parentSessionId");
+    expect(addManualSession(initial, "/repo")[1]).not.toHaveProperty("parentSessionId");
+  });
+
+  it("keeps a worker's parent across live and restored hydration", () => {
+    const live = hydrateLiveTerminalSessions([{
+      id: "runtime-worker",
+      clientId: "codex-2",
+      title: "Codex 2",
+      source: "manual",
+      agentKind: "codex",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "",
+      parentClientId: "claude-1",
+    }]);
+    const restored = hydratePersistedTerminalSessions([{
+      clientId: "codex-2",
+      title: "Codex",
+      source: "manual",
+      agentKind: "codex",
+      cwd: "/repo",
+      parentClientId: "claude-1",
+    }]);
+
+    expect(live[0]).toMatchObject({ id: "codex-2", parentSessionId: "claude-1" });
+    expect(restored[0]).toMatchObject({ id: "codex-2", parentSessionId: "claude-1" });
+    expect(hydratePersistedTerminalSessions([{ clientId: "zsh-1", title: "zsh", source: "manual" }])[0])
+      .not.toHaveProperty("parentSessionId");
+  });
+
   it("hydrates live terminal tiles from persisted runtime snapshots", () => {
     const snapshots: TerminalSessionSnapshot[] = [
       {

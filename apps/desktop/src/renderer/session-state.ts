@@ -50,6 +50,8 @@ export type SessionTile = {
   shellBusy?: boolean;
   /** You have sent this session a message (the main process saw Enter). */
   promptSubmitted?: boolean;
+  /** Started as a worker of this session ("New worker" on its rail row). */
+  parentSessionId?: string;
 };
 
 export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInput } from "../shared/session-activity";
@@ -96,9 +98,10 @@ export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTi
   return [createManualSession(1, cwd, workspaceId, SHELL_TITLE)];
 }
 
-export function addManualSession(sessions: SessionTile[], cwd: string, workspaceId = "A"): SessionTile[] {
+export function addManualSession(sessions: SessionTile[], cwd: string, workspaceId = "A", parentSessionId?: string): SessionTile[] {
   const nextIndex = nextManualSessionIndex(sessions);
-  return [...sessions, createManualSession(nextIndex, cwd, workspaceId, nextGeneratedTitle(sessions, workspaceId, SHELL_TITLE))];
+  const session = createManualSession(nextIndex, cwd, workspaceId, nextGeneratedTitle(sessions, workspaceId, SHELL_TITLE));
+  return [...sessions, parentSessionId ? { ...session, parentSessionId } : session];
 }
 
 export function addAgentSession(
@@ -108,6 +111,7 @@ export function addAgentSession(
   workspaceId = "A",
   isolation: TerminalSessionIsolation = "shared",
   prompt = "",
+  parentSessionId?: string,
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
   const title = nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : "Claude");
@@ -125,6 +129,7 @@ export function addAgentSession(
       command: kind,
       args: prompt ? ["--", prompt] : [],
       isolation,
+      ...(parentSessionId ? { parentSessionId } : {}),
     },
   ];
 }
@@ -295,6 +300,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
     ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
     ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
+    ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
@@ -323,6 +329,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     ...(snapshot.resumeTarget === undefined ? {} : { resumeTarget: snapshot.resumeTarget }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...resumeModeForRestoredAgent(snapshot),
+    ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
