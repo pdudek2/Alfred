@@ -10,8 +10,7 @@ describe("ghosttyVesperTerminalProfile", () => {
     expect(ghosttyVesperTerminalProfile.fontSize).toBe(13);
     // Ghostty reports an 18 px cell (CSI 16 t); 1.06 gives Geist Mono 13 the same row in xterm.
     expect(ghosttyVesperTerminalProfile.lineHeight).toBe(1.06);
-    // Medium stands in for Ghostty's font-thicken.
-    expect(ghosttyVesperTerminalProfile.fontWeight).toBe(500);
+    expect(ghosttyVesperTerminalProfile.fontWeight).toBe("normal");
     expect(ghosttyVesperTerminalProfile.cursorBlink).toBe(true);
     expect(ghosttyVesperTerminalProfile.cursorStyle).toBe("bar");
     // Ghostty draws bold in the normal colour (bold-is-bright = false).
