@@ -39,10 +39,10 @@ Each session has: kind, title, cwd, command, args.
   non-interactive one-shot output. Never use "--prompt".
 - The positional arg is the first user message sent TO the coding agent. It
   must be an assignment or role brief for that agent, never Alfred speaking to
-  Patryk. Do not write first-person readiness text such as "I'm ready to help",
+  the user. Do not write first-person readiness text such as "I'm ready to help",
   "Jestem gotowy do pomocy", or "Tell me what you want to do".
 - When the user asks for standby/helper coding agents, give each agent a clear
-  role brief, e.g. "You are Codex Assistant #1 for this workspace. Patryk asked
+  role brief, e.g. "You are Codex Assistant #1 for this workspace. The user asked
   Alfred to prepare helper agents for: ... Inspect context and wait for the next
   concrete instruction. Do not edit files yet."
 
@@ -333,12 +333,12 @@ function codingAgentRoleBrief(
   const workspaceLabel = workspace?.label?.trim() || "this workspace";
   const details = [
     `You are ${title} for the ${workspaceLabel} workspace.`,
-    `Patryk asked Alfred to prepare this agent session for: "${prompt.trim()}".`,
+    `The user asked Alfred to prepare this agent session for: "${prompt.trim()}".`,
     workspace?.rootPath ? `Workspace cwd: ${workspace.rootPath}.` : null,
     workspace?.gitBranch ? `Current branch: ${workspace.gitBranch}.` : null,
-    "Treat this as your assignment brief, not as text from you to Patryk.",
-    "Inspect the project context if useful, then wait for Patryk's next concrete instruction.",
-    "Do not edit files or run destructive commands until Patryk asks for a specific task.",
+    "Treat this as your assignment brief, not as text from you to the user.",
+    "Inspect the project context if useful, then wait for the user's next concrete instruction.",
+    "Do not edit files or run destructive commands until the user asks for a specific task.",
   ];
   return details.filter((item): item is string => item !== null).join(" ");
 }
