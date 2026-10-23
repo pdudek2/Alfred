@@ -1,12 +1,18 @@
 import { readFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Page } from "@playwright/test";
+import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state";
 import { expect, test } from "./support/electron-app";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
-import { sessionTree, treeRow } from "./support/work-layout";
+import { sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
-test("starts a worker from its parent's row and keeps it under the parent", async ({ harness }, testInfo) => {
-  const { app, page, paths } = harness;
+type DesktopTerminalWindow = Window & {
+  alfredDesktop?: { terminal: { list(): Promise<TerminalListResult>; rename(request: { clientId: string; title: string }): Promise<unknown> } };
+};
+
+test("starts workers from their parent's row and keeps them under the parent across a restart", async ({ harness }, testInfo) => {
+  let { app, page } = harness;
+  const { paths } = harness;
   await setWindowSize(app, page, 1440, 900);
 
   await startSession(page, /^Codex/);
@@ -14,9 +20,11 @@ test("starts a worker from its parent's row and keeps it under the parent", asyn
   await expect(parentRow).toHaveCount(1);
   const parentId = (await parentRow.getAttribute("data-session-id"))!;
   const parentTitle = (await parentRow.locator(".session-tree-title").textContent())!;
+  // Codex workers join the tree below, so the parent is found by its id from here on.
+  const parent = treeRow(page, parentId);
 
   // New worker sits on the parent's row and opens the usual sheet, which says whose worker it starts.
-  await parentRow.hover();
+  await parent.hover();
   await page.getByRole("button", { name: `New worker for ${parentTitle}` }).click();
   const sheet = page.getByRole("dialog", { name: "New session", exact: true });
   await expect(sheet.getByText(`Worker of ${parentTitle}`)).toBeVisible();
@@ -26,11 +34,24 @@ test("starts a worker from its parent's row and keeps it under the parent", asyn
   await expect(sheet).toHaveCount(0);
 
   const workers = page.getByRole("list", { name: `Workers of ${parentTitle}` });
-  const workerRow = workers.locator(".session-tree-row");
-  await expect(workerRow).toHaveCount(1);
+  const workerRow = workers.locator(".session-tree-row").first();
+  await expect(workers.locator(".session-tree-row")).toHaveCount(1);
   const workerId = (await workerRow.getAttribute("data-session-id"))!;
   await expect(workerRow).toHaveAccessibleDescription(`Worker of ${parentTitle}`);
-  const parentIcon = await parentRow.locator(".session-tree-kind").boundingBox();
+  // An agent worker goes through the agent launch path and carries its parent the same way.
+  await parent.hover();
+  await page.getByRole("button", { name: `New worker for ${parentTitle}` }).click();
+  await sheet.getByRole("radio", { name: /^Codex/ }).click();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(workers.locator(".session-tree-row")).toHaveCount(2);
+  const codexWorkerId = (await workers.locator(".session-tree-row:has(.kind-codex)").getAttribute("data-session-id"))!;
+  await expect.poll(() => page.evaluate(async (id) => {
+    const listed = await (window as DesktopTerminalWindow).alfredDesktop!.terminal.list();
+    return listed.sessions.find((session) => session.clientId === id)?.parentClientId;
+  }, codexWorkerId)).toBe(parentId);
+
+  const parentIcon = await parent.locator(".session-tree-kind").boundingBox();
   const workerIcon = await workerRow.locator(".session-tree-kind").boundingBox();
   expect(workerIcon!.x - parentIcon!.x).toBe(22);
 
@@ -72,6 +93,34 @@ test("starts a worker from its parent's row and keeps it under the parent", asyn
   }).toBe(parentId);
   await page.reload();
   await expect(page.getByRole("list", { name: `Workers of ${parentTitle}` }).locator(`[data-session-id="${workerId}"]`)).toBeVisible();
+
+  // After a restart the sessions come back asleep with their link; resumed, the workers hang under the parent again.
+  // Unique names tell the asleep sessions apart in History, where generated titles lose their numbers.
+  const names: Record<string, string> = { [parentId]: "Lead agent", [workerId]: "Shell worker", [codexWorkerId]: "Codex worker" };
+  await page.evaluate(async (entries) => {
+    for (const [clientId, title] of entries) await (window as DesktopTerminalWindow).alfredDesktop!.terminal.rename({ clientId, title });
+  }, Object.entries(names));
+  await expect.poll(async () => {
+    const saved = JSON.parse(await readFile(stateFile, "utf8")) as { restoredTerminalSessions?: { clientId: string; title: string }[] };
+    return Object.keys(names).every((id) => saved.restoredTerminalSessions?.find((session) => session.clientId === id)?.title === names[id]);
+  }).toBe(true);
+  ({ app, page } = await harness.restart());
+  await setWindowSize(app, page, 1440, 900);
+  await page.getByRole("region", { name: "Asleep sessions" }).locator(`li[data-session-id="${parentId}"]`).getByRole("button").click();
+  await expect(treeRow(page, parentId)).toBeVisible();
+  // The empty project's list goes once something runs, so the workers are resumed from History.
+  for (const id of [workerId, codexWorkerId]) {
+    await surfaceButton(page, "History").click();
+    const history = page.getByRole("region", { name: "History" });
+    await history.getByRole("option", { name: new RegExp(names[id]!) }).click();
+    await history.getByRole("button", { name: /^(Resume|Restart)/ }).first().click();
+    if (await page.getByTestId("desk-runtime-surface").isHidden()) await surfaceButton(page, "Work").click();
+    await expect(treeRow(page, id)).toBeVisible();
+  }
+  const restoredWorkers = sessionTree(page).getByRole("list", { name: "Workers of Lead agent" });
+  await expect(restoredWorkers.locator(`.session-tree-row[data-session-id="${workerId}"]`)).toBeVisible();
+  await expect(restoredWorkers.locator(`.session-tree-row[data-session-id="${codexWorkerId}"]`)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("rail-tree-after-restart.png") });
 });
 
 async function startSession(page: Page, kind: RegExp): Promise<void> {

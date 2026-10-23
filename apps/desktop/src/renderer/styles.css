@@ -3567,7 +3567,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
 }
 
-/* Details takes the session stack's place: same column, same width, no panel of its own. */
+/* Details is the right column: one width, no panel of its own. */
 .workspace-layout.context-visible,
 .workspace-layout.surface-sessions.context-visible {
   grid-template-columns: minmax(420px, 1fr) clamp(260px, 24vw, 320px);

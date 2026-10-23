@@ -936,7 +936,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps Details hierarchy quiet with canvas sections and selectable sans paths", () => {
-    // Details sits on the canvas in the stack's column, so the drawer paints no panel of its own.
+    // Details sits on the canvas as the right column, so the drawer paints no panel of its own.
     expect(singleTopLevelRuleBodyIn(styles, ".context-drawer")).not.toContain("background:");
     expect(singleTopLevelRuleBodyIn(styles, ".context-drawer .details-section h2")).toContain("font: 500 12px/16px var(--sans)");
     const facts = singleTopLevelRuleBodyIn(styles, ".details-location-path");
