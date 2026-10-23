@@ -370,6 +370,13 @@ export function TerminalDesk({
         {stackVisible && (
           <SessionStack
             asleepCount={asleepCount}
+            emptyContent={workspaceUnavailable || asleepSessions.length === 0 ? null : (
+              <AsleepSessionList
+                armedSessionIds={armedRecoverySessionIds}
+                asleepSessions={asleepSessions}
+                onResumeSession={onContinueRestoredSession}
+              />
+            )}
             now={now}
             planLine={hasDrafts ? planLine : null}
             sessions={stackSessions}
@@ -419,9 +426,7 @@ function EmptyWorkspaceState({
 }) {
   const bound = Boolean(workspaceRootPath);
   const missing = workspaceRootStatus === "missing";
-  const asleep = missing ? [] : [...asleepSessions].sort((a, b) => asleepSessionAt(b) - asleepSessionAt(a));
-  const shownAsleep = asleep.slice(0, ASLEEP_ROW_LIMIT);
-  const hiddenAsleepCount = asleep.length - shownAsleep.length;
+  const asleep = missing ? [] : asleepSessions;
   const copy = missing
     ? `Folder unavailable${workspaceRootPath ? `: ${shortenPath(workspaceRootPath)}` : ""}. Choose the folder again. Draft work stays parked until you reconnect this project.`
     : hasDrafts
@@ -471,49 +476,75 @@ function EmptyWorkspaceState({
           </>
         )}
       </div>
-      {shownAsleep.length > 0 && (
-        <section className="terminal-empty-asleep" aria-label="Asleep sessions">
-          <h3>Asleep</h3>
-          <ul>
-            {shownAsleep.map((session) => {
-              const kindLabel = asleepSessionKindLabel(session);
-              const title = sessionPresentationTitle(session.title, `${kindLabel} session`);
-              const age = sessionAgeLabel(asleepSessionAt(session) || undefined);
-              const safety = sessionRelaunchSafety(session);
-              const armed = armedSessionIds.has(session.id);
-              const actionLabel = restoredSessionActionLabel(session, !safety.safe, armed);
-              return (
-                <li key={session.id}>
-                  <SessionStatusGlyph kind="asleep" label="Asleep" />
-                  <span className="terminal-empty-asleep-title">{title}</span>
-                  <span className="terminal-empty-asleep-meta">
-                    {age ? `${kindLabel}, ${age === "now" ? "just now" : `${age} ago`}` : kindLabel}
-                  </span>
-                  {canRelaunchRestoredSession(session) && (
-                    <button
-                      type="button"
-                      aria-label={`${actionLabel}: ${title}`}
-                      title={safety.safe ? restoredSessionActionTitle(session) : safety.reason}
-                      onClick={() => onResumeSession(session.id)}
-                    >
-                      {actionLabel}
-                    </button>
-                  )}
-                  {!safety.safe && armed && (
-                    <small className="terminal-empty-asleep-warning">{`Review before resuming: ${safety.reason}.`}</small>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          {hiddenAsleepCount > 0 && (
-            <button type="button" className="terminal-empty-asleep-more" onClick={onOpenHistory}>
-              {`${hiddenAsleepCount} more in History`}
-            </button>
-          )}
-        </section>
+      {!missing && (
+        <AsleepSessionList
+          armedSessionIds={armedSessionIds}
+          asleepSessions={asleepSessions}
+          onOpenHistory={onOpenHistory}
+          onResumeSession={onResumeSession}
+        />
       )}
     </div>
+  );
+}
+
+/** The project's asleep sessions, newest first; without onOpenHistory the rest are reached from the asleep line. */
+function AsleepSessionList({
+  armedSessionIds,
+  asleepSessions,
+  onOpenHistory,
+  onResumeSession,
+}: {
+  armedSessionIds: Set<string>;
+  asleepSessions: SessionTile[];
+  onOpenHistory?: (() => void) | undefined;
+  onResumeSession: (sessionId: string) => void;
+}) {
+  const asleep = [...asleepSessions].sort((a, b) => asleepSessionAt(b) - asleepSessionAt(a));
+  const shownAsleep = asleep.slice(0, ASLEEP_ROW_LIMIT);
+  const hiddenAsleepCount = asleep.length - shownAsleep.length;
+  if (shownAsleep.length === 0) return null;
+  return (
+    <section className="terminal-empty-asleep" aria-label="Asleep sessions">
+      <h3>Asleep</h3>
+      <ul>
+        {shownAsleep.map((session) => {
+          const kindLabel = asleepSessionKindLabel(session);
+          const title = sessionPresentationTitle(session.title, `${kindLabel} session`);
+          const age = sessionAgeLabel(asleepSessionAt(session) || undefined);
+          const safety = sessionRelaunchSafety(session);
+          const armed = armedSessionIds.has(session.id);
+          const actionLabel = restoredSessionActionLabel(session, !safety.safe, armed);
+          return (
+            <li key={session.id}>
+              <SessionStatusGlyph kind="asleep" label="Asleep" />
+              <span className="terminal-empty-asleep-title">{title}</span>
+              <span className="terminal-empty-asleep-meta">
+                {age ? `${kindLabel}, ${age === "now" ? "just now" : `${age} ago`}` : kindLabel}
+              </span>
+              {canRelaunchRestoredSession(session) && (
+                <button
+                  type="button"
+                  aria-label={`${actionLabel}: ${title}`}
+                  title={safety.safe ? restoredSessionActionTitle(session) : safety.reason}
+                  onClick={() => onResumeSession(session.id)}
+                >
+                  {actionLabel}
+                </button>
+              )}
+              {!safety.safe && armed && (
+                <small className="terminal-empty-asleep-warning">{`Review before resuming: ${safety.reason}.`}</small>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {onOpenHistory && hiddenAsleepCount > 0 && (
+        <button type="button" className="terminal-empty-asleep-more" onClick={onOpenHistory}>
+          {`${hiddenAsleepCount} more in History`}
+        </button>
+      )}
+    </section>
   );
 }
 

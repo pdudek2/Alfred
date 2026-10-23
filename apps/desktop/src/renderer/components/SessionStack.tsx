@@ -18,6 +18,8 @@ const STACK_GROUPS: ReadonlyArray<{ label: string; kinds: readonly SessionStateK
 
 type SessionStackProps = {
   asleepCount: number;
+  /** Shown in place of the groups while no other session runs in the project, such as its asleep sessions. */
+  emptyContent?: ReactNode;
   now: number;
   planLine?: ReactNode;
   sessions: SessionTile[];
@@ -28,7 +30,7 @@ type SessionStackProps = {
   onPinSession: (sessionId: string) => void;
 };
 
-export function SessionStack({ asleepCount, now, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep, onPinSession }: SessionStackProps) {
+export function SessionStack({ asleepCount, emptyContent, now, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep, onPinSession }: SessionStackProps) {
   const states = new Map(sessions.map((session) => [session.id, sessionState(session, "ready", now)]));
   const groups = STACK_GROUPS.map((group) => ({
     ...group,
@@ -39,7 +41,7 @@ export function SessionStack({ asleepCount, now, planLine, sessions, tabs, works
     <aside className="session-stack" aria-label={`Other sessions in ${workspaceLabel}`}>
       {tabs}
       <div className="session-stack-groups">
-        {groups.length === 0 && <p className="session-stack-empty">No other sessions in this project.</p>}
+        {groups.length === 0 && (emptyContent ?? <p className="session-stack-empty">No other sessions in this project.</p>)}
         {groups.map((group) => (
           <section className="session-stack-group" key={group.label} aria-label={group.label}>
             <h3>
