@@ -326,6 +326,44 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("keeps the parent a worker was started under and drops one that is not a client id", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+    const worker = await invoke<{ parentClientId?: string }>(terminalChannels.create, {
+      clientId: "manual-2", cols: 80, cwd: "/repo", rows: 24, parentClientId: "codex-1",
+    });
+    await invoke(terminalChannels.create, { clientId: "manual-3", cols: 80, cwd: "/repo", rows: 24, parentClientId: "../x y" });
+    await invoke(terminalChannels.create, { clientId: "manual-4", cols: 80, cwd: "/repo", rows: 24, parentClientId: 7 });
+    await flushTerminalPersistence();
+
+    expect(worker.parentClientId).toBe("codex-1");
+    const listed = await invoke<{ sessions: Array<{ clientId?: string; parentClientId?: string }> }>(terminalChannels.list);
+    expect(listed.sessions.map((session) => [session.clientId, session.parentClientId])).toEqual([
+      ["manual-2", "codex-1"],
+      ["manual-3", undefined],
+      ["manual-4", undefined],
+    ]);
+    expect(state.restoredTerminalSessions.map((session) => [session.clientId, session.parentClientId])).toEqual([
+      ["manual-2", "codex-1"],
+      ["manual-3", undefined],
+      ["manual-4", undefined],
+    ]);
+  });
+
   it("handles a rejected background terminal persistence write", async () => {
     const rejection = new Error("disk unavailable");
     const store = storeWithRestoredSessions([]);
