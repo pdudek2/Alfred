@@ -274,7 +274,7 @@ export function CommandPalette({
       ...sessions.filter((session) => session.id === pinnedSessionId).map((session) => ({
         id: `unpin-session-${session.id}`,
         label: `Unpin ${session.title}`,
-        detail: "Return it to the stack",
+        detail: "Hide it again; it stays in the rail",
         run: () => onPinSession(null),
       })),
       {

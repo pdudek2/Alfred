@@ -487,7 +487,7 @@ function AsleepSessionList({
           const armed = armedSessionIds.has(session.id);
           const actionLabel = restoredSessionActionLabel(session, !safety.safe, armed);
           return (
-            <li key={session.id}>
+            <li key={session.id} data-session-id={session.id}>
               <SessionStatusGlyph kind="asleep" label="Asleep" />
               <span className="terminal-empty-asleep-title">{title}</span>
               <span className="terminal-empty-asleep-meta">
