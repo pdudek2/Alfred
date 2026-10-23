@@ -1611,7 +1611,7 @@ export function App() {
   const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
     const session = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (session) {
-      const generatedTitle = generatedTitleForDetectedAgent(session, event.foregroundAgentKind);
+      const generatedTitle = generatedTitleForDetectedAgent(terminalSessionsRef.current, session, event.foregroundAgentKind);
       if (generatedTitle !== session.title) {
         void getDesktopTerminalApi()?.rename({ clientId: session.id, title: generatedTitle });
       }

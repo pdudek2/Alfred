@@ -514,7 +514,7 @@ describe("persisted-desktop-state", () => {
 
     expect(state.restoredTerminalSessions[0]).toMatchObject({
       clientId: "manual-63",
-      title: "Codex 63",
+      title: "Codex",
       agentKind: "codex",
       command: "codex",
       args: [],
@@ -531,15 +531,19 @@ describe("persisted-desktop-state", () => {
         saved("manual-1", "Manual · zsh 1"),
         saved("manual-3", "Manual · zsh 3"),
         saved("claude-2", "Claude · session 2"),
+        saved("manual-65", "zsh 65"),
+        saved("codex-19", "Codex 19"),
         saved("manual-4", "Release reviewer"),
       ],
     }));
 
+    // A saved session is asleep, and a number only tells sessions that run side by side apart.
+    const titles = ["zsh", "zsh", "Claude", "zsh", "Codex", "Release reviewer"];
     const state = await createPersistedDesktopStateStore({ filePath }).getState();
-    expect(state.restoredTerminalSessions.map((session) => session.title)).toEqual(["zsh", "zsh 3", "Claude 2", "Release reviewer"]);
+    expect(state.restoredTerminalSessions.map((session) => session.title)).toEqual(titles);
     // The file was rewritten with them, so the next start reads it as it is.
     const rewritten = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
-    expect(rewritten.restoredTerminalSessions.map((session) => session.title)).toEqual(["zsh", "zsh 3", "Claude 2", "Release reviewer"]);
+    expect(rewritten.restoredTerminalSessions.map((session) => session.title)).toEqual(titles);
   });
 
   it("keeps only safe isolated recovery identity when retention is off", () => {
