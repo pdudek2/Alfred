@@ -1604,6 +1604,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-empty-asleep-title {
+  /* The title gives way, so a long one shortens instead of pushing Resume onto a second line. */
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
@@ -1613,7 +1615,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-empty-asleep-meta {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   color: var(--text-faint);
   font: 400 12px/16px var(--sans);
   font-variant-numeric: tabular-nums;

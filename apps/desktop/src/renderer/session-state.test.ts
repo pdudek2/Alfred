@@ -120,13 +120,33 @@ describe("desktop session state", () => {
     ]);
   });
 
-  it("lets a detected agent replace its own titles and those older builds wrote, keeping the number", () => {
-    for (const [title, detected] of [["zsh", "Codex"], ["zsh 2", "Codex 2"], ["Manual · zsh 3", "Codex 3"], ["Claude · session 4", "Codex 4"]]) {
-      expect(isGeneratedSessionTitle(title!)).toBe(true);
-      expect(generatedTitleForDetectedAgent({ title: title! }, "codex")).toBe(detected);
+  it("numbers a title only against the project's sessions that still run, not its asleep ones", () => {
+    const asleep: SessionTile = {
+      id: "manual-68", title: "Claude 68", workspaceId: "A", cwd: "/repo", source: "manual", stage: "live", runtimeStatus: "restored",
+    };
+    const sessions = addAgentSession([asleep], "claude", "/repo");
+
+    expect(sessions.at(-1)?.title).toBe("Claude");
+  });
+
+  it("gives a detected agent the next free agent title in its project instead of the shell's number", () => {
+    const live = (id: string, title: string, workspaceId = "A"): SessionTile => ({
+      id, title, workspaceId, cwd: "/repo", source: "manual", stage: "live", runtimeStatus: "live",
+    });
+    for (const title of ["zsh", "zsh 68", "Manual · zsh 3", "Claude · session 4"]) {
+      expect(isGeneratedSessionTitle(title)).toBe(true);
+      const shell = live("manual-9", title);
+      expect(generatedTitleForDetectedAgent([shell], shell, "codex")).toBe("Codex");
     }
+    const shell = live("manual-9", "zsh 2");
+    const sessions = [live("codex-1", "Codex"), live("codex-2", "Codex", "B"), shell];
+    expect(generatedTitleForDetectedAgent(sessions, shell, "codex")).toBe("Codex 2");
+    // Output keeps arriving after the rename; the title it already has stays.
+    const renamed = live("manual-9", "Codex 2");
+    expect(generatedTitleForDetectedAgent([live("codex-1", "Codex"), renamed], renamed, "codex")).toBe("Codex 2");
     expect(isGeneratedSessionTitle("Release reviewer")).toBe(false);
-    expect(generatedTitleForDetectedAgent({ title: "Release reviewer" }, "codex")).toBe("Release reviewer");
+    const named = live("manual-9", "Release reviewer");
+    expect(generatedTitleForDetectedAgent([named], named, "codex")).toBe("Release reviewer");
   });
 
   it("renames a session with normalized display text", () => {
@@ -840,8 +860,8 @@ describe("desktop session state", () => {
   });
 
   it.each([
-    ["codex", "Codex 4"],
-    ["claude", "Claude 4"],
+    ["codex", "Codex"],
+    ["claude", "Claude"],
   ] as const)("renames a generated manual title for detected %s", (kind, expectedTitle) => {
     const next = recordSessionOutputActivity(
       [{

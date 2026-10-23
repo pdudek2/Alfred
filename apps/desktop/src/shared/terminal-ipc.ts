@@ -58,6 +58,8 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   foregroundAgentKind?: TerminalForegroundAgentKind;
   agentSignal?: TerminalAgentSignal;
   shellBusy?: boolean;
+  /** You have sent this session a message. */
+  promptSubmitted?: boolean;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
   lastOutputAt?: number;
@@ -189,6 +191,8 @@ export type TerminalDataEvent = {
   agentSignal?: TerminalAgentSignal | null;
   /** Whether a program other than the shell holds the foreground. Absent means unchanged. */
   shellBusy?: boolean;
+  /** Sent once, when you first send the session a message. */
+  promptSubmitted?: true;
 };
 
 export type TerminalApi = {
