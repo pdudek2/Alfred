@@ -1411,7 +1411,7 @@ function applyAgentSignal(
         detail: update.detail ?? "Waiting for approval",
         payload: { type: "approval", prompt: update.detail ?? "Waiting for approval" },
       }, now)
-    // The answer a turn ended with replaces the approval it asked for on the stack card.
+    // The answer a turn ended with replaces the approval it asked for on the session's rail row.
     // ponytail: hooks only; a Codex notification's turn-end preview would repeat the same answer next to it.
     : update.state === "your-turn" && source === "hook" && update.detail
       ? recordSessionActivity(session, { kind: "output", title: "Turn finished", detail: update.detail }, now)

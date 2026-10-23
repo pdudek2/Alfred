@@ -689,7 +689,7 @@ async function openHistorySession(user: ReturnType<typeof userEvent.setup>, titl
   return history;
 }
 
-// The stack's asleep line opens History; a project with nothing live shows its asleep rows inline instead.
+// The tree's asleep line opens History; a project with nothing live shows its asleep rows inline instead.
 async function openSavedSessions(user: ReturnType<typeof userEvent.setup>) {
   await waitFor(() => {
     expect(
@@ -2499,7 +2499,7 @@ describe("App integration", () => {
     render(<App />);
     await screen.findByRole("article", { name: /Codex · one/i });
     const hostOf = (id: string) => document.querySelector(`[data-testid="xterm-host"][data-session-id="${id}"]`);
-    const [focusHost, stackHost] = [hostOf("one"), hostOf("two")];
+    const [focusHost, pinnedHost] = [hostOf("one"), hostOf("two")];
     const pinTwo = () => within(railSessions()).queryByRole("button", { name: "Pin under the focus", description: /Codex · two/ });
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
 
@@ -2515,7 +2515,7 @@ describe("App integration", () => {
     // Pin went with its row's control, so the keyboard lands on the new pin's Unpin.
     expect(within(pinned).getByRole("button", { name: "Unpin Codex · two" })).toHaveFocus();
     expect(hostOf("one")).toBe(focusHost);
-    expect(hostOf("two")).toBe(stackHost);
+    expect(hostOf("two")).toBe(pinnedHost);
 
     // Typing in the pinned terminal leaves the focus, the breadcrumb and Details on the focused session.
     fireEvent.focusIn(within(pinned).getByTestId("xterm-host"));
@@ -2529,7 +2529,7 @@ describe("App integration", () => {
     expect(pinTwo()).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /^Codex · one/ })).toHaveFocus();
     expect(hostOf("one")).toBe(focusHost);
-    expect(hostOf("two")).toBe(stackHost);
+    expect(hostOf("two")).toBe(pinnedHost);
     expect(terminalDisposeCalls).toHaveLength(0);
 
     await act(async () => {
@@ -5294,9 +5294,9 @@ describe("App integration", () => {
       </StrictMode>,
     );
 
-    const stack = await screen.findByRole("list", { name: "Sessions in Alfred" });
+    const tree = await screen.findByRole("list", { name: "Sessions in Alfred" });
     setWorkspaceViewState.mockClear();
-    fireEvent.click(within(stack).getByRole("button", { name: /^Codex - Backend Code Quality Analysis/i }));
+    fireEvent.click(within(tree).getByRole("button", { name: /^Codex - Backend Code Quality Analysis/i }));
     const newlySelectedTile = await screen.findByRole("article", { name: /Codex - Backend Code Quality Analysis/i });
     const terminalHost = newlySelectedTile.querySelector(".xterm-host");
     expect(terminalHost).toBeInstanceOf(HTMLElement);
@@ -5494,9 +5494,8 @@ describe("App integration", () => {
     });
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
 
-    const stack = () => railSessions();
-    await user.click(within(stack()).getByRole("button", { name: /^zsh(?! \d)(?! ·)/ }));
-    await user.click(within(stack()).getByRole("button", { name: /^Codex(?! \d)(?! ·)/ }));
+    await user.click(within(railSessions()).getByRole("button", { name: /^zsh(?! \d)(?! ·)/ }));
+    await user.click(within(railSessions()).getByRole("button", { name: /^Codex(?! \d)(?! ·)/ }));
 
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
     const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
@@ -9765,7 +9764,7 @@ describe("App integration", () => {
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
-  it("opens project-scoped asleep History from the stack's asleep line", async () => {
+  it("opens project-scoped asleep History from the tree's asleep line", async () => {
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
       null,
@@ -10298,7 +10297,7 @@ describe("App integration", () => {
     await openPlan(user);
     expect(screen.queryByRole("listitem", { name: /Draft Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "Draft Risky task" })).toBeInTheDocument();
-    // Launching does not steal focus; the new session joins the stack.
+    // Launching does not steal focus; the new session joins the rail's tree.
     expect(within(railSessions())
       .getByRole("button", { name: /^Safe task/ })).toBeInTheDocument();
     await openNeedsYou(user);
