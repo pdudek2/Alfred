@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import type { ElementHandle, Locator } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 
-test("Preview takes the terminal's place, keeps the stack, and preserves xterm while loaded and offline", async ({ harness }, testInfo) => {
+test("Preview takes the terminal's place, keeps Details beside it, and preserves xterm while loaded and offline", async ({ harness }, testInfo) => {
   const { app, page } = harness;
   let server: Server | null = createServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -32,7 +32,8 @@ test("Preview takes the terminal's place, keeps the stack, and preserves xterm w
     await expect(previewTab).toHaveAttribute("aria-selected", "false");
     await expect(page.getByLabel("Project preview")).toHaveCount(0);
     const terminalBox = await xterm.boundingBox();
-    const stackBox = await page.locator(".session-stack").boundingBox();
+    const details = page.getByRole("complementary", { name: "Details" });
+    const detailsBox = await details.boundingBox();
 
     await previewTab.click();
     const preview = page.getByLabel("Project preview");
@@ -43,20 +44,17 @@ test("Preview takes the terminal's place, keeps the stack, and preserves xterm w
     await expectSameNode(xtermHandle, xterm);
 
     // Preview covers exactly the terminal's cell. The terminal keeps its size underneath, so the shell is not
-    // resized, and the stack and the session strip stay where they were.
+    // resized, and Details and the session strip stay where they were.
     expect(await preview.boundingBox()).toEqual(terminalBox);
     expect(await xterm.boundingBox()).toEqual(terminalBox);
     await expect(xterm).toHaveAttribute("inert", "");
-    expect(await page.locator(".session-stack").boundingBox()).toEqual(stackBox);
+    expect(await details.boundingBox()).toEqual(detailsBox);
     await expect(page.locator('[data-testid="terminal-tile"]:visible .session-strip')).toBeVisible();
     await expect(page.getByRole("separator", { name: "Resize Preview" })).toHaveCount(0);
 
-    // Details opens beside Preview instead of replacing it.
-    await page.getByRole("tab", { name: "Details" }).click();
-    await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
+    // Details stays beside Preview instead of giving way to it.
+    await expect(details).toBeVisible();
     await expect(frame).toBeVisible();
-    await page.getByRole("tab", { name: "Sessions" }).click();
-    await expect(page.locator(".session-stack")).toBeVisible();
 
     await terminalTab.click();
     await expect(preview).toHaveCount(0);
@@ -73,9 +71,9 @@ test("Preview takes the terminal's place, keeps the stack, and preserves xterm w
       const bounds = BrowserWindow.getAllWindows()[0]?.getBounds();
       return bounds ? { width: bounds.width, height: bounds.height } : null;
     })).toEqual({ width: 1120, height: 720 });
-    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "224px");
-    // At the minimum window Preview has the whole focus column and the stack is still there.
-    await expect(page.locator(".session-stack")).toBeVisible();
+    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "264px");
+    // At the minimum window Preview has the whole focus column and Details is still there.
+    await expect(details).toBeVisible();
     expect(await page.locator(".terminal-grid-column").evaluate((node) => node.getBoundingClientRect().width))
       .toBeGreaterThanOrEqual(420);
     expect((await preview.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(420);

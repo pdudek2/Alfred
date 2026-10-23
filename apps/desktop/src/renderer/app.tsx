@@ -18,7 +18,6 @@ import {
 import { CommandPalette } from "./components/CommandPalette";
 import { DetailsChanges } from "./components/DetailsChanges";
 import { ContextColumn } from "./components/ContextColumn";
-import { SideColumnTabs } from "./components/SideColumnTabs";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
@@ -227,6 +226,8 @@ export function App() {
   const [newSessionKind, setNewSessionKind] = useState<NewSessionKind>("codex");
   const [newSessionProjectId, setNewSessionProjectId] = useState(DEFAULT_WORKSPACE_ID);
   const [newSessionIsolation, setNewSessionIsolation] = useState(false);
+  // "New worker" on a rail row: the session the new one is started under.
+  const [newSessionParentId, setNewSessionParentId] = useState<string | null>(null);
   const [newSessionOpening, setNewSessionOpening] = useState(0);
   const newSessionGenerationRef = useRef(0);
   const closeNewSession = useCallback(() => {
@@ -239,13 +240,19 @@ export function App() {
     if (kind) setNewSessionKind(kind);
     setNewSessionProjectId(activeWorkspaceId);
     setNewSessionIsolation(isolation === "worktree");
+    setNewSessionParentId(null);
     setNewSessionOpen(true);
     setNeedsYouOpen(false);
   }, [activeWorkspaceId]);
+  const openNewWorker = useCallback((parentSessionId: string) => {
+    openNewSession();
+    setNewSessionParentId(parentSessionId);
+    // A plan is not a session, so it cannot be a worker.
+    setNewSessionKind((kind) => (kind === "plan" ? "codex" : kind));
+  }, [openNewSession]);
   const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
   const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
   const contextReturnFocusRef = useRef<HTMLElement | null>(null);
-  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
   const discardReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -298,13 +305,15 @@ export function App() {
   const activePreviewDockOpen = previewVisible && (previewDockOpenByWorkspace[activeWorkspace.id] ?? false);
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activePinnedSessionId = pinnedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
+  const newSessionParent = newSessionParentId === null ? null : terminalSessions.find((session) => session.id === newSessionParentId) ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
       ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null
       : activeTerminalSessions[0] ?? null;
   const activeSelectedSession =
     activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
-  const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
+  // Details holds the column the session stack had, so it starts open; ⌘I hides it.
+  const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? true;
   // Details describes the deck's focused session. History has its own reader and no side column.
   const detailsVisible = activeContextDrawerOpen && activeSurface === "work";
   const canCloseActiveWorkspace =
@@ -485,7 +494,7 @@ export function App() {
     });
   }, [showTerminalInWorkspace, workModesByWorkspace]);
 
-  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared", workspace: Workspace = activeWorkspace, prompt = "") => {
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared", workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string) => {
     if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addAgentSession(
@@ -495,6 +504,7 @@ export function App() {
         workspace.id,
         isolation,
         prompt,
+        parentSessionId,
       ),
     );
   }, [
@@ -625,14 +635,14 @@ export function App() {
     const nextOpen = !activeContextDrawerOpen;
     if (nextOpen) {
       contextReturnFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
-        ? document.activeElement : detailsTriggerRef.current;
+        ? document.activeElement : null;
       setNeedsYouOpen(false);
       contextFocusRequestKeyRef.current += 1;
     }
     if (!nextOpen) {
-      // Details opened from the stack's tab has nothing to return to: the stack redraws that tab when it comes back.
+      // With nothing left to return to, the focused terminal takes the keyboard back.
       if (contextReturnFocusRef.current?.isConnected) contextReturnFocusRef.current.focus();
-      else requestAnimationFrame(() => detailsTriggerRef.current?.focus());
+      else setTerminalFocusRequestKey((key) => key + 1);
     }
     setContextDrawerOpenByWorkspace((current) => {
       return {
@@ -651,16 +661,6 @@ export function App() {
       ...current,
       [activeWorkspace.id]: true,
     }));
-  }, [activeWorkspace.id]);
-
-  const handleCloseContextDrawer = useCallback(() => {
-    setContextDrawerOpenByWorkspace((current) => {
-      if (current[activeWorkspace.id] === false) return current;
-      return {
-        ...current,
-        [activeWorkspace.id]: false,
-      };
-    });
   }, [activeWorkspace.id]);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
@@ -882,13 +882,14 @@ export function App() {
     });
   }, [activeWorkMode, activeWorkspace.id, selectedSessionIdsByWorkspace]);
 
-  const handleAddManualSession = useCallback((workspace: Workspace = activeWorkspace) => {
+  const handleAddManualSession = useCallback((workspace: Workspace = activeWorkspace, parentSessionId?: string) => {
     if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addManualSession(
         terminalSessionsRef.current,
         workspace.rootPath ?? "",
         workspace.id,
+        parentSessionId,
       ),
     );
   }, [
@@ -1729,6 +1730,7 @@ export function App() {
     const workspace = workspaces.find((item) => item.id === newSessionProjectId);
     if (!workspace || workspace.rootStatus === "missing") return false;
     const draft = newSessionDraftsByWorkspace[workspace.id] ?? "";
+    const parentSessionId = newSessionParent?.workspaceId === workspace.id ? newSessionParent.id : undefined;
     if (newSessionKind === "plan") {
       if (composerBlockedReason) return false;
       const submitted = await handleSubmitPrompt({ kind: "workspace", id: workspace.id, label: workspace.label }, draft, workspace);
@@ -1736,9 +1738,9 @@ export function App() {
       handleSelectWorkspace(workspace.id);
       setActiveSurface("work");
     } else if (newSessionKind === "terminal") {
-      handleAddManualSession(workspace);
+      handleAddManualSession(workspace, parentSessionId);
     } else {
-      handleAddAgentSession(newSessionKind, isolated ? "worktree" : "shared", workspace, draft.trim());
+      handleAddAgentSession(newSessionKind, isolated ? "worktree" : "shared", workspace, draft.trim(), parentSessionId);
     }
     setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, workspace.id));
     return true;
@@ -2093,7 +2095,7 @@ export function App() {
   }, []);
 
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
-    contextReturnFocusRef.current = detailsTriggerRef.current;
+    contextReturnFocusRef.current = null;
     contextFocusRequestKeyRef.current += 1;
     const layoutApi = getDesktopLayoutApi();
     if (terminalSessionsRef.current.some((session) => session.id === sessionId && session.stage === "staged")) {
@@ -2625,11 +2627,13 @@ export function App() {
       >
         <ProjectNavigator
           activeSessionId={activeSelectedSessionId}
+          asleepCount={activeSavedSessionCount}
           activeSurface={activeSurface}
           activeWorkspaceId={activeWorkspace.id}
           attentionCountsByWorkspace={attentionCountsByWorkspace}
           inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
           now={now}
+          pinnedSessionId={activePinnedSessionId}
           sessions={terminalSessions}
           settingsTriggerRef={settingsTriggerRef}
           workspaces={workspaces}
@@ -2662,7 +2666,11 @@ export function App() {
             />
           )}
           onAddWorkspace={handleAddWorkspace}
+          onFocusSession={handleFocusSession}
+          onNewWorker={openNewWorker}
+          onOpenAsleep={handleOpenSavedSessions}
           onOpenSettings={handleOpenPrivacyPanel}
+          onPinSession={handlePinSession}
           onSelectSessionInWorkspace={handleSelectSessionInWorkspace}
           onSelectSurface={handleSelectPrimarySurface}
           onSelectWorkspace={handleSelectWorkspaceFromRail}
@@ -2754,7 +2762,6 @@ export function App() {
                 <TerminalDesk
                   activeWorkspaceId={activeWorkspace.id}
                   armedRecoverySessionIds={armedRecoverySessionIds}
-                  asleepCount={activeSavedSessionCount}
                   now={now}
                   previewPane={activePreviewDockOpen ? (
                     <WorkspacePreviewPanel
@@ -2770,15 +2777,6 @@ export function App() {
                   pinnedSessionId={activePinnedSessionId}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
-                  stackHidden={activeContextDrawerOpen}
-                  stackTabs={
-                    <SideColumnTabs
-                      detailsOpen={false}
-                      detailsTabRef={detailsTriggerRef}
-                      shortcutModifier={shortcutModifier}
-                      onToggleDetails={handleToggleContextDrawer}
-                    />
-                  }
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
                   worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
@@ -2794,7 +2792,6 @@ export function App() {
                   onCloseSession={handleCloseSession}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
-                  onOpenAsleep={handleOpenSavedSessions}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
                   onOpenHistory={handleOpenRecoveryHistory}
                   onRestartSession={handleRestartSession}
@@ -2807,7 +2804,6 @@ export function App() {
                   onRuntimeSessionStarting={handleRuntimeSessionStarting}
                   onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
                   onRenameSession={handleRenameSession}
-                  onFocusSession={handleFocusSession}
                   onPinSession={handlePinSession}
                   onSelectSession={handleSelectSession}
                   planLine={
@@ -2864,10 +2860,7 @@ export function App() {
               worktreeDiffView !== null
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
-            returnFocusRef={contextReturnFocusRef}
-            triggerRef={detailsTriggerRef}
             shortcutModifier={shortcutModifier}
-            onCloseContext={handleCloseContextDrawer}
             timelineProps={{
               session: activeInspectedSession,
               now,
@@ -2905,6 +2898,7 @@ export function App() {
             projectId={newSessionProjectId}
             kind={newSessionKind}
             initialIsolation={newSessionIsolation}
+            parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
             draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
             disabled={commandPaletteOpen || privacyPanelOpen}
             blockedReason={composerBlockedReason}

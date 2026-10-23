@@ -1,18 +1,19 @@
 import { expect, test } from "./support/electron-app";
+import { treeRow } from "./support/work-layout";
 
-test("each session names its kind in the strip and the deck keeps one terminal beside the stack", async ({ harness }, testInfo) => {
+test("each session names its kind in the strip and the deck keeps one terminal beside Details", async ({ harness }, testInfo) => {
   const { app, page } = harness;
   await addSession(page, "New Codex session");
   await addSession(page, "New Claude session");
 
   const tiles = page.getByTestId("terminal-tile");
   await expect(tiles).toHaveCount(3);
-  // The focused session names its kind in the strip; the other two wait in the stack and keep theirs while hidden.
+  // The focused session names its kind in the strip; the other two wait in the rail's tree and keep theirs while hidden.
   await expect(page.locator('[data-testid="terminal-tile"]:visible .session-strip-kind')).toHaveText("Claude");
   await expect(page.locator(".terminal-tile.kind-codex .session-strip-kind")).toHaveText("Codex");
 
   const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
-  await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
+  await treeRow(page, "manual-1").click();
   await expect(manualTile).not.toHaveAttribute("aria-hidden", "true");
   const manualInput = manualTile.getByRole("textbox", { name: "Terminal input" });
   await manualInput.fill("codex");
@@ -29,11 +30,11 @@ test("each session names its kind in the strip and the deck keeps one terminal b
     }, { width, height });
     await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
     const [focus] = await tileGeometry(page.locator('[data-testid="terminal-tile"]:visible'));
-    const stackBox = await page.getByRole("complementary", { name: /^Other sessions in / }).boundingBox();
-    expect(stackBox).not.toBeNull();
-    expect(stackBox!.width).toBeGreaterThanOrEqual(259);
-    expect(focus!.left + focus!.width).toBeLessThanOrEqual(stackBox!.x);
-    expect(focus!.width).toBeGreaterThan(stackBox!.width);
+    const detailsBox = await page.getByTestId("context-column").boundingBox();
+    expect(detailsBox).not.toBeNull();
+    expect(detailsBox!.width).toBeGreaterThanOrEqual(259);
+    expect(focus!.left + focus!.width).toBeLessThanOrEqual(detailsBox!.x);
+    expect(focus!.width).toBeGreaterThan(detailsBox!.width);
     expect(focus!.scrollWidth).toBeLessThanOrEqual(focus!.clientWidth);
     await page.screenshot({ path: testInfo.outputPath(`terminal-identities-deck-${width}x${height}.png`) });
   }
@@ -53,7 +54,7 @@ test("scrolls the focused terminal, not the deck column, under the wheel", async
   for (let index = 0; index < 5; index += 1) {
     await addSession(page, "New terminal");
   }
-  await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
+  await treeRow(page, "manual-1").click();
   await expect(terminalTile).not.toHaveAttribute("aria-hidden", "true");
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });

@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { surfaceButton } from "./support/work-layout";
+import { surfaceButton, treeRow } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -33,7 +33,7 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
-  // A new session takes focus; the others stay mounted in the stack.
+  // A new session takes focus; the others stay mounted and wait in the rail's tree.
   const addedTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-3"]');
   await expect(addedTile).toHaveClass(/selected/);
   await expect(addedTile).not.toHaveAttribute("aria-hidden", "true");
@@ -65,11 +65,10 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   identityTransitions.push("History→Work");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Work restored"));
 
-  await page.getByRole("complementary", { name: /^Other sessions in / })
-    .locator('[data-session-id="manual-1"]').click();
+  await treeRow(page, "manual-1").click();
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
-  await expectTerminalNodes(terminalNodes, page, "stack swap");
-  identityTransitions.push("stack swap to manual-1 (2 hidden mounted)");
+  await expectTerminalNodes(terminalNodes, page, "tree swap");
+  identityTransitions.push("tree swap to manual-1 (2 hidden mounted)");
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
   await captureReviewScreenshot(page, testInfo, "deck-swap-1440x920");
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
-import { openNewTerminalSheet, surfaceButton } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet, surfaceButton, treeRow } from "./support/work-layout";
 import {
   collectControlOverflowEvidence,
   type ControlOverflowViolation,
@@ -69,9 +69,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
-  // New terminal takes focus; the first session waits in the stack.
+  // New terminal takes focus; the first session waits in the rail's tree.
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')).not.toHaveAttribute("aria-hidden", "true");
-  await expect(page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]')).toBeVisible();
+  await expect(treeRow(page, "manual-1")).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   // The focused tile has no header: its strip sits under the terminal.
   await expect(visibleTerminalTiles(page).locator(".session-strip")).toHaveCount(1);
@@ -91,13 +91,12 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     "r1-focus-two-sessions.png",
   );
 
-  await page.getByRole("complementary", { name: /^Other sessions in / })
-    .getByRole("button", { name: /(?<!\/)zsh(?! \d)(?! ·)/ }).click();
+  await treeRow(page, "manual-1").click();
   await expect(visibleTerminalTiles(page).first()).toHaveAttribute("data-session-id", "manual-1");
   const identityTransitions: Record<string, boolean> = {
-    "R0→zsh 2→stack→zsh 1": await isSameConnectedNode(firstScreenHandle, firstScreen),
+    "R0→zsh 2→tree→zsh 1": await isSameConnectedNode(firstScreenHandle, firstScreen),
   };
-  expect(identityTransitions["R0→zsh 2→stack→zsh 1"]).toBe(true);
+  expect(identityTransitions["R0→zsh 2→tree→zsh 1"]).toBe(true);
 
   const launchTrigger = page.getByRole("button", { name: "New", exact: true });
   await launchTrigger.focus();
@@ -133,7 +132,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
   identityTransitions["Work→Context"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Work→Context"]).toBe(true);
-  await page.getByRole("tab", { name: "Sessions" }).click();
 
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await setWindowSize(app, page, 1120, 720);
@@ -164,11 +162,10 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(contextBounds).not.toBeNull();
   expect(terminalBounds).not.toBeNull();
   expect(terminalBounds!.width).toBeGreaterThanOrEqual(420);
-  // Details takes the stack's column: beside the terminal, inside the frame's 16px gutter.
+  // Details holds the right column: beside the terminal, inside the frame's 16px gutter.
   expect(contextBounds!.width).toBeCloseTo(viewportWidth * 0.24, 0);
   expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth - 16, 0);
   expect(terminalBounds!.x + terminalBounds!.width).toBeLessThanOrEqual(contextBounds!.x);
-  await page.getByRole("tab", { name: "Sessions" }).click();
 
   const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
   await selectSurface(page, "Local Data & Privacy");
@@ -260,7 +257,7 @@ async function selectSurface(
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
   if (surface === "Details") {
-    await page.getByRole("tab", { name: "Details" }).click();
+    await openDetails(page);
     return;
   }
   await surfaceButton(page, surface).click();

@@ -1,11 +1,12 @@
 import { MessageSquare, Plus } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type Ref } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
-import { isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
+import { deckFocusSession, deckSessions, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
 import { isRestartable, SESSION_STATE_LABELS, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import { SessionTree } from "./SessionTree";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 
@@ -25,17 +26,24 @@ export type ProjectNavigatorSurface = "work" | "sessions";
 
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
+  /** Asleep conversations in the active project, as History counts them. */
+  asleepCount: number;
   activeSurface: ProjectNavigatorSurface;
   activeWorkspaceId: string;
   attentionCountsByWorkspace: ReadonlyMap<string, number>;
   inert?: boolean;
   now: number;
+  pinnedSessionId: string | null;
   sessions: SessionTile[];
   settingsTriggerRef?: Ref<HTMLButtonElement>;
   workspaces: ProjectNavigatorWorkspace[];
   workspaceActions: ReactNode;
   onAddWorkspace: () => void;
+  onFocusSession: (sessionId: string) => void;
+  onNewWorker: (parentSessionId: string) => void;
+  onOpenAsleep: () => void;
   onOpenSettings: () => void;
+  onPinSession: (sessionId: string) => void;
   onSelectSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onSelectSurface: (surface: ProjectNavigatorSurface) => void;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -89,17 +97,23 @@ export function railOrder<T extends ProjectNavigatorWorkspace>(workspaces: reado
 
 export function ProjectNavigator({
   activeSessionId,
+  asleepCount,
   activeSurface,
   activeWorkspaceId,
   attentionCountsByWorkspace,
   inert = false,
   now,
+  pinnedSessionId,
   sessions,
   settingsTriggerRef,
   workspaces,
   workspaceActions,
   onAddWorkspace,
+  onFocusSession,
+  onNewWorker,
+  onOpenAsleep,
   onOpenSettings,
+  onPinSession,
   onSelectSessionInWorkspace,
   onSelectSurface,
   onSelectWorkspace,
@@ -109,6 +123,15 @@ export function ProjectNavigator({
   const onDeck = activeSurface === "work";
   const activeIsSandbox = onDeck && sandboxes.some((workspace) => workspace.id === activeWorkspaceId);
   const [sandboxesOpen, setSandboxesOpen] = useState(activeIsSandbox);
+  // Parents whose workers are hidden; kept while the window is open, across project switches.
+  const [collapsedParentIds, setCollapsedParentIds] = useState<ReadonlySet<string>>(() => new Set());
+  const activeDeckSessions = deckSessions(sessions, activeWorkspaceId);
+  const focusSessionId = deckFocusSession(activeDeckSessions, activeSessionId)?.id ?? null;
+  const toggleWorkers = (parentSessionId: string) => setCollapsedParentIds((current) => {
+    const next = new Set(current);
+    if (!next.delete(parentSessionId)) next.add(parentSessionId);
+    return next;
+  });
   const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const freeChats = sessions.filter(
     (session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session),
@@ -131,9 +154,11 @@ export function ProjectNavigator({
     const live = sessions.some((session) => isProjectLiveSession(session, workspace.id));
     const statusId = `project-${workspace.id}-status`;
     const rowIndex = visibleRows.indexOf(workspace);
+    // The active project lists its sessions under its row; the focused session, not the project, carries the fill.
+    const tree = active && (activeDeckSessions.length > 0 || asleepCount > 0);
     return (
       <section className="project-item" key={workspace.id} role="listitem">
-        <div className={`project-row${active ? " is-active" : ""}`}>
+        <div className={`project-row${active ? " is-active" : ""}${tree ? " has-tree" : ""}`}>
           <button
             type="button"
             className={`project-row-button${live ? "" : " is-calm"}`}
@@ -155,6 +180,22 @@ export function ProjectNavigator({
           </button>
           {active && <div className="project-workspace-actions">{workspaceActions}</div>}
         </div>
+        {tree && (
+          <SessionTree
+            asleepCount={asleepCount}
+            collapsedParentIds={collapsedParentIds}
+            focusSessionId={focusSessionId}
+            now={now}
+            pinnedSessionId={pinnedSessionId}
+            sessions={activeDeckSessions}
+            workspaceLabel={workspace.label}
+            onFocusSession={onFocusSession}
+            onNewWorker={onNewWorker}
+            onOpenAsleep={onOpenAsleep}
+            onPinSession={onPinSession}
+            onToggleWorkers={toggleWorkers}
+          />
+        )}
       </section>
     );
   };

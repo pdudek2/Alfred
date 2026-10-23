@@ -15,6 +15,23 @@ export function surfaceButton(page: Page, surface: "Work" | "History" | "Local D
   return page.getByTestId("project-navigator").getByRole("button", { name, exact: true });
 }
 
+/** The active project's sessions in the rail. v5 replaced the right-hand session stack with this tree. */
+export function sessionTree(page: Page): Locator {
+  return page.getByTestId("project-navigator").getByRole("list", { name: /^Sessions in / });
+}
+
+/** One session's row in the rail tree; a terminal tile carries the same data-session-id, so scope to the row. */
+export function treeRow(page: Page, sessionId: string): Locator {
+  return sessionTree(page).locator(`.session-tree-row[data-session-id="${sessionId}"]`);
+}
+
+/** Details holds the right column and starts open; this reopens it with ⌘I when a test has hidden it. */
+export async function openDetails(page: Page): Promise<void> {
+  const column = page.getByTestId("context-column");
+  if (await column.evaluate((node) => node.classList.contains("closed"))) await page.keyboard.press("ControlOrMeta+i");
+  await expect(column).toHaveClass(/(^| )open( |$)/);
+}
+
 /** Opens the New session sheet with Terminal picked; the caller presses Start. */
 export async function openNewTerminalSheet(page: Page): Promise<void> {
   await page.getByRole("button", { name: "New", exact: true }).click();
