@@ -97,7 +97,7 @@
 }
 
 .session-tree-meta {
-  grid-column: 2;
+  grid-column: 2 / 4;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -141,18 +141,23 @@
   pointer-events: none;
 }
 
-/* Pin, New worker and the workers toggle take the state glyph's place while the row is hovered or holds focus. */
+/* Pin, New worker and the workers toggle take the state glyph's place while the row is hovered or holds focus;
+   the title shortens by their width (--tree-actions, set per row) instead of running under them. */
 .session-tree-actions {
   position: absolute;
   top: 3px;
   right: 4px;
   display: flex;
   gap: 2px;
-  padding-left: 6px;
-  border-radius: 7px;
-  background: var(--tree-row-bg);
   opacity: 0;
   pointer-events: none;
+}
+
+/* The actions sit on the title's line: the title ends 6px before them (title column right = row right - 32px,
+   actions left = row right - 4px - width), and the second line keeps its full width. */
+.session-tree-entry:hover .session-tree-title,
+.session-tree-entry:focus-within .session-tree-title {
+  margin-right: max(0px, calc(var(--tree-actions, 0px) - 22px));
 }
 
 .session-tree-entry:hover .session-tree-actions,
