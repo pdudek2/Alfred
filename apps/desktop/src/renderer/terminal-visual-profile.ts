@@ -20,8 +20,8 @@ export const ghosttyVesperTerminalProfile: TerminalVisualProfile = {
   drawBoldTextInBrightColors: false,
   fontFamily: '"Geist Mono", "JetBrainsMono NFM", "MesloLGS Nerd Font Mono", ui-monospace, "SFMono-Regular", Menlo, monospace',
   fontSize: 13,
-  // Medium stands in for Ghostty's font-thicken.
-  fontWeight: 500,
+  // Regular, as Patryk chose over Medium (2026-10-23).
+  fontWeight: "normal",
   // Ghostty reports an 18 px cell (CSI 16 t); 1.06 gives Geist Mono 13 the same row in xterm.
   lineHeight: 1.06,
   theme: {

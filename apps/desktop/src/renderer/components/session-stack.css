@@ -170,3 +170,35 @@
   outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
+
+/* With nothing else running, the stack lists the project's asleep sessions, set like its groups. */
+.session-stack .terminal-empty-asleep {
+  padding-top: 0;
+}
+
+.session-stack .terminal-empty-asleep h3 {
+  padding: 16px 10px 4px;
+  color: var(--text-muted);
+}
+
+/* Two lines like a stack card: the column is too narrow for title, kind and age side by side. */
+.session-stack .terminal-empty-asleep li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "glyph title action"
+    ". meta action"
+    ". warning warning";
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  min-height: 0;
+  padding: 7px 10px;
+  border-top: 0;
+}
+
+.session-stack .terminal-empty-asleep li .session-status-glyph { grid-area: glyph; }
+.session-stack .terminal-empty-asleep-title { grid-area: title; }
+.session-stack .terminal-empty-asleep-meta { grid-area: meta; }
+.session-stack .terminal-empty-asleep li button { grid-area: action; }
+.session-stack .terminal-empty-asleep-warning { grid-area: warning; padding: 0; }

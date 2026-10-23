@@ -140,6 +140,8 @@ type TerminalSession = {
   transcriptPath?: string;
   oscCarry: string;
   shellBusy?: boolean | undefined;
+  /** You have sent this session a message: input that ended with Enter. */
+  promptSubmitted?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
   submittedAgentKind?: TerminalForegroundAgentKind | undefined;
   lastActivityAt?: number;
@@ -594,8 +596,16 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     if (!isTerminalReport(request.data)) {
       const cleared = clearWaitingSignal(session);
       const answered = answerApproval(session);
-      if (cleared || answered) {
-        sendSignalUpdate(session, { ...(cleared ? { agentSignal: null } : {}), ...(answered ? { activities: [answered] } : {}) });
+      // Until Enter sends your first message, an agent waits for it, whatever it draws.
+      // ponytail: Enter inside pasted text counts too.
+      const submitted = !session.promptSubmitted && request.data.includes("\r");
+      if (submitted) session.promptSubmitted = true;
+      if (cleared || answered || submitted) {
+        sendSignalUpdate(session, {
+          ...(cleared ? { agentSignal: null } : {}),
+          ...(answered ? { activities: [answered] } : {}),
+          ...(submitted ? { promptSubmitted: true } : {}),
+        });
       }
     }
     scheduleShellBusySample(session);
@@ -887,6 +897,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
     ...(session.agentSignal === undefined ? {} : { agentSignal: session.agentSignal }),
     ...(session.shellBusy === undefined ? {} : { shellBusy: session.shellBusy }),
+    ...(session.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
@@ -1418,7 +1429,7 @@ function answerApproval(session: TerminalSession): SessionActivityEvent | null {
 
 function sendSignalUpdate(
   session: TerminalSession,
-  update: { activities?: SessionActivityEvent[]; agentSignal?: TerminalAgentSignal | null; shellBusy?: boolean },
+  update: { activities?: SessionActivityEvent[]; agentSignal?: TerminalAgentSignal | null; shellBusy?: boolean; promptSubmitted?: true },
 ): void {
   sendToSessionWindow(session, terminalChannels.data, {
     id: session.id,
@@ -1427,6 +1438,7 @@ function sendSignalUpdate(
     activities: update.activities ?? [],
     ...(update.agentSignal === undefined ? {} : { agentSignal: update.agentSignal }),
     ...(update.shellBusy === undefined ? {} : { shellBusy: update.shellBusy }),
+    ...(update.promptSubmitted ? { promptSubmitted: true } : {}),
   });
 }
 

@@ -2399,6 +2399,31 @@ describe("App integration", () => {
     expect(within(asleep).queryByText(/Draft one|Draft two/)).not.toBeInTheDocument();
   });
 
+  it("fills the stack with the project's asleep sessions while nothing else runs there", async () => {
+    const restoredSessions: PersistedTerminalSessionSnapshot[] = [
+      {
+        clientId: "restored-claude",
+        title: "Review the release notes",
+        source: "manual",
+        agentKind: "claude",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "claude",
+        command: "claude",
+        buffer: "asleep output\n",
+      },
+    ];
+    installDesktopBridge(undefined, null, [liveSnapshot("solo", { title: "Claude" })], undefined, undefined, undefined, restoredSessions);
+
+    render(<App />);
+
+    const stack = await screen.findByRole("complementary", { name: "Other sessions in Alfred" });
+    const asleep = within(stack).getByRole("region", { name: "Asleep sessions" });
+    expect(within(asleep).getByText("Review the release notes")).toBeInTheDocument();
+    expect(within(asleep).getByRole("button", { name: /Review the release notes/ })).toBeInTheDocument();
+    expect(within(stack).queryByText("No other sessions in this project.")).not.toBeInTheDocument();
+  });
+
   it("keeps one-session Focus compact with one focused tile", async () => {
     installDesktopBridge(
       undefined,

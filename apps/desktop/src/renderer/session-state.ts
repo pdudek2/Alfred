@@ -48,6 +48,8 @@ export type SessionTile = {
   agentSignal?: TerminalAgentSignal;
   /** True while a program other than the shell holds the foreground (plain terminals only). */
   shellBusy?: boolean;
+  /** You have sent this session a message (the main process saw Enter). */
+  promptSubmitted?: boolean;
 };
 
 export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInput } from "../shared/session-activity";
@@ -65,15 +67,14 @@ export function isGeneratedSessionTitle(title: string): boolean {
 }
 
 export function generatedTitleForDetectedAgent(
-  session: Pick<SessionTile, "title">,
+  sessions: SessionTile[],
+  session: Pick<SessionTile, "id" | "title" | "workspaceId">,
   kind: TerminalDataEvent["foregroundAgentKind"],
 ): string {
-  if (!kind) return session.title;
-  const match = GENERATED_TERMINAL_TITLE.exec(session.title);
-  if (!match) return session.title;
-  // ponytail: keeps the shell's number, so it can repeat another session's title in the project.
-  const number = match[1] ?? match[2];
-  return `${kind === "codex" ? "Codex" : "Claude"}${number ? ` ${number}` : ""}`;
+  if (!kind || !GENERATED_TERMINAL_TITLE.test(session.title)) return session.title;
+  const base = kind === "codex" ? "Codex" : "Claude";
+  if (new RegExp(`^${base}(?: \\d+)?$`).test(session.title)) return session.title;
+  return nextGeneratedTitle(sessions.filter((other) => other.id !== session.id), session.workspaceId, base);
 }
 
 type SessionTitleFallbackInput = {
@@ -293,6 +294,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.foregroundAgentKind === undefined ? {} : { detectedAgentKind: snapshot.foregroundAgentKind }),
     ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
     ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
+    ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
@@ -412,11 +414,14 @@ function planSessionIsolation(session: AlfredPlanSession): TerminalSessionIsolat
 // would name bash or fish, with a rename so the next list does not bring "zsh" back.
 const SHELL_TITLE = "zsh";
 
-/** The title on its own for the first in the project, then "zsh 2", "zsh 3"; ids are numbered apart from titles. */
+/**
+ * The title on its own for the first in the project, then "zsh 2", "zsh 3"; ids are numbered apart from titles.
+ * Only sessions that run count: a number tells sessions side by side apart, and an asleep one is not beside it.
+ */
 function nextGeneratedTitle(sessions: SessionTile[], workspaceId: string, base: string): string {
   let highest = 0;
   for (const session of sessions) {
-    if (session.workspaceId !== workspaceId) continue;
+    if (session.workspaceId !== workspaceId || session.runtimeStatus === "restored") continue;
     const match = new RegExp(`^${base}(?: (\\d+))?$`).exec(session.title);
     if (match) highest = Math.max(highest, match[1] ? Number(match[1]) : 1);
   }
@@ -552,12 +557,13 @@ export function recordSessionOutputActivity(
 
     return {
       ...withoutSignal,
-      title: generatedTitleForDetectedAgent(item, event.foregroundAgentKind),
+      title: generatedTitleForDetectedAgent(sessions, item, event.foregroundAgentKind),
       detectedAgentKind: event.foregroundAgentKind,
       // Signal-only events (empty data) are not terminal output.
       ...(event.data === "" ? {} : { lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt) }),
       ...(agentSignal == null ? {} : { agentSignal }),
       ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
+      ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
     };
