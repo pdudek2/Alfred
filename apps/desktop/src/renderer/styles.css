@@ -10,7 +10,7 @@
   --ink-7: #F3F3F4;
   --signal: #E29B6E;
 
-  --surface-terminal: #09090A;
+  --surface-terminal: #101010;
   --surface-canvas: #060607;
   --surface-panel: #0E0E10;
   --surface-raised: #151518;
@@ -47,7 +47,7 @@
   --shadow-preview-page: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
 
   /* Transitional aliases. Remove only after all callsites use role tokens. */
-  --surface-sunken: var(--surface-terminal);
+  --surface-sunken: #09090A;
   --night: var(--surface-canvas);
   --ink: var(--text-primary);
   --ink-soft: var(--text-secondary);
@@ -2096,7 +2096,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 18px 22px 0;
+  padding: 12px 14px 0;
   letter-spacing: 0;
 }
 

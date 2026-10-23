@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
 import type { SessionTile } from "./session-state";
-import { alfredGraphiteTerminalProfile } from "./terminal-visual-profile";
+import { ghosttyVesperTerminalProfile } from "./terminal-visual-profile";
 import type {
   AlfredApi,
   AlfredPlanResponse,
@@ -5406,16 +5406,18 @@ describe("App integration", () => {
     expect(terminalConstructorOptions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          cursorBlink: alfredGraphiteTerminalProfile.cursorBlink,
-          cursorStyle: alfredGraphiteTerminalProfile.cursorStyle,
-          fontFamily: alfredGraphiteTerminalProfile.fontFamily,
-          fontSize: alfredGraphiteTerminalProfile.fontSize,
-          lineHeight: alfredGraphiteTerminalProfile.lineHeight,
+          cursorBlink: ghosttyVesperTerminalProfile.cursorBlink,
+          cursorStyle: ghosttyVesperTerminalProfile.cursorStyle,
+          drawBoldTextInBrightColors: ghosttyVesperTerminalProfile.drawBoldTextInBrightColors,
+          fontFamily: ghosttyVesperTerminalProfile.fontFamily,
+          fontSize: ghosttyVesperTerminalProfile.fontSize,
+          fontWeight: ghosttyVesperTerminalProfile.fontWeight,
+          lineHeight: ghosttyVesperTerminalProfile.lineHeight,
           theme: expect.objectContaining({
-            background: alfredGraphiteTerminalProfile.theme.background,
-            cursor: alfredGraphiteTerminalProfile.theme.cursor,
-            selectionBackground: alfredGraphiteTerminalProfile.theme.selectionBackground,
-            selectionForeground: alfredGraphiteTerminalProfile.theme.selectionForeground,
+            background: ghosttyVesperTerminalProfile.theme.background,
+            cursor: ghosttyVesperTerminalProfile.theme.cursor,
+            selectionBackground: ghosttyVesperTerminalProfile.theme.selectionBackground,
+            selectionForeground: ghosttyVesperTerminalProfile.theme.selectionForeground,
           }),
         }),
       ]),
