@@ -51,6 +51,8 @@ export type ElectronHarness = {
   expectRendererError(fragment: string): void;
   closeActiveTerminals(): Promise<void>;
   close(): Promise<void>;
+  /** Quits the app as a person would, so it saves its state, and opens it again on the same user data. */
+  restart(): Promise<{ app: ElectronApplication; page: Page }>;
 };
 
 type Fixtures = {
@@ -72,18 +74,6 @@ export const test = base.extend<Fixtures>({
       throw error;
     }
 
-    let app: ElectronApplication;
-    try {
-      app = await electron.launch({
-        args: [desktopRoot, `--user-data-dir=${paths.userData}`],
-        artifactsDir: paths.artifacts,
-        cwd: desktopRoot,
-        env: electronEnvironment(paths),
-      });
-    } catch (error) {
-      await rm(paths.root, { recursive: true, force: true });
-      throw error;
-    }
     const instrumentedPages = new WeakSet<Page>();
     const instrumentPage = (window: Page): void => {
       if (instrumentedPages.has(window)) return;
@@ -103,29 +93,50 @@ export const test = base.extend<Fixtures>({
         );
       });
     };
-    app.on("window", instrumentPage);
-    for (const window of app.windows()) instrumentPage(window);
-
-    const mainProcess = app.process();
-    mainProcess.stdout?.on("data", (chunk: Buffer) => {
-      messages.push(runtimeMessage("main-stdout", "error", chunk.toString("utf8")));
-    });
-    mainProcess.stderr?.on("data", (chunk: Buffer) => {
-      messages.push(runtimeMessage("main-stderr", "error", chunk.toString("utf8")));
-    });
-
-    let page: Page;
-    try {
-      const actualUserData = await app.evaluate(({ app: electronApp }) =>
+    const launchElectron = async (): Promise<ElectronApplication> => {
+      const launched = await electron.launch({
+        args: [desktopRoot, `--user-data-dir=${paths.userData}`],
+        artifactsDir: paths.artifacts,
+        cwd: desktopRoot,
+        env: electronEnvironment(paths),
+      });
+      launched.on("window", instrumentPage);
+      for (const window of launched.windows()) instrumentPage(window);
+      const child = launched.process();
+      child.stdout?.on("data", (chunk: Buffer) => {
+        messages.push(runtimeMessage("main-stdout", "error", chunk.toString("utf8")));
+      });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        messages.push(runtimeMessage("main-stderr", "error", chunk.toString("utf8")));
+      });
+      return launched;
+    };
+    const openFirstWindow = async (launched: ElectronApplication): Promise<Page> => {
+      const actualUserData = await launched.evaluate(({ app: electronApp }) =>
         electronApp.getPath("userData"),
       );
       expect(await realpath(actualUserData)).toBe(await realpath(paths.userData));
-      page = await app.firstWindow();
-      instrumentPage(page);
-      await page.waitForLoadState("load");
-      expect(await app.evaluate(({ BrowserWindow }) =>
+      const window = await launched.firstWindow();
+      instrumentPage(window);
+      await window.waitForLoadState("load");
+      expect(await launched.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]?.isVisible()
       )).toBe(false);
+      return window;
+    };
+
+    let app: ElectronApplication;
+    try {
+      app = await launchElectron();
+    } catch (error) {
+      await rm(paths.root, { recursive: true, force: true });
+      throw error;
+    }
+    let mainProcess = app.process();
+
+    let page: Page;
+    try {
+      page = await openFirstWindow(app);
     } catch (error) {
       const processCleanup = await stopElectronApplication(app, mainProcess.pid);
       try {
@@ -246,6 +257,19 @@ export const test = base.extend<Fixtures>({
       if (runtimeError !== null) throw runtimeError;
     };
 
+    const restart = async (): Promise<{ app: ElectronApplication; page: Page }> => {
+      // With terminals running Alfred asks before quitting; answer "Quit and stop sessions" as a person would.
+      await app.evaluate(({ dialog }) => {
+        dialog.showMessageBoxSync = () => 1;
+      });
+      const processCleanup = await stopElectronApplication(app, mainProcess.pid);
+      if (!processCleanup.clean) throw new Error(`Electron restart cleanup failed: ${JSON.stringify(processCleanup)}`);
+      app = await launchElectron();
+      mainProcess = app.process();
+      page = await openFirstWindow(app);
+      return { app, page };
+    };
+
     const close = (): Promise<void> => {
       if (closeAttempt !== null) return closeAttempt;
       closeAttempt = performClose().catch((error: unknown) => {
@@ -256,7 +280,7 @@ export const test = base.extend<Fixtures>({
     };
 
     try {
-      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, closeActiveTerminals, close });
+      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, closeActiveTerminals, close, restart });
       assertNoRuntimeErrors();
     } finally {
       if (testInfo.status !== testInfo.expectedStatus && !page.isClosed()) {

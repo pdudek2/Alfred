@@ -1131,6 +1131,20 @@ html[data-alfred-window-material="native"] .project-row.is-active {
   background: color-mix(in oklab, white 11%, transparent);
 }
 
+/* Over the native material the focused tree row takes the active row's fill, and the project above it none. */
+html[data-alfred-window-material="native"] .project-row.is-active.has-tree {
+  background: transparent;
+}
+
+html[data-alfred-window-material="native"] .session-tree-entry.is-focused,
+html[data-alfred-window-material="native"] .session-tree-entry:focus-within:not(:hover) {
+  --tree-row-bg: color-mix(in oklab, white 11%, transparent);
+}
+
+html[data-alfred-window-material="native"] .session-tree-entry:hover {
+  --tree-row-bg: color-mix(in oklab, white 14%, transparent);
+}
+
 html[data-alfred-window-material="native"] .project-session.is-active {
   background: color-mix(in oklab, var(--signal-focus) 5%, transparent);
 }
@@ -3567,7 +3581,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
 }
 
-/* Details takes the session stack's place: same column, same width, no panel of its own. */
+/* Details is the right column: one width, no panel of its own. */
 .workspace-layout.context-visible,
 .workspace-layout.surface-sessions.context-visible {
   grid-template-columns: minmax(420px, 1fr) clamp(260px, 24vw, 320px);
