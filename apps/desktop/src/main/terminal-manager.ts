@@ -221,7 +221,7 @@ const WORKER_REPLY_TIMEOUT_MS = 10_000;
 const PASTE_SUBMIT_DELAY_MS = 150;
 /** Workers an orchestrator started with its tools; only these wake it. */
 const toolStartedWorkers = new Set<string>();
-type WorkerNews = { title: string; ended: boolean; answer?: string | undefined };
+type WorkerNews = { title: string; ended: boolean };
 /** What each orchestrator has not been told yet about its workers, by worker. */
 const pendingWakes = new Map<string, Map<string, WorkerNews>>();
 const wakeTimers = new Map<string, NodeJS.Timeout>();
@@ -1545,7 +1545,7 @@ function rememberEndedWorker(session: TerminalSession): void {
 function queueWake(worker: TerminalSession, ended: boolean): void {
   if (!worker.clientId || !worker.parentClientId || !toolStartedWorkers.has(worker.clientId)) return;
   const news = pendingWakes.get(worker.parentClientId) ?? new Map<string, WorkerNews>();
-  news.set(worker.clientId, { title: worker.title, ended, answer: worker.lastAnswer });
+  news.set(worker.clientId, { title: worker.title, ended });
   pendingWakes.set(worker.parentClientId, news);
   scheduleWake(worker.parentClientId);
 }
@@ -1576,17 +1576,20 @@ function deliverWake(parentClientId: string): void {
   typeIntoAgent(orchestrator, alfredNotice(wakeText(news)));
 }
 
+/**
+ * Which workers changed, never what they wrote: a worker's answer under Alfred's label would read as Alfred's own word,
+ * so the orchestrator reads it with read_worker, as a tool result.
+ */
 function wakeText(news: Map<string, WorkerNews>): string {
   const items = [...news.entries()];
   const [onlyId, only] = items.length === 1 ? items[0]! : [];
   const head = only
-    ? `your worker "${only.title}" (${onlyId}) ${only.ended ? "has ended" : "finished its turn"}.`
+    ? `your worker ${JSON.stringify(only.title)} (${onlyId}) ${only.ended ? "has ended" : "finished its turn"}.`
     : `${items.length} of your workers changed.`;
-  const lines = items.map(([id, item]) => {
-    const answer = item.answer?.split("\n").map((line) => line.trim()).find(Boolean)?.slice(0, 200);
-    return `- "${item.title}" (${id}) ${item.ended ? "ended" : "finished its turn"}${answer ? `: ${answer}` : "."}`;
-  });
-  return [head, ...lines, "Use read_worker for a whole answer, or send_to_worker to give a worker its next message."].join("\n");
+  const lines = items.length === 1
+    ? []
+    : items.map(([id, item]) => `- ${JSON.stringify(item.title)} (${id}) ${item.ended ? "ended" : "finished its turn"}.`);
+  return [head, ...lines, "Read their answers with read_worker; send_to_worker gives a worker its next message."].join("\n");
 }
 
 function stopWorker(clientId: string): void {
