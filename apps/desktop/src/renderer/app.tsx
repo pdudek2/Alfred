@@ -34,10 +34,6 @@ import {
   type AttentionProjection,
 } from "./attention-projection";
 import {
-  ensureTileLayouts,
-  type TileLayout,
-} from "./layout-state";
-import {
   canRequestPlan,
   errored,
   idle,
@@ -82,7 +78,6 @@ import {
   removePreviewSessionCandidates,
   type PreviewUrlCandidate,
 } from "./preview-state";
-import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
@@ -139,15 +134,6 @@ type ShellActionResult = {
   error?: string;
 };
 
-function hasTileLayoutMembership(
-  sessions: SessionTile[],
-  layouts: Record<string, TileLayout>,
-): boolean {
-  const sessionIds = new Set(sessions.map((session) => session.id));
-  const layoutIds = Object.keys(layouts);
-  return sessionIds.size === layoutIds.length && layoutIds.every((id) => sessionIds.has(id));
-}
-
 type PendingDiscardConfirmation = {
   files: Array<{ path: string; status: string }>;
   sessionId: string;
@@ -169,10 +155,6 @@ const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
-  const [workModesByWorkspace, setWorkModesByWorkspace] = useState<Record<string, WorkMode>>({
-    [DEFAULT_WORKSPACE_ID]: "desk",
-  });
-  const [tileLayoutsByWorkspace, setTileLayoutsByWorkspace] = useState<Record<string, Record<string, TileLayout>>>({});
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
@@ -216,7 +198,6 @@ export function App() {
   const [previewDockOpenByWorkspace, setPreviewDockOpenByWorkspace] = useState<Record<string, boolean>>({});
   const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
   const [worktreeDiffView, setWorktreeDiffView] = useState<WorktreeDiffView | null>(null);
-  const [collapsedSessionIdsByWorkspace, setCollapsedSessionIdsByWorkspace] = useState<Record<string, string[]>>({});
   const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
   const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
@@ -270,11 +251,9 @@ export function App() {
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
-  const workTileMembershipByWorkspaceRef = useRef<Record<string, string> | null>(null);
   const workspaceStatePersistenceSkipRef = useRef<WorkspaceStateSnapshot | null>(null);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
-  const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const workSessions = terminalSessions.filter(isWorkSession);
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activeWorkSessions = workSessions.filter((session) => session.workspaceId === activeWorkspace.id);
@@ -357,63 +336,6 @@ export function App() {
   }, [terminalSessions]);
 
   useEffect(() => {
-    if (!workspaceStateHydratedRef.current || workspaceHydrationStatus.status !== "ready") return;
-
-    const workSessionsByWorkspace = new Map<string, SessionTile[]>();
-    for (const session of terminalSessions) {
-      // Drafts are not grid tiles, so they get a layout only once they launch.
-      if (!isWorkSession(session) || session.stage === "staged") continue;
-      const sessions = workSessionsByWorkspace.get(session.workspaceId) ?? [];
-      sessions.push(session);
-      workSessionsByWorkspace.set(session.workspaceId, sessions);
-    }
-
-    const workspaceIds = new Set([
-      ...workSessionsByWorkspace.keys(),
-      ...Object.keys(tileLayoutsByWorkspace),
-    ]);
-    const nextMembership = Object.fromEntries([...workspaceIds].map((workspaceId) => [
-      workspaceId,
-      (workSessionsByWorkspace.get(workspaceId) ?? []).map((session) => session.id).sort().join("\u0000"),
-    ]));
-    const previousMembership = workTileMembershipByWorkspaceRef.current;
-    workTileMembershipByWorkspaceRef.current = nextMembership;
-    if (previousMembership === null) {
-      const initialLayouts = [...workspaceIds].flatMap((workspaceId) => {
-        const sessions = workSessionsByWorkspace.get(workspaceId) ?? [];
-        const layouts = tileLayoutsByWorkspace[workspaceId] ?? {};
-        return hasTileLayoutMembership(sessions, layouts)
-          ? []
-          : [[workspaceId, ensureTileLayouts(sessions, layouts)] as const];
-      });
-      if (initialLayouts.length > 0) {
-        setTileLayoutsByWorkspace((current) => ({ ...current, ...Object.fromEntries(initialLayouts) }));
-      }
-      return;
-    }
-
-    const changes = [...workspaceIds].flatMap((workspaceId) => {
-      if (previousMembership[workspaceId] === nextMembership[workspaceId]) return [];
-      const sessions = workSessionsByWorkspace.get(workspaceId) ?? [];
-      const layouts = tileLayoutsByWorkspace[workspaceId] ?? {};
-      if (hasTileLayoutMembership(sessions, layouts)) return [];
-      return [{ workspaceId, layouts: ensureTileLayouts(sessions, layouts) }];
-    });
-
-    if (changes.length === 0) return;
-
-    setTileLayoutsByWorkspace((current) => ({
-      ...current,
-      ...Object.fromEntries(changes.map(({ workspaceId, layouts }) => [workspaceId, layouts])),
-    }));
-
-    const layoutApi = getDesktopLayoutApi();
-    for (const { workspaceId, layouts } of changes) {
-      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts });
-    }
-  }, [terminalSessions, tileLayoutsByWorkspace, workspaceHydrationStatus.status]);
-
-  useEffect(() => {
     const previousStatuses = announcedSessionStatusesRef.current;
     const nextStatuses = new Map<string, string>();
     let nextAnnouncement: string | null = null;
@@ -483,16 +405,15 @@ export function App() {
     setActiveSurface("work");
     showTerminalInWorkspace(addedSession.workspaceId);
     setActiveWorkspaceId(addedSession.workspaceId);
-    const targetWorkMode = workModesByWorkspace[addedSession.workspaceId] ?? "desk";
     setSelectedSessionIdsByWorkspace((current) => ({
       ...current,
       [addedSession.workspaceId]: addedSession.id,
     }));
     void layoutApi?.setWorkspaceViewState({
       workspaceId: addedSession.workspaceId,
-      viewState: { workMode: targetWorkMode, selectedSessionId: addedSession.id },
+      viewState: { selectedSessionId: addedSession.id },
     });
-  }, [showTerminalInWorkspace, workModesByWorkspace]);
+  }, [showTerminalInWorkspace]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared", workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string) => {
     if (workspace.rootStatus === "missing") return;
@@ -636,10 +557,7 @@ export function App() {
 
     setWorkspaces(remainingWorkspaces);
     setActiveWorkspaceId(nextActiveWorkspaceId);
-    setTileLayoutsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-    setWorkModesByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-    setCollapsedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setContextDrawerOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
@@ -653,23 +571,14 @@ export function App() {
   }, [activeWorkspace.id, canCloseActiveWorkspace, workspaces]);
 
   const persistActiveWorkspaceViewState = useCallback((patch: WorkspaceViewState = {}) => {
-    const layoutApi = getDesktopLayoutApi();
-    const collapsedSessionIds = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
-    void layoutApi?.setWorkspaceViewState({
+    void getDesktopLayoutApi()?.setWorkspaceViewState({
       workspaceId: activeWorkspace.id,
       viewState: {
-        workMode: activeWorkMode,
         ...(activeSelectedSessionId === null ? {} : { selectedSessionId: activeSelectedSessionId }),
-        ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
         ...patch,
       },
     });
-  }, [
-    activeSelectedSessionId,
-    activeWorkMode,
-    activeWorkspace.id,
-    collapsedSessionIdsByWorkspace,
-  ]);
+  }, [activeSelectedSessionId, activeWorkspace.id]);
 
   const handleToggleContextDrawer = useCallback(() => {
     const nextOpen = !activeContextDrawerOpen;
@@ -885,29 +794,6 @@ export function App() {
     persistActiveWorkspaceViewState({ previewDockOpen: true });
   }, [activePreviewDockOpen, activeWorkspace.id, handleClosePreviewDock, persistActiveWorkspaceViewState, previewVisible]);
 
-  const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
-    const layoutApi = getDesktopLayoutApi();
-    const viewStateChanged =
-      activeWorkMode !== mode || (selectedSessionId !== null && activeSelectedSessionId !== selectedSessionId);
-
-    setWorkModesByWorkspace((current) => {
-      if ((current[activeWorkspace.id] ?? "desk") === mode) return current;
-      return {
-        ...current,
-        [activeWorkspace.id]: mode,
-      };
-    });
-    if (viewStateChanged) {
-      void layoutApi?.setWorkspaceViewState({
-        workspaceId: activeWorkspace.id,
-        viewState: {
-          workMode: mode,
-          ...(selectedSessionId === null ? {} : { selectedSessionId }),
-        },
-      });
-    }
-  }, [activeSelectedSessionId, activeWorkMode, activeWorkspace.id]);
-
   const handleSelectSession = useCallback((sessionId: string) => {
     if (selectedSessionIdsByWorkspace[activeWorkspace.id] === sessionId) return;
 
@@ -918,9 +804,9 @@ export function App() {
     });
     void layoutApi?.setWorkspaceViewState({
       workspaceId: activeWorkspace.id,
-      viewState: { workMode: activeWorkMode, selectedSessionId: sessionId },
+      viewState: { selectedSessionId: sessionId },
     });
-  }, [activeWorkMode, activeWorkspace.id, selectedSessionIdsByWorkspace]);
+  }, [activeWorkspace.id, selectedSessionIdsByWorkspace]);
 
   const handleAddManualSession = useCallback((workspace: Workspace = activeWorkspace, parentSessionId?: string) => {
     if (workspace.rootStatus === "missing") return;
@@ -953,8 +839,13 @@ export function App() {
         [activeWorkspace.id]: sessionId,
       };
     });
-    handleApplyWorkMode("focus", sessionId);
-  }, [activeWorkspace.id, handleApplyWorkMode, showTerminalInWorkspace]);
+    if (selectedSessionIdsByWorkspace[activeWorkspace.id] !== sessionId) {
+      void getDesktopLayoutApi()?.setWorkspaceViewState({
+        workspaceId: activeWorkspace.id,
+        viewState: { selectedSessionId: sessionId },
+      });
+    }
+  }, [activeWorkspace.id, selectedSessionIdsByWorkspace, showTerminalInWorkspace]);
   // The deck links to History for this project and for what Alfred ran here: ended sessions can be
   // resumed too, not only asleep ones.
   const openProjectHistory = useCallback((selectedSessionKey: string | null = null) => {
@@ -1017,7 +908,6 @@ export function App() {
     );
     if (!targetExists) return;
 
-    const workMode = workModesByWorkspace[workspaceId] ?? "desk";
     setActiveSurface("work");
     setActiveWorkspaceId(workspaceId);
     setSelectedSessionIdsByWorkspace((current) =>
@@ -1025,10 +915,10 @@ export function App() {
     );
     void getDesktopLayoutApi()?.setWorkspaceViewState({
       workspaceId,
-      viewState: { workMode, selectedSessionId: sessionId },
+      viewState: { selectedSessionId: sessionId },
     });
     void refreshLiveSessions();
-  }, [refreshLiveSessions, workModesByWorkspace]);
+  }, [refreshLiveSessions]);
 
   const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
     const targetExists = terminalSessionsRef.current.some((session) => (
@@ -1037,9 +927,7 @@ export function App() {
     if (!targetExists) return;
 
     const layoutApi = getDesktopLayoutApi();
-    const viewStateChanged =
-      (workModesByWorkspace[workspaceId] ?? "desk") !== "focus" ||
-      selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
+    const viewStateChanged = selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
 
     setActiveSurface("work");
     showTerminalInWorkspace(workspaceId);
@@ -1052,17 +940,10 @@ export function App() {
         [workspaceId]: sessionId,
       });
     }
-    setWorkModesByWorkspace((current) => {
-      if ((current[workspaceId] ?? "desk") === "focus") return current;
-      return {
-        ...current,
-        [workspaceId]: "focus",
-      };
-    });
     if (viewStateChanged) {
       void layoutApi?.setWorkspaceViewState({
         workspaceId,
-        viewState: { workMode: "focus", selectedSessionId: sessionId },
+        viewState: { selectedSessionId: sessionId },
       });
     }
     void refreshLiveSessions();
@@ -1071,7 +952,6 @@ export function App() {
     refreshLiveSessions,
     selectedSessionIdsByWorkspace,
     showTerminalInWorkspace,
-    workModesByWorkspace,
   ]);
 
   useEffect(() => {
@@ -2485,8 +2365,6 @@ export function App() {
     let cancelled = false;
 
     workspaceStateHydratedRef.current = false;
-    workTileMembershipByWorkspaceRef.current = null;
-
     if (!terminalApi) {
       setTerminalSessions([]);
       setWorkspaceHydrationStatus({ status: "ready" });
@@ -2495,10 +2373,7 @@ export function App() {
 
     setWorkspaceHydrationStatus({ status: "loading" });
 
-    const emptyLayouts: WorkspaceLayoutsSnapshot = {
-      layoutsByWorkspace: {},
-      viewStateByWorkspace: {},
-    };
+    const emptyLayouts: WorkspaceLayoutsSnapshot = { viewStateByWorkspace: {} };
 
     Promise.all([
       terminalApi.list(),
@@ -2511,15 +2386,6 @@ export function App() {
         if (cancelled) return;
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
-        setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
-        setWorkModesByWorkspace({
-          [DEFAULT_WORKSPACE_ID]: "desk",
-          ...Object.fromEntries(
-            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
-              viewState.workMode ? [[workspaceId, viewState.workMode]] : [],
-            ),
-          ),
-        });
         const hydratedSelectedSessionIds = Object.fromEntries(
           Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
             viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
@@ -2529,13 +2395,6 @@ export function App() {
           ...hydratedSelectedSessionIds,
           ...current,
         }));
-        setCollapsedSessionIdsByWorkspace(
-          Object.fromEntries(
-            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
-              viewState.collapsedSessionIds?.length ? [[workspaceId, viewState.collapsedSessionIds]] : [],
-            ),
-          ),
-        );
         setPreviewDockOpenByWorkspace(
           Object.fromEntries(
             Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>

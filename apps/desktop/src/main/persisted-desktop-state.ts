@@ -3,12 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText, redactUnknown } from "@alfred/schema";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import type {
-  DispatchTargetSnapshot,
-  TileLayout,
-  WorkspaceViewState,
-  WorkMode,
-} from "../shared/layout-ipc.js";
+import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
   SessionActivityEvent,
   SessionActivityEventKind,
@@ -57,7 +52,6 @@ export type DesktopWindowState = {
 };
 
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
-  layoutsByWorkspace: Record<string, Record<string, TileLayout>>;
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
   stagedPlans: Record<string, AlfredStagedPlanSnapshot>;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
@@ -114,7 +108,6 @@ export const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
 export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   workspaces: [DEFAULT_WORKSPACE],
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
-  layoutsByWorkspace: {},
   viewStateByWorkspace: {},
   stagedPlans: {},
   restoredTerminalSessions: [],
@@ -274,7 +267,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
   return {
     workspaces,
     activeWorkspaceId,
-    layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
+    // Builds before the retired tile grid was removed also saved layoutsByWorkspace and a work mode; both are dropped.
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     stagedPlans: normalizeStagedPlans(value.stagedPlans, value.stagedPlan, activeWorkspaceId),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions, privacySettings),
@@ -365,51 +358,13 @@ function normalizeMissionLine(value: unknown, maxLength: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-function normalizeLayoutsByWorkspace(value: unknown): Record<string, Record<string, TileLayout>> {
-  if (!isRecord(value)) return {};
-
-  const layoutsByWorkspace: Record<string, Record<string, TileLayout>> = {};
-
-  for (const [workspaceId, rawLayouts] of Object.entries(value)) {
-    if (!workspaceId.trim() || !isRecord(rawLayouts)) continue;
-    const layouts: Record<string, TileLayout> = {};
-
-    for (const [tileId, rawLayout] of Object.entries(rawLayouts)) {
-      if (!isRecord(rawLayout)) continue;
-      if (
-        typeof rawLayout.tileId !== "string" ||
-        typeof rawLayout.col !== "number" ||
-        typeof rawLayout.row !== "number" ||
-        typeof rawLayout.colSpan !== "number" ||
-        typeof rawLayout.rowSpan !== "number"
-      ) {
-        continue;
-      }
-
-      layouts[tileId] = {
-        tileId: rawLayout.tileId,
-        col: rawLayout.col,
-        row: rawLayout.row,
-        colSpan: rawLayout.colSpan,
-        rowSpan: rawLayout.rowSpan,
-      };
-    }
-
-    layoutsByWorkspace[workspaceId] = layouts;
-  }
-
-  return layoutsByWorkspace;
-}
-
 function normalizeViewStateByWorkspace(value: unknown): Record<string, WorkspaceViewState> {
   if (!isRecord(value)) return {};
 
   const viewStateByWorkspace: Record<string, WorkspaceViewState> = {};
   for (const [workspaceId, rawViewState] of Object.entries(value)) {
     if (!workspaceId.trim() || !isRecord(rawViewState)) continue;
-    const collapsedSessionIds = normalizeStringList(rawViewState.collapsedSessionIds);
     const dispatchTarget = normalizeDispatchTarget(rawViewState.dispatchTarget);
-    const workMode = normalizeWorkMode(rawViewState.workMode);
     const previewDockOpen = typeof rawViewState.previewDockOpen === "boolean"
       ? rawViewState.previewDockOpen
       : undefined;
@@ -418,29 +373,15 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
         ? rawViewState.selectedSessionId.trim()
         : undefined;
 
-    if (
-      !collapsedSessionIds.length &&
-      !dispatchTarget &&
-      previewDockOpen === undefined &&
-      !workMode &&
-      !selectedSessionId
-    ) {
-      continue;
-    }
+    if (!dispatchTarget && previewDockOpen === undefined && !selectedSessionId) continue;
     viewStateByWorkspace[workspaceId] = {
-      ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
       ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
       ...(previewDockOpen === undefined ? {} : { previewDockOpen }),
-      ...(workMode === undefined ? {} : { workMode }),
       ...(selectedSessionId === undefined ? {} : { selectedSessionId }),
     };
   }
 
   return viewStateByWorkspace;
-}
-
-function normalizeWorkMode(value: unknown): WorkMode | undefined {
-  return value === "desk" || value === "focus" || value === "split" ? value : undefined;
 }
 
 function normalizeDispatchTarget(value: unknown): DispatchTargetSnapshot | undefined {
@@ -450,20 +391,6 @@ function normalizeDispatchTarget(value: unknown): DispatchTargetSnapshot | undef
   const label = typeof value.label === "string" ? value.label.trim() : "";
   if (!kind || !id || !label) return undefined;
   return { kind, id, label };
-}
-
-function normalizeStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-  for (const item of value) {
-    if (typeof item !== "string") continue;
-    const trimmed = item.trim();
-    if (!trimmed || seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    normalized.push(trimmed);
-  }
-  return normalized;
 }
 
 function normalizeStagedPlans(
@@ -862,12 +789,6 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
       ...(workspace.missionBrief ? { missionBrief: cloneMissionBrief(workspace.missionBrief) } : {}),
     })),
     activeWorkspaceId: state.activeWorkspaceId,
-    layoutsByWorkspace: Object.fromEntries(
-      Object.entries(state.layoutsByWorkspace).map(([workspaceId, layouts]) => [
-        workspaceId,
-        Object.fromEntries(Object.entries(layouts).map(([tileId, layout]) => [tileId, { ...layout }])),
-      ]),
-    ),
     viewStateByWorkspace: Object.fromEntries(
       Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
