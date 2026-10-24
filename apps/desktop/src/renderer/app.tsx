@@ -536,7 +536,15 @@ export function App() {
         parent.id,
       );
       const generated = added.at(-1)!;
-      const worker = { ...generated, title: normalizeSessionTitle(request.title ?? "") || generated.title };
+      // The orchestrator's model and effort, as each CLI takes them; main has checked the values.
+      const flags = request.agent === "claude"
+        ? [...(request.model ? ["--model", request.model] : []), ...(request.effort ? ["--effort", request.effort] : [])]
+        : [...(request.model ? ["-m", request.model] : []), ...(request.effort ? ["-c", `model_reasoning_effort="${request.effort}"`] : [])];
+      const worker = {
+        ...generated,
+        args: [...flags, ...(generated.args ?? [])],
+        title: normalizeSessionTitle(request.title ?? "") || generated.title,
+      };
       const nextSessions = [...added.slice(0, -1), worker];
       terminalSessionsRef.current = nextSessions;
       setTerminalSessions(nextSessions);

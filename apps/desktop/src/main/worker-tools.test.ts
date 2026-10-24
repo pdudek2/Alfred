@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  alfredNotice,
   createWorkerTools,
   MAX_LIVE_WORKERS,
+  orchestratorMessage,
+  typedPromptSource,
   workerState,
   WorkerToolError,
   type WorkerHost,
@@ -15,11 +18,13 @@ const idle: WorkerTurn = { lastPrompt: 0, lastTurnEnd: 0, waitingApproval: false
 function fakeHost(workers: WorkerRecord[] = []) {
   const listeners = new Set<() => void>();
   const sent: Array<[string, string]> = [];
+  const stopped: string[] = [];
+  const seen: string[][] = [];
   const host: WorkerHost = {
     caller: (sessionId) => {
-      if (sessionId === "lead-session") return { clientId: "claude-1", isAgent: true, isWorker: false };
-      if (sessionId === "worker-session") return { clientId: "codex-1", isAgent: true, isWorker: true };
-      if (sessionId === "shell-session") return { clientId: "manual-1", isAgent: false, isWorker: false };
+      if (sessionId === "lead-session") return { clientId: "claude-1", title: "Lead", isAgent: true, isWorker: false };
+      if (sessionId === "worker-session") return { clientId: "codex-1", title: "Codex", isAgent: true, isWorker: true };
+      if (sessionId === "shell-session") return { clientId: "manual-1", title: "zsh", isAgent: false, isWorker: false };
       return undefined;
     },
     workersOf: (parent) => (parent === "claude-1" ? workers : []),
@@ -33,12 +38,18 @@ function fakeHost(workers: WorkerRecord[] = []) {
       const worker = workers.find((candidate) => candidate.clientId === clientId)!;
       worker.turn = { ...worker.turn, lastPrompt: worker.turn.lastTurnEnd + 1 };
     },
+    stop: (clientId) => {
+      stopped.push(clientId);
+    },
+    markSeen: (_parent, ids) => {
+      seen.push(ids);
+    },
     onChange: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
   };
-  return { host, sent, workers, changed: () => listeners.forEach((listener) => listener()), listeners };
+  return { host, sent, stopped, seen, workers, changed: () => listeners.forEach((listener) => listener()), listeners };
 }
 
 function worker(clientId: string, turn: Partial<WorkerTurn> = {}, extra: Partial<WorkerRecord> = {}): WorkerRecord {
@@ -169,12 +180,59 @@ describe("worker tools", () => {
     const tools = createWorkerTools(host);
     await expect(tools.call("lead-session", "send_to_worker", { worker_id: "codex-1", message: "Now fix the lint." }))
       .resolves.toEqual({ worker_id: "codex-1", sent: true, state: "working" });
-    expect(sent).toEqual([["codex-1", "Now fix the lint."]]);
+    // The worker reads who wrote it: its orchestrator, not the user.
+    expect(sent).toEqual([["codex-1", orchestratorMessage("Lead", "Now fix the lint.")]]);
+    expect(sent[0]![1]).toBe('Message from your orchestrator, Alfred session "Lead" (not from the user):\n\nNow fix the lint.');
     // The same worker is busy now, so a second message cannot be typed over the first.
     await expect(tools.call("lead-session", "send_to_worker", { worker_id: "codex-1", message: "Again" })).rejects.toThrow(/is working/);
     await expect(tools.call("lead-session", "send_to_worker", { worker_id: "codex-2", message: "x" })).rejects.toThrow(/still starting/);
     await expect(tools.call("lead-session", "send_to_worker", { worker_id: "codex-4", message: "x" })).rejects.toThrow(/cannot answer that/);
     await expect(tools.call("lead-session", "send_to_worker", { worker_id: "codex-5", message: "x" })).rejects.toThrow(/has ended/);
     expect(sent).toHaveLength(1);
+  });
+
+  it("starts a worker on the model and effort the orchestrator names, checked for that agent", async () => {
+    const { host } = fakeHost();
+    const tools = createWorkerTools(host);
+    await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: "x", model: "gpt-6.1-sol", effort: "medium" }))
+      .resolves.toMatchObject({ model: "gpt-6.1-sol", effort: "medium" });
+    expect(host.startWorker).toHaveBeenLastCalledWith("claude-1", { agent: "codex", prompt: "x", isolated: false, model: "gpt-6.1-sol", effort: "medium" });
+    await expect(tools.call("lead-session", "start_worker", { agent: "claude", prompt: "x", model: "claude-opus-5-5[1m]", effort: "max" }))
+      .resolves.toMatchObject({ model: "claude-opus-5-5[1m]", effort: "max" });
+    // Codex has no "max", Claude no "minimal"; a model name cannot carry an option.
+    await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: "x", effort: "max" })).rejects.toThrow(/effort must be one of minimal/);
+    await expect(tools.call("lead-session", "start_worker", { agent: "claude", prompt: "x", effort: "minimal" })).rejects.toThrow(/effort must be one of low/);
+    await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: "x", model: "--yolo" })).rejects.toThrow(/model must be/);
+    expect(host.startWorker).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops a worker it has, once", async () => {
+    const { host, stopped } = fakeHost([worker("codex-1", { lastPrompt: 1 }), worker("codex-2", { exited: true })]);
+    const tools = createWorkerTools(host);
+    await expect(tools.call("lead-session", "stop_worker", { worker_id: "codex-1" })).resolves.toEqual({ worker_id: "codex-1", stopped: true });
+    await expect(tools.call("lead-session", "stop_worker", { worker_id: "codex-2" })).rejects.toThrow(/already ended/);
+    await expect(tools.call("lead-session", "stop_worker", { worker_id: "claude-9" })).rejects.toThrow(/No worker of yours/);
+    expect(stopped).toEqual(["codex-1"]);
+  });
+
+  it("tells Alfred which workers the orchestrator has read, so it is not woken about them", async () => {
+    const { host, seen } = fakeHost([worker("codex-1", { lastPrompt: 1, lastTurnEnd: 2 }), worker("codex-2")]);
+    const tools = createWorkerTools(host);
+    await tools.call("lead-session", "list_workers", {});
+    await tools.call("lead-session", "read_worker", { worker_id: "codex-2" });
+    await tools.call("lead-session", "wait_for_worker", { worker_id: "codex-1" });
+    expect(seen).toEqual([["codex-1", "codex-2"], ["codex-2"], ["codex-1"]]);
+  });
+});
+
+describe("text Alfred types into an agent", () => {
+  it("reads back who wrote a prompt from its label", () => {
+    expect(typedPromptSource(orchestratorMessage("Lead", "Now fix the lint.\nThen push."))).toEqual({
+      title: "Orchestrator asked", text: "Now fix the lint.\nThen push.",
+    });
+    expect(typedPromptSource(alfredNotice('your worker "Typecheck" (codex-1) finished its turn.'))).toEqual({
+      title: "Alfred reported", text: 'your worker "Typecheck" (codex-1) finished its turn.',
+    });
+    expect(typedPromptSource("Fix the build")).toBeUndefined();
   });
 });
