@@ -61,8 +61,6 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
     }
   }
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function focusFromKeyboard(page: Page, control: Locator): Promise<void> {

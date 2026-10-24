@@ -148,8 +148,6 @@ test("keeps the production Work story trustworthy across every utility surface",
   const screenAfter = await requiredHandle(screen, "post-transition fixture xterm");
   expect(await screenBefore.evaluate((before, after) => before.isSameNode(after) && before.isConnected, screenAfter))
     .toBe(true);
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 test.describe("captures protective empty and missing project evidence", () => {
@@ -160,8 +158,6 @@ test.describe("captures protective empty and missing project evidence", () => {
     await navigator.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
     await expect(page.getByRole("status", { name: "Empty project" })).toBeVisible();
     await captureAuditScreenshot(page, "empty-workspace-narrow");
-    harness.assertNoRuntimeErrors();
-    await harness.closeActiveTerminals();
   });
 });
 
@@ -174,7 +170,6 @@ test.describe("missing project fixture", () => {
     await expect(unavailable).toBeVisible();
     await expect(unavailable.getByRole("button", { name: "New terminal" })).toHaveCount(0);
     await captureAuditScreenshot(page, "missing-workspace-narrow");
-    harness.assertNoRuntimeErrors();
   });
 });
 

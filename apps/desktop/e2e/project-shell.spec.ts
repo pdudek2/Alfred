@@ -212,7 +212,6 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     contentType: "image/png",
   });
 
-  await harness.closeActiveTerminals();
 });
 
 async function seedProjectShellTerminals(page: Page, workspaceACwd: string): Promise<void> {

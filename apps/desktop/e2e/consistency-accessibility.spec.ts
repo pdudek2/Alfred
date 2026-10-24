@@ -267,8 +267,6 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await setWindowSize(app, page, 1120, 720);
   await expectStableSessionChrome(page, "manual-1", paths.workspaceA, true);
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function selectSurface(

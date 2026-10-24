@@ -14,7 +14,6 @@ import type { AlfredStagedPlanSnapshot } from "../../src/shared/alfred-ipc";
 import type { PersistedTerminalSessionSnapshot } from "../../src/shared/terminal-ipc";
 import {
   writeCodexSummaryFixtures,
-  writeLargeCodexTranscriptFixture,
   writeMixedCodexSessionFixtures,
 } from "../../src/test-support/codex-session-fixtures";
 
@@ -32,7 +31,6 @@ export type DesktopStateFixtureOptions = {
   unsafeRecoveryItem?: number;
   externalSessionFixture?: "mixed";
   externalSessionSummaryCount?: number;
-  largeExternalTranscript?: boolean;
   missingWorkspaceId?: "A" | "B";
 };
 
@@ -230,8 +228,7 @@ export async function createDesktopFixture(
         terminalScrollbackRetention: "redactedTail",
         externalSessionIndexingEnabled:
           options.externalSessionFixture !== undefined
-          || options.externalSessionSummaryCount !== undefined
-          || options.largeExternalTranscript === true,
+          || options.externalSessionSummaryCount !== undefined,
       },
     };
 
@@ -245,9 +242,6 @@ export async function createDesktopFixture(
     }
     if (options.externalSessionSummaryCount !== undefined) {
       await writeCodexSummaryFixtures(codexHome, options.externalSessionSummaryCount, paths.workspaceA);
-    }
-    if (options.largeExternalTranscript) {
-      await writeLargeCodexTranscriptFixture(codexHome);
     }
 
     if (state.version !== DESKTOP_STATE_VERSION) throw new Error("Fixture state version drifted.");

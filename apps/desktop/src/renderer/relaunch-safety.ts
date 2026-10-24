@@ -59,10 +59,6 @@ export function sessionRelaunchSafety(
   return { safe: true };
 }
 
-export function relaunchNeedsReview(session: Pick<SessionTile, "agentKind" | "args" | "command" | "source">): boolean {
-  return !sessionRelaunchSafety(session).safe;
-}
-
 function isForcePush(command: string, args: string[]): boolean {
   return command === "git" && args[0] === "push" && args.some(isForcePushFlag);
 }
