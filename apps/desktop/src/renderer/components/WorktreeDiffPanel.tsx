@@ -31,8 +31,8 @@ export function WorktreeDiffPanel({
     <section className="worktree-diff-panel" role="region" aria-label="Worktree diff">
       <header className="worktree-diff-panel__header">
         <div>
-          <h2>Last review</h2>
-          <p>{view.sessionTitle}</p>
+          <h2>{view.sessionTitle}</h2>
+          <p>Changes in its isolated checkout</p>
         </div>
         <button ref={closeRef} type="button" onClick={() => onClose("button")}>
           {view.status === "error" ? "Back to terminal" : "Close diff"}
@@ -51,6 +51,8 @@ export function WorktreeDiffPanel({
 
 function ReadyDiff({ view }: { view: Extract<WorktreeDiffView, { status: "ready" }> }) {
   const parsed = useMemo(() => parseUnifiedDiff(view.result.patch), [view.result.patch]);
+  // Git's own header lines repeat the file row above them.
+  const lines = parsed.lines.filter((line) => line.kind !== "meta");
   const hasUntrackedFiles = view.result.files.some((file) => file.status === "??");
 
   return (
@@ -72,9 +74,9 @@ function ReadyDiff({ view }: { view: Extract<WorktreeDiffView, { status: "ready"
       ) : (
         <p className="worktree-diff-panel__empty">No changed files in this checkout.</p>
       )}
-      {parsed.lines.length > 0 ? (
+      {lines.length > 0 ? (
         <div className="worktree-diff-panel__code" role="table" aria-label="Unified diff">
-          {parsed.lines.map((line, index) => (
+          {lines.map((line, index) => (
             <div
               className={`worktree-diff-panel__line is-${line.kind} kind-${line.kind}`}
               role="row"
@@ -102,6 +104,5 @@ function diffLineLabel(line: WorktreeDiffLine): string {
   if (line.kind === "add") return `Added line ${line.newLine}`;
   if (line.kind === "remove") return `Removed line ${line.oldLine}`;
   if (line.kind === "context") return `Unchanged line ${line.newLine}`;
-  if (line.kind === "hunk") return "Diff hunk";
-  return "Diff metadata";
+  return "Diff hunk";
 }
