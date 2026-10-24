@@ -2260,7 +2260,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-primary);
 }
 
-/* Clearing is destructive and stays achromatic; it asks once more before it runs. */
+/* An action outlined where it acts. */
 .privacy-action-button {
   box-shadow: inset 0 0 0 1px var(--border-strong);
   color: var(--text-primary);
@@ -2430,10 +2430,18 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   font-weight: 500;
 }
 
-/* Destructive actions stay achromatic; the dialog itself is the confirmation. */
-.discard-checkout-actions .discard-checkout-danger {
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-  color: var(--text-primary);
+/* Destructive actions are red text, as Discard on the History board; each one asks once more before it runs. */
+.discard-checkout-actions .discard-checkout-danger,
+.privacy-action-row .danger {
+  box-shadow: none;
+  background: transparent;
+  color: var(--signal-danger);
+}
+
+.discard-checkout-actions .discard-checkout-danger:hover,
+.privacy-action-row .danger:hover {
+  background: var(--signal-danger-soft);
+  color: var(--signal-danger);
 }
 
 .command-palette {
