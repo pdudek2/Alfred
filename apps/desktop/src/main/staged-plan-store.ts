@@ -16,6 +16,7 @@ import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 type StagedPlans = Record<string, AlfredStagedPlanSnapshot>;
 let stagedPlans: StagedPlans = {};
 let mutationQueue: Promise<unknown> = Promise.resolve();
+let sessionEditQueue: Promise<unknown> = Promise.resolve();
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 
 export function configureStagedPlanPersistence(store: PersistedDesktopStateStore): void {
@@ -80,13 +81,29 @@ export async function updateStagedPlanSession(
   const invalidRequest = validateUpdateRequest(request);
   if (invalidRequest) return { ok: false, error: invalidRequest };
 
-  let result: AlfredStagedPlanSessionUpdateResponse = {
-    ok: false, error: notFoundError("Staged plan is no longer available."),
-  };
-  await updatePlans(async (plans) => {
-    const plan = Object.values(plans).find((item) => item.id === request.planId) ?? null;
-    result = await applyStagedPlanSessionUpdate(plan, request, options.preflightOptions ?? {});
-    return result.ok ? { ...plans, [result.plan.workspaceId]: cloneExistingPlan(result.plan) } : plans;
+  // Edits wait for each other, not in the state file's queue: the preflight runs a shell and git, which can take
+  // seconds in a large repository, and every terminal and window save goes through that queue.
+  const operation = sessionEditQueue.then(() => editStagedPlanSession(request, options.preflightOptions ?? {}));
+  sessionEditQueue = operation.catch(() => undefined);
+  return operation;
+}
+
+async function editStagedPlanSession(
+  request: AlfredStagedPlanSessionUpdateRequest,
+  preflightOptions: AlfredLaunchPreflightOptions,
+): Promise<AlfredStagedPlanSessionUpdateResponse> {
+  const before = (await getStagedPlansSnapshot()).plans.find((plan) => plan.id === request.planId) ?? null;
+  const edited = await applyStagedPlanSessionUpdate(before, request, preflightOptions);
+  if (!edited.ok) return edited;
+  let result: AlfredStagedPlanSessionUpdateResponse = edited;
+  await updatePlans((plans) => {
+    const current = Object.values(plans).find((plan) => plan.id === request.planId);
+    // A new plan or a launch changed it while the edit was preflighted.
+    if (JSON.stringify(current && cloneExistingPlan(current)) !== JSON.stringify(before)) {
+      result = { ok: false, error: notFoundError("The staged plan has changed. Refresh before editing this session.") };
+      return plans;
+    }
+    return { ...plans, [edited.plan.workspaceId]: cloneExistingPlan(edited.plan) };
   });
   return result;
 }
@@ -125,6 +142,7 @@ export function resetStagedPlanPersistence(): void {
   persistedStateStore = null;
   stagedPlans = {};
   mutationQueue = Promise.resolve();
+  sessionEditQueue = Promise.resolve();
 }
 
 async function applyStagedPlanSessionUpdate(

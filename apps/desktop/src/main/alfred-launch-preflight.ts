@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
@@ -15,6 +16,7 @@ type PreflightAgentWorktree = typeof defaultPreflightAgentWorktree;
 
 export type AlfredLaunchPreflightOptions = {
   commandExists?: (command: string) => Promise<boolean>;
+  directoryExists?: (path: string) => Promise<boolean>;
   preflightAgentWorktree?: PreflightAgentWorktree;
 };
 
@@ -71,6 +73,19 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
         "cwd_outside_workspace",
         "Workspace mismatch",
         "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+      ),
+    };
+  }
+
+  // The planner guesses a session's folder, and an edited draft can misspell it; a terminal cannot start there.
+  const directoryExists = options.directoryExists ?? defaultDirectoryExists;
+  if (normalizedSession.cwd && cwd !== path.resolve(workspace.rootPath) && !(await directoryExists(cwd))) {
+    return {
+      ...normalizedSession,
+      launchPreflight: blockedPreflight(
+        "cwd_missing",
+        "Folder missing",
+        `${normalizedSession.cwd} is not a folder in this project.`,
       ),
     };
   }
@@ -175,6 +190,10 @@ function resolveSessionCwd(sessionCwd: string | undefined, workspaceRoot: string
   }
 
   return candidate;
+}
+
+async function defaultDirectoryExists(folder: string): Promise<boolean> {
+  return (await stat(folder).catch(() => null))?.isDirectory() ?? false;
 }
 
 async function defaultCommandExists(command: string): Promise<boolean> {
