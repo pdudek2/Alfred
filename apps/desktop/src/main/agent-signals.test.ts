@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   isTerminalReport,
   isShellProcess,
   parseOsc9,
+  removeOrphanedSockets,
   signalFromHook,
   signalFromOsc9,
   type AgentSignalBridge,
@@ -18,6 +19,20 @@ describe("isShellProcess", () => {
   it("recognizes shells, login shells and nested shells, and nothing else", () => {
     for (const name of ["zsh", "-zsh", "bash", "/bin/fish", "sh"]) expect(isShellProcess(name)).toBe(true);
     for (const name of ["sleep", "vim", "node", "2.1.285", "Python", ""]) expect(isShellProcess(name)).toBe(false);
+  });
+});
+
+describe("removeOrphanedSockets", () => {
+  it("removes the sockets of Alfred processes that are gone and keeps the rest", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    const gone = "alfred-2000000000-0a1b2c.sock";
+    const running = `alfred-${process.pid}-0a1b2c.sock`;
+    for (const name of [gone, running, "alfred-notes.txt", "other-1-0a1b2c.sock"]) await writeFile(path.join(dir, name), "");
+
+    await removeOrphanedSockets(dir);
+
+    expect((await readdir(dir)).sort()).toEqual([running, "alfred-notes.txt", "other-1-0a1b2c.sock"].sort());
+    await rm(dir, { force: true, recursive: true });
   });
 });
 
@@ -225,6 +240,25 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     });
     await expect.poll(() => received.length).toBe(1);
     expect(received[0]).toEqual(["session-1", { state: "needs-you", detail: "Bash: ls" }]);
+  });
+
+  it("delivers an approval for a large file through the relay", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
+    const received: AgentSignalUpdate[] = [];
+    bridge!.setListener((_sessionId, update) => received.push(update));
+    const settings = JSON.parse(await readFile(bridge!.launchArgs("claude")[1]!, "utf8")) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      const child = execFile("sh", ["-c", settings.hooks.PermissionRequest![0]!.hooks[0]!.command], {
+        env: { ...process.env, ...bridge!.env("session-1") },
+      }, (error) => (error ? reject(error) : resolve()));
+      child.stdin!.end(JSON.stringify({ tool_name: "Write", tool_input: { file_path: "/repo/big.json", content: "x".repeat(1_200_000) } }));
+    });
+    await expect.poll(() => received.length).toBe(1);
+    expect(received[0]).toEqual({ state: "needs-you", detail: "Write: /repo/big.json" });
   });
 
   it("exits cleanly when Alfred is not listening", async () => {

@@ -54,6 +54,19 @@ describe("session activity classifier", () => {
     });
   });
 
+  it("carries only the opener of an oversized OSC sequence, so each chunk is scanned once", () => {
+    let state = classifyTerminalOutputChunk({ carry: "" }, "\u001b]1337;File=inline=1:").state;
+    for (let index = 0; index < 8; index += 1) {
+      state = classifyTerminalOutputChunk(state, "A".repeat(1_024)).state;
+      expect(state.terminalControlCarry!.length).toBeLessThanOrEqual(4_096);
+    }
+    // The ESC of the ESC \ terminator ends one chunk and the backslash starts the next.
+    state = classifyTerminalOutputChunk(state, `${"A".repeat(1_024)}\u001b`).state;
+    expect(classifyTerminalOutputChunk(state, "\\Error: build failed\n").activities).toEqual([
+      expect.objectContaining({ kind: "error", detail: "Error: build failed" }),
+    ]);
+  });
+
   it("classifies complete lines while retaining only the unfinished tail", () => {
     const result = classifyTerminalOutputChunk(
       { carry: "" },
