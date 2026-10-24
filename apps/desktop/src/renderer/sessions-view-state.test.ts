@@ -41,10 +41,13 @@ describe("SessionsViewState", () => {
     nextState = appendTranscriptPage(nextState, page("one", 60, 60));
 
     expect(nextState.readerPages.flatMap((item) => item.blocks)).toHaveLength(120);
+    expect(nextState.readerPages.some((item) => item.partial)).toBe(false);
 
     nextState = appendTranscriptPage(nextState, page("one", 120, 60));
     expect(nextState.readerPages.flatMap((item) => item.blocks)).toHaveLength(120);
     expect(nextState.readerPages[0]?.blocks[0]?.id).toBe("block-60");
+    // The reader no longer holds the start, so it says the transcript is incomplete.
+    expect(nextState.readerPages[0]?.partial).toBe(true);
   });
 
   it("drops pages from an older transcript revision before appending", () => {

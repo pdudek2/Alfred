@@ -314,6 +314,25 @@ describe("ProjectNavigator", () => {
     expect(recent).not.toHaveTextContent("Manual · zsh 9");
   });
 
+  it("leaves a running agent that waits on a login out of the finished results", () => {
+    const now = Date.now();
+    renderNavigator({
+      sessions: [
+        ...sessions,
+        {
+          ...liveSession("claude-login", "Needs a login", "CLOUD", "/repo/cloud", "claude"),
+          lastActivityAt: now,
+          activityEvents: [{ id: "e1", at: now, kind: "error", title: "Runtime blocked", detail: "Not logged in · Please run /login" }],
+        },
+        { ...liveSession("codex-done", "Sync files", "CLOUD", "/repo/cloud", "codex"), runtimeStatus: "exited", lastActivityAt: now - 10_000 },
+      ],
+    });
+
+    const recent = screen.getByRole("region", { name: "Recent agent results" });
+    expect(recent).not.toHaveTextContent("Needs a login");
+    expect(recent).toHaveTextContent("Sync files");
+  });
+
   it("opens the exact recent session in its workspace", async () => {
     const onSelectSessionInWorkspace = vi.fn();
     renderNavigator({

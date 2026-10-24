@@ -3,7 +3,7 @@ import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type Muta
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { deckFocusSession, deckSessions, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
-import { isRestartable, SESSION_STATE_LABELS, sessionState } from "../session-status";
+import { SESSION_STATE_LABELS, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { SessionTree } from "./SessionTree";
@@ -342,8 +342,9 @@ function recentAgentResults(
   return sessions.flatMap((session): RecentAgentResult[] => {
     const agentLabel = recentAgentLabel(session);
     const state = sessionState(session, "ready", now);
-    if (!agentLabel || !isRestartable(state)) return [];
-    const status = state.kind === "done" ? "done" : "failed";
+    // Finished results only: an agent stopped by a login or a failed MCP server is still running.
+    if (!agentLabel || (state.kind !== "done" && state.kind !== "failed")) return [];
+    const status = state.kind;
 
     const activityAt = session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt;
     return [{
