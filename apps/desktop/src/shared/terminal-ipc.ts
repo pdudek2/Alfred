@@ -199,6 +199,20 @@ export type TerminalDataEvent = {
   promptSubmitted?: true;
 };
 
+/** An orchestrator agent asked for a worker; the renderer adds it under its parent and answers with the new session. */
+export type TerminalWorkerRequest = {
+  requestId: string;
+  parentClientId: string;
+  agent: "claude" | "codex";
+  prompt: string;
+  isolated: boolean;
+  title?: string;
+};
+
+export type TerminalWorkerReply =
+  | { requestId: string; clientId: string; title: string }
+  | { requestId: string; error: string };
+
 export type TerminalApi = {
   list(): Promise<TerminalListResult>;
   snapshot(request: TerminalSnapshotRequest): Promise<TerminalSnapshotResult>;
@@ -215,6 +229,8 @@ export type TerminalApi = {
   worktreeApply(request: TerminalWorktreeApplyRequest): Promise<TerminalWorktreeApplyResult>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
+  onWorkerRequest(callback: (request: TerminalWorkerRequest) => void): () => void;
+  answerWorkerRequest(reply: TerminalWorkerReply): void;
 };
 
 export const terminalChannels = {
@@ -233,4 +249,6 @@ export const terminalChannels = {
   worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
+  workerRequest: "alfred:terminal:worker-request",
+  workerReply: "alfred:terminal:worker-reply",
 } as const;

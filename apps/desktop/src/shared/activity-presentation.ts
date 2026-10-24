@@ -1,4 +1,4 @@
-import type { SessionActivityEvent } from "./session-state";
+import type { SessionActivityEvent } from "./session-activity.js";
 
 export type ActivityPresentationLayer = "raw" | "signal" | "work";
 

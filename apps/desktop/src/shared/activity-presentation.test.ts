@@ -6,7 +6,7 @@ import {
   presentActivityEvents,
   waitingSentence,
 } from "./activity-presentation";
-import type { SessionActivityEvent } from "./session-state";
+import type { SessionActivityEvent } from "./session-activity";
 
 const baseEvent = {
   at: 1,

@@ -3,7 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionActivityEvent } from "../../shared/session-activity";
-import { waitingSentence } from "../activity-presentation";
+import { waitingSentence } from "../../shared/activity-presentation";
 import type { SessionTile } from "../session-state";
 import { SessionTree, sessionPreviewLine } from "./SessionTree";
 

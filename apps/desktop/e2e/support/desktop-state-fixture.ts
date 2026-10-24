@@ -72,10 +72,14 @@ export async function createDesktopFixture(
       ...["codex", "claude"].map((agent) =>
         writeFile(
           path.join(paths.home, "bin", agent),
-          // Appending to the marker makes the agent print; the hook file says where its hooks would report.
+          // Appending to the marker makes the agent print; the hook file says where its hooks would report, and the
+          // args file what Alfred launched it with. Like the real agents, it shows its first prompt (after "--").
           `#!/bin/sh\nmarker="\${TMPDIR:-/tmp}/alfred-${agent}-fixture-$$"\n`
             + `printf '%s\\n%s\\n' "$ALFRED_HOOK_SOCKET" "$ALFRED_SESSION_ID" > "\${TMPDIR:-/tmp}/alfred-${agent}-hook-$$"\n`
-            + `printf '${agent} fixture ready\\n' > "$marker"\nexec /usr/bin/tail -f "$marker"\n`,
+            + `printf '%s\\n' "$@" > "\${TMPDIR:-/tmp}/alfred-${agent}-args-$$"\n`
+            + `prompt=""; seen=""\nfor arg in "$@"; do if [ -n "$seen" ]; then prompt="$arg"; elif [ "$arg" = "--" ]; then seen=1; fi; done\n`
+            + `printf '${agent} fixture ready\\n' > "$marker"\n`
+            + `if [ -n "$prompt" ]; then printf '> %s\\n' "$prompt" >> "$marker"; fi\nexec /usr/bin/tail -f "$marker"\n`,
           { encoding: "utf8", mode: 0o755 },
         )
       ),
