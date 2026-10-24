@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import type { AttentionProjection } from "../attention-projection";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import "./needs-you-popover.css";
@@ -48,6 +48,18 @@ export function NeedsYouPopover({
   // Escape and the shortcut return focus to where the user was. Picking a row
   // or clicking elsewhere hands focus to that target instead.
   const restoreFocusOnCloseRef = useRef(true);
+
+  // It hangs under its own button, as on the Needs board, not against the window's edge.
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (rect) setAnchor({ top: rect.bottom + 6, right: Math.max(12, window.innerWidth - rect.right) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [triggerRef]);
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
     const previous = previouslyFocusedRef.current;
@@ -103,6 +115,7 @@ export function NeedsYouPopover({
     <div
       ref={dialogRef}
       className="needs-you-popover"
+      style={anchor ? { top: anchor.top, right: anchor.right } : undefined}
       role="dialog"
       aria-label="Needs you"
       tabIndex={-1}
@@ -120,7 +133,7 @@ export function NeedsYouPopover({
         <p className="needs-you-popover__empty" role="status">Nothing needs you right now.</p>
       ) : (
         <ul className="needs-you-popover__list" aria-label="Blocked on you">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <li className="needs-you-popover__row" key={item.id}>
               <AlfredSignalGlyph className="needs-you-popover__glyph" />
               <div className="needs-you-popover__copy">
@@ -132,6 +145,7 @@ export function NeedsYouPopover({
               </div>
               <button
                 type="button"
+                className={index === 0 ? "is-default" : undefined}
                 data-needs-you-row
                 aria-label={`${needsYouActionLabel(item)} ${item.sessionTitle} in ${item.workspaceLabel}`}
                 onClick={() => {
@@ -140,6 +154,8 @@ export function NeedsYouPopover({
                 }}
               >
                 {needsYouActionLabel(item)}
+                {/* Focus starts on the first row, so Enter runs this action. */}
+                {index === 0 && <kbd aria-hidden="true">↩</kbd>}
               </button>
             </li>
           ))}
