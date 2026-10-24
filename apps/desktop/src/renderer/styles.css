@@ -2104,34 +2104,26 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   inset: 0;
   z-index: 40;
   padding: 44px;
-  background: rgba(4, 6, 8, 0.6);
+  /* The New sheet's backdrop, without blur. */
+  background: color-mix(in srgb, var(--surface-canvas) 55%, transparent);
   display: grid;
   place-items: center;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .privacy-panel {
-  width: min(640px, calc(100vw - 88px));
+  width: min(560px, calc(100vw - 88px));
   max-height: min(720px, calc(100vh - 88px));
-  border: 1px solid var(--ink-4);
-  border-radius: 13px;
+  border-radius: var(--radius-panel);
   overflow: hidden;
-  background: var(--ink-1);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-panel);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .privacy-panel-header {
   min-width: 0;
-  padding: 20px 18px 18px 22px;
-  border-bottom: 1px solid var(--ink-3);
-  background: color-mix(in oklab, var(--ink-2) 74%, transparent);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
-  gap: 16px;
-  align-items: start;
+  padding: 18px 20px 6px;
 }
 
 .privacy-panel-header strong,
@@ -2140,36 +2132,20 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .privacy-panel-header strong {
-  margin: 0;
-  color: var(--ink-7);
-  font: 680 18px/1.2 var(--sans);
-  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font: 500 15px/20px var(--sans);
 }
 
 .privacy-panel-header small {
-  margin-top: 6px;
-  color: var(--ink-5);
-  font: 500 12px/1.45 var(--sans);
-  white-space: normal;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
 }
 
-.privacy-panel-close {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.privacy-panel-close:hover,
-.privacy-panel-close:focus-visible {
-  border-color: color-mix(in oklab, var(--focus-border) 34%, transparent);
-  color: #cff3f6;
+.privacy-panel-actions {
+  padding: 14px 16px 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .discard-checkout-dialog {
@@ -2207,94 +2183,92 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .privacy-panel-body {
   min-width: 0;
   min-height: 0;
-  padding: 0 22px 20px;
-  overflow: auto;
+  padding: 0 20px;
   overflow-x: hidden;
   overflow-y: auto;
-  display: block;
-  background: var(--ink-1);
 }
 
 .privacy-control-row,
 .privacy-action-row {
   min-width: 0;
-  min-height: 82px;
-  border: 0;
-  border-bottom: 1px solid var(--ink-3);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
-  padding: 14px 0;
-  background: var(--ink-1);
-  box-shadow: none;
+  padding: 12px 0;
+  background: transparent;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
 }
 
 .privacy-control-row > div:first-child,
 .privacy-action-row > div:first-child {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .privacy-control-row strong,
 .privacy-action-row strong {
   color: var(--text-primary);
-  font: 630 13px/1.25 var(--sans);
+  font: 500 13px/18px var(--sans);
 }
 
 .privacy-control-row > div:first-child > span,
 .privacy-action-row > div:first-child > span {
-  color: var(--text-secondary);
-  font: 12px/1.35 var(--sans);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
 }
 
 .privacy-segmented {
-  border: 1px solid rgba(188, 202, 218, 0.13);
-  border-radius: 9px;
-  padding: 3px;
-  background: rgba(0, 0, 0, 0.18);
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px;
+  display: inline-flex;
+  gap: 2px;
 }
 
+/* The New sheet's footer buttons: quiet text, an outline where it acts. */
 .privacy-segmented button,
 .privacy-action-button,
 .privacy-confirm-actions button,
-.privacy-panel-status button {
-  min-height: 32px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 7px 10px;
+.privacy-panel-status button,
+.privacy-panel-done {
+  height: 30px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 12px;
   background: transparent;
   color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
   cursor: pointer;
-  font-family: var(--sans);
-  font-size: 13px;
+  font: 400 13px/18px var(--sans);
+  white-space: nowrap;
 }
 
+.privacy-segmented button:hover,
+.privacy-confirm-actions button:hover,
+.privacy-panel-status button:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+/* Selected like a kind in New. */
 .privacy-segmented button[aria-pressed="true"] {
-  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 13%, transparent);
-  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text-primary);
 }
 
+/* Clearing is destructive and stays achromatic; it asks once more before it runs. */
 .privacy-action-button {
-  border-color: rgba(188, 202, 218, 0.14);
-  background: rgba(238, 243, 247, 0.035);
-  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text-primary);
 }
 
-.privacy-action-button.danger,
-.privacy-confirm-actions .danger {
-  border-color: color-mix(in oklab, var(--signal-danger) 38%, transparent);
-  color: color-mix(in oklab, var(--signal-danger) 82%, white 12%);
+.privacy-panel-done {
+  background: var(--text-primary);
+  color: var(--surface-panel);
+  font-weight: 500;
 }
 
 .privacy-confirm-actions {
@@ -2303,18 +2277,14 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   gap: 8px;
 }
 
-.privacy-confirm-actions button {
-  border-color: rgba(188, 202, 218, 0.14);
-  background: rgba(238, 243, 247, 0.035);
-}
-
 .privacy-toggle {
-  min-height: 32px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  font-size: 13px;
+  color: var(--text-secondary);
+  font: 400 13px/18px var(--sans);
 }
 
 .privacy-toggle input {
@@ -2343,11 +2313,13 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   transition: transform 140ms ease-out;
 }
 
+/* On is a light track, not a colour. */
 .privacy-toggle input:checked + .privacy-toggle-track {
-  background: var(--signal-focus);
+  background: var(--text-primary);
 }
 
 .privacy-toggle input:checked + .privacy-toggle-track::after {
+  background: var(--surface-panel);
   transform: translateX(14px);
 }
 
@@ -2357,27 +2329,20 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .privacy-panel-status {
-  border: 1px solid color-mix(in oklab, var(--signal-focus) 30%, transparent);
-  border-radius: 9px;
-  padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.035);
+  margin-top: 12px;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--surface-raised);
   color: var(--text-secondary);
-  font: 12px/1.35 var(--sans);
+  font: 400 12px/16px var(--sans);
 }
 
 .privacy-panel-status.error {
-  border-color: color-mix(in oklab, var(--brass) 38%, transparent);
-  background: rgba(18, 16, 10, 0.82);
+  color: var(--text-primary);
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-}
-
-.privacy-panel-status.error button {
-  border-color: color-mix(in oklab, var(--brass) 44%, transparent);
-  background: rgba(238, 243, 247, 0.035);
-  color: var(--ink);
 }
 
 .discard-checkout-body {
@@ -2628,17 +2593,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
     background: var(--ink-1);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-  }
-
-  .privacy-backdrop {
-    background: rgba(4, 6, 8, 0.82);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .privacy-panel,
-  .privacy-panel-header {
-    background: var(--ink-1);
   }
 }
 

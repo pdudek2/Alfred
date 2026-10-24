@@ -128,7 +128,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(privacy).toBeVisible();
   await expectSans(privacy);
   await captureAuditScreenshot(page, "privacy-wide");
-  await privacy.getByRole("button", { name: "Close privacy controls" }).click();
+  await privacy.getByRole("button", { name: "Done" }).click();
 
   await selectSurface(page, "Work");
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
