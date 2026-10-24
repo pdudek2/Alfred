@@ -58,6 +58,9 @@ export type TerminalOutputActivityChunkResult = {
 };
 
 const MAX_ACTIVITY_CARRY = 4_096;
+// An image or clipboard sequence can run to megabytes. Past this, carry only its opener and last character
+// (half of a split ESC \ terminator), so each chunk is scanned once instead of the whole sequence again.
+const MAX_CONTROL_CARRY = 4_096;
 
 export function classifyTerminalOutputChunk(
   state: TerminalOutputActivityStreamState,
@@ -80,9 +83,13 @@ export function classifyTerminalOutputChunk(
     activities,
     state: {
       carry: prompt ? "" : unfinished.slice(-MAX_ACTIVITY_CARRY),
-      ...(stripped.remainder ? { terminalControlCarry: stripped.remainder } : {}),
+      ...(stripped.remainder ? { terminalControlCarry: boundedControlCarry(stripped.remainder) } : {}),
     },
   };
+}
+
+function boundedControlCarry(remainder: string): string {
+  return remainder.length > MAX_CONTROL_CARRY ? `${remainder.slice(0, 2)}${remainder.slice(-1)}` : remainder;
 }
 
 function selfTerminatingApproval(value: string): SessionActivityInput | null {
