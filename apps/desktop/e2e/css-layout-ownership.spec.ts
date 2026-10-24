@@ -338,7 +338,7 @@ test.describe("work session and project identity", () => {
     await expect(selectedTile.locator(".session-location-meta")).toHaveCount(0);
     const identityScreenshotStyle = `${privacySafeScreenshotStyle}
       .project-row-label {
-        color: var(--ink-5) !important;
+        color: var(--text-muted) !important;
         -webkit-text-fill-color: currentColor !important;
       }
     `;

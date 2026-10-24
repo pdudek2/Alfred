@@ -1,13 +1,5 @@
 :root {
   color-scheme: dark;
-  --ink-0: #050506;
-  --ink-1: #0A0A0B;
-  --ink-2: #111113;
-  --ink-3: #1B1B1E;
-  --ink-4: #64646B;
-  --ink-5: #929299;
-  --ink-6: #CECED2;
-  --ink-7: #F3F3F4;
   --signal: #E29B6E;
 
   --surface-terminal: #101010;
@@ -50,27 +42,13 @@
   --shadow-strip: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
   --shadow-preview-page: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
 
-  /* Transitional aliases. Remove only after all callsites use role tokens. */
-  --surface-sunken: #09090A;
-  --night: var(--surface-canvas);
-  --ink: var(--text-primary);
-  --ink-soft: var(--text-secondary);
-  --muted: var(--text-muted);
-  --faint: var(--text-faint);
-  --passive: var(--text-faint);
-  --line: var(--border);
-  --line-strong: var(--border-strong);
-  --cyan: var(--signal-focus);
-  --brass: var(--signal-agent);
-  --claude-amber: #c9a26d;
   --focus-border: var(--text-secondary);
-  --depth-card:
-    0 1px 0 rgba(255, 255, 255, 0.045) inset,
-    0 18px 38px -26px rgba(0, 0, 0, 0.85);
-  --border-subtle: var(--border);
+  /* Only the staged editor's older layers still use these two. */
+  --surface-sunken: #09090A;
+  --brass: var(--signal-agent);
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  color: var(--ink);
-  background: var(--night);
+  color: var(--text-primary);
+  background: var(--surface-canvas);
   font-family: var(--sans);
   font-synthesis: none;
   text-rendering: geometricPrecision;
@@ -86,7 +64,7 @@ body {
   min-width: 0;
   min-height: 100vh;
   overflow: hidden;
-  background: var(--ink-0);
+  background: var(--surface-canvas);
 }
 
 button {
@@ -224,11 +202,11 @@ button {
   top: 56px;
   right: 16px;
   width: min(420px, calc(100vw - 28px));
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 10px 10px 10px 12px;
-  background: var(--ink-1);
-  color: var(--ink-7);
+  background: var(--surface-panel);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -246,7 +224,7 @@ button {
 }
 
 .shell-action-alert span {
-  color: var(--ink-5);
+  color: var(--text-muted);
   font: 12px/1.3 var(--sans);
 }
 
@@ -254,11 +232,11 @@ button {
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 0;
-  background: var(--ink-2);
-  color: var(--ink-6);
+  background: var(--surface-control);
+  color: var(--text-secondary);
   display: inline-grid;
   place-items: center;
   cursor: pointer;
@@ -266,17 +244,17 @@ button {
 
 .shell-action-alert button:hover,
 .shell-action-alert button:focus-visible {
-  color: var(--ink-7);
-  border-color: var(--ink-5);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
 }
 
 .desktop-save-banner {
   margin: 10px 14px 0;
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 10px 12px;
-  background: var(--ink-1);
-  color: var(--ink-7);
+  background: var(--surface-panel);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -295,7 +273,7 @@ button {
 
 .desktop-save-banner span {
   min-width: 0;
-  color: var(--ink-5);
+  color: var(--text-muted);
   font: 12px/1.3 var(--sans);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -304,11 +282,11 @@ button {
 
 .desktop-save-banner button {
   flex: 0 0 auto;
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 7px 10px;
-  background: var(--ink-2);
-  color: var(--ink-6);
+  background: var(--surface-control);
+  color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -332,10 +310,10 @@ button {
   max-width: min(360px, 38vw);
   min-width: 0;
   min-height: 34px;
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 4px 10px 4px 8px;
-  background: var(--ink-1);
+  background: var(--surface-panel);
   box-shadow: none;
   color: inherit;
   display: grid;
@@ -349,54 +327,18 @@ button {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
+  border-color: var(--text-muted);
+  background: var(--surface-control);
   box-shadow: none;
 }
 
-.workspace-title-trigger > span,
-.workspace-title-trigger strong,
-.workspace-title-trigger small {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-title-trigger > span {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 7px;
-}
-
 .workspace-title-trigger svg {
-  color: var(--ink-5);
+  color: var(--text-muted);
   transition: color 160ms ease;
 }
 
 .workspace-title-trigger[aria-expanded="true"] svg {
-  color: var(--ink-6);
-}
-
-.workspace-title-trigger strong {
-  color: var(--ink-7);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.workspace-title-trigger small {
-  margin-top: 2px;
-  color: var(--ink-5);
-  font: 500 12px/1.35 var(--sans);
-  white-space: nowrap;
-}
-
-.workspace-title-trigger small::before {
-  content: "· ";
-  color: var(--ink-5);
+  color: var(--text-secondary);
 }
 
 .workspace-popover {
@@ -404,11 +346,11 @@ button {
   z-index: 140;
   width: min(390px, calc(100vw - 16px));
   max-height: calc(100vh - 16px);
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 7px;
   overflow-y: auto;
-  background: var(--ink-1);
+  background: var(--surface-panel);
   box-shadow: none;
 }
 
@@ -419,7 +361,7 @@ button {
   border-radius: 7px;
   padding: 8px;
   background: transparent;
-  color: var(--ink-6);
+  color: var(--text-secondary);
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
@@ -430,9 +372,9 @@ button {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-7);
+  border-color: var(--text-muted);
+  background: var(--surface-control);
+  color: var(--text-primary);
 }
 
 .workspace-popover button:disabled {
@@ -441,7 +383,7 @@ button {
 }
 
 .workspace-popover button svg {
-  color: var(--ink-6);
+  color: var(--text-secondary);
 }
 
 .workspace-popover button strong,
@@ -459,7 +401,7 @@ button {
 
 .workspace-popover button small {
   margin-top: 2px;
-  color: var(--ink-5);
+  color: var(--text-muted);
   font: 500 12px/1.35 var(--sans);
 }
 
@@ -467,15 +409,15 @@ button {
   height: 1px;
   border: 0;
   margin: 6px 4px;
-  background: var(--ink-3);
+  background: var(--border);
 }
 
 .workspace-rename-form,
 .workspace-mission-form {
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 6px;
-  background: var(--ink-1);
+  background: var(--surface-panel);
   box-shadow: none;
 }
 
@@ -488,7 +430,7 @@ button {
 
 .workspace-rename-form label span,
 .workspace-mission-form label span {
-  color: var(--ink-5);
+  color: var(--text-muted);
   font: 600 12px/1.2 var(--sans);
 }
 
@@ -497,11 +439,11 @@ button {
   width: 100%;
   min-height: 38px;
   margin-top: 8px;
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 0 10px;
-  background: var(--ink-0);
-  color: var(--ink-7);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
   font: 650 13px var(--sans);
 }
 
@@ -519,7 +461,7 @@ button {
 
 .workspace-rename-form input:focus,
 .workspace-mission-form textarea:focus {
-  border-color: var(--ink-6);
+  border-color: var(--focus-border);
   outline: none;
   box-shadow: none;
 }
@@ -547,17 +489,7 @@ button {
 }
 
 .workspace-mission-actions button.danger {
-  color: var(--ink-5);
-}
-
-.alfred-mark {
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  color: var(--ink-6);
+  color: var(--text-muted);
 }
 
 .workspace-layout {
@@ -698,7 +630,7 @@ button {
   overflow-x: hidden;
   padding: 0 8px 8px;
   scrollbar-width: thin;
-  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-color: var(--surface-control-hover) transparent;
 }
 
 .project-recents {
@@ -1082,7 +1014,7 @@ html[data-alfred-window-material="native"] .project-recent-result:hover {
 
 html[data-alfred-window-material="native"] .orchestrator-surface,
 html[data-alfred-window-material="native"] .desktop-alert-stack {
-  background: var(--ink-0);
+  background: var(--surface-canvas);
 }
 
 /* The top bar from the v4 canvas: breadcrumb on the left, session view and global actions on the right. */
@@ -1299,10 +1231,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   right: 0;
   z-index: 120;
   width: 220px;
-  border: 1px solid var(--ink-3);
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   padding: 5px;
-  background: var(--ink-1);
+  background: var(--surface-panel);
   box-shadow: 0 14px 36px color-mix(in oklab, black 46%, transparent);
   display: grid;
   gap: 2px;
@@ -1316,15 +1248,15 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   border-color: transparent;
   justify-content: flex-start;
   background: transparent;
-  color: var(--ink-6);
+  color: var(--text-secondary);
   text-align: left;
 }
 
 .chrome-menu-popover button:hover,
 .chrome-menu-popover button:focus-visible {
-  border-color: var(--ink-3);
-  background: var(--ink-2);
-  color: var(--ink-7);
+  border-color: var(--border-strong);
+  background: var(--surface-control);
+  color: var(--text-primary);
 }
 
 .chrome-menu-popover button span,
@@ -1388,7 +1320,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   min-height: 0;
   overflow: hidden;
   scrollbar-width: thin;
-  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-color: var(--surface-control-hover) transparent;
 }
 
 .terminal-stage-body::-webkit-scrollbar {
@@ -1402,7 +1334,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .terminal-stage-body::-webkit-scrollbar-thumb {
   border-radius: 7px;
-  background: var(--ink-3);
+  background: var(--surface-control-hover);
 }
 
 .terminal-grid-column {
@@ -1419,7 +1351,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-color: var(--surface-control-hover) transparent;
 }
 
 .terminal-grid-column::-webkit-scrollbar {
@@ -1434,7 +1366,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .terminal-grid-column::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 7px;
-  background: var(--ink-3);
+  background: var(--surface-control-hover);
   background-clip: padding-box;
 }
 
@@ -2018,7 +1950,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-tile.real-terminal.browser {
-  background: var(--ink-0);
+  background: var(--surface-canvas);
   opacity: 0.82;
 }
 
@@ -2030,7 +1962,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .real-terminal .xterm {
   min-width: 0;
   min-height: 0;
-  background: var(--ink-0);
 }
 
 .terminal-tile .xterm {
@@ -2070,7 +2001,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .xterm-host .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-color: var(--surface-control-hover) transparent;
 }
 
 /* xterm paints its viewport black by default, which framed the terminal inside its own box. */
@@ -2298,7 +2229,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   width: 34px;
   height: 20px;
   border-radius: 999px;
-  background: var(--ink-4);
+  background: var(--text-faint);
 }
 
 .privacy-toggle-track::after {
@@ -2309,7 +2240,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--ink-7);
+  background: var(--text-primary);
   transition: transform 140ms ease-out;
 }
 
@@ -2371,7 +2302,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .discard-checkout-body li {
   min-width: 0;
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   padding: 8px 9px;
   background: transparent;
@@ -2456,7 +2387,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  color: var(--muted);
+  color: var(--text-muted);
   background: transparent;
 }
 
@@ -2465,18 +2396,18 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--ink);
+  color: var(--text-primary);
   font-family: var(--sans);
   font-size: 14px;
 }
 
 .command-palette-search input::placeholder {
-  color: var(--faint);
+  color: var(--text-faint);
 }
 
 /* A key hint is quiet text, not a key cap. */
 .command-palette-search kbd {
-  color: var(--faint);
+  color: var(--text-faint);
   font: 400 12px/16px var(--sans);
 }
 
@@ -2485,7 +2416,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   overflow: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-color: var(--surface-control-hover) transparent;
   padding: 6px;
   display: grid;
   gap: 4px;
@@ -2503,7 +2434,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .command-palette-list::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 7px;
-  background: var(--ink-3);
+  background: var(--surface-control-hover);
   background-clip: padding-box;
 }
 
@@ -2530,7 +2461,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   min-height: 40px;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 12px;
-  color: var(--ink-soft);
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
@@ -2540,7 +2471,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 /* A key hint is quiet text, not a key cap. */
 .command-palette-shortcut {
-  color: var(--faint);
+  color: var(--text-faint);
   font: 400 12px/18px var(--sans);
 }
 
@@ -2593,12 +2524,12 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 @media (prefers-reduced-transparency: reduce) {
   html[data-alfred-window-material="native"] .desktop-frame {
-    background: var(--ink-0);
+    background: var(--surface-canvas);
   }
 
   html[data-alfred-window-material="native"] .mission-bar,
   html[data-alfred-window-material="native"] .project-navigator {
-    background: var(--ink-1);
+    background: var(--surface-chrome);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -2695,7 +2626,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .agent-staged-editor strong {
   margin-top: 3px;
-  color: var(--ink-soft);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 620;
 }
@@ -2734,7 +2665,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   border-radius: 8px;
   padding: 8px 9px;
   background: rgba(2, 4, 6, 0.66);
-  color: var(--ink);
+  color: var(--text-primary);
   font: 12px var(--sans);
   outline: none;
 }
@@ -2766,7 +2697,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .agent-staged-edit-actions button[type="button"] {
   border: 1px solid color-mix(in oklab, white 10%, transparent);
   background: color-mix(in oklab, white 4%, transparent);
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .agent-staged-editor button:hover,
@@ -2774,7 +2705,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .agent-staged-edit-actions button:hover,
 .agent-staged-edit-actions button:focus-visible {
   border-color: color-mix(in oklab, var(--brass) 48%, transparent);
-  color: var(--ink);
+  color: var(--text-primary);
 }
 
 .agent-staged-edit-actions button:disabled {
@@ -2785,7 +2716,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .agent-staged-edit-form input,
 .agent-staged-edit-form textarea {
   background: var(--surface-sunken);
-  border-color: var(--border-subtle);
+  border-color: var(--border);
   color: var(--text-primary);
 }
 
@@ -2801,7 +2732,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .agent-staged-editor,
 .agent-staged-edit-form {
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -2860,7 +2791,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .agent-staged-edit-heading {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
 }
 
@@ -2870,13 +2801,13 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .agent-staged-edit-actions button[type="button"] {
   background: rgba(255, 255, 255, 0.035);
-  border-color: var(--line);
+  border-color: var(--border);
   color: var(--text-secondary);
 }
 
 .agent-raw-toggle {
   min-height: 28px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 9px;
   padding: 0 9px;
   background: transparent;
@@ -2961,6 +2892,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 @media (prefers-reduced-transparency: reduce) {
   .context-drawer {
-    background: var(--ink-1);
+    background: var(--surface-canvas);
   }
 }
