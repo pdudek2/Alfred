@@ -565,12 +565,20 @@ describe("renderer CSS contracts", () => {
     expect(count).toContain("font-variant-numeric: tabular-nums");
   });
 
+  it("draws every keyboard focus state in the one grey ring, never the teal signal", () => {
+    const focusRules = allRulesIn(productStyles).filter(({ selectors }) => selectors.some((selector) => selector.includes(":focus")));
+    expect(focusRules.length).toBeGreaterThan(20);
+    const tealFocus = focusRules.filter(({ body }) => /var\(--(?:signal-focus(?:-strong)?|cyan|role-active)\)/.test(body));
+    expect(tealFocus.map(({ selectors }) => selectors)).toEqual([]);
+    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain("--border-focus: color-mix(in oklab, var(--focus-border) 28%, transparent)");
+  });
+
   it("draws one visible focus ring across Work destinations and controls", () => {
     const buttonFocus = singleTopLevelRuleBodyIn(styles, "button:focus-visible");
     const recentFocus = topLevelExactRuleBodies(".project-recent-result:focus-visible");
     const projectFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
     const sessionFocus = topLevelExactRuleBodies(".project-session:focus-visible");
-    expect(styles).toContain("--focus-border: var(--signal-focus)");
+    expect(styles).toContain("--focus-border: var(--text-secondary)");
     expect(buttonFocus).toContain("outline: 2px solid var(--focus-border)");
     expect(buttonFocus).toContain("outline-offset: 2px");
     expect(singleTopLevelRuleBodyIn(styles, ".project-navigator-add:focus-visible")).not.toContain("outline: none");
