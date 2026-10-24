@@ -1542,13 +1542,13 @@ describe("App integration", () => {
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
     expect(within(dialog).queryByText("Local controls")).not.toBeInTheDocument();
     expect(within(dialog).getByText(
-      "Control what Alfred keeps on this Mac and which local Codex sessions appear in Sessions.",
+      "Choose what Alfred keeps on this Mac and which local Codex sessions History lists.",
     )).toBeVisible();
     expect(within(dialog).getByRole("switch", {
       name: "External Codex indexing",
     })).toBeChecked();
     expect(within(dialog).getByRole("button", {
-      name: "Close privacy controls",
+      name: "Done",
     })).toHaveFocus();
 
     await user.click(within(dialog).getByRole("button", { name: "Off" }));
@@ -1568,9 +1568,9 @@ describe("App integration", () => {
     });
 
     expect(within(dialog).getByText(/This can't be undone\./)).toBeVisible();
-    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts…" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions…" }));
     expect(within(dialog).getByRole("button", { name: "Keep data" })).toBeVisible();
-    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions" }));
     await waitFor(() => {
       expect(clearSavedTerminalData).toHaveBeenCalledTimes(1);
     });
@@ -1589,7 +1589,7 @@ describe("App integration", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
     const close = within(dialog).getByRole("button", {
-      name: "Close privacy controls",
+      name: "Done",
     });
     await waitFor(() => expect(close).toHaveFocus());
 
@@ -1609,7 +1609,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
 
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    const clear = within(dialog).getByRole("button", { name: "Clear saved transcripts…" });
+    const clear = within(dialog).getByRole("button", { name: "Clear asleep sessions…" });
     await user.click(clear);
 
     const keepData = within(dialog).getByRole("button", { name: "Keep data" });
@@ -1618,7 +1618,7 @@ describe("App integration", () => {
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
 
     await user.click(keepData);
-    const restoredClear = within(dialog).getByRole("button", { name: "Clear saved transcripts…" });
+    const restoredClear = within(dialog).getByRole("button", { name: "Clear asleep sessions…" });
     await waitFor(() => expect(restoredClear).toHaveFocus());
   });
 
@@ -1631,12 +1631,12 @@ describe("App integration", () => {
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
 
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts…" }));
-    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions…" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions" }));
 
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
     expect(within(dialog).getByRole("status")).toHaveTextContent("Cleared saved data");
-    const clear = within(dialog).getByRole("button", { name: "Clear saved transcripts…" });
+    const clear = within(dialog).getByRole("button", { name: "Clear asleep sessions…" });
     await waitFor(() => expect(clear).toHaveFocus());
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
@@ -1658,8 +1658,8 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts…" }));
-    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions…" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions" }));
 
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.queryByRole("listitem", { name: /Draft to clear/i })).not.toBeInTheDocument());
@@ -2171,7 +2171,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
     await selectSurface(user, "Local Data & Privacy");
-    screen.getByRole("button", { name: "Close privacy controls" }).focus();
+    screen.getByRole("button", { name: "Done" }).focus();
 
     await user.keyboard("{Escape}");
 
@@ -8773,7 +8773,7 @@ describe("App integration", () => {
     await selectSurface(user, "Local Data & Privacy");
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
     const surfaces = screen.getByRole("button", { name: "Settings" });
-    expect(within(dialog).getByRole("button", { name: "Close privacy controls" })).toHaveFocus();
+    expect(within(dialog).getByRole("button", { name: "Done" })).toHaveFocus();
 
     await user.keyboard("{Escape}");
 
@@ -8850,7 +8850,7 @@ describe("App integration", () => {
     const discardTrigger = within(history).getByRole("button", { name: "Discard asleep session" });
     await user.click(discardTrigger);
     const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
-    const firstControl = within(dialog).getByRole("button", { name: "Close discard dialog" });
+    const firstControl = within(dialog).getByRole("button", { name: "Review changes" });
     const lastControl = within(dialog).getByRole("button", { name: "Discard checkout permanently" });
     expect(forgetTerminal).not.toHaveBeenCalled();
 

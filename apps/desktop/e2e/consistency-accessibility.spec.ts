@@ -126,12 +126,13 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   const privacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
   await expect(privacy).toBeVisible();
   await expectSansFont(privacy);
-  await expectMinimumHeight(privacy.getByRole("button", { name: "Redacted tail" }), 32);
+  // Settings uses the New sheet's 30 px buttons.
+  await expectMinimumHeight(privacy.getByRole("button", { name: "Redacted tail" }), 30);
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
     verticalScrollOwners: [{ id: "privacy-body", label: "Privacy body", selector: ".privacy-panel-body" }],
   })).toEqual([]);
-  await privacy.getByRole("button", { name: "Close privacy controls" }).click();
+  await privacy.getByRole("button", { name: "Done" }).click();
   await expect(surfacesTrigger).toBeFocused();
 
   await selectSurface(page, "History");

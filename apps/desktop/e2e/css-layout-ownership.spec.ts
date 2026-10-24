@@ -592,14 +592,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
     .toBeLessThanOrEqual(0);
   const narrowPrivacyToggle = narrowPrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
   const narrowPrivacyControls = [
-    narrowPrivacy.getByRole("button", { name: "Close privacy controls" }),
+    narrowPrivacy.getByRole("button", { name: "Done" }),
     narrowPrivacy.getByRole("button", { name: "Redacted tail" }),
     narrowPrivacyToggle,
-    narrowPrivacy.getByRole("button", { name: "Clear saved transcripts…" }),
+    narrowPrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     narrowPrivacy.getByRole("button", { name: "Reveal in Finder" }),
   ];
   for (const control of narrowPrivacyControls) {
-    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(30);
   }
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
@@ -609,7 +609,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
       selector: ".privacy-panel-body",
     }],
   }), "Narrow Privacy controls must remain within their scroll owner").toEqual([]);
-  await narrowPrivacy.getByRole("button", { name: "Close privacy controls" }).click();
+  await narrowPrivacy.getByRole("button", { name: "Done" }).click();
   await expect(narrowPrivacy).toHaveCount(0);
 
   await setWindowSize(app, page, 1440, 900);
@@ -627,14 +627,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
     .toBeLessThanOrEqual(0);
   const widePrivacyToggle = widePrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
   const widePrivacyControls = [
-    widePrivacy.getByRole("button", { name: "Close privacy controls" }),
+    widePrivacy.getByRole("button", { name: "Done" }),
     widePrivacy.getByRole("button", { name: "Redacted tail" }),
     widePrivacyToggle,
-    widePrivacy.getByRole("button", { name: "Clear saved transcripts…" }),
+    widePrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     widePrivacy.getByRole("button", { name: "Reveal in Finder" }),
   ];
   for (const control of widePrivacyControls) {
-    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(30);
   }
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
@@ -644,7 +644,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
       selector: ".privacy-panel-body",
     }],
   }), "Wide Privacy controls must remain within their scroll owner").toEqual([]);
-  await widePrivacy.getByRole("button", { name: "Close privacy controls" }).click();
+  await widePrivacy.getByRole("button", { name: "Done" }).click();
   await expect(widePrivacy).toHaveCount(0);
 
   // A cwd matching the project is intentionally omitted from tile headers. Exercise a nested cwd too.
