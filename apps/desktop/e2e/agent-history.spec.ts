@@ -53,6 +53,14 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   await expect.poll(async () => (await items.allTextContents()).map((text) => order.findIndex((line) => text.includes(line))).filter((index) => index >= 0))
     .toEqual([0, 1, 2, 3, 4]);
   const count = await items.count();
+  // Every step is one line; the long prompt ends in an ellipsis and keeps its full text in the tooltip.
+  const heights = await items.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  // A second line would add 18px; every row is the same single-line height.
+  expect(new Set(heights).size).toBe(1);
+  expect(heights[0]).toBeLessThan(36);
+  const askedRow = items.filter({ hasText: "You asked:" }).locator(".details-activity-sentence");
+  expect(await askedRow.evaluate((line) => line.scrollWidth > line.clientWidth)).toBe(true);
+  await expect(items.filter({ hasText: "You asked:" }).locator(".details-activity-text")).toHaveAttribute("title", prompt);
 
   // Scrolling back through the transcript makes Claude draw its old tool lines and errors again.
   for (let pass = 0; pass < 3; pass += 1) {

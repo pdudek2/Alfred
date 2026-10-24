@@ -17,7 +17,7 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText(/select a session to see its location/i)).toBeInTheDocument();
   });
 
-  it("shows the focused session location and state", async () => {
+  it("shows the focused session location without repeating its title and state", async () => {
     const session: SessionTile = {
       id: "s1",
       title: "claude — alfred",
@@ -33,8 +33,9 @@ describe("AgentTimelinePanel", () => {
       lastOutputAt: Date.now(),
     };
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
-    expect(screen.getByText("claude — alfred")).toBeInTheDocument();
-    expect(screen.getByText("working")).toBeInTheDocument();
+    // The breadcrumb names the session and its state; Details names it only for assistive tech.
+    expect(screen.getByText("claude — alfred").closest("header")).toHaveClass("visually-hidden");
+    expect(screen.queryByText("working")).not.toBeInTheDocument();
     expect(screen.getByTitle("/tmp")).toBeInTheDocument();
 
     expect(screen.queryByText("last output")).not.toBeInTheDocument();
@@ -679,7 +680,6 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(pulse.querySelector("details")).toBeNull();
-    expect(screen.getByText("draft")).toBeInTheDocument();
     expect(within(pulse).getByText("No activity yet.")).toBeInTheDocument();
   });
 
@@ -850,7 +850,6 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
-    expect(screen.getByText("needs you")).toBeInTheDocument();
     expect(screen.queryByText("Current state")).not.toBeInTheDocument();
     expect(screen.getAllByText("rm -rf detected").length).toBeGreaterThan(0);
   });
