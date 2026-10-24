@@ -75,17 +75,17 @@ function ReadyDiff({ view }: { view: Extract<WorktreeDiffView, { status: "ready"
         <p className="worktree-diff-panel__empty">No changed files in this checkout.</p>
       )}
       {lines.length > 0 ? (
-        <div className="worktree-diff-panel__code" role="table" aria-label="Unified diff">
+        <div className="worktree-diff-panel__code" role="list" aria-label="Unified diff">
+          {/* A list, not a table without cells; each line says what changed and then reads its code. */}
           {lines.map((line, index) => (
             <div
               className={`worktree-diff-panel__line is-${line.kind} kind-${line.kind}`}
-              role="row"
-              aria-label={diffLineLabel(line)}
+              role="listitem"
               key={`${index}:${line.text}`}
             >
               <span aria-hidden="true">{line.oldLine ?? ""}</span>
               <span aria-hidden="true">{line.newLine ?? ""}</span>
-              <code>{line.text || " "}</code>
+              <code><span className="visually-hidden">{diffLineLabel(line)}: </span>{line.text || " "}</code>
             </div>
           ))}
         </div>
