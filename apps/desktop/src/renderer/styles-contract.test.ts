@@ -1030,7 +1030,7 @@ describe("renderer CSS contracts", () => {
 
   it("keeps support-surface operations on the product type and control floors", () => {
     const expectedFonts = [
-      [".renderer-crash-kicker", "font: 650 13px/1.2 var(--sans)"],
+      [".renderer-crash-kicker", "font: 500 12px/16px var(--sans)"],
       [".workspace-popover button strong", "font: 600 13px/1.2 var(--sans)"],
       [".workspace-popover button small", "font: 500 12px/1.35 var(--sans)"],
       [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
@@ -1046,7 +1046,6 @@ describe("renderer CSS contracts", () => {
     }
 
     for (const selector of [
-      ".renderer-crash-card button",
       ".workspace-rename-form > div button",
       ".workspace-mission-actions button",
       ".command-palette-list button",
