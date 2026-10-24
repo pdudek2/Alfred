@@ -2008,11 +2008,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   letter-spacing: -0.08em;
 }
 
+/* The glyph is its drawing's size, as on the boards; each row's gap sets the space to its text. */
 .session-status-glyph {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  flex: none;
   align-items: center;
   justify-content: center;
   color: var(--text-faint);
