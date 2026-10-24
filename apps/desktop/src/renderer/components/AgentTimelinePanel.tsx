@@ -55,7 +55,7 @@ export function AgentTimelinePanel({
   if (!session) {
     return (
       <aside className="agent-timeline-panel" aria-label="Agent activity">
-        <header className="agent-timeline-header">
+        <header className="agent-timeline-header visually-hidden">
           <strong>Activity</strong>
           <span>no selected session</span>
         </header>
@@ -203,11 +203,9 @@ export function AgentTimelinePanel({
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
-      <header className="agent-timeline-header">
+      {/* The breadcrumb names the session and its state; this names it only for assistive tech. */}
+      <header className="agent-timeline-header visually-hidden">
         <strong>{session.title}</strong>
-        <span className={`agent-status-pill status-${displayStatus.kind}`}>
-          <span className="agent-status-text">{displayStatus.label}</span>
-        </span>
       </header>
       <div className="agent-timeline-body">
         {changes ?? <section className="details-section" aria-label="Changes"><header className="details-section-heading"><h2>Changes</h2></header><p className="details-empty">No worktree changes.</p></section>}
@@ -296,11 +294,13 @@ export function AgentTimelinePanel({
                           aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
                           disabled={payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"}
                           onClick={() => void handlePayloadAction(event, payload)}>
-                          {activitySentence(event)}
+                          <span className="details-activity-sentence">{activitySentence(event)}</span>
                           {payloadActionState[event.id] && <span role="status"> · {payloadActionState[event.id]}</span>}
                         </button>
                       ) : (
-                        <span className="details-activity-text" title={event.detail || undefined}>{activitySentence(event)}</span>
+                        <span className="details-activity-text" title={event.detail || undefined}>
+                          <span className="details-activity-sentence">{activitySentence(event)}</span>
+                        </span>
                       )}
                       {event.at > 0 && <time dateTime={new Date(event.at).toISOString()} title={formatActivityTime(event.at)}>
                         {now - event.at < 60_000 ? `${Math.max(0, Math.floor((now - event.at) / 1000))}s` : sessionAgeLabel(event.at, now)}

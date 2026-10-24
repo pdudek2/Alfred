@@ -56,6 +56,20 @@ describe("activity sentences", () => {
       .toBe("build failed");
   });
 
+  it("writes a command as the agent described it, or as the command without its output plumbing", () => {
+    const ran = (command: string, description?: string): SessionActivityEvent => ({
+      ...baseEvent, kind: "command", title: "Ran command", detail: command,
+      payload: { type: "command", command, ...(description === undefined ? {} : { description }) },
+    });
+    expect(activitySentence(ran("pnpm --filter @alfred/desktop typecheck 2>&1 | tail -40", "Run typecheck"))).toBe("Run typecheck");
+    expect(activitySentence(ran("pnpm typecheck 2>&1 | tail -40"))).toBe("Ran pnpm typecheck");
+    expect(activitySentence(ran("git log --oneline | head -n 5 2>&1"))).toBe("Ran git log --oneline");
+    expect(activitySentence(ran("pnpm test | tail -n40\nnext line"))).toBe("Ran pnpm test");
+    // The pipe that does the work stays.
+    expect(activitySentence(ran("rg TODO | wc -l"))).toBe("Ran rg TODO | wc -l");
+    expect(activitySentence(ran("pnpm lint", "  "))).toBe("Ran pnpm lint");
+  });
+
   it("lists events of the same millisecond newest first, as they happened", () => {
     const at = (id: string, time: number): SessionActivityEvent => ({ id, at: time, kind: "command", title: "Ran command", detail: id, payload: { type: "command", command: id } });
     const events = [at("prompt", 1), at("test", 1), at("edit", 2), at("stop", 2)];

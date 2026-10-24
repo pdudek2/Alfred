@@ -479,6 +479,14 @@ describe("persisted-desktop-state", () => {
                 at: 123,
               },
               { id: "manual-secret-activity-2", kind: "prompt", title: "You asked", detail: "Deploy with sk-proj-1234567890abcdef", at: 124 },
+              {
+                id: "manual-secret-activity-3",
+                kind: "command",
+                title: "Ran command",
+                detail: "pnpm deploy",
+                payload: { type: "command", command: "pnpm deploy", description: "Deploy with sk-proj-1234567890abcdef" },
+                at: 125,
+              },
             ],
           },
         ],
@@ -500,6 +508,8 @@ describe("persisted-desktop-state", () => {
     });
     // A message you sent is kept like the rest of the history, and redacted the same way.
     expect(session?.activityEvents?.[1]).toMatchObject({ kind: "prompt", detail: "Deploy with [redacted]" });
+    // The agent's own description of a command outlives a relaunch, redacted like the command.
+    expect(session?.activityEvents?.[2]?.payload).toEqual({ type: "command", command: "pnpm deploy", description: "Deploy with [redacted]" });
   });
 
   it("migrates an auto-titled manual coding-agent session to resumable metadata", () => {
