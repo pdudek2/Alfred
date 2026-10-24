@@ -39,7 +39,6 @@ const alfredChannels = {
 
 const layoutChannels = {
   get: "alfred:layout:get",
-  setWorkspace: "alfred:layout:set-workspace",
   setWorkspaceViewState: "alfred:layout:set-workspace-view-state",
 } as const;
 
@@ -151,8 +150,6 @@ const alfred: AlfredApi = {
 
 const layout: LayoutApi = {
   getLayouts: () => ipcRenderer.invoke(layoutChannels.get) as ReturnType<LayoutApi["getLayouts"]>,
-  setWorkspaceLayout: (request) =>
-    ipcRenderer.invoke(layoutChannels.setWorkspace, request) as ReturnType<LayoutApi["setWorkspaceLayout"]>,
   setWorkspaceViewState: (request) =>
     ipcRenderer.invoke(layoutChannels.setWorkspaceViewState, request) as ReturnType<LayoutApi["setWorkspaceViewState"]>,
 };

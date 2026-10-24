@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,7 +7,6 @@ import {
   configureLayoutPersistence,
   getLayoutsSnapshot,
   resetLayoutPersistence,
-  setWorkspaceLayoutSnapshot,
   setWorkspaceViewStateSnapshot,
 } from "./layout-store.js";
 import { DESKTOP_STATE_VERSION, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
@@ -32,86 +31,20 @@ describe("layout-store", () => {
     }
   });
 
-  it("stores and clones layouts per workspace", async () => {
-    const layouts = {
-      one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 },
-    };
-
-    const response = await setWorkspaceLayoutSnapshot({ workspaceId: "A", layouts });
-    layouts.one.col = 9;
-
-    expect(response.layoutsByWorkspace.A?.one).toEqual({ tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 });
-    await expect(getLayoutsSnapshot()).resolves.toEqual({
-      layoutsByWorkspace: {
-        A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-      },
-      viewStateByWorkspace: {},
-    });
-  });
-
-  it("keeps workspace layouts separate", async () => {
-    await setWorkspaceLayoutSnapshot({
-      workspaceId: "A",
-      layouts: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-    });
-    await setWorkspaceLayoutSnapshot({
-      workspaceId: "W2",
-      layouts: { two: { tileId: "two", col: 7, row: 1, colSpan: 6, rowSpan: 4 } },
-    });
-
-    expect(Object.keys((await getLayoutsSnapshot()).layoutsByWorkspace)).toEqual(["A", "W2"]);
-  });
-
   it("stores view state per workspace", async () => {
     const response = await setWorkspaceViewStateSnapshot({
       workspaceId: "A",
-      viewState: {
-        workMode: "focus",
-        selectedSessionId: "manual-1",
-        previewDockOpen: true,
-      },
+      viewState: { selectedSessionId: "manual-1", previewDockOpen: true },
     });
+    await setWorkspaceViewStateSnapshot({ workspaceId: "W2", viewState: { selectedSessionId: "codex-1" } });
 
-    expect(response.viewStateByWorkspace.A).toEqual({
-      workMode: "focus",
-      selectedSessionId: "manual-1",
-      previewDockOpen: true,
-    });
+    expect(response.viewStateByWorkspace.A).toEqual({ selectedSessionId: "manual-1", previewDockOpen: true });
     await expect(getLayoutsSnapshot()).resolves.toEqual({
-      layoutsByWorkspace: {},
       viewStateByWorkspace: {
-        A: {
-          workMode: "focus",
-          selectedSessionId: "manual-1",
-          previewDockOpen: true,
-        },
+        A: { selectedSessionId: "manual-1", previewDockOpen: true },
+        W2: { selectedSessionId: "codex-1" },
       },
     });
-  });
-
-  it("persists layouts when configured with desktop state storage", async () => {
-    const filePath = await temporaryStateFile();
-    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
-    configureLayoutPersistence(persistedStateStore);
-
-    await setWorkspaceLayoutSnapshot({
-      workspaceId: "A",
-      layouts: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-    });
-
-    await expect(getLayoutsSnapshot()).resolves.toEqual({
-      layoutsByWorkspace: {
-        A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-      },
-      viewStateByWorkspace: {},
-    });
-    await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
-      expect.objectContaining({
-        layoutsByWorkspace: {
-          A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-        },
-      }),
-    );
   });
 
   it("does not expose a retired context drawer value from persisted layout state", async () => {
@@ -128,35 +61,49 @@ describe("layout-store", () => {
     );
     configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
 
-    await expect(getLayoutsSnapshot()).resolves.toEqual({
-      layoutsByWorkspace: {},
-      viewStateByWorkspace: {},
-    });
+    await expect(getLayoutsSnapshot()).resolves.toEqual({ viewStateByWorkspace: {} });
   });
 
-  it("keeps concurrent persisted layout and view-state updates", async () => {
+  it("reads a file saved with the retired tile grid and drops its layouts and work modes on the next save", async () => {
     const filePath = await temporaryStateFile();
-    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
-    configureLayoutPersistence(persistedStateStore);
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }, { id: "B", label: "Beta", shortLabel: "B" }],
+        activeWorkspaceId: "A",
+        layoutsByWorkspace: { A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } } },
+        viewStateByWorkspace: {
+          A: { workMode: "focus", selectedSessionId: "one", previewDockOpen: true, collapsedSessionIds: ["two"] },
+          B: { workMode: "desk" },
+        },
+      }),
+      "utf8",
+    );
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
+
+    // The selected session and Preview survive; the grid's layouts, work modes and collapsed stack do not.
+    await expect(getLayoutsSnapshot()).resolves.toEqual({
+      viewStateByWorkspace: { A: { selectedSessionId: "one", previewDockOpen: true } },
+    });
+
+    await setWorkspaceViewStateSnapshot({ workspaceId: "A", viewState: { selectedSessionId: "two" } });
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as Record<string, unknown>;
+    expect(saved).not.toHaveProperty("layoutsByWorkspace");
+    expect(saved.viewStateByWorkspace).toEqual({ A: { selectedSessionId: "two", previewDockOpen: true } });
+  });
+
+  it("keeps concurrent persisted view-state updates", async () => {
+    const filePath = await temporaryStateFile();
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
 
     await Promise.all([
-      setWorkspaceLayoutSnapshot({
-        workspaceId: "A",
-        layouts: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-      }),
-      setWorkspaceViewStateSnapshot({
-        workspaceId: "A",
-        viewState: { workMode: "focus", selectedSessionId: "one" },
-      }),
+      setWorkspaceViewStateSnapshot({ workspaceId: "A", viewState: { selectedSessionId: "one" } }),
+      setWorkspaceViewStateSnapshot({ workspaceId: "A", viewState: { previewDockOpen: true } }),
     ]);
 
     await expect(getLayoutsSnapshot()).resolves.toEqual({
-      layoutsByWorkspace: {
-        A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-      },
-      viewStateByWorkspace: {
-        A: { workMode: "focus", selectedSessionId: "one" },
-      },
+      viewStateByWorkspace: { A: { selectedSessionId: "one", previewDockOpen: true } },
     });
   });
 });
