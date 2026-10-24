@@ -798,8 +798,8 @@ function ManualTerminalTile({
   const sessionLocationTitle = isolatedCheckout
     ? branchName
       ? baseCwd
-        ? `${branchName} · isolated from ${baseCwd}`
-        : `${branchName} · isolated worktree`
+        ? `${branchName}, isolated from ${baseCwd}`
+        : `${branchName} in an isolated worktree`
       : baseCwd
         ? `isolated worktree from ${baseCwd}`
         : "isolated worktree"

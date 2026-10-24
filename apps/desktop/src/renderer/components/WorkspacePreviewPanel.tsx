@@ -97,7 +97,7 @@ export function WorkspacePreviewPanel({
             <select value={selected.url} onChange={(event) => onSelectUrl(event.target.value)}>
               {candidates.map((candidate) => (
                 <option key={candidate.url} value={candidate.url}>
-                  {previewLocationLabel(candidate.url)} · {candidate.sessionTitle}
+                  {previewLocationLabel(candidate.url)} from {candidate.sessionTitle}
                 </option>
               ))}
             </select>

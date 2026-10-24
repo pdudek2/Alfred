@@ -2459,7 +2459,7 @@ describe("App integration", () => {
     const breadcrumb = within(workbenchHeader).getByRole("navigation", { name: "Breadcrumb" });
     expect(breadcrumb).toHaveTextContent("AlfredCodex · solo");
     // The folder and branch moved out of the bar; they stay one hover away on the project name.
-    expect(within(breadcrumb).getByText("Alfred")).toHaveAttribute("title", "…/Desktop/Alfred · main");
+    expect(within(breadcrumb).getByText("Alfred")).toHaveAttribute("title", "…/Desktop/Alfred on main");
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
@@ -3905,7 +3905,7 @@ describe("App integration", () => {
     await user.type(search, "open needs you");
     expect(within(palette).getByText("Review and resume")).toBeInTheDocument();
     expect(within(palette).getByRole("option", { name: /Open Needs you/ })).toHaveTextContent(
-      "Alfred · Palette waiting agent",
+      "Palette waiting agent in Alfred",
     );
     await pressCommandPaletteEnter(search);
     await waitFor(() => expect(palette).not.toBeInTheDocument());
@@ -4403,7 +4403,9 @@ describe("App integration", () => {
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "new terminal");
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     expect(within(palette).getByText("New terminal")).toBeInTheDocument();
-    expect(within(palette).getByText(/(?:Cmd|Ctrl) T · start a shell in the scratch project/)).toBeInTheDocument();
+    expect(within(palette).getByText("Start a shell in the scratch project")).toBeInTheDocument();
+    // The key is quiet text beside the label, not part of the sentence.
+    expect(within(within(palette).getByRole("option", { name: /New terminal/ })).getByText("Ctrl T").tagName).toBe("KBD");
     await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
@@ -8191,7 +8193,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Arguments")).toHaveValue("test\n--watch");
     // The plan line stays in the centre beside Details.
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Terminal · edited");
+    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Terminal, edited");
   });
 
   it("hydrates Alfred drafts on the plan line from the desktop runtime", async () => {
@@ -10461,7 +10463,7 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Goal"), "stage codex");
     await user.click(screen.getByRole("button", { name: "Start" }));
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Codex task" })).toHaveTextContent("Codex · isolated worktree");
+    expect(screen.getByRole("listitem", { name: "Draft Codex task" })).toHaveTextContent("Codex, isolated worktree");
 
     await user.click(screen.getByRole("button", { name: "Launch Codex task" }));
 
@@ -10540,7 +10542,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
     await openPlan(user);
     const draft = screen.getByRole("listitem", { name: "Draft Codex task" });
-    expect(draft).toHaveTextContent("Codex · isolated worktree");
+    expect(draft).toHaveTextContent("Codex, isolated worktree");
 
     await user.click(within(draft).getByRole("button", { name: "Launch Codex task" }));
 
@@ -10549,7 +10551,7 @@ describe("App integration", () => {
       expect(codexCalls).toHaveLength(1);
     });
     await openPlan(user);
-    expect(screen.getByRole("listitem", { name: "Draft Codex task" })).toHaveTextContent("Codex · isolated worktree");
+    expect(screen.getByRole("listitem", { name: "Draft Codex task" })).toHaveTextContent("Codex, isolated worktree");
 
     await user.click(
       within(screen.getByRole("listitem", { name: /Draft Codex task/i })).getByRole("button", {
@@ -10762,7 +10764,7 @@ describe("App integration", () => {
     });
     await openPlan(user);
     const editedDraft = screen.getByRole("listitem", { name: "Draft Blocked Codex" });
-    expect(editedDraft).toHaveTextContent("Codex · edited");
+    expect(editedDraft).toHaveTextContent("Codex, edited");
     expect(within(editedDraft).getByRole("button", { name: "Launch Blocked Codex" })).toBeEnabled();
     expect(screen.queryByText(/old blocker/i)).not.toBeInTheDocument();
   });

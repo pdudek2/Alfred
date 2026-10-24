@@ -246,12 +246,12 @@ export function ProjectNavigator({
                   key={result.session.id}
                   aria-label={`Open ${result.status === "done" ? "finished" : "stopped"} ${result.session.title} in ${result.workspaceLabel}`}
                   onClick={() => onSelectSessionInWorkspace(result.session.workspaceId, result.session.id)}
-                  title={`${result.session.title} · ${result.workspaceLabel} · ${result.status}`}
+                  title={`${result.session.title} in ${result.workspaceLabel}, ${result.status === "done" ? "finished" : "stopped"}`}
                 >
                   <SessionStatusGlyph kind={result.status} label={result.status} className="project-recent-status" size={12} />
                   <span className="project-recent-copy">
                     <strong>{result.session.title}</strong>
-                    <small>{result.workspaceLabel} · {result.agentLabel}</small>
+                    <small>{result.agentLabel} in {result.workspaceLabel}</small>
                   </span>
                   {result.ageLabel && result.activityAt !== undefined && (
                     <time dateTime={new Date(result.activityAt).toISOString()}>{result.ageLabel}</time>
@@ -398,14 +398,14 @@ function NavigatorSessionButton({
       data-label={session.title}
       data-session-id={session.id}
       onClick={onClick}
-      title={`${session.title} · ${status.label}`}
+      title={`${session.title}, ${status.label.toLowerCase()}`}
     >
       <span className={`project-session-kind kind-${kind}`} aria-hidden="true">
         <TileKindIcon kind={kind} size={14} />
       </span>
       <span className="project-session-copy">
         <span className="project-session-title">{session.title}</span>
-        <small className="project-session-meta" id={statusId}>{agentLabel} · {status.label}</small>
+        <small className="project-session-meta" id={statusId}>{agentLabel}, {status.label.toLowerCase()}</small>
       </span>
     </button>
   );
