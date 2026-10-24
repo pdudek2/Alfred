@@ -216,7 +216,7 @@ function installDesktopBridge(
   },
   workspaceState: WorkspaceStateSnapshot = {
     workspaces: [
-      { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+      { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
     ],
     activeWorkspaceId: "A",
   },
@@ -300,7 +300,7 @@ function installDesktopBridge(
         workspace.id === request.workspaceId
           ? {
               ...workspace,
-              rootPath: "/Users/patryk/TrustedWorkspace",
+              rootPath: "/Users/sample/TrustedWorkspace",
               rootStatus: undefined,
             }
           : workspace,
@@ -308,7 +308,7 @@ function installDesktopBridge(
       activeWorkspaceId: request.workspaceId,
     }),
   );
-  const openExternalTerminal = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred", terminal: "Ghostty" });
+  const openExternalTerminal = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/sample/Desktop/Alfred", terminal: "Ghostty" });
   const openExternalUrl = vi
     .fn()
     .mockImplementation((request: Parameters<WorkspaceApi["openExternalUrl"]>[0]) =>
@@ -338,7 +338,7 @@ function installDesktopBridge(
     return Promise.resolve({
       kind: "resume" as const,
       projectId: session.project.id,
-      cwd: session.project.id === "A" ? "/Users/patryk/Desktop/Alfred" : "/Users/patryk/Desktop/IronLog",
+      cwd: session.project.id === "A" ? "/Users/sample/Desktop/Alfred" : "/Users/sample/Desktop/IronLog",
       sessionId: session.contentSessionKey.replace("external-codex:", ""),
     });
   });
@@ -352,20 +352,20 @@ function installDesktopBridge(
     ok: true,
     clearedSessions: terminalSessions.length + restoredTerminalSessions.length,
   });
-  const revealStateFile = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Library/Application Support/Alfred/desktop-state.json" });
+  const revealStateFile = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/sample/Library/Application Support/Alfred/desktop-state.json" });
   const retrySave = vi.fn().mockResolvedValue({ status: "saved" });
   const onSaveStatus = vi.fn((callback: (status: DesktopSaveStatus) => void) => {
     saveStatusListeners.add(callback);
     return () => saveStatusListeners.delete(callback);
   });
-  const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
+  const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/sample/Desktop/Alfred/app.tsx" });
   const imageThumbnail = vi.fn().mockResolvedValue({ ok: true, dataUrl: "data:image/png;base64,thumb" });
   const quickLookImage = vi.fn().mockResolvedValue({ ok: true });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
       workspaces: [
         ...workspaceState.workspaces,
-        { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/sample/Desktop/ClientApp" },
       ],
       activeWorkspaceId: "CLIENTAPP",
     }),
@@ -573,7 +573,7 @@ function liveSnapshot(
     source: "manual",
     agentKind: "codex",
     workspaceId: "A",
-    cwd: "/Users/patryk/Desktop/Alfred",
+    cwd: "/Users/sample/Desktop/Alfred",
     createdAt: Date.now(),
     shell: "/bin/zsh",
     command: "codex",
@@ -590,7 +590,7 @@ function manualLiveSnapshot(suffix: string, title: string): TerminalSessionSnaps
     title,
     source: "manual",
     workspaceId: "A",
-    cwd: "/Users/patryk/Desktop/Alfred",
+    cwd: "/Users/sample/Desktop/Alfred",
     createdAt: Date.now(),
     shell: "/bin/zsh",
     buffer: "",
@@ -666,7 +666,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       worktreeDiffReturnFocus={null}
       worktreeDiffView={null}
       workspaceLabel="Alfred"
-      workspaceRootPath="/Users/patryk/Desktop/Alfred"
+      workspaceRootPath="/Users/sample/Desktop/Alfred"
       {...callbacks}
     />
   );
@@ -929,7 +929,7 @@ describe("App integration", () => {
         id: "root-session",
         title: "Root session",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         source: "manual",
         stage: "live",
         runtimeStatus: "live",
@@ -938,7 +938,7 @@ describe("App integration", () => {
         id: "nested-session",
         title: "Nested session",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred/apps/desktop",
+        cwd: "/Users/sample/Desktop/Alfred/apps/desktop",
         source: "manual",
         stage: "live",
         runtimeStatus: "live",
@@ -1093,7 +1093,7 @@ describe("App integration", () => {
         liveSnapshot("codex-timed", {
           title: "Codex 3",
           createdAt: 1_786_271_998_928,
-          cwd: "/Users/patryk/Documents/Codex/2026-08-09/alfred-W16",
+          cwd: "/Users/sample/Documents/Codex/2026-08-09/alfred-W16",
         }),
       ],
       undefined,
@@ -1161,7 +1161,7 @@ describe("App integration", () => {
           id: "A",
           label: "Alfred",
           shortLabel: "A",
-          rootPath: "/Users/patryk/Desktop/Alfred",
+          rootPath: "/Users/sample/Desktop/Alfred",
           gitBranch: "main",
         },
       ],
@@ -1316,7 +1316,7 @@ describe("App integration", () => {
         {
           clientId: "codex-restored",
           title: "Codex · restored",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           source: "alfred",
           agentKind: "codex",
           command: "codex",
@@ -1363,7 +1363,7 @@ describe("App integration", () => {
           title: "zsh",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -1373,7 +1373,7 @@ describe("App integration", () => {
           title: "Scratch API worker",
           source: "manual",
           workspaceId: "CLIENT",
-          cwd: "/Users/patryk/Documents/Codex/scratch-api-worker",
+          cwd: "/Users/sample/Documents/Codex/scratch-api-worker",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -1382,8 +1382,8 @@ describe("App integration", () => {
       undefined,
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/sample/Desktop/ClientApp" },
         ],
         activeWorkspaceId: "A",
       },
@@ -1900,7 +1900,7 @@ describe("App integration", () => {
   it("reviews and applies worktree changes from Details without replacing xterm", async () => {
     const user = userEvent.setup();
     const { worktreeDiff, worktreeApply } = installDesktopBridge(undefined, null, [liveSnapshot("details-diff", {
-      isolation: "worktree", branchName: "details-work", baseCwd: "/Users/patryk/Desktop/Alfred",
+      isolation: "worktree", branchName: "details-work", baseCwd: "/Users/sample/Desktop/Alfred",
     })]);
     render(<App />);
     await screen.findByRole("article", { name: /Codex · details-diff/ });
@@ -2111,7 +2111,7 @@ describe("App integration", () => {
       undefined,
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
           { id: "B", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
         ],
         activeWorkspaceId: "A",
@@ -2235,7 +2235,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "codex",
           command: "codex",
           args: [],
@@ -2248,7 +2248,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "claude",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "claude",
           command: "claude",
           args: [],
@@ -2361,7 +2361,7 @@ describe("App integration", () => {
         source: "alfred",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         buffer: "asleep output\n",
@@ -2371,7 +2371,7 @@ describe("App integration", () => {
         title: "Saved free chat",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Documents/Codex/saved-free-chat",
+        cwd: "/Users/sample/Documents/Codex/saved-free-chat",
         shell: "/bin/zsh",
         command: "zsh",
         buffer: "asleep scratch output\n",
@@ -2388,7 +2388,7 @@ describe("App integration", () => {
           id: "A",
           label: "Alfred",
           shortLabel: "A",
-          rootPath: "/Users/patryk/Documents/Codex/alfred-scratch",
+          rootPath: "/Users/sample/Documents/Codex/alfred-scratch",
         }],
         activeWorkspaceId: "A",
       },
@@ -2421,7 +2421,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "claude",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "claude",
         command: "claude",
         buffer: "asleep output\n",
@@ -2596,7 +2596,7 @@ describe("App integration", () => {
       title: "Manual · menu",
       source: "manual",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       stage: "live",
       runtimeStatus: "live",
       initialBuffer: "",
@@ -2616,7 +2616,7 @@ describe("App integration", () => {
     ]);
 
     await user.click(within(menu).getByRole("menuitem", { name: /Open in external terminal/ }));
-    expect(callbacks.onOpenExternalTerminal).toHaveBeenCalledWith("/Users/patryk/Desktop/Alfred");
+    expect(callbacks.onOpenExternalTerminal).toHaveBeenCalledWith("/Users/sample/Desktop/Alfred");
 
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: "Rename session" }));
@@ -2638,7 +2638,7 @@ describe("App integration", () => {
       title: "Manual · menu",
       source: "manual",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       stage: "live",
       runtimeStatus: "live",
       initialBuffer: "",
@@ -2718,7 +2718,7 @@ describe("App integration", () => {
         title: "Manual · failed",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "failed",
         activityEvents: [
@@ -2788,7 +2788,7 @@ describe("App integration", () => {
       source: "manual",
       agentKind: "codex",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       command: "codex",
       args: [],
       stage: "live",
@@ -2826,8 +2826,8 @@ describe("App integration", () => {
       { viewStateByWorkspace: {} },
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/sample/Desktop/ClientApp" },
         ],
         activeWorkspaceId: "A",
       },
@@ -3128,7 +3128,7 @@ describe("App integration", () => {
       source: "manual",
       agentKind: "codex",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       command: "codex",
       args: ["resume", "old-session"],
       resumeTarget: {
@@ -3298,7 +3298,7 @@ describe("App integration", () => {
           args: ["resume", externalSessionId],
           resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
           isolation: "shared",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           workspaceId: "A",
       })]]);
     });
@@ -3380,13 +3380,13 @@ describe("App integration", () => {
       secondResolution.resolve({
         kind: "resume",
         projectId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         sessionId: sharedSessionId,
       });
       firstResolution.resolve({
         kind: "resume",
         projectId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         sessionId: sharedSessionId,
       });
       await Promise.resolve();
@@ -3444,7 +3444,7 @@ describe("App integration", () => {
       [{
         clientId: "restored-sessions-action",
         title: "Restored Sessions action",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         source: "manual",
         agentKind: "codex",
         isolation: "shared",
@@ -3485,7 +3485,7 @@ describe("App integration", () => {
       [{
         clientId: "unsafe-sessions-action",
         title: "Unsafe Sessions action",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         source: "manual",
         isolation: "shared",
         shell: "/bin/zsh",
@@ -3505,7 +3505,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
     const review = screen.getByRole("region", { name: "Resume review" });
     expect(review).toHaveTextContent("/bin/sh -c rm -rf dist");
-    expect(review).toHaveTextContent("/Users/patryk/Desktop/Alfred");
+    expect(review).toHaveTextContent("/Users/sample/Desktop/Alfred");
 
     fireEvent.keyDown(screen.getByRole("region", { name: "History" }), { key: "Escape" });
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
@@ -3577,7 +3577,7 @@ describe("App integration", () => {
         liveSnapshot("real-b", {
           title: "Real IronLog tile",
           workspaceId: "B",
-          cwd: "/Users/patryk/Desktop/IronLog",
+          cwd: "/Users/sample/Desktop/IronLog",
         }),
       ],
       undefined,
@@ -3589,8 +3589,8 @@ describe("App integration", () => {
       },
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/patryk/Desktop/IronLog" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/sample/Desktop/IronLog" },
         ],
         activeWorkspaceId: "A",
       },
@@ -3658,8 +3658,8 @@ describe("App integration", () => {
       },
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "B", label: "Empty", shortLabel: "E", rootPath: "/Users/patryk/Desktop/Empty" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "B", label: "Empty", shortLabel: "E", rootPath: "/Users/sample/Desktop/Empty" },
         ],
         activeWorkspaceId: "A",
       },
@@ -3763,7 +3763,7 @@ describe("App integration", () => {
     expect(setWorkspaceState).not.toHaveBeenCalledWith(
       expect.objectContaining({
         workspaces: expect.arrayContaining([
-          expect.objectContaining({ rootPath: "/Users/patryk/Downloads/UnknownProject" }),
+          expect.objectContaining({ rootPath: "/Users/sample/Downloads/UnknownProject" }),
         ]),
       }),
     );
@@ -4016,7 +4016,7 @@ describe("App integration", () => {
         title: "Manual · dev server",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "Vite ready at http://localhost:5173/\nExternal: http://example.com\n",
       },
@@ -4082,7 +4082,7 @@ describe("App integration", () => {
     act(() => linkHandler.hover(pointer, uri));
     expect(await within(tile).findByText("1.png")).toBeInTheDocument();
     expect(tile.querySelector(".terminal-image-peek img")).toHaveAttribute("src", "data:image/png;base64,thumb");
-    expect(imageThumbnail).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(imageThumbnail).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/sample/Desktop/Alfred" });
     act(() => linkHandler.leave());
     expect(within(tile).queryByText("1.png")).not.toBeInTheDocument();
 
@@ -4090,7 +4090,7 @@ describe("App integration", () => {
     act(() => linkHandler.activate(new MouseEvent("click"), uri));
     expect(quickLookImage).not.toHaveBeenCalled();
     act(() => linkHandler.activate(new MouseEvent("click", { metaKey: true }), uri));
-    expect(quickLookImage).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(quickLookImage).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/sample/Desktop/Alfred" });
     // Web links and other files are not images.
     act(() => linkHandler.hover(pointer, "https://example.com/a.png"));
     act(() => linkHandler.hover(pointer, "file:///Users/p/notes.txt"));
@@ -4103,7 +4103,7 @@ describe("App integration", () => {
     expect(links).toEqual([expect.objectContaining({ range: { start: { x: 10, y: 1 }, end: { x: 21, y: 1 } }, text: "out/shot.png" })]);
     act(() => links![0]!.hover(pointer));
     expect(await within(tile).findByText("shot.png")).toBeInTheDocument();
-    expect(imageThumbnail).toHaveBeenLastCalledWith({ path: "out/shot.png", cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(imageThumbnail).toHaveBeenLastCalledWith({ path: "out/shot.png", cwd: "/Users/sample/Desktop/Alfred" });
     act(() => links![0]!.leave());
 
     // Codex shows a sent image as [Image #1] without a link; the message it was sent with says which file it is.
@@ -4117,7 +4117,7 @@ describe("App integration", () => {
     act(() => codexLinks![0]!.hover(pointer));
     expect(await within(tile).findByText("shot 2.png")).toBeInTheDocument();
     act(() => codexLinks![0]!.activate(new MouseEvent("click", { metaKey: true })));
-    expect(quickLookImage).toHaveBeenLastCalledWith({ path: "/Users/p/Desktop/shot 2.png", cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(quickLookImage).toHaveBeenLastCalledWith({ path: "/Users/p/Desktop/shot 2.png", cwd: "/Users/sample/Desktop/Alfred" });
     // xterm asks again each time Codex redraws the row; the last answer comes back at once.
     let redrawnLinks: Link[] | undefined;
     (terminalLinkProviders[1] as Provider).provideLinks(1, (found) => { redrawnLinks = found; });
@@ -4163,7 +4163,7 @@ describe("App integration", () => {
         title: "Manual · dev server",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -4294,7 +4294,7 @@ describe("App integration", () => {
         }),
         liveSnapshot("preview-b", {
           workspaceId: "B",
-          cwd: "/Users/patryk/Desktop/IronLog",
+          cwd: "/Users/sample/Desktop/IronLog",
           buffer: "Ready at http://localhost:4173/b\n",
         }),
       ],
@@ -4307,8 +4307,8 @@ describe("App integration", () => {
       },
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/patryk/Desktop/IronLog" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/sample/Desktop/IronLog" },
         ],
         activeWorkspaceId: "A",
       },
@@ -4345,7 +4345,7 @@ describe("App integration", () => {
         title: "Saved preview server",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         command: "zsh",
         buffer: "Ready at http://localhost:5173/asleep\n",
@@ -4439,7 +4439,7 @@ describe("App integration", () => {
             id: "A",
             label: "Missing project",
             shortLabel: "MP",
-            rootPath: "/Users/patryk/Desktop/MissingProject",
+            rootPath: "/Users/sample/Desktop/MissingProject",
             rootStatus: "missing",
           },
         ],
@@ -4452,7 +4452,7 @@ describe("App integration", () => {
           id: "A",
           label: "Missing project",
           shortLabel: "MP",
-          rootPath: "/Users/patryk/Desktop/MissingProject",
+          rootPath: "/Users/sample/Desktop/MissingProject",
           rootStatus: "missing",
         },
       ],
@@ -4481,7 +4481,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
-          cwd: "/Users/patryk/TrustedWorkspace",
+          cwd: "/Users/sample/TrustedWorkspace",
           source: "manual",
           workspaceId: "A",
         }),
@@ -4518,7 +4518,7 @@ describe("App integration", () => {
             id: "A",
             label: "Missing project",
             shortLabel: "MP",
-            rootPath: "/Users/patryk/Desktop/MissingProject",
+            rootPath: "/Users/sample/Desktop/MissingProject",
             rootStatus: "missing",
           },
         ],
@@ -4547,7 +4547,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
         clientId: "alfred-missing-work",
-        cwd: "/Users/patryk/TrustedWorkspace",
+        cwd: "/Users/sample/TrustedWorkspace",
         workspaceId: "A",
       }));
     });
@@ -4630,7 +4630,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
           { id: "W2", label: "Project 2", shortLabel: "W2" },
         ],
         activeWorkspaceId: "A",
@@ -4652,7 +4652,7 @@ describe("App integration", () => {
             id: "A",
             label: "Alfred",
             shortLabel: "A",
-            rootPath: "/Users/patryk/Desktop/Alfred",
+            rootPath: "/Users/sample/Desktop/Alfred",
             gitBranch: "main",
           },
         ],
@@ -4672,7 +4672,7 @@ describe("App integration", () => {
     await user.click(trigger);
     await user.click(within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Open in/ }));
 
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
     expect(screen.queryByRole("dialog", { name: "Project actions" })).not.toBeInTheDocument();
 
     await user.click(trigger);
@@ -4680,7 +4680,7 @@ describe("App integration", () => {
       within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Reveal/ }),
     );
 
-    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
+    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
 
     await user.click(trigger);
     await user.click(
@@ -4704,7 +4704,7 @@ describe("App integration", () => {
             id: "A",
             label: "Ops Console",
             shortLabel: "OC",
-            rootPath: "/Users/patryk/Desktop/Alfred",
+            rootPath: "/Users/sample/Desktop/Alfred",
             gitBranch: "main",
           },
         ],
@@ -4753,7 +4753,7 @@ describe("App integration", () => {
             id: "A",
             label: "Alfred",
             shortLabel: "A",
-            rootPath: "/Users/patryk/Desktop/Alfred",
+            rootPath: "/Users/sample/Desktop/Alfred",
             gitBranch: "main",
           },
         ],
@@ -4789,7 +4789,7 @@ describe("App integration", () => {
             id: "A",
             label: "Alfred",
             shortLabel: "A",
-            rootPath: "/Users/patryk/Desktop/Alfred",
+            rootPath: "/Users/sample/Desktop/Alfred",
             gitBranch: "main",
             missionBrief: {
               goal: "Ship launcher v0 calmly",
@@ -4835,7 +4835,7 @@ describe("App integration", () => {
             id: "A",
             label: "Alfred",
             shortLabel: "A",
-            rootPath: "/Users/patryk/Desktop/Alfred",
+            rootPath: "/Users/sample/Desktop/Alfred",
             missionBrief: {
               goal: "Ship the launcher.",
               doneWhen: ["Agents draft"],
@@ -4865,7 +4865,7 @@ describe("App integration", () => {
             id: "A",
             label: "Alfred",
             shortLabel: "A",
-            rootPath: "/Users/patryk/Desktop/Alfred",
+            rootPath: "/Users/sample/Desktop/Alfred",
           },
         ],
         activeWorkspaceId: "A",
@@ -4910,7 +4910,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
         ],
         activeWorkspaceId: "A",
       });
@@ -5032,7 +5032,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenCalledWith({
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
         ],
         activeWorkspaceId: "A",
       });
@@ -5154,7 +5154,7 @@ describe("App integration", () => {
         clientId: "alfred-1",
         title: "Codex - Backend Code Quality Analysis",
         source: "alfred",
-        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/codex-worktree",
+        cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/codex-worktree",
         shell: "codex",
         buffer: "Codex ready",
         agentKind: "codex",
@@ -5167,7 +5167,7 @@ describe("App integration", () => {
         clientId: "alfred-2",
         title: "Claude - UI/UX Deep Analysis",
         source: "alfred",
-        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/claude-worktree",
+        cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/claude-worktree",
         shell: "claude",
         buffer: "Claude ready\n".repeat(200),
         agentKind: "claude",
@@ -5212,7 +5212,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/codex-worktree",
+          cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/codex-worktree",
           shell: "codex",
           command: "codex",
           args: ["review backend"],
@@ -5225,7 +5225,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "claude",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/claude-worktree",
+          cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/claude-worktree",
           shell: "claude",
           command: "claude",
           args: ["review ui"],
@@ -5275,7 +5275,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/codex-worktree",
+          cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/codex-worktree",
           shell: "codex",
           command: "codex",
           args: ["review backend"],
@@ -5288,7 +5288,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "claude",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/claude-worktree",
+          cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/claude-worktree",
           shell: "claude",
           command: "claude",
           args: ["review ui"],
@@ -5322,7 +5322,7 @@ describe("App integration", () => {
         title: "Manual · alpha",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "alpha output\n",
       },
@@ -5332,7 +5332,7 @@ describe("App integration", () => {
         title: "Manual · beta",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "beta output\n",
       },
@@ -5374,7 +5374,7 @@ describe("App integration", () => {
         title: "Manual · alpha",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "alpha output\n",
       },
@@ -5420,7 +5420,7 @@ describe("App integration", () => {
         title: request.title ?? "zsh",
         source: request.source ?? "manual",
         workspaceId: request.workspaceId ?? "A",
-        cwd: request.cwd ?? "/Users/patryk/Desktop/Alfred",
+        cwd: request.cwd ?? "/Users/sample/Desktop/Alfred",
         shell: "bash",
         ...(request.command === undefined ? {} : { command: request.command }),
         ...(request.args === undefined ? {} : { args: request.args }),
@@ -5498,7 +5498,7 @@ describe("App integration", () => {
         title: "zsh",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -5508,7 +5508,7 @@ describe("App integration", () => {
         title: "zsh 2",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -5568,7 +5568,7 @@ describe("App integration", () => {
           title: "zsh",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -5578,7 +5578,7 @@ describe("App integration", () => {
           title: "zsh 2",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -5654,7 +5654,7 @@ describe("App integration", () => {
     );
     expect(setWorkspaceState).toHaveBeenLastCalledWith({
       workspaces: [
-        { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+        { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
         { id: "W2", label: "Project 2", shortLabel: "W2" },
       ],
       activeWorkspaceId: "W2",
@@ -5695,7 +5695,7 @@ describe("App integration", () => {
         source: "alfred",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -5725,7 +5725,7 @@ describe("App integration", () => {
           title: "zsh",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -5736,7 +5736,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "codex",
           workspaceId: "CLIENT",
-          cwd: "/Users/patryk/Desktop/ClientApp",
+          cwd: "/Users/sample/Desktop/ClientApp",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -5745,8 +5745,8 @@ describe("App integration", () => {
       undefined,
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/sample/Desktop/ClientApp" },
         ],
         activeWorkspaceId: "A",
       },
@@ -5838,9 +5838,9 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-review",
         branchName: "alfred-codex-review",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -5882,9 +5882,9 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred/.alfred-worktrees/codex-diff-reader",
+        cwd: "/Users/sample/Desktop/Alfred/.alfred-worktrees/codex-diff-reader",
         branchName: "alfred-codex-diff-reader",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -6031,9 +6031,9 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-review",
         branchName: "alfred-codex-review",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -6079,9 +6079,9 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-review",
         branchName: "alfred-codex-review",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -6128,9 +6128,9 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-review",
         branchName: "alfred-codex-review",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -6189,10 +6189,10 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         isolation: "shared",
         branchName: "alfred-codex-stale",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -6300,7 +6300,7 @@ describe("App integration", () => {
           title: "zsh",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           buffer: "",
         },
@@ -6311,7 +6311,7 @@ describe("App integration", () => {
           source: "manual",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "codex",
           command: "codex",
           args: [],
@@ -6388,7 +6388,7 @@ describe("App integration", () => {
           source: "manual",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "codex",
           command: "codex",
           args: [],
@@ -6427,7 +6427,7 @@ describe("App integration", () => {
           source: "manual",
           agentKind: "claude",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "claude",
           command: "claude",
           args: [],
@@ -6450,7 +6450,7 @@ describe("App integration", () => {
           source: "manual",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "codex",
           command: "codex",
           args: [],
@@ -6536,7 +6536,7 @@ describe("App integration", () => {
           source: "manual",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "codex",
           command: "codex",
           args: [],
@@ -6657,7 +6657,7 @@ describe("App integration", () => {
         source: request.source ?? "alfred",
         agentKind: request.agentKind,
         workspaceId: request.workspaceId ?? "A",
-        cwd: request.cwd ?? "/Users/patryk/Desktop/Alfred",
+        cwd: request.cwd ?? "/Users/sample/Desktop/Alfred",
         createdAt: startedAt,
         shell: "/bin/sh",
         command: request.command,
@@ -6804,7 +6804,7 @@ describe("App integration", () => {
       source: "alfred",
       agentKind: "shell",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       createdAt: 100,
       shell: "/bin/sh",
       command: "/bin/cat",
@@ -6859,7 +6859,7 @@ describe("App integration", () => {
         source: "alfred",
         agentKind: "shell",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         createdAt: 100,
         shell: "/usr/bin/printf",
         command: "/usr/bin/printf",
@@ -6931,7 +6931,7 @@ describe("App integration", () => {
         title: "zsh 9",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -6954,7 +6954,7 @@ describe("App integration", () => {
           id: "A",
           label: "Alfred",
           shortLabel: "A",
-          rootPath: "/Users/patryk/Desktop/Alfred",
+          rootPath: "/Users/sample/Desktop/Alfred",
           gitBranch: "main",
         },
       ],
@@ -6998,7 +6998,7 @@ describe("App integration", () => {
         title: "zsh 9",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -7051,7 +7051,7 @@ describe("App integration", () => {
       undefined,
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
           { id: "B", label: "Saved project", shortLabel: "SP", rootPath: "/repo/saved" },
         ],
         activeWorkspaceId: "B",
@@ -7096,7 +7096,7 @@ describe("App integration", () => {
       undefined,
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
           { id: "B", label: "Other", shortLabel: "O", rootPath: "/repo/other" },
         ],
         activeWorkspaceId: "A",
@@ -7107,7 +7107,7 @@ describe("App integration", () => {
           title: "LaTeX build",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           command: "zsh",
           args: [],
@@ -7118,7 +7118,7 @@ describe("App integration", () => {
           title: "Slide deck outline",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           command: "zsh",
           args: [],
@@ -7129,7 +7129,7 @@ describe("App integration", () => {
           title: "Clean build output",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
           command: "rm",
           args: ["-rf", "dist"],
@@ -7188,7 +7188,7 @@ describe("App integration", () => {
         title: "zsh 9",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         command: "zsh",
         args: [],
@@ -7214,7 +7214,7 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
           clientId: "manual-a",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           workspaceId: "A",
         }),
       );
@@ -7289,7 +7289,7 @@ describe("App integration", () => {
         title: "zsh 9",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -7320,7 +7320,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7359,7 +7359,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7400,7 +7400,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7427,7 +7427,7 @@ describe("App integration", () => {
     );
 
     expect(revealPath).toHaveBeenCalledWith({
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       path: "apps/desktop/src/renderer/app.tsx",
     });
   });
@@ -7440,7 +7440,7 @@ describe("App integration", () => {
         title: "Manual · alpha",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "alpha output\n",
       },
@@ -7457,7 +7457,7 @@ describe("App integration", () => {
     ).toBeInTheDocument();
     const essentials = within(inspector).getByRole("region", { name: "Location" });
     expect(essentials.querySelector("dl")).toBeNull();
-    expect(essentials).toHaveTextContent("/Users/patryk/Desktop/Alfred");
+    expect(essentials).toHaveTextContent("/Users/sample/Desktop/Alfred");
   });
 
   it("opens the focused session cwd in an external terminal", async () => {
@@ -7470,7 +7470,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7484,7 +7484,7 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     await user.click(screen.getByRole("button", { name: "Open in terminal for Codex" }));
 
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
   });
 
   it("surfaces Details reveal failures without contaminating New session", async () => {
@@ -7499,7 +7499,7 @@ describe("App integration", () => {
     const revealButton = screen.getByRole("button", { name: "Show in Finder for Codex · context-reveal" });
     await user.click(revealButton);
 
-    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
+    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
     const alert = await screen.findByRole("alert", { name: "Shell action failed" });
     expect(alert).toHaveTextContent("Finder could not reveal the Details folder.");
     expect(screen.getAllByRole("alert", { name: "Shell action failed" })).toHaveLength(1);
@@ -7529,7 +7529,7 @@ describe("App integration", () => {
     );
     await user.click(terminalButton);
 
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
     const alert = await screen.findByRole("alert", { name: "Shell action failed" });
     expect(alert).toHaveTextContent("Ghostty could not open the Details cwd.");
     expect(screen.getAllByRole("alert", { name: "Shell action failed" })).toHaveLength(1);
@@ -7554,7 +7554,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7567,7 +7567,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await sessionMenuAction(user, "Codex", /Open in external terminal/);
 
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
   });
 
   it("surfaces terminal tile handoff failures in shell chrome", async () => {
@@ -7617,7 +7617,7 @@ describe("App integration", () => {
         title: "zsh",
         source: "manual",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
         buffer: "",
       },
@@ -7628,7 +7628,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.keyboard("{Meta>}{Shift>}o{/Shift}{/Meta}");
 
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
   });
 
   it("renames a terminal tile and persists the runtime title", async () => {
@@ -7641,7 +7641,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7674,7 +7674,7 @@ describe("App integration", () => {
         source: "manual",
         agentKind: "codex",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         shell: "codex",
         command: "codex",
         args: [],
@@ -7689,12 +7689,12 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "open focused session");
 
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "reveal focused session");
 
-    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
+    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
   });
 
   it("hydrates the saved selected session", async () => {
@@ -7788,14 +7788,14 @@ describe("App integration", () => {
         }),
         { ...manualLiveSnapshot("shell", "zsh"), shellBusy: true },
         liveSnapshot("two"),
-        liveSnapshot("other", { workspaceId: "B", cwd: "/Users/patryk/Desktop/IronLog" }),
+        liveSnapshot("other", { workspaceId: "B", cwd: "/Users/sample/Desktop/IronLog" }),
       ],
       undefined,
       { viewStateByWorkspace: { A: { selectedSessionId: "one" } } },
       {
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/patryk/Desktop/IronLog" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/sample/Desktop/IronLog" },
         ],
         activeWorkspaceId: "A",
       },
@@ -8461,11 +8461,11 @@ describe("App integration", () => {
         {
           clientId: "clean-desktop",
           title: "Clean Desktop",
-          cwd: "/Users/patryk/Desktop/Very Long Project",
+          cwd: "/Users/sample/Desktop/Very Long Project",
           source: "manual",
           shell: "find",
           command: "find",
-          args: ["/Users/patryk/Desktop", "-maxdepth", "1", "-exec", "mv", "{}", "/Users/patryk/Desktop/Alfred", ";"],
+          args: ["/Users/sample/Desktop", "-maxdepth", "1", "-exec", "mv", "{}", "/Users/sample/Desktop/Alfred", ";"],
           buffer: "asleep output\n",
         },
       ],
@@ -8483,8 +8483,8 @@ describe("App integration", () => {
     expect(createTerminal).not.toHaveBeenCalled();
     const review = within(history).getByRole("region", { name: "Resume review" });
     expect(review).toHaveTextContent("find -exec mutates files when replayed");
-    expect(review).toHaveTextContent("/Users/patryk/Desktop/Very Long Project");
-    expect(review).toHaveTextContent("find /Users/patryk/Desktop -maxdepth 1 -exec mv {} /Users/patryk/Desktop/Alfred ;");
+    expect(review).toHaveTextContent("/Users/sample/Desktop/Very Long Project");
+    expect(review).toHaveTextContent("find /Users/sample/Desktop -maxdepth 1 -exec mv {} /Users/sample/Desktop/Alfred ;");
     expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
@@ -8652,7 +8652,7 @@ describe("App integration", () => {
   it.each([true, false])("keeps Free Chat decisions in Needs you without project attention (freeChat=%s)", async (freeChat) => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("decision", {
-      cwd: freeChat ? "/Users/patryk/Documents/Codex/free-chat" : "/Users/patryk/Desktop/Alfred",
+      cwd: freeChat ? "/Users/sample/Documents/Codex/free-chat" : "/Users/sample/Desktop/Alfred",
       activityEvents: [{ id: "approval", kind: "approval", title: "Needs approval", detail: "Proceed?", at: Date.now() }],
     })]);
     render(<App />);
@@ -9805,7 +9805,7 @@ describe("App integration", () => {
           id: "A",
           label: "Alfred",
           shortLabel: "A",
-          rootPath: "/Users/patryk/Documents/Codex/alfred-scratch",
+          rootPath: "/Users/sample/Documents/Codex/alfred-scratch",
         }],
         activeWorkspaceId: "A",
       },
@@ -9816,7 +9816,7 @@ describe("App integration", () => {
           source: "alfred",
           agentKind: "codex",
           workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
+          cwd: "/Users/sample/Desktop/Alfred",
           shell: "codex",
           command: "codex",
           buffer: "asleep output\n",
@@ -9826,7 +9826,7 @@ describe("App integration", () => {
           title: "Saved free chat",
           source: "manual",
           workspaceId: "A",
-          cwd: "/Users/patryk/Documents/Codex/saved-free-chat",
+          cwd: "/Users/sample/Documents/Codex/saved-free-chat",
           shell: "/bin/zsh",
           command: "zsh",
           buffer: "asleep scratch output\n",
@@ -10017,7 +10017,7 @@ describe("App integration", () => {
       source: "alfred",
       agentKind: "shell",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       shell: "/bin/zsh",
       command: "echo",
       args: ["old"],

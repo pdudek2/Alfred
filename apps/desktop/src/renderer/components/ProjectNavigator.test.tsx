@@ -6,7 +6,7 @@ import type { SessionTile } from "../session-state";
 import { ProjectNavigator, projectRailState, railOrder, type ProjectNavigatorProps } from "./ProjectNavigator";
 
 const workspaces = [
-  { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+  { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
   { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
   { id: "CLOUD", label: "Chmury_lab04", shortLabel: "CHM", rootPath: "/repo/cloud" },
   { id: "GOTHAM", label: "GothamTab", shortLabel: "GOT", rootPath: "/repo/gotham" },
@@ -22,15 +22,15 @@ const sandboxes = [
 ];
 
 const sessions: SessionTile[] = [
-  liveSession("codex-live", "Codex · Atlas", "A", "/Users/patryk/Desktop/Alfred", "codex"),
-  liveSession("claude-live", "Claude · CSS", "A", "/Users/patryk/Desktop/Alfred", "claude"),
-  { ...liveSession("codex-restored", "Codex · restored", "A", "/Users/patryk/Desktop/Alfred", "codex"), runtimeStatus: "restored" },
+  liveSession("codex-live", "Codex · Atlas", "A", "/Users/sample/Desktop/Alfred", "codex"),
+  liveSession("claude-live", "Claude · CSS", "A", "/Users/sample/Desktop/Alfred", "claude"),
+  { ...liveSession("codex-restored", "Codex · restored", "A", "/Users/sample/Desktop/Alfred", "codex"), runtimeStatus: "restored" },
   ...Array.from({ length: 4 }, (_, index) =>
     liveSession(
       `free-${index + 1}`,
       `Free Chat ${index + 1}`,
       `FREE-${index + 1}`,
-      `/Users/patryk/Documents/Codex/chat-${index + 1}`,
+      `/Users/sample/Documents/Codex/chat-${index + 1}`,
       "codex",
     ),
   ),
@@ -196,7 +196,7 @@ describe("ProjectNavigator", () => {
 
   it("keeps a parent's workers hidden across a project switch once you hide them", async () => {
     const user = userEvent.setup();
-    const withWorker = [...sessions, { ...liveSession("worker", "Codex · worker", "A", "/Users/patryk/Desktop/Alfred", "codex"), parentSessionId: "codex-live" }];
+    const withWorker = [...sessions, { ...liveSession("worker", "Codex · worker", "A", "/Users/sample/Desktop/Alfred", "codex"), parentSessionId: "codex-live" }];
     const { rerender } = renderNavigator({ sessions: withWorker });
 
     expect(screen.getByRole("list", { name: "Workers of Codex · Atlas" })).toBeInTheDocument();
@@ -411,7 +411,7 @@ describe("ProjectNavigator", () => {
     "excludes %s scratch sessions from Free Chats",
     (runtimeStatus) => {
       const scratch = {
-        ...liveSession(`scratch-${runtimeStatus}`, `Scratch ${runtimeStatus}`, "CLOUD", `/Users/patryk/Documents/Codex/s-${runtimeStatus}`, "codex"),
+        ...liveSession(`scratch-${runtimeStatus}`, `Scratch ${runtimeStatus}`, "CLOUD", `/Users/sample/Documents/Codex/s-${runtimeStatus}`, "codex"),
         runtimeStatus,
       };
 

@@ -191,7 +191,7 @@ Ready.`;
       workspace: {
         id: "COD",
         label: "CodexPulse",
-        rootPath: "/Users/patryk/Desktop/CodexPulse",
+        rootPath: "/Users/sample/Desktop/CodexPulse",
         gitBranch: "main",
       },
       fetchImpl,
@@ -265,7 +265,7 @@ Ready.`;
       workspace: {
         id: "CLIENT",
         label: "Client App",
-        rootPath: "/Users/patryk/Desktop/ClientApp",
+        rootPath: "/Users/sample/Desktop/ClientApp",
         gitBranch: "feature/agent-space",
         missionBrief: {
           goal: "Finish the launcher review without breaking manual terminals.",
@@ -277,7 +277,7 @@ Ready.`;
             title: "Codex · api",
             kind: "codex",
             status: "active",
-            cwd: "/Users/patryk/Desktop/ClientApp",
+            cwd: "/Users/sample/Desktop/ClientApp",
             command: "codex",
           },
         ],
@@ -290,14 +290,14 @@ Ready.`;
 
     expect(userMessage).toContain("Current workspace:");
     expect(userMessage).toContain("- label: Client App");
-    expect(userMessage).toContain("- cwd: /Users/patryk/Desktop/ClientApp");
+    expect(userMessage).toContain("- cwd: /Users/sample/Desktop/ClientApp");
     expect(userMessage).toContain("- branch: feature/agent-space");
     expect(userMessage).toContain("- mission brief:");
     expect(userMessage).toContain("goal: Finish the launcher review without breaking manual terminals.");
     expect(userMessage).toContain("done when: Planner returns a safe squad");
     expect(userMessage).toContain("guardrail: No force push");
     expect(userMessage).toContain("- existing sessions:");
-    expect(userMessage).toContain("Codex · api (codex, active, /Users/patryk/Desktop/ClientApp, cmd=codex)");
+    expect(userMessage).toContain("Codex · api (codex, active, /Users/sample/Desktop/ClientApp, cmd=codex)");
     expect(userMessage).toContain(baseInput.prompt);
   });
 

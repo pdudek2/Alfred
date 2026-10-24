@@ -12,7 +12,7 @@ function session(overrides: Partial<SessionTile> = {}): SessionTile {
     id: "codex-live",
     title: "Codex · active work",
     workspaceId: "A",
-    cwd: "/Users/patryk/Desktop/Alfred",
+    cwd: "/Users/sample/Desktop/Alfred",
     source: "manual",
     stage: "live",
     runtimeStatus: "live",
@@ -25,7 +25,7 @@ describe("session scope", () => {
   it("classifies a live Documents/Codex session as a Free Chat", () => {
     const freeChat = session({
       id: "free-chat",
-      cwd: "/Users/patryk/Documents/Codex/idea",
+      cwd: "/Users/sample/Documents/Codex/idea",
     });
 
     expect(isNavigableLiveSession(freeChat)).toBe(true);
@@ -40,15 +40,15 @@ describe("session scope", () => {
   });
 
   it("does not treat a project whose name merely starts with Codex as a Free Chat", () => {
-    expect(isFreeChatPath("/Users/patryk/Documents/CodexProject")).toBe(false);
-    expect(isFreeChatPath("C:\\Users\\patryk\\Documents\\Codex\\idea")).toBe(true);
+    expect(isFreeChatPath("/Users/sample/Documents/CodexProject")).toBe(false);
+    expect(isFreeChatPath("C:\\Users\\sample\\Documents\\Codex\\idea")).toBe(true);
   });
 
   it.each(["restored", "exited", "error"] as const)(
     "does not expose %s sessions as navigable Free Chats",
     (runtimeStatus) => {
       const inactiveFreeChat = session({
-        cwd: "/Users/patryk/Documents/Codex/idea",
+        cwd: "/Users/sample/Documents/Codex/idea",
         runtimeStatus,
       });
 

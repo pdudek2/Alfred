@@ -74,7 +74,7 @@ class FakePty {
 
 vi.mock("electron", () => ({
   app: {
-    getAppPath: () => "/Users/patryk/Desktop/Alfred/apps/desktop",
+    getAppPath: () => "/Users/sample/Desktop/Alfred/apps/desktop",
   },
   BrowserWindow: {
     fromWebContents: vi.fn(),
@@ -500,13 +500,13 @@ describe("terminal-manager IPC", () => {
       cols: 80,
       cwd: "/repo",
       rows: 24,
-      title: "Manual /Users/patryk/Desktop/Alfred",
+      title: "Manual /Users/sample/Desktop/Alfred",
     });
     pty.onDataHandler?.("Authorization: Bearer abc.def.ghi\nBash(\"echo sk-proj-1234567890abcdef\")\n");
     await flushTerminalPersistence();
 
     const session = state.restoredTerminalSessions[0];
-    expect(session?.title).toBe("Manual [redacted-path:44c8fe0e]");
+    expect(session?.title).toBe("Manual [redacted-path:cd97628a]");
     expect(session?.buffer).toContain("Authorization: [redacted]");
     expect(session?.buffer).toContain("Bash(\"echo [redacted]\")");
     expect(session?.buffer).not.toContain("abc.def.ghi");
@@ -521,8 +521,8 @@ describe("terminal-manager IPC", () => {
   });
 
   it("redacts persisted restored snapshots without redacting the same-process restore cache", async () => {
-    const rawBuffer = "/Users/patryk/project\nsecret=abc123def4567890\n";
-    const rawTitle = "/Users/patryk/project";
+    const rawBuffer = "/Users/sample/project\nsecret=abc123def4567890\n";
+    const rawTitle = "/Users/sample/project";
     let state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [
@@ -530,7 +530,7 @@ describe("terminal-manager IPC", () => {
           clientId: "manual-sensitive-restore",
           title: rawTitle,
           source: "manual",
-          cwd: "/Users/patryk/project",
+          cwd: "/Users/sample/project",
           createdAt: 1,
           shell: "/bin/zsh",
           buffer: rawBuffer,

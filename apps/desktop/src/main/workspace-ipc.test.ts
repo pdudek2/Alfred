@@ -32,11 +32,11 @@ function fakeWorkspaceStore(rootPaths: Array<string | undefined>): WorkspaceStor
 
 describe("workspace IPC allowed roots", () => {
   it("allows workspace roots plus their managed and legacy project worktree roots only", async () => {
-    const managedRoot = "/Users/patryk/Library/Application Support/Alfred/worktrees";
-    const alfredRoot = "/Users/patryk/Desktop/Alfred";
-    const otherRoot = "/Users/patryk/Desktop/Other App";
-    const legacyAlfredRoot = "/Users/patryk/Desktop/.alfred-worktrees/Alfred";
-    const legacyOtherRoot = "/Users/patryk/Desktop/.alfred-worktrees/Other App";
+    const managedRoot = "/Users/sample/Library/Application Support/Alfred/worktrees";
+    const alfredRoot = "/Users/sample/Desktop/Alfred";
+    const otherRoot = "/Users/sample/Desktop/Other App";
+    const legacyAlfredRoot = "/Users/sample/Desktop/.alfred-worktrees/Alfred";
+    const legacyOtherRoot = "/Users/sample/Desktop/.alfred-worktrees/Other App";
     const roots = await allowedWorkspaceRoots(
       fakeWorkspaceStore([alfredRoot, otherRoot, undefined]),
       { managedWorktreeRootPath: managedRoot },
@@ -51,7 +51,7 @@ describe("workspace IPC allowed roots", () => {
       managedProjectWorktreeRoot(managedRoot, otherRoot),
     ]);
     expect(roots).not.toContain(managedRoot);
-    expect(roots).not.toContain("/Users/patryk/Desktop/.alfred-worktrees");
+    expect(roots).not.toContain("/Users/sample/Desktop/.alfred-worktrees");
     expect(roots).not.toContain(path.join(managedRoot, "unregistered-12345678"));
   });
 

@@ -12,7 +12,7 @@ function props(overrides: Partial<WorkspaceActionsMenuProps> = {}): WorkspaceAct
     missionBrief: undefined,
     renameDraft: "Alfred",
     renameEditing: false,
-    rootPath: "/Users/patryk/Desktop/Alfred",
+    rootPath: "/Users/sample/Desktop/Alfred",
     workspaceLabel: "Alfred",
     onCancelRename: vi.fn(),
     onCloseWorkspace: vi.fn(),

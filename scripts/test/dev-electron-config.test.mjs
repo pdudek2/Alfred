@@ -8,7 +8,7 @@ test("desktop Electron arguments preserve the Stable profile by default", () => 
 
 test("desktop Electron arguments isolate Preview with one native user-data argument", () => {
   assert.deepEqual(
-    electronArguments("/Users/patryk/Library/Application Support/Alfred Preview"),
-    [".", "--user-data-dir=/Users/patryk/Library/Application Support/Alfred Preview"],
+    electronArguments("/Users/sample/Library/Application Support/Alfred Preview"),
+    [".", "--user-data-dir=/Users/sample/Library/Application Support/Alfred Preview"],
   );
 });
