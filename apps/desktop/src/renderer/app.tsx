@@ -2076,7 +2076,7 @@ export function App() {
         return;
       }
       if (externalResumeReservationsRef.current.has(resolved.sessionId)) return;
-      const title = normalizeSessionTitle(summary.title ? `Codex · ${summary.title}` : "Codex resume") ?? "Codex resume";
+      const title = normalizeSessionTitle(summary.title ?? "") || "Codex resume";
       const tile: SessionTile = {
         id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}`,
         title,
@@ -3137,7 +3137,7 @@ function DiscardCheckoutDialog({
           <div>
             <span>Destructive action</span>
             <strong>Discard isolated checkout</strong>
-            <small>{confirmation.title} · {changedFileLabel}</small>
+            <small>{confirmation.title} has {changedFileLabel}.</small>
           </div>
           <button type="button" className="discard-checkout-close" onClick={onCancel} aria-label="Close discard dialog">
             <X size={15} />
@@ -3518,7 +3518,7 @@ function useSessionClock(sessions: SessionTile[]): number {
 
 function workspaceDetail(workspace: Workspace): string {
   const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
-  return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
+  return workspace.gitBranch ? `${location} on ${workspace.gitBranch}` : location;
 }
 
 function activeAccessibleDismissalOwner(root: HTMLElement): HTMLElement | null {

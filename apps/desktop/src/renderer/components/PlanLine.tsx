@@ -117,7 +117,7 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
               />
             ))}
           </ul>
-          <footer aria-hidden="true">↑↓ to move · Enter launches · Esc closes</footer>
+          <footer aria-hidden="true">↑↓ moves between actions. Enter runs the focused one. Esc closes.</footer>
         </div>
       )}
     </div>
@@ -144,7 +144,7 @@ function DraftRow({
     tileKindMeta(sessionTileKind(draft)).label,
     draft.isolation === "worktree" ? "isolated worktree" : null,
     draft.stagedReviewStatus === "edited" ? "edited" : null,
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(", ");
 
   return (
     <li className="plan-line__draft" aria-label={`Draft ${draft.title}`}>
