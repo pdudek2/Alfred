@@ -798,10 +798,7 @@ export function App() {
     if (selectedSessionIdsByWorkspace[activeWorkspace.id] === sessionId) return;
 
     const layoutApi = getDesktopLayoutApi();
-    setSelectedSessionIdsByWorkspace({
-      ...selectedSessionIdsByWorkspace,
-      [activeWorkspace.id]: sessionId,
-    });
+    setSelectedSessionIdsByWorkspace((current) => ({ ...current, [activeWorkspace.id]: sessionId }));
     void layoutApi?.setWorkspaceViewState({
       workspaceId: activeWorkspace.id,
       viewState: { selectedSessionId: sessionId },
@@ -934,12 +931,9 @@ export function App() {
     if (activeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
-    if (selectedSessionIdsByWorkspace[workspaceId] !== sessionId) {
-      setSelectedSessionIdsByWorkspace({
-        ...selectedSessionIdsByWorkspace,
-        [workspaceId]: sessionId,
-      });
-    }
+    setSelectedSessionIdsByWorkspace((current) =>
+      current[workspaceId] === sessionId ? current : { ...current, [workspaceId]: sessionId },
+    );
     if (viewStateChanged) {
       void layoutApi?.setWorkspaceViewState({
         workspaceId,
@@ -969,6 +963,8 @@ export function App() {
   useEffect(() => {
     setSelectedSessionIdsByWorkspace((current) => {
       const currentId = current[activeWorkspace.id];
+      // A pick made after this render (a new session) is checked by the next render, whose lists hold it.
+      if ((currentId ?? null) !== activeSelectedSessionId) return current;
       if (currentId && activeWorkSessions.some((session) => session.id === currentId)) {
         return current;
       }
@@ -985,7 +981,7 @@ export function App() {
         [activeWorkspace.id]: fallbackId,
       };
     });
-  }, [activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
+  }, [activeSelectedSessionId, activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
 
   const closeSessionNow = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();

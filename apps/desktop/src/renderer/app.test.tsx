@@ -1990,7 +1990,8 @@ describe("App integration", () => {
     input.addEventListener("keydown", (event) => {
       reached = event.key === "Escape" && !event.defaultPrevented;
     });
-    input.focus();
+    // Focus entering the tile selects its session: a React update.
+    act(() => input.focus());
     await user.keyboard("{Escape}");
     expect(reached).toBe(true);
     expect(screen.getByTestId("context-column")).not.toHaveClass("closed");
@@ -5408,7 +5409,8 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /Manual · alpha/i });
 
-    expect(terminalConstructorOptions).toEqual(
+    // The tile creates its xterm in an effect, which may not have run yet.
+    await waitFor(() => expect(terminalConstructorOptions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           cursorBlink: ghosttyVesperTerminalProfile.cursorBlink,
@@ -5426,7 +5428,7 @@ describe("App integration", () => {
           }),
         }),
       ]),
-    );
+    ));
   });
 
   it("does not auto-relaunch a failed live agent when focus moves away and back", async () => {
