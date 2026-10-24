@@ -207,6 +207,8 @@ export type TerminalWorkerRequest = {
   prompt: string;
   isolated: boolean;
   title?: string;
+  model?: string;
+  effort?: string;
 };
 
 export type TerminalWorkerReply =
