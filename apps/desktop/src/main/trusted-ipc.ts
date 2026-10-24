@@ -55,7 +55,13 @@ export const trustedIpc = {
   },
   on(channel: string, listener: Parameters<typeof ipcMain.on>[1]): void {
     ipcMain.on(channel, (event, ...args) => {
-      if (isTrustedSender(event)) listener(event, ...args);
+      if (!isTrustedSender(event)) return;
+      // A one-way message has no caller to reject; an exception here would reach Electron's crash dialog.
+      try {
+        listener(event, ...args);
+      } catch (error) {
+        console.error(`Alfred ignored a failing ${channel} message.`, error);
+      }
     });
   },
 };

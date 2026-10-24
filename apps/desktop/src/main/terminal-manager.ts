@@ -51,6 +51,7 @@ import {
   type TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc.js";
 import {
+  CODEX_NOTIFICATION_ARGS,
   isTerminalReport,
   isShellProcess,
   parseOsc9,
@@ -535,10 +536,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const resolved = resolveCommand(safeRequest);
         const id = randomUUID();
         const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
-        const launchArgs = options.agentSignals?.launchArgs(safeRequest.command, {
-          id,
-          worker: parentClientId(safeRequest.parentClientId) !== undefined,
-        }) ?? [];
+        const launchArgs = options.agentSignals
+          ? options.agentSignals.launchArgs(safeRequest.command, {
+            id,
+            worker: parentClientId(safeRequest.parentClientId) !== undefined,
+          })
+          : safeRequest.command === "codex" ? [...CODEX_NOTIFICATION_ARGS] : [];
         const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {
           name: "xterm-256color",
           cols: normalizeDimension(request.cols, 80),
@@ -678,6 +681,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   );
 
   trustedIpc.on(terminalChannels.write, (event, request: TerminalWriteRequest) => {
+    if (typeof request?.data !== "string") return;
     const session = getOwnedSession(event.sender, request.id);
     if (!session) return;
     const input = consumeAgentCommandInput(session.commandInput, request.data);

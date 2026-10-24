@@ -68,6 +68,21 @@ describe("trusted IPC boundary", () => {
     expect(() => handlers.invoke.get("invoke")?.(trustedEvent)).toThrow("Untrusted IPC sender.");
   });
 
+  it("keeps a listener's exception inside the main process and logs it", () => {
+    const entry = "http://127.0.0.1:4310/";
+    const mainFrame = { url: entry };
+    const contents = { mainFrame, once: vi.fn() };
+    configureTrustedIpc(contents as never, entry);
+    trustedIpc.on("failing", () => {
+      throw new Error("malformed message");
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => handlers.send.get("failing")?.({ sender: contents, senderFrame: mainFrame })).not.toThrow();
+    expect(logged).toHaveBeenCalledWith("Alfred ignored a failing failing message.", expect.any(Error));
+    logged.mockRestore();
+  });
+
   it("matches the exact packaged file and ignores only its hash", () => {
     const entry = "file:///Applications/Alfred.app/Contents/Resources/app/renderer/index.html";
     expect(isTrustedDocumentUrl(`${entry}#work`, entry)).toBe(true);
