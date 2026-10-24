@@ -52,6 +52,19 @@ describe("WorkspacePreviewPanel", () => {
     );
   });
 
+  it("checks a preview address once, not again each time its candidates are recomputed", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = render(<WorkspacePreviewPanel {...panelProps()} />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+    // Terminal output recomputes the candidates: a new object for the same address.
+    rerender(<WorkspacePreviewPanel {...panelProps({ candidates: [candidate("http://127.0.0.1:5173/")] })} />);
+    rerender(<WorkspacePreviewPanel {...panelProps({ candidates: [candidate("http://127.0.0.1:5173/")] })} />);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("removes the iframe from focus when a retry goes offline", async () => {
     const fetchMock = vi
       .fn()
