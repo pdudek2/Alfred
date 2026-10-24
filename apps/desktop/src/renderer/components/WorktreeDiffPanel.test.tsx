@@ -32,12 +32,16 @@ describe("WorktreeDiffPanel", () => {
     expect(screen.getByText("+1")).toBeInTheDocument();
     expect(screen.getByText("−1")).toBeInTheDocument();
     expect(screen.getByText("src/app.tsx")).toBeInTheDocument();
-    expect(screen.getByLabelText("Removed line 4")).toHaveTextContent("-old value");
-    expect(screen.getByLabelText("Added line 4")).toHaveTextContent("+new value");
-    expect(screen.getByLabelText("Unchanged line 5")).toHaveTextContent("unchanged value");
+    // Each line reads what changed, then its code.
+    const lines = screen.getAllByRole("listitem").filter((item) => item.classList.contains("worktree-diff-panel__line"));
+    expect(lines.map((item) => item.querySelector("code")?.textContent)).toEqual([
+      "Diff hunk: @@ -4,2 +4,2 @@",
+      "Removed line 4: -old value",
+      "Added line 4: +new value",
+      "Unchanged line 5:  unchanged value",
+    ]);
     // Git's header line repeats the file row; the hunk line stays.
     expect(screen.queryByText("diff --git a/src/app.tsx b/src/app.tsx")).toBeNull();
-    expect(screen.getByLabelText("Diff hunk")).toHaveTextContent("@@ -4,2 +4,2 @@");
   });
 
   it("reports whether Close diff or Escape dismissed the panel", async () => {
