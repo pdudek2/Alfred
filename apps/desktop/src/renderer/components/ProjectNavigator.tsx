@@ -1,4 +1,4 @@
-import { MessageSquare, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type Ref } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { deckFocusSession, deckSessions, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
@@ -299,7 +299,6 @@ export function ProjectNavigator({
         {freeChats.length > 0 && (
           <section className="free-chat-section" role="group" aria-label="Free Chats">
             <header>
-              <MessageSquare aria-hidden="true" size={13} />
               <strong>Free Chats</strong>
             </header>
             <div className="free-chat-list">
