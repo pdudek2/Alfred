@@ -33,8 +33,10 @@ export function WorkspacePreviewPanel({
     setHadSuccessfulCheck(false);
   }, [selected?.url]);
 
+  // The address, not the candidate object: terminal output recomputes the candidates, and each new object asked again.
+  const selectedAddress = selected?.url;
   useEffect(() => {
-    if (!selected) {
+    if (!selectedAddress) {
       setReachability("checking");
       return;
     }
@@ -44,7 +46,7 @@ export function WorkspacePreviewPanel({
     const timeout = window.setTimeout(() => controller.abort(), 2_500);
 
     setReachability("checking");
-    void fetch(selected.url, {
+    void fetch(selectedAddress, {
       cache: "no-store",
       mode: "no-cors",
       signal: controller.signal,
@@ -64,7 +66,7 @@ export function WorkspacePreviewPanel({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [refreshKey, selected]);
+  }, [refreshKey, selectedAddress]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
