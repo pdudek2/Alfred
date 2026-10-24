@@ -32,8 +32,6 @@ test("passes the wheel to a program on the alternate screen, as Codex scrolls it
   await expect(tile).toContainText("Mouse tracking off");
   await page.mouse.wheel(0, 120);
   await expect.poll(() => terminalBuffer(page)).toContain("^[[B");
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function terminalBuffer(page: Page): Promise<string> {

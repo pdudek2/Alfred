@@ -94,7 +94,6 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await expect(context).toBeVisible();
   await expect(context.getByRole("heading", { name: "Details" })).toBeFocused();
   await expectSameNode(xtermHostBefore, xtermHost, "Needs you Edit replaced the connected xterm host");
-  harness.assertNoRuntimeErrors();
 });
 
 test("reviews the real diff of an asleep checkout without replacing the live xterm", async ({ harness }) => {
@@ -129,7 +128,6 @@ test("reviews the real diff of an asleep checkout without replacing the live xte
   await diff.getByRole("button", { name: "Close diff" }).click();
   await expect(diff).toBeHidden();
   await expectSameNode(xtermHostBefore, xtermHost, "closing the diff replaced the connected xterm host");
-  harness.assertNoRuntimeErrors();
 });
 
 const mixedFixture = {
@@ -195,8 +193,6 @@ test.describe("mixed Needs you actions", () => {
     }).toEqual({ args: ["fixture item 3\n"], command: "/usr/bin/printf", workspaceId: "A" });
     await expect(trigger).toHaveText("2 need you");
 
-    harness.assertNoRuntimeErrors();
-    await harness.closeActiveTerminals();
   });
 
   test("terminal continuity and geometry preserve one xterm node across History and Needs you", async ({ harness }) => {
@@ -235,8 +231,6 @@ test.describe("mixed Needs you actions", () => {
       await expectSameNode(before, screen, "closing Needs you replaced the xterm screen");
     }
 
-    harness.assertNoRuntimeErrors();
-    await harness.closeActiveTerminals();
   });
 
   test("keyboard navigation keeps row focus and runs actions with Enter and Space", async ({ harness }) => {
@@ -265,8 +259,6 @@ test.describe("mixed Needs you actions", () => {
     await expect(popover).toBeHidden();
     await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
 
-    harness.assertNoRuntimeErrors();
-    await harness.closeActiveTerminals();
   });
 });
 

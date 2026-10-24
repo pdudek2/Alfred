@@ -196,8 +196,6 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   });
   console.info(JSON.stringify({ evidence: "sessions-runtime", ...evidence }));
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {

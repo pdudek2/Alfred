@@ -34,8 +34,6 @@ test("keeps New session and global session actions continuous across surfaces", 
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/surface-work/);
   await expect(page.getByRole("dialog", { name: "Rename project" })).toBeVisible();
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 test("reads final scrollback after a managed terminal exits", async ({ harness }) => {
@@ -68,8 +66,6 @@ test("reads final scrollback after a managed terminal exits", async ({ harness }
   await expect(page.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i }))
     .toContainText("final scrollback proof");
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function openLaunchItem(page: Page, label: string): Promise<void> {

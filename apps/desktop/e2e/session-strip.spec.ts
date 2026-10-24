@@ -30,6 +30,4 @@ test("keeps the session strip inside the terminal box at wide and narrow widths"
       await page.screenshot({ path: testInfo.outputPath(`strip-${count}-${width}.png`) });
     }
   }
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });

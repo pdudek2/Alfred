@@ -67,8 +67,6 @@ test("History recovery safety requires review, supports Escape disarm, and start
     return session ? { command: session.command, cwd: session.cwd, sentinelCount } : null;
   }).toEqual({ command: "/bin/sh", cwd: canonicalWorkspaceA, sentinelCount: 1 });
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {

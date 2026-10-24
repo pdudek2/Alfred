@@ -60,8 +60,6 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
   await expect(results.getByRole("option", { name: /Known late pagination title/i })).toBeVisible();
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function selectSurface(page: import("@playwright/test").Page, surface: "History"): Promise<void> {

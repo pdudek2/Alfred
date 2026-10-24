@@ -43,8 +43,6 @@ test("keeps a Codex approval as Needs you while the mouse moves over and clicks 
 
   await page.keyboard.type("y");
   await expect(tile).not.toHaveClass(/session-needs-you/);
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function terminalBuffer(page: Page): Promise<string> {

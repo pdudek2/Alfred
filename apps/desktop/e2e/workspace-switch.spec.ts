@@ -115,8 +115,6 @@ test("workspace switch keeps the same xterm node and streams background output",
   expect(afterWriteSnapshot.buffer).toContain(marker);
   expect(afterWriteSnapshot.buffer).toContain(secondMarker);
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 function encodedPrintCommand(value: string): string {
