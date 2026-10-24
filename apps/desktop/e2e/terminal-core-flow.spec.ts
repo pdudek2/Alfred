@@ -1,7 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { surfaceButton, treeRow } from "./support/work-layout";
+import { requiredHandle } from "./support/app-state";
+import { addManualTerminal, surfaceButton, treeRow } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -157,12 +158,6 @@ test("runs a dozen terminals without one IPC listener per terminal", async ({ ha
   await expect(page.getByTestId("terminal-tile")).toHaveCount(12);
 });
 
-async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Terminal/ }).click();
-  await page.getByRole("button", { name: "Start" }).click();
-}
-
 async function captureReviewScreenshot(
   page: Page,
   testInfo: TestInfo,
@@ -219,12 +214,6 @@ async function expectTerminalNodes(
       `${transition}: xterm screen ${number} changed`,
     );
   }
-}
-
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
 }
 
 async function expectSameNode(

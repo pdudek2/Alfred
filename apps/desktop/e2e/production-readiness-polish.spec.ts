@@ -1,7 +1,8 @@
-import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./support/electron-app";
+import { requiredHandle, setWindowSize } from "./support/app-state";
 import { openDetails, openNewTerminalSheet, sessionTree, surfaceButton } from "./support/work-layout";
 
 test.use({
@@ -212,15 +213,6 @@ async function selectSurface(page: Page, surface: "Work" | "History" | "Details"
   else await surfaceButton(page, surface).click();
 }
 
-async function setWindowSize(app: ElectronApplication, page: Page, width: number, height: number): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, bounds) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ x: 0, y: 0, ...bounds });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({ width, height });
-}
-
 async function expectSans(locator: Locator): Promise<void> {
   await expect(locator).toBeVisible();
   expect((await locator.evaluate((node) => getComputedStyle(node).fontFamily)).toLowerCase()).toContain("sans-serif");
@@ -232,12 +224,6 @@ async function expectFixedCellFont(locator: Locator): Promise<void> {
   expect(family).toContain("ui-monospace");
   expect(family).toContain("SFMono-Regular");
   expect(family).toContain("Menlo");
-}
-
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
 }
 
 async function captureAuditScreenshot(page: Page, name: string): Promise<void> {

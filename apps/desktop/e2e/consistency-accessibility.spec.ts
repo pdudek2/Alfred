@@ -1,6 +1,7 @@
 import { realpath } from "node:fs/promises";
-import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { ElectronApplication, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { requiredHandle, setWindowSize } from "./support/app-state";
 import { openDetails, openNewTerminalSheet, settleTerminalTileAnimations, surfaceButton, treeRow } from "./support/work-layout";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import { privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
@@ -390,25 +391,3 @@ async function nativeTerminalInk(app: ElectronApplication, screen: Locator): Pro
   return inkPixels;
 }
 
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
-}
-
-async function setWindowSize(
-  app: ElectronApplication,
-  page: Page,
-  width: number,
-  height: number,
-): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, bounds) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ x: 0, y: 0, ...bounds });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({
-    width,
-    height,
-  });
-}

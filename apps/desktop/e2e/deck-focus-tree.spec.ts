@@ -1,6 +1,7 @@
-import type { ElementHandle, Locator, Page } from "@playwright/test";
+import type { ElementHandle, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { sessionTree, surfaceButton, treeRow } from "./support/work-layout";
+import { requiredHandle } from "./support/app-state";
+import { addManualTerminal, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
 test("swaps the focused terminal from the rail's tree without remounting any xterm", async ({ harness }) => {
   const { page } = harness;
@@ -60,12 +61,6 @@ test.describe("draft plan line", () => {
   });
 });
 
-async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Terminal/ }).click();
-  await page.getByRole("button", { name: "Start" }).click();
-}
-
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
   await surfaceButton(page, surface).click();
 }
@@ -78,12 +73,6 @@ async function captureHosts(page: Page, expectedCount: number): Promise<ElementH
     handles.push(await requiredHandle(hosts.nth(index), `xterm host ${index + 1}`));
   }
   return handles;
-}
-
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
 }
 
 async function expectSameHosts(
