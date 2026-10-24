@@ -20,9 +20,16 @@ type CommandPaletteItem = {
   id: string;
   label: string;
   detail: string;
+  /** The key that runs it outside the palette, shown as quiet text beside the label. */
+  shortcut?: string;
   disabled?: boolean;
   run: () => void;
 };
+
+/** "⌘⇧]" on a Mac, "Ctrl Shift ]" elsewhere, as the app labels its other shortcuts. */
+function shortcutKey(modifier: string, keys: string): string {
+  return modifier === "Cmd" ? `⌘${keys.replace("Shift ", "⇧")}` : `Ctrl ${keys}`;
+}
 
 type CommandPaletteProps = {
   activeWorkspaceId: string;
@@ -158,8 +165,9 @@ export function CommandPalette({
         id: "new-terminal",
         label: "New terminal",
         detail: activeWorkspaceAvailable
-          ? `${shortcutModifier} T · start a shell in ${activeWorkspaceBound ? "this project" : "the scratch project"}`
+          ? `Start a shell in ${activeWorkspaceBound ? "this project" : "the scratch project"}`
           : "Choose the project folder first",
+        ...(activeWorkspaceAvailable ? { shortcut: shortcutKey(shortcutModifier, "T") } : {}),
         disabled: !activeWorkspaceAvailable,
         run: onAddManualSession,
       },
@@ -247,7 +255,7 @@ export function CommandPalette({
           workspace.id === activeWorkspaceId
             ? "Current project"
             : workspace.gitBranch
-              ? `${shortenPath(workspace.rootPath ?? "local project")} · ${workspace.gitBranch}`
+              ? `${shortenPath(workspace.rootPath ?? "local project")} on ${workspace.gitBranch}`
               : shortenPath(workspace.rootPath ?? "local project"),
         run: () => onSelectWorkspace(workspace.id),
       })),
@@ -258,7 +266,7 @@ export function CommandPalette({
         return {
           id: `focus-session-${session.workspaceId}-${session.id}`,
           label: `Open ${session.title}`,
-          detail: `${workspaceLabel} · ${sessionStatusLabel(session, now)} · ${shortenPath(location)}`,
+          detail: `${sessionStatusLabel(session, now)} in ${workspaceLabel}, ${shortenPath(location)}`,
           run: () => onFocusSessionInWorkspace(session.workspaceId, session.id),
         };
       }),
@@ -293,16 +301,15 @@ export function CommandPalette({
         id: "open-needs-you",
         label: "Open Needs you",
         detail: reviewQueuePreview
-          ? `${reviewQueuePreview.workspaceLabel} · ${reviewQueuePreview.sessionTitle}`
+          ? `${reviewQueuePreview.sessionTitle} in ${reviewQueuePreview.workspaceLabel}`
           : "No queued decisions",
         run: onOpenNeedsYou,
       },
       {
         id: "close-selected-session",
         label: "Close focused session",
-        detail: selectedSession
-          ? `${shortcutModifier} W · ${selectedSession.title}`
-          : "No focused session",
+        detail: selectedSession ? selectedSession.title : "No focused session",
+        ...(selectedSession ? { shortcut: shortcutKey(shortcutModifier, "W") } : {}),
         disabled: !selectedSession,
         run: () => {
           if (selectedSession) onCloseSession(selectedSession.id);
@@ -324,9 +331,8 @@ export function CommandPalette({
       {
         id: "open-focused-session-terminal",
         label: "Open focused session in external terminal",
-        detail: selectedSession?.cwd
-          ? `${shortcutModifier} Shift O · ${shortenPath(selectedSession.cwd)}`
-          : "No focused session folder",
+        detail: selectedSession?.cwd ? shortenPath(selectedSession.cwd) : "No focused session folder",
+        ...(selectedSession?.cwd ? { shortcut: shortcutKey(shortcutModifier, "Shift O") } : {}),
         disabled: !selectedSession?.cwd,
         run: () => {
           if (selectedSession?.cwd) onOpenSessionTerminal(selectedSession.cwd);
@@ -353,14 +359,16 @@ export function CommandPalette({
       {
         id: "next-session",
         label: "Next session",
-        detail: `${shortcutModifier} Shift ] · move focus forward`,
+        detail: "Move focus forward",
+        shortcut: shortcutKey(shortcutModifier, "Shift ]"),
         disabled: sessions.length < 2,
         run: onFocusNextSession,
       },
       {
         id: "previous-session",
         label: "Previous session",
-        detail: `${shortcutModifier} Shift [ · move focus back`,
+        detail: "Move focus back",
+        shortcut: shortcutKey(shortcutModifier, "Shift ["),
         disabled: sessions.length < 2,
         run: onFocusPreviousSession,
       },
@@ -497,6 +505,7 @@ export function CommandPalette({
                 onMouseEnter={() => setActiveCommandId(row.command.id)}
               >
                 <span>{row.command.label}</span>
+                {row.command.shortcut && <kbd className="command-palette-shortcut">{row.command.shortcut}</kbd>}
                 <small>{row.command.detail}</small>
               </button>
             ),
