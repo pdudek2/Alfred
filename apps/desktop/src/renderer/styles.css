@@ -25,7 +25,7 @@
 
   --border: rgba(255, 255, 255, 0.05);
   --border-strong: rgba(255, 255, 255, 0.082);
-  --border-focus: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  --border-focus: color-mix(in oklab, var(--focus-border) 28%, transparent);
 
   --signal-focus: #4DA8B5;
   --signal-focus-strong: color-mix(in oklab, var(--signal-focus) 60%, white 8%);
@@ -59,7 +59,7 @@
   --cyan: var(--signal-focus);
   --brass: var(--signal-agent);
   --claude-amber: #c9a26d;
-  --focus-border: var(--signal-focus);
+  --focus-border: var(--text-secondary);
   --depth-card:
     0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 18px 38px -26px rgba(0, 0, 0, 0.85);
@@ -1710,8 +1710,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 /* Keyboard focus on the box itself. Typing inside the terminal needs no ring: the cursor shows it. */
 .terminal-tile:focus-visible {
   outline: none;
-  border-color: color-mix(in oklab, var(--signal-focus) 58%, var(--border-strong));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 18%, transparent);
+  border-color: color-mix(in oklab, var(--focus-border) 58%, var(--border-strong));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--focus-border) 18%, transparent);
 }
 
 .terminal-tile.workspace-hidden,
@@ -2243,7 +2243,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .privacy-panel-close:hover,
 .privacy-panel-close:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  border-color: color-mix(in oklab, var(--focus-border) 34%, transparent);
   color: #cff3f6;
 }
 
@@ -2311,7 +2311,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .discard-checkout-close:hover,
 .discard-checkout-close:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  border-color: color-mix(in oklab, var(--focus-border) 34%, transparent);
   color: #cff3f6;
 }
 
@@ -2468,7 +2468,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .privacy-toggle input:focus-visible + .privacy-toggle-track {
-  outline: 2px solid var(--signal-focus);
+  outline: 2px solid var(--focus-border);
   outline-offset: 2px;
 }
 
@@ -2721,19 +2721,19 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .command-palette-list button:focus-visible,
 .command-palette-list button.active {
   border-color: var(--border-focus);
-  background: color-mix(in oklab, var(--signal-focus) 8%, var(--surface-raised));
+  background: color-mix(in oklab, var(--focus-border) 8%, var(--surface-raised));
   background-image: none;
 }
 
 .command-palette-search input:focus-visible {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--focus-border) 16%, transparent);
 }
 
 .command-palette-list button.active,
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible {
   color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--signal-focus);
+  box-shadow: inset 2px 0 0 var(--focus-border);
 }
 
 .command-palette-list button:disabled {
@@ -3112,8 +3112,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .agent-handoff-buttons button:hover,
 .agent-handoff-buttons button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
+  border-color: color-mix(in oklab, var(--focus-border) 28%, transparent);
+  background: color-mix(in oklab, var(--focus-border) 8%, transparent);
   color: var(--ink);
 }
 
@@ -3357,10 +3357,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .agent-staged-edit-form input:focus-visible,
 .agent-staged-edit-form textarea:focus-visible {
   outline: none;
-  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
+  border-color: color-mix(in oklab, var(--focus-border) 42%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 28%, transparent),
-    0 0 0 4px color-mix(in oklab, var(--signal-focus) 11%, transparent);
+    0 0 0 1px color-mix(in oklab, var(--focus-border) 28%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--focus-border) 11%, transparent);
 }
 
 /* Staged command editor stays in the Context flow; only inputs are boxed. */
@@ -3600,7 +3600,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .context-drawer .agent-staged-editor,
 .context-drawer .agent-staged-edit-form { background: transparent; border: 0; border-radius: 0; padding: 16px 10px 0; }
 .context-drawer .agent-staged-edit-form :is(input, textarea) { font: 400 13px/18px var(--sans); background: var(--surface-control); border-color: var(--border-strong); box-shadow: none; }
-.context-drawer :is(button, summary, input, textarea):focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
+.context-drawer :is(button, summary, input, textarea):focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
 .context-drawer .agent-staged-editor button,
 .context-drawer .agent-staged-edit-actions button,
