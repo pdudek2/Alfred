@@ -209,16 +209,14 @@ export const test = base.extend<Fixtures>({
       if ((await runtimeSurface.count()) > 0 && !(await runtimeSurface.isVisible())) {
         await surfaceButton(page, "Work").click();
       }
-      await page.evaluate(async () => {
+      // A terminal whose tile already shows may still be starting in the main process, and it appears in the
+      // list only after the others were killed; every pass kills whatever the list holds.
+      await expect.poll(() => page.evaluate(async () => {
         const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
         if (!terminalApi) throw new Error("Desktop terminal API is unavailable during cleanup.");
         const { sessions } = await terminalApi.list();
         await Promise.all(sessions.map((session) => terminalApi.kill({ id: session.id })));
-      });
-      await expect.poll(() => page.evaluate(async () => {
-        const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
-        if (!terminalApi) throw new Error("Desktop terminal API is unavailable during cleanup.");
-        return (await terminalApi.list()).sessions.length;
+        return sessions.length;
       })).toBe(0);
     };
 
