@@ -58,10 +58,10 @@
 .new-session-kinds label:hover { background: var(--surface-control-hover); }
 .new-session-sheet input { margin: 0; accent-color: var(--text-primary); }
 .new-session-kinds label span, .new-session-isolation span { display: flex; flex-direction: column; gap: 1px; }
-.new-session-kinds strong { font-weight: 600; }
+.new-session-kinds strong { font-weight: 500; }
 .new-session-sheet small { color: var(--text-muted); font: 400 12px/16px var(--sans); }
 .new-session-prompt { display: flex; flex-direction: column; gap: 6px; padding: 16px 20px 0; }
-.new-session-prompt label { color: var(--text-muted); font: 600 12px/16px var(--sans); }
+.new-session-prompt label { color: var(--text-muted); font: 500 12px/16px var(--sans); }
 .new-session-prompt textarea {
   resize: none;
   overflow-y: auto;
@@ -79,7 +79,7 @@
 .new-session-status:empty { display: none; }
 .new-session-sheet footer { display: flex; justify-content: flex-end; gap: 8px; padding: 18px 16px 16px; }
 .new-session-sheet footer button { height: 30px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font: 400 13px/18px var(--sans); cursor: pointer; }
-.new-session-sheet footer .new-session-start { background: var(--text-primary); color: var(--surface-panel); font-weight: 600; }
+.new-session-sheet footer .new-session-start { background: var(--text-primary); color: var(--surface-panel); font-weight: 500; }
 .new-session-sheet kbd { font: 400 12px/16px var(--sans); opacity: 0.6; }
 .new-session-sheet button:disabled { opacity: 0.45; cursor: default; }
 .new-session-sheet :focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
