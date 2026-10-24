@@ -612,7 +612,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           session.oscCarry = osc.carry;
           for (const message of osc.messages) {
             const update = signalFromOsc9(message);
-            if (update) {
+            // A notification that repeats the hook's state is dropped: the hook's signal outlasts your typing.
+            const repeatsHook = session.agentSignal?.source === "hook" && session.agentSignal.state === update?.state;
+            if (update && !repeatsHook) {
               const applied = applyAgentSignal(session, update, "osc9", now);
               agentSignal = applied.signal;
               activities.push(...applied.activities);
@@ -1757,6 +1759,8 @@ function sendSignalUpdate(
     id: session.id,
     ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
     data: "",
+    // The renderer reads a missing kind as "no agent here", as on output.
+    ...(session.foregroundAgentKind === undefined ? {} : { foregroundAgentKind: session.foregroundAgentKind }),
     activities: update.activities ?? [],
     ...(update.agentSignal === undefined ? {} : { agentSignal: update.agentSignal }),
     ...(update.shellBusy === undefined ? {} : { shellBusy: update.shellBusy }),
