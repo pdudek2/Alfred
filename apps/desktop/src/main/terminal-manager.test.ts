@@ -23,6 +23,7 @@ import type {
   TerminalCreateResult,
   TerminalCreateRequest,
   TerminalDataEvent,
+  TerminalWorkerRequest,
   TerminalListResult,
 } from "../shared/terminal-ipc.js";
 import type { TerminalSnapshotResult } from "../shared/terminal-ipc.js";
@@ -4212,24 +4213,31 @@ describe("terminal-manager IPC", () => {
   describe("agent state signals", () => {
     type Listener = (
       sessionId: string,
-      update: { activity?: SessionActivityInput; detail?: string; state: "working" | "needs-you" | "your-turn" },
+      update: { activity?: SessionActivityInput; answer?: string; detail?: string; state: "working" | "needs-you" | "your-turn" },
       transcriptPath?: string,
     ) => void;
 
+    type ToolHandler = (sessionId: string, tool: string, args: unknown) => Promise<unknown>;
+
     function fakeBridge() {
       let listener: Listener | null = null;
+      let toolHandler: ToolHandler | null = null;
       return {
         bridge: {
           close: async () => {},
           env: (sessionId: string) => ({ ALFRED_HOOK_SOCKET: "/tmp/alfred.sock", ALFRED_SESSION_ID: sessionId }),
-          launchArgs: (command: string | undefined) =>
-            command === "claude" ? ["--settings", "/tmp/hooks.json"] : command === "codex" ? ["-c", "tui.notifications=true"] : [],
+          launchArgs: vi.fn((command: string | undefined, _session?: { id: string; worker: boolean }) =>
+            command === "claude" ? ["--settings", "/tmp/hooks.json"] : command === "codex" ? ["-c", "tui.notifications=true"] : []),
           setListener: (next: Listener | null) => {
             listener = next;
+          },
+          setToolHandler: (next: ToolHandler | null) => {
+            toolHandler = next;
           },
         },
         fire: (sessionId: string, update: Parameters<Listener>[1], transcriptPath?: string) =>
           listener?.(sessionId, update, transcriptPath),
+        callTool: (sessionId: string, tool: string, args: unknown) => toolHandler!(sessionId, tool, args),
       };
     }
 
@@ -4286,6 +4294,75 @@ describe("terminal-manager IPC", () => {
         agentSignal: { state: "your-turn", source: "hook", detail: "Created hello world.txt on the desktop." },
         activities: [expect.objectContaining({ kind: "output", detail: "Created hello world.txt on the desktop." })],
       });
+    });
+
+    it("adds an orchestrator's worker through its window and answers its tools from the worker's hooks", async () => {
+      const { bridge, fire, callTool } = fakeBridge();
+      const leadPty = new FakePty();
+      const workerPty = new FakePty();
+      const nodePty = { spawn: vi.fn().mockReturnValueOnce(leadPty).mockReturnValueOnce(workerPty) };
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => nodePty as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      expect(bridge.launchArgs).toHaveBeenLastCalledWith("claude", { id: lead.id, worker: false });
+
+      // The window adds the worker under its parent and answers; the worker's terminal starts after that.
+      const starting = callTool(lead.id, "start_worker", { agent: "codex", prompt: "Run the typecheck" });
+      const request = sentEvents.find((event) => event.channel === terminalChannels.workerRequest)?.payload as TerminalWorkerRequest;
+      expect(request).toMatchObject({ parentClientId: "claude-1", agent: "codex", prompt: "Run the typecheck", isolated: false });
+      emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: "codex-1", title: "Codex" });
+      await expect(starting).resolves.toEqual({ worker_id: "codex-1", title: "Codex", state: "starting" });
+      await expect(callTool(lead.id, "list_workers", {})).resolves.toEqual({
+        workers: [{ worker_id: "codex-1", title: "Codex", agent: "codex", state: "starting" }],
+      });
+
+      const worker = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", args: ["--", "Run the typecheck"], clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo",
+        parentClientId: "claude-1", rows: 24, title: "Codex",
+      });
+      expect(bridge.launchArgs).toHaveBeenLastCalledWith("codex", { id: worker.id, worker: true });
+      await expect(callTool(worker.id, "list_workers", {})).rejects.toThrow(/cannot start or run workers/);
+
+      fire(worker.id, { state: "working" });
+      const waiting = callTool(lead.id, "wait_for_worker", { worker_id: "codex-1" });
+      fire(worker.id, { state: "your-turn", detail: "Typecheck passed.", answer: "Typecheck passed.\nNo errors." });
+      await expect(waiting).resolves.toMatchObject({ state: "your turn", last_answer: "Typecheck passed.\nNo errors." });
+
+      // Pasted as typed text: an escape or a Ctrl+C inside the message cannot end the paste or press a key.
+      await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now lint\x1b[201~\x03 it\r\nthanks" }))
+        .resolves.toEqual({ worker_id: "codex-1", sent: true, state: "working" });
+      expect(workerPty.writes).toEqual(["\x1b[200~Now lint[201~ it\nthanks\x1b[201~"]);
+      await vi.waitFor(() => expect(workerPty.writes).toEqual(["\x1b[200~Now lint[201~ it\nthanks\x1b[201~", "\r"]));
+      await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Again" })).rejects.toThrow(/is working/);
+
+      workerPty.onExitHandler?.({ exitCode: 0 });
+      await expect(callTool(lead.id, "list_workers", {})).resolves.toMatchObject({
+        workers: [{ worker_id: "codex-1", state: "ended", last_answer: "Typecheck passed.\nNo errors." }],
+      });
+    });
+
+    it("tells the orchestrator when its window does not add the worker", async () => {
+      const { bridge, callTool } = fakeBridge();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      const refused = callTool(lead.id, "start_worker", { agent: "claude", prompt: "x" });
+      const request = sentEvents.find((event) => event.channel === terminalChannels.workerRequest)?.payload as TerminalWorkerRequest;
+      emit(terminalChannels.workerReply, { requestId: request.requestId, error: "The project folder is missing." });
+      await expect(refused).rejects.toThrow("The project folder is missing.");
+
+      vi.useFakeTimers();
+      try {
+        const unanswered = callTool(lead.id, "start_worker", { agent: "claude", prompt: "x" });
+        const settled = expect(unanswered).rejects.toThrow(/did not answer in time/);
+        await vi.advanceTimersByTimeAsync(10_000);
+        await settled;
+      } finally {
+        vi.useRealTimers();
+      }
+      await expect(callTool(lead.id, "list_workers", {})).resolves.toEqual({ workers: [] });
     });
 
     it("takes a hooked agent's history from its hooks, not from the screen it redraws", async () => {

@@ -512,6 +512,38 @@ export function App() {
     commitAddedSession,
   ]);
 
+  // An orchestrator agent asked for a worker: it goes under its parent, and your focus, selection and project stay put.
+  useEffect(() => {
+    const terminalApi = getDesktopTerminalApi();
+    if (!terminalApi?.onWorkerRequest) return;
+    return terminalApi.onWorkerRequest((request) => {
+      const parent = terminalSessionsRef.current.find((session) => session.id === request.parentClientId && session.stage === "live");
+      const workspace = workspaces.find((candidate) => candidate.id === parent?.workspaceId);
+      if (!parent || !workspace || workspace.rootStatus === "missing") {
+        terminalApi.answerWorkerRequest({
+          requestId: request.requestId,
+          error: parent ? "The project folder is missing, so Alfred cannot start a worker there." : "Alfred no longer shows this session.",
+        });
+        return;
+      }
+      const added = addAgentSession(
+        terminalSessionsRef.current,
+        request.agent,
+        workspace.rootPath ?? "",
+        workspace.id,
+        request.isolated ? "worktree" : "shared",
+        request.prompt,
+        parent.id,
+      );
+      const generated = added.at(-1)!;
+      const worker = { ...generated, title: normalizeSessionTitle(request.title ?? "") || generated.title };
+      const nextSessions = [...added.slice(0, -1), worker];
+      terminalSessionsRef.current = nextSessions;
+      setTerminalSessions(nextSessions);
+      terminalApi.answerWorkerRequest({ requestId: request.requestId, clientId: worker.id, title: worker.title });
+    });
+  }, [workspaces]);
+
   const handleAddWorkspace = useCallback(async () => {
     const snapshot = createScratchWorkspaceState(workspaces);
     const workspaceApi = getDesktopWorkspaceApi();
