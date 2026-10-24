@@ -40,7 +40,7 @@ export type WorkerStartRequest = { agent: WorkerAgent; prompt: string; isolated:
 
 export type WorkerHost = {
   /** The live session whose MCP server called, by the session id Alfred started that server with. */
-  caller(sessionId: string): { clientId: string; isWorker: boolean } | undefined;
+  caller(sessionId: string): { clientId: string; isAgent: boolean; isWorker: boolean } | undefined;
   /** Live workers under the parent, plus the ones that ended or are still starting. */
   workersOf(parentClientId: string): WorkerRecord[];
   startWorker(parentClientId: string, request: WorkerStartRequest): Promise<{ clientId: string; title: string }>;
@@ -121,10 +121,13 @@ export const WORKER_TOOL_DEFINITIONS = [
 ] as const;
 
 export function createWorkerTools(host: WorkerHost) {
+  // Starts still waiting for the window count against the limit, so parallel calls cannot run past it.
+  const startsInFlight = new Map<string, number>();
   return {
     async call(sessionId: string, tool: string, args: unknown): Promise<unknown> {
       const caller = host.caller(sessionId);
       if (!caller) throw new WorkerToolError("This session is not running in Alfred any more.");
+      if (!caller.isAgent) throw new WorkerToolError("Only a Claude or Codex session can run workers.");
       if (caller.isWorker) throw new WorkerToolError("A worker cannot start or run workers of its own.");
       const input: Record<string, unknown> = typeof args === "object" && args !== null ? args as Record<string, unknown> : {};
       const workers = () => host.workersOf(caller.clientId);
@@ -135,19 +138,27 @@ export function createWorkerTools(host: WorkerHost) {
           if (agent !== "claude" && agent !== "codex") throw new WorkerToolError("agent must be \"claude\" or \"codex\".");
           const prompt = requiredText(input.prompt, "prompt");
           const title = typeof input.title === "string" ? input.title.trim().slice(0, MAX_TITLE_LENGTH) : "";
-          const live = workers().filter((worker) => workerState(worker.turn) !== "ended");
-          if (live.length >= MAX_LIVE_WORKERS) {
+          const inFlight = startsInFlight.get(caller.clientId) ?? 0;
+          const live = workers().filter((worker) => workerState(worker.turn) !== "ended").length + inFlight;
+          if (live >= MAX_LIVE_WORKERS) {
             throw new WorkerToolError(
-              `You already run ${live.length} live workers, the most Alfred allows. Wait for one to end, or ask the user to close one.`,
+              `You already run ${MAX_LIVE_WORKERS} live workers, the most Alfred allows. Wait for one to end, or ask the user to close one.`,
             );
           }
-          const started = await host.startWorker(caller.clientId, {
-            agent,
-            prompt,
-            isolated: input.isolated === true,
-            ...(title ? { title } : {}),
-          });
-          return { worker_id: started.clientId, title: started.title, state: "starting" };
+          startsInFlight.set(caller.clientId, inFlight + 1);
+          try {
+            const started = await host.startWorker(caller.clientId, {
+              agent,
+              prompt,
+              isolated: input.isolated === true,
+              ...(title ? { title } : {}),
+            });
+            return { worker_id: started.clientId, title: started.title, state: "starting" };
+          } finally {
+            const left = (startsInFlight.get(caller.clientId) ?? 1) - 1;
+            if (left > 0) startsInFlight.set(caller.clientId, left);
+            else startsInFlight.delete(caller.clientId);
+          }
         }
         case "list_workers":
           return { workers: workers().map(summary) };

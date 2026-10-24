@@ -4324,6 +4324,12 @@ describe("terminal-manager IPC", () => {
       expect(bridge.launchArgs).toHaveBeenLastCalledWith("codex", { id: worker.id, worker: true });
       await expect(callTool(worker.id, "list_workers", {})).rejects.toThrow(/cannot start or run workers/);
 
+      // A Codex notification alone cannot tell its prompt from an approval menu, where Enter would answer.
+      workerPty.onDataHandler?.("\x1b]9;Typecheck passed\x07");
+      await expect(callTool(lead.id, "read_worker", { worker_id: "codex-1" })).resolves.toMatchObject({ state: "your turn" });
+      await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Next" })).rejects.toThrow(/does not run Alfred's hooks/);
+      expect(workerPty.writes).toEqual([]);
+
       fire(worker.id, { state: "working" });
       const waiting = callTool(lead.id, "wait_for_worker", { worker_id: "codex-1" });
       fire(worker.id, { state: "your-turn", detail: "Typecheck passed.", answer: "Typecheck passed.\nNo errors." });
