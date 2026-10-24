@@ -996,7 +996,11 @@ function normalizeActivityPayload(
   if (!isRecord(value) || typeof value.type !== "string") return undefined;
 
   if (value.type === "command" && kind === "command" && typeof value.command === "string") {
-    return { type: "command", command: value.command };
+    return {
+      type: "command",
+      command: value.command,
+      ...(typeof value.description === "string" ? { description: value.description } : {}),
+    };
   }
 
   if (

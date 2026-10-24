@@ -951,11 +951,16 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(".agent-section-heading");
   });
 
-  it("keeps Details status labels at the product-label type floor", () => {
-    const contextStatusText = singleTopLevelRuleBodyIn(styles, ".context-drawer .agent-status-text");
+  it("keeps each Details activity on one line, cut with an ellipsis", () => {
+    const activityText = singleTopLevelRuleBodyIn(styles, ".context-drawer .details-activity-text");
+    const sentence = singleTopLevelRuleBodyIn(styles, ".details-activity-sentence");
 
-    expect(contextStatusText).toContain("font: 500 13px/18px var(--sans)");
-    expect(blockFor(".agent-status-pill .agent-status-text")).not.toContain("13px");
+    expect(activityText).toContain("display: flex");
+    expect(activityText).not.toContain("overflow-wrap");
+    expect(sentence).toContain("white-space: nowrap");
+    expect(sentence).toContain("overflow: hidden");
+    expect(sentence).toContain("text-overflow: ellipsis");
+    expect(styles).not.toContain(".agent-status-pill");
   });
 
   it("keeps project navigator hierarchy quiet but readable", () => {

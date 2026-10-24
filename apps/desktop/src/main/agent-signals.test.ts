@@ -110,8 +110,13 @@ describe("signals", () => {
     const tool = (tool_name: string, tool_input: unknown) => signalFromHook("PostToolUse", { hook_event_name: "PostToolUse", tool_name, tool_input });
     expect(tool("Bash", { command: "pnpm test\n--watch", description: "Run tests" })).toEqual({
       state: "working",
-      activity: { kind: "command", title: "Ran command", detail: "pnpm test", payload: { type: "command", command: "pnpm test\n--watch" } },
+      activity: {
+        kind: "command", title: "Ran command", detail: "pnpm test",
+        payload: { type: "command", command: "pnpm test\n--watch", description: "Run tests" },
+      },
     });
+    // Codex's shell gives no description: the command speaks for itself.
+    expect(tool("exec_command", { command: "pnpm lint" })?.activity?.payload).toEqual({ type: "command", command: "pnpm lint" });
     expect(tool("Write", { file_path: "/repo/a.txt", content: "alpha" })?.activity).toEqual({
       kind: "file", title: "File activity", detail: "Wrote /repo/a.txt", payload: { type: "file", operation: "wrote", path: "/repo/a.txt" },
     });
