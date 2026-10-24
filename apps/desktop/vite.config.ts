@@ -7,9 +7,22 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   test: {
-    environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.unit.test.ts"],
-    setupFiles: ["./src/renderer/test-setup.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "renderer",
+          environment: "jsdom",
+          include: ["src/renderer/**/*.test.{ts,tsx}", "e2e/**/*.unit.test.ts"],
+          setupFiles: ["./src/renderer/test-setup.ts"],
+        },
+      },
+      {
+        extends: true,
+        // The main process and shared code run in Node; building a DOM for them was most of the suite's setup time.
+        test: { name: "node", environment: "node", include: ["src/main/**/*.test.ts", "src/shared/**/*.test.ts"] },
+      },
+    ],
   },
   build: {
     outDir: "dist/renderer",
