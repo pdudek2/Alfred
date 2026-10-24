@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import type { SessionActivityInput } from "../shared/session-activity.js";
 import type { TerminalAgentSignal } from "../shared/terminal-ipc.js";
-import { WORKER_TOOL_DEFINITIONS } from "./worker-tools.js";
+import { typedPromptSource, WORKER_TOOL_DEFINITIONS } from "./worker-tools.js";
 
 /** Session model contract §3: how Alfred senses agent and shell state. */
 
@@ -289,11 +289,16 @@ function toolActivity(payload: unknown): SessionActivityInput | null {
   return { kind: "tool", title: `Used ${name}`, detail: input, payload: { type: "tool", name, input } };
 }
 
-/** The message you sent, from UserPromptSubmit: its first line, as the turn's start in the history. */
+/**
+ * The message the turn started with, from UserPromptSubmit: its first line, as the turn's start in the history. A
+ * message Alfred typed for an orchestrator, or about its workers, says so instead of reading as yours.
+ */
 function promptActivity(payload: unknown): SessionActivityInput | null {
   const prompt = typeof payload === "object" && payload !== null ? (payload as { prompt?: unknown }).prompt : undefined;
-  const line = typeof prompt === "string" ? firstLine(prompt) : "";
-  return line ? { kind: "prompt", title: "You asked", detail: line } : null;
+  if (typeof prompt !== "string") return null;
+  const typed = typedPromptSource(prompt);
+  const line = firstLine(typed ? typed.text : prompt);
+  return line ? { kind: "prompt", title: typed?.title ?? "You asked", detail: line } : null;
 }
 
 function firstLine(value: string): string {

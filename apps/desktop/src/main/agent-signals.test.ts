@@ -157,6 +157,13 @@ describe("signals", () => {
     });
     expect(signalFromHook("UserPromptSubmit", { prompt: "x".repeat(500) })?.activity?.detail).toHaveLength(240);
     expect(signalFromHook("UserPromptSubmit", { prompt: "   " })).toEqual({ state: "working" });
+    // A message Alfred typed says whose it is instead of reading as yours.
+    expect(signalFromHook("UserPromptSubmit", {
+      prompt: 'Message from your orchestrator, Alfred session "Lead" (not from the user):\n\nNow fix the lint.',
+    })?.activity).toEqual({ kind: "prompt", title: "Orchestrator asked", detail: "Now fix the lint." });
+    expect(signalFromHook("UserPromptSubmit", {
+      prompt: 'Message from Alfred (not from the user): your worker "Typecheck" (codex-1) finished its turn.\n- "Typecheck" …',
+    })?.activity).toEqual({ kind: "prompt", title: "Alfred reported", detail: 'your worker "Typecheck" (codex-1) finished its turn.' });
   });
 
   it("names the file a Codex edit approval is about instead of the patch", () => {
@@ -317,7 +324,7 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     server.notify("notifications/initialized");
     const listed = await server.request("tools/list", {}) as { result: { tools: Array<{ name: string }> } };
     expect(listed.result.tools.map((tool) => tool.name))
-      .toEqual(["start_worker", "list_workers", "read_worker", "wait_for_worker", "send_to_worker"]);
+      .toEqual(["start_worker", "list_workers", "read_worker", "wait_for_worker", "send_to_worker", "stop_worker"]);
     expect(await server.request("tools/call", { name: "start_worker", arguments: { agent: "codex", prompt: "Run it" } })).toMatchObject({
       result: { content: [{ type: "text", text: JSON.stringify({ worker_id: "codex-1" }, null, 2) }] },
     });

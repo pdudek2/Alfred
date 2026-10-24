@@ -11,6 +11,12 @@ const MAX_TITLE_LENGTH = 80;
 const RECENT_ACTIVITY = 10;
 
 export type WorkerAgent = "claude" | "codex";
+/** The effort levels each CLI takes: Claude's --effort, Codex's model_reasoning_effort. */
+const EFFORTS: Record<WorkerAgent, readonly string[]> = {
+  claude: ["low", "medium", "high", "xhigh", "max"],
+  codex: ["minimal", "low", "medium", "high", "xhigh"],
+};
+const MODEL_NAME = /^[A-Za-z0-9][\w.:\-[\]/]{0,79}$/;
 export type WorkerState = "starting" | "working" | "your turn" | "needs you" | "ended";
 
 /**
@@ -36,18 +42,51 @@ export type WorkerRecord = {
   activityEvents: SessionActivityEvent[];
 };
 
-export type WorkerStartRequest = { agent: WorkerAgent; prompt: string; isolated: boolean; title?: string };
+export type WorkerStartRequest = {
+  agent: WorkerAgent;
+  prompt: string;
+  isolated: boolean;
+  title?: string;
+  model?: string;
+  effort?: string;
+};
 
 export type WorkerHost = {
   /** The live session whose MCP server called, by the session id Alfred started that server with. */
-  caller(sessionId: string): { clientId: string; isAgent: boolean; isWorker: boolean } | undefined;
+  caller(sessionId: string): { clientId: string; title: string; isAgent: boolean; isWorker: boolean } | undefined;
   /** Live workers under the parent, plus the ones that ended or are still starting. */
   workersOf(parentClientId: string): WorkerRecord[];
   startWorker(parentClientId: string, request: WorkerStartRequest): Promise<{ clientId: string; title: string }>;
-  /** Types the message into the worker's terminal and presses Enter. */
-  send(clientId: string, message: string): void;
+  /** Types the text into the worker's terminal and presses Enter. */
+  send(clientId: string, text: string): void;
+  /** Ends the worker's process; its checkout stays. */
+  stop(clientId: string): void;
+  /** The orchestrator has read these workers' current state, so Alfred need not wake it about them. */
+  markSeen(parentClientId: string, workerClientIds: string[]): void;
   onChange(listener: () => void): () => void;
 };
+
+/** Text Alfred types into an agent's terminal starts with one of these, so the agent and Details tell it from yours. */
+export function orchestratorMessage(orchestratorTitle: string, message: string): string {
+  return `Message from your orchestrator, Alfred session "${orchestratorTitle}" (not from the user):\n\n${message}`;
+}
+
+export function alfredNotice(text: string): string {
+  return `Message from Alfred (not from the user): ${text}`;
+}
+
+const ORCHESTRATOR_LABEL = /^Message from your orchestrator, Alfred session "[^"\n]*" \(not from the user\):\s*/;
+const ALFRED_LABEL = /^Message from Alfred \(not from the user\):\s*/;
+
+/** Who wrote a prompt, read from its label: the orchestrator or Alfred itself; nothing for the user's own message. */
+export function typedPromptSource(prompt: string): { title: string; text: string } | undefined {
+  const text = prompt.trim();
+  const orchestrator = ORCHESTRATOR_LABEL.exec(text);
+  if (orchestrator) return { title: "Orchestrator asked", text: text.slice(orchestrator[0].length) };
+  const alfred = ALFRED_LABEL.exec(text);
+  if (alfred) return { title: "Alfred reported", text: text.slice(alfred[0].length) };
+  return undefined;
+}
 
 /** A refusal the agent should read: why the call cannot be done now. */
 export class WorkerToolError extends Error {}
@@ -66,9 +105,11 @@ export const WORKER_TOOL_DEFINITIONS = [
   {
     name: "start_worker",
     description:
-      "Start a worker agent in Alfred, in this project, with a first prompt. It runs in its own terminal under you in "
-      + "Alfred's session tree, where the user can watch it. You can run up to "
-      + `${MAX_LIVE_WORKERS} live workers. Give each one a self-contained task: it does not see your conversation.`,
+      "Start a worker agent in Alfred, in this project, with a first prompt. This is how you run a separate task or a "
+      + "worker thread here: it runs in its own terminal under you in Alfred's session tree, where the user can watch it. "
+      + `You can run up to ${MAX_LIVE_WORKERS} live workers. Give each one a self-contained task: it does not see your `
+      + "conversation. When a worker you started finishes a turn while you wait for the user, Alfred sends you a message "
+      + "saying so, so you can end your turn instead of waiting.",
     inputSchema: {
       type: "object",
       properties: {
@@ -79,6 +120,11 @@ export const WORKER_TOOL_DEFINITIONS = [
           description: "Run it in its own git worktree. Use this when several workers edit files at once. Default: the shared project folder.",
         },
         title: { type: "string", description: "A short name for the worker in the session tree." },
+        model: { type: "string", description: "The model to run it on, as the agent's --model takes it. Default: the agent's own." },
+        effort: {
+          type: "string",
+          description: `Reasoning effort. Claude: ${EFFORTS.claude.join(", ")}. Codex: ${EFFORTS.codex.join(", ")}. Default: the agent's own.`,
+        },
       },
       required: ["agent", "prompt"],
       additionalProperties: false,
@@ -109,14 +155,19 @@ export const WORKER_TOOL_DEFINITIONS = [
   {
     name: "send_to_worker",
     description:
-      "Send a worker its next message, as if typed into its terminal. Only while it waits for one (state: your turn); "
-      + "it never answers an approval the worker asks the user for.",
+      "Send a worker its next message, typed into its terminal under a line saying it comes from you, not the user. "
+      + "Only while it waits for one (state: your turn); it never answers an approval the worker asks the user for.",
     inputSchema: {
       type: "object",
       properties: { worker_id: workerId, message: { type: "string" } },
       required: ["worker_id", "message"],
       additionalProperties: false,
     },
+  },
+  {
+    name: "stop_worker",
+    description: "Stop a worker: its process ends, and its files and worktree stay as they are.",
+    inputSchema: { type: "object", properties: { worker_id: workerId }, required: ["worker_id"], additionalProperties: false },
   },
 ] as const;
 
@@ -138,6 +189,8 @@ export function createWorkerTools(host: WorkerHost) {
           if (agent !== "claude" && agent !== "codex") throw new WorkerToolError("agent must be \"claude\" or \"codex\".");
           const prompt = requiredText(input.prompt, "prompt");
           const title = typeof input.title === "string" ? input.title.trim().slice(0, MAX_TITLE_LENGTH) : "";
+          const model = optionalChoice(input.model, "model", (value) => MODEL_NAME.test(value), "a model name such as the agent's --model takes");
+          const effort = optionalChoice(input.effort, "effort", (value) => EFFORTS[agent].includes(value), `one of ${EFFORTS[agent].join(", ")} for ${agent}`);
           const inFlight = startsInFlight.get(caller.clientId) ?? 0;
           const live = workers().filter((worker) => workerState(worker.turn) !== "ended").length + inFlight;
           if (live >= MAX_LIVE_WORKERS) {
@@ -152,24 +205,39 @@ export function createWorkerTools(host: WorkerHost) {
               prompt,
               isolated: input.isolated === true,
               ...(title ? { title } : {}),
+              ...(model ? { model } : {}),
+              ...(effort ? { effort } : {}),
             });
-            return { worker_id: started.clientId, title: started.title, state: "starting" };
+            return {
+              worker_id: started.clientId,
+              title: started.title,
+              state: "starting",
+              ...(model ? { model } : {}),
+              ...(effort ? { effort } : {}),
+            };
           } finally {
             const left = (startsInFlight.get(caller.clientId) ?? 1) - 1;
             if (left > 0) startsInFlight.set(caller.clientId, left);
             else startsInFlight.delete(caller.clientId);
           }
         }
-        case "list_workers":
-          return { workers: workers().map(summary) };
-        case "read_worker":
-          return detail(findWorker(workers(), input.worker_id));
+        case "list_workers": {
+          const listed = workers();
+          host.markSeen(caller.clientId, listed.map((worker) => worker.clientId));
+          return { workers: listed.map(summary) };
+        }
+        case "read_worker": {
+          const worker = findWorker(workers(), input.worker_id);
+          host.markSeen(caller.clientId, [worker.clientId]);
+          return detail(worker);
+        }
         case "wait_for_worker": {
           const id = findWorker(workers(), input.worker_id).clientId;
           const seconds = typeof input.timeout_seconds === "number" && Number.isFinite(input.timeout_seconds)
             ? Math.min(MAX_WAIT_SECONDS, Math.max(1, input.timeout_seconds))
             : DEFAULT_WAIT_SECONDS;
           const current = () => findWorker(workers(), id);
+          host.markSeen(caller.clientId, [id]);
           if (isSettled(current())) return detail(current());
           const settled = await new Promise<boolean>((resolve) => {
             const finish = (value: boolean) => {
@@ -182,6 +250,7 @@ export function createWorkerTools(host: WorkerHost) {
               if (isSettled(current())) finish(true);
             });
           });
+          host.markSeen(caller.clientId, [id]);
           return settled ? detail(current()) : { ...detail(current()), timed_out: true };
         }
         case "send_to_worker": {
@@ -189,8 +258,15 @@ export function createWorkerTools(host: WorkerHost) {
           const message = requiredText(input.message, "message");
           const state = workerState(worker.turn);
           if (state !== "your turn") throw new WorkerToolError(SEND_REFUSALS[state]);
-          host.send(worker.clientId, message);
+          host.send(worker.clientId, orchestratorMessage(caller.title, message));
           return { worker_id: worker.clientId, sent: true, state: "working" };
+        }
+        case "stop_worker": {
+          const worker = findWorker(workers(), input.worker_id);
+          if (workerState(worker.turn) === "ended") throw new WorkerToolError("The worker has already ended.");
+          host.stop(worker.clientId);
+          host.markSeen(caller.clientId, [worker.clientId]);
+          return { worker_id: worker.clientId, stopped: true };
         }
         default:
           throw new WorkerToolError(`Alfred has no tool named ${tool}.`);
@@ -215,6 +291,12 @@ function findWorker(workers: WorkerRecord[], id: unknown): WorkerRecord {
   const worker = typeof id === "string" ? workers.find((candidate) => candidate.clientId === id) : undefined;
   if (!worker) throw new WorkerToolError("No worker of yours has that worker_id. list_workers shows them.");
   return worker;
+}
+
+function optionalChoice(value: unknown, name: string, valid: (value: string) => boolean, expected: string): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !valid(value.trim())) throw new WorkerToolError(`${name} must be ${expected}.`);
+  return value.trim();
 }
 
 function requiredText(value: unknown, name: string): string {

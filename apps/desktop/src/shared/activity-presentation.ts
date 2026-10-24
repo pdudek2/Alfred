@@ -101,7 +101,8 @@ function isUsefulLifecycle(event: SessionActivityEvent): boolean {
     text.includes("relaunching session") ||
     text.includes("resuming session") ||
     text.includes("session asleep") ||
-    text.includes("restarting session")
+    text.includes("restarting session") ||
+    text.includes("stopped by its orchestrator")
   );
 }
 
@@ -150,8 +151,9 @@ export function activitySentence(event: SessionActivityEvent): string {
     // "Plan updated", "Checkout diff reviewed": the title reads as a sentence.
     case "plan":
       return event.title;
+    // "You asked", or "Orchestrator asked" for a message an orchestrator sent through Alfred.
     case "prompt":
-      return `You asked: ${event.detail}`;
+      return `${event.title || "You asked"}: ${event.detail}`;
     // Alfred writes these: the title names the step, the detail's first sentence says what happened.
     case "lifecycle":
       return event.detail.split(/(?<=\.)\s+/)[0] || event.title;
