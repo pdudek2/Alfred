@@ -78,6 +78,9 @@ export function AgentTimelinePanel({
     ? session.cwd.replace(/\/+$/, "").split("/").at(-1) : null) || projectName || session.workspaceId;
   const handoffActions = sessionHandoffActions(session);
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
+  // Why a draft cannot launch, as its plan row says it.
+  const blockLabel = session.launchPreflight?.status === "blocked" ? session.launchPreflight.label : undefined;
+  const blockReason = session.launchPreflight?.status === "blocked" ? session.launchPreflight.reason : session.safetyNote;
   const startEdit = () => {
     setEditDraft({
       args: argsToDraft(session.args),
@@ -209,12 +212,12 @@ export function AgentTimelinePanel({
       </header>
       <div className="agent-timeline-body">
         {changes ?? <section className="details-section" aria-label="Changes"><header className="details-section-heading"><h2>Changes</h2></header><p className="details-empty">No worktree changes.</p></section>}
-        {session.stage === "staged" && session.safetyNote && !canEditStagedSession && <p className="details-empty">{session.safetyNote}</p>}
+        {session.stage === "staged" && blockReason && !canEditStagedSession && <p className="details-empty">{blockReason}</p>}
         {canEditStagedSession && !editMode && (
           <section className="agent-staged-editor" aria-label={`Edit draft command for ${session.title}`}>
             <div className="agent-staged-editor-copy">
-              <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Adjust before launch"}</strong>
-              <p>{session.safetyNote ?? "Command, arguments, and cwd can be corrected before Alfred releases this session."}</p>
+              <strong>{blockLabel ?? (session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Adjust before launch")}</strong>
+              <p>{blockReason ?? "Command, arguments, and cwd can be corrected before Alfred releases this session."}</p>
             </div>
             <button type="button" onClick={startEdit}>
               Edit command
