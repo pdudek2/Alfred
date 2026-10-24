@@ -19,7 +19,7 @@ export type AgentSignalUpdate = Pick<TerminalAgentSignal, "detail" | "state"> & 
 const HOOK_EVENTS = ["UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"] as const;
 const KNOWN_SHELLS = new Set(["zsh", "bash", "sh", "fish", "nu", "dash", "ksh", "tcsh", "csh"]);
 const MAX_HOOK_MESSAGE_BYTES = 1_000_000;
-const MAX_OSC_CARRY = 1_024;
+const MAX_OSC_CARRY = 16_384;
 const MAX_DETAIL = 240;
 const MAX_ANSWER = 20_000;
 /** Long enough for wait_for_worker's two minutes; Claude reads it from the environment, Codex from its server entry. */
@@ -153,7 +153,9 @@ export function parseOsc9(carry: string, data: string): { carry: string; message
   }
   const rest = text.slice(consumed);
   const partialStart = rest.lastIndexOf("\x1b]9;");
-  const nextCarry = partialStart === -1 ? "" : rest.slice(partialStart);
+  // A chunk can also end inside the opener itself.
+  // eslint-disable-next-line no-control-regex
+  const nextCarry = partialStart === -1 ? /\x1b(?:\](?:9)?)?$/.exec(rest)?.[0] ?? "" : rest.slice(partialStart);
   return { carry: nextCarry.length > MAX_OSC_CARRY ? "" : nextCarry, messages };
 }
 

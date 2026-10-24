@@ -47,8 +47,16 @@ describe("parseOsc9", () => {
     expect(parseOsc9(first.carry, "uested: ls\x07").messages).toEqual(["Approval requested: ls"]);
   });
 
-  it("drops an endless unterminated sequence", () => {
-    expect(parseOsc9("", `\x1b]9;${"x".repeat(5_000)}`).carry).toBe("");
+  it.each(["\x1b", "\x1b]", "\x1b]9"])("carries an opener cut after %j", (opener) => {
+    const sequence = "\x1b]9;Approval requested: ls\x07";
+    const first = parseOsc9("", `text${opener}`);
+    expect(parseOsc9(first.carry, sequence.slice(opener.length)).messages).toEqual(["Approval requested: ls"]);
+  });
+
+  it("keeps a long message and drops an endless unterminated sequence", () => {
+    const long = `Done: ${"x".repeat(5_000)}`;
+    expect(parseOsc9(parseOsc9("", `\x1b]9;${long}`).carry, "\x07").messages).toEqual([long]);
+    expect(parseOsc9("", `\x1b]9;${"x".repeat(20_000)}`).carry).toBe("");
   });
 });
 
