@@ -983,6 +983,7 @@ function isSessionActivityEventKind(value: unknown): value is SessionActivityEve
     value === "lifecycle" ||
     value === "output" ||
     value === "plan" ||
+    value === "prompt" ||
     value === "tool" ||
     value === "warning"
   );

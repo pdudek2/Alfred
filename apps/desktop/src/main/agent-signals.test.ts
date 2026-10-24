@@ -106,6 +106,49 @@ describe("signals", () => {
     expect(signalFromHook("Stop", { last_assistant_message: null })).toEqual({ state: "your-turn" });
   });
 
+  it("records each tool a hooked agent ran, from the PostToolUse payload Claude Code sends", () => {
+    const tool = (tool_name: string, tool_input: unknown) => signalFromHook("PostToolUse", { hook_event_name: "PostToolUse", tool_name, tool_input });
+    expect(tool("Bash", { command: "pnpm test\n--watch", description: "Run tests" })).toEqual({
+      state: "working",
+      activity: { kind: "command", title: "Ran command", detail: "pnpm test", payload: { type: "command", command: "pnpm test\n--watch" } },
+    });
+    expect(tool("Write", { file_path: "/repo/a.txt", content: "alpha" })?.activity).toEqual({
+      kind: "file", title: "File activity", detail: "Wrote /repo/a.txt", payload: { type: "file", operation: "wrote", path: "/repo/a.txt" },
+    });
+    expect(tool("Edit", { file_path: "/repo/a.txt", old_string: "alpha", new_string: "beta" })?.activity?.payload)
+      .toEqual({ type: "file", operation: "edited", path: "/repo/a.txt" });
+    expect(tool("MultiEdit", { file_path: "/repo/b.ts", edits: [] })?.activity?.payload)
+      .toEqual({ type: "file", operation: "edited", path: "/repo/b.ts" });
+    expect(tool("Read", { file_path: "/repo/a.txt" })?.activity?.payload).toEqual({ type: "file", operation: "read", path: "/repo/a.txt" });
+    expect(tool("TaskCreate", { subject: "Wire the tree", description: "…" })?.activity).toEqual({
+      kind: "plan", title: "Plan updated", detail: "Wire the tree", payload: { type: "plan", summary: "Wire the tree" },
+    });
+    expect(tool("TodoWrite", { todos: [] })?.activity).toMatchObject({ kind: "plan", title: "Plan updated" });
+    expect(tool("Glob", { pattern: "**/*.txt", path: "/repo" })?.activity).toEqual({
+      kind: "tool", title: "Used Glob", detail: "**/*.txt", payload: { type: "tool", name: "Glob", input: "**/*.txt" },
+    });
+    expect(tool("mcp__github__get_issue", { owner: "a", repo: "b" })?.activity)
+      .toMatchObject({ kind: "tool", payload: { type: "tool", name: "mcp__github__get_issue", input: "" } });
+    // Claude Code loads its deferred tools through ToolSearch; that is its housekeeping, not the agent's work.
+    expect(tool("ToolSearch", { query: "select:TaskCreate" })).toEqual({ state: "working" });
+    expect(signalFromHook("PostToolUse", {})).toEqual({ state: "working" });
+  });
+
+  it("records the edit a Codex patch made under its first file", () => {
+    const patch = "*** Begin Patch\n*** Add File: src/tree.ts\n+x\n*** Update File: src/app.tsx\n*** End Patch";
+    expect(signalFromHook("PostToolUse", { tool_name: "apply_patch", tool_input: { command: patch } })?.activity?.payload)
+      .toEqual({ type: "file", operation: "edited", path: "src/tree.ts" });
+  });
+
+  it("records the message you sent, its first line", () => {
+    expect(signalFromHook("UserPromptSubmit", { prompt: "\n  Split History into a list\nand a reader" })).toEqual({
+      state: "working",
+      activity: { kind: "prompt", title: "You asked", detail: "Split History into a list" },
+    });
+    expect(signalFromHook("UserPromptSubmit", { prompt: "x".repeat(500) })?.activity?.detail).toHaveLength(240);
+    expect(signalFromHook("UserPromptSubmit", { prompt: "   " })).toEqual({ state: "working" });
+  });
+
   it("names the file a Codex edit approval is about instead of the patch", () => {
     const patch = "*** Begin Patch\n*** Update File: src/session-status.ts\n@@\n-old\n+new\n*** End Patch";
     expect(signalFromHook("PermissionRequest", { tool_name: "apply_patch", tool_input: { command: patch } })).toEqual({

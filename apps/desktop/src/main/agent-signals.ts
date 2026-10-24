@@ -3,11 +3,15 @@ import { randomBytes } from "node:crypto";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import type { SessionActivityInput } from "../shared/session-activity.js";
 import type { TerminalAgentSignal } from "../shared/terminal-ipc.js";
 
 /** Session model contract §3: how Alfred senses agent and shell state. */
 
-export type AgentSignalUpdate = Pick<TerminalAgentSignal, "detail" | "state">;
+export type AgentSignalUpdate = Pick<TerminalAgentSignal, "detail" | "state"> & {
+  /** What the hook says the agent did: the tool it ran or the message you sent. Its history comes from these, not its screen. */
+  activity?: SessionActivityInput;
+};
 
 const HOOK_EVENTS = ["UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"] as const;
 const KNOWN_SHELLS = new Set(["zsh", "bash", "sh", "fish", "nu", "dash", "ksh", "tcsh", "csh"]);
@@ -95,8 +99,9 @@ export function isTerminalReport(data: string): boolean {
 export function signalFromHook(event: string, payload: unknown): AgentSignalUpdate | null {
   switch (event) {
     case "UserPromptSubmit":
+      return withActivity({ state: "working" }, promptActivity(payload));
     case "PostToolUse":
-      return { state: "working" };
+      return withActivity({ state: "working" }, toolActivity(payload));
     case "Stop": {
       const detail = describeTurnEnd(payload);
       return detail ? { state: "your-turn", detail } : { state: "your-turn" };
@@ -123,16 +128,87 @@ function describeTurnEnd(payload: unknown): string | undefined {
 
 function describePermissionRequest(payload: unknown): string {
   if (typeof payload !== "object" || payload === null) return "Waiting for approval";
-  const { tool_name: tool, tool_input: input } = payload as { tool_input?: unknown; tool_name?: unknown };
-  const fields = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
-  const target = [fields.command, fields.file_path, fields.url, fields.description].find(
-    (value): value is string => typeof value === "string" && value.trim() !== "",
-  );
-  const toolName = typeof tool === "string" && tool ? tool : "a tool";
-  // Codex sends a file edit as the whole patch; its first file says what waits better than the patch text.
-  const patchedFile = toolName === "apply_patch" ? /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(target ?? "")?.[1] : undefined;
+  const { name, fields } = toolCall(payload);
+  const target = toolTarget(fields);
+  const toolName = name || "a tool";
+  const patchedFile = toolName === "apply_patch" ? firstPatchedFile(target) : undefined;
   if (patchedFile) return `Edit ${patchedFile}`.slice(0, MAX_DETAIL);
-  return `${toolName}: ${target ?? "waiting for approval"}`.slice(0, MAX_DETAIL);
+  return `${toolName}: ${target || "waiting for approval"}`.slice(0, MAX_DETAIL);
+}
+
+function withActivity(update: AgentSignalUpdate, activity: SessionActivityInput | null): AgentSignalUpdate {
+  return activity ? { ...update, activity } : update;
+}
+
+function toolCall(payload: unknown): { name: string; fields: Record<string, unknown> } {
+  const { tool_name: tool, tool_input: input } = typeof payload === "object" && payload !== null
+    ? payload as { tool_input?: unknown; tool_name?: unknown }
+    : {};
+  return {
+    name: typeof tool === "string" ? tool : "",
+    fields: typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {},
+  };
+}
+
+function toolTarget(fields: Record<string, unknown>): string {
+  return [fields.command, fields.file_path, fields.notebook_path, fields.pattern, fields.url, fields.query, fields.subject, fields.description]
+    .find((value): value is string => typeof value === "string" && value.trim() !== "") ?? "";
+}
+
+// Codex sends a file edit as the whole patch; its first file says what changed better than the patch text.
+function firstPatchedFile(patch: string): string | undefined {
+  return /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(patch)?.[1];
+}
+
+const FILE_TOOLS: Readonly<Record<string, "edited" | "read" | "wrote">> = {
+  Edit: "edited",
+  MultiEdit: "edited",
+  NotebookEdit: "edited",
+  Read: "read",
+  Write: "wrote",
+};
+const FILE_VERBS = { edited: "Edited", read: "Read", wrote: "Wrote" } as const;
+const SHELL_TOOLS = new Set(["Bash", "shell", "exec_command", "local_shell"]);
+const PLAN_TOOLS = new Set(["TodoWrite", "TaskCreate", "TaskUpdate", "update_plan"]);
+// Claude Code loads its deferred tools through ToolSearch: its own housekeeping, not the agent's work.
+const HOUSEKEEPING_TOOLS = new Set(["ToolSearch"]);
+
+/** One tool call from PostToolUse, in the shapes the screen classifier gives the same work. */
+function toolActivity(payload: unknown): SessionActivityInput | null {
+  const { name, fields } = toolCall(payload);
+  if (!name || HOUSEKEEPING_TOOLS.has(name)) return null;
+  const target = toolTarget(fields);
+  if (SHELL_TOOLS.has(name) && target) {
+    return { kind: "command", title: "Ran command", detail: firstLine(target), payload: { type: "command", command: target } };
+  }
+  const patched = name === "apply_patch" ? firstPatchedFile(target) : undefined;
+  const operation = patched ? "edited" : FILE_TOOLS[name];
+  const filePath = patched ?? target;
+  if (operation && filePath) {
+    return {
+      kind: "file",
+      title: "File activity",
+      detail: `${FILE_VERBS[operation]} ${filePath}`.slice(0, MAX_DETAIL),
+      payload: { type: "file", operation, path: filePath },
+    };
+  }
+  if (PLAN_TOOLS.has(name)) {
+    const summary = typeof fields.subject === "string" ? firstLine(fields.subject) : "";
+    return { kind: "plan", title: "Plan updated", detail: summary, payload: { type: "plan", summary } };
+  }
+  const input = firstLine(target);
+  return { kind: "tool", title: `Used ${name}`, detail: input, payload: { type: "tool", name, input } };
+}
+
+/** The message you sent, from UserPromptSubmit: its first line, as the turn's start in the history. */
+function promptActivity(payload: unknown): SessionActivityInput | null {
+  const prompt = typeof payload === "object" && payload !== null ? (payload as { prompt?: unknown }).prompt : undefined;
+  const line = typeof prompt === "string" ? firstLine(prompt) : "";
+  return line ? { kind: "prompt", title: "You asked", detail: line } : null;
+}
+
+function firstLine(value: string): string {
+  return (value.split("\n").map((part) => part.trim()).find(Boolean) ?? "").slice(0, MAX_DETAIL);
 }
 
 /** The agent's own transcript file, which Claude and Codex name in every hook. */

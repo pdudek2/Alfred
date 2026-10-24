@@ -478,6 +478,7 @@ describe("persisted-desktop-state", () => {
                 },
                 at: 123,
               },
+              { id: "manual-secret-activity-2", kind: "prompt", title: "You asked", detail: "Deploy with sk-proj-1234567890abcdef", at: 124 },
             ],
           },
         ],
@@ -497,6 +498,8 @@ describe("persisted-desktop-state", () => {
       detail: "Read [redacted-path:cbcdbb8b]",
       payload: { type: "tool", name: "Bash", input: "Authorization: [redacted]" },
     });
+    // A message you sent is kept like the rest of the history, and redacted the same way.
+    expect(session?.activityEvents?.[1]).toMatchObject({ kind: "prompt", detail: "Deploy with [redacted]" });
   });
 
   it("migrates an auto-titled manual coding-agent session to resumable metadata", () => {

@@ -55,6 +55,18 @@ describe("activity sentences", () => {
     expect(activitySentence({ ...baseEvent, kind: "error", title: "Error reported", detail: "build failed", payload: { type: "error", message: "build failed" } }))
       .toBe("build failed");
   });
+
+  it("lists events of the same millisecond newest first, as they happened", () => {
+    const at = (id: string, time: number): SessionActivityEvent => ({ id, at: time, kind: "command", title: "Ran command", detail: id, payload: { type: "command", command: id } });
+    const events = [at("prompt", 1), at("test", 1), at("edit", 2), at("stop", 2)];
+    expect(presentActivityEvents(events).visibleEvents.map((event) => event.id)).toEqual(["stop", "edit", "test", "prompt"]);
+  });
+
+  it("writes the message you sent as the start of the agent's history", () => {
+    const prompt: SessionActivityEvent = { ...baseEvent, kind: "prompt", title: "You asked", detail: "Split History into a list" };
+    expect(activitySentence(prompt)).toBe("You asked: Split History into a list");
+    expect(classifyActivityPresentationLayer(prompt)).toBe("signal");
+  });
 });
 
 describe("activity presentation", () => {
@@ -96,7 +108,8 @@ describe("activity presentation", () => {
     const presented = presentActivityEvents(events);
 
     expect(presented.visibleEvents.map((event) => event.id)).toEqual(["file"]);
-    expect(presented.rawEvents.map((event) => event.id)).toEqual(["hook", "git"]);
+    // Same millisecond: the later event first.
+    expect(presented.rawEvents.map((event) => event.id)).toEqual(["git", "hook"]);
     expect(presented.hiddenRawCount).toBe(2);
   });
 
@@ -132,8 +145,8 @@ describe("activity presentation", () => {
     ];
 
     expect(presentActivityEvents(events, { includeRaw: true }).visibleEvents.map((event) => event.id)).toEqual([
-      "raw",
       "work",
+      "raw",
     ]);
   });
 });

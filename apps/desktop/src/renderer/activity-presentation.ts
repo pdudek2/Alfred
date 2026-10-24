@@ -20,7 +20,8 @@ export function presentActivityEvents(
     limit?: number;
   } = {},
 ): PresentedActivity {
-  const ordered = [...events].sort((left, right) => right.at - left.at);
+  // Newest first; events of the same millisecond (a burst of hooks, one output chunk) keep their order, latest on top.
+  const ordered = [...events].reverse().sort((left, right) => right.at - left.at);
   const rawEvents = ordered.filter((event) => classifyActivityPresentationLayer(event) === "raw");
   const primaryEvents = ordered.filter((event) => classifyActivityPresentationLayer(event) !== "raw");
   const sourceEvents = includeRaw ? ordered : primaryEvents;
@@ -44,6 +45,7 @@ export function classifyActivityPresentationLayer(event: SessionActivityEvent): 
   switch (event.kind) {
     case "approval":
     case "error":
+    case "prompt":
     case "warning":
       return "signal";
     case "file":
@@ -146,6 +148,8 @@ export function activitySentence(event: SessionActivityEvent): string {
     // "Plan updated", "Checkout diff reviewed": the title reads as a sentence.
     case "plan":
       return event.title;
+    case "prompt":
+      return `You asked: ${event.detail}`;
     // Alfred writes these: the title names the step, the detail's first sentence says what happened.
     case "lifecycle":
       return event.detail.split(/(?<=\.)\s+/)[0] || event.title;
