@@ -27,8 +27,9 @@ test("passes the wheel to a program on the alternate screen, as Codex scrolls it
   await expect.poll(() => terminalBuffer(page)).toContain("[<64;");
 
   // A program there that does not track the mouse, such as less or vim, gets the arrow keys instead.
-  await appendFile(marker, "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l");
-  await page.waitForTimeout(100);
+  // xterm applies output in order, so once the text after the mode switch shows, the switch has happened.
+  await appendFile(marker, "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006lMouse tracking off");
+  await expect(tile).toContainText("Mouse tracking off");
   await page.mouse.wheel(0, 120);
   await expect.poll(() => terminalBuffer(page)).toContain("^[[B");
   harness.assertNoRuntimeErrors();

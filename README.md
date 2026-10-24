@@ -99,7 +99,7 @@ It runs ESLint, typecheck, tests, build, and the Playwright Electron scenarios a
 
 For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron.
 
-GitHub Actions runs the same quality gate on Linux and the Electron smoke on macOS. The macOS job is visible as a normal failing check, but it is not a required branch-protection check.
+GitHub Actions runs the same quality gate on Linux, the Electron smoke and the script tests on macOS, and the path-security tests on Windows. Branch protection on `main` requires all three checks.
 
 ## Current boundaries
 

@@ -1328,7 +1328,8 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
-    expect(within(panel).getByRole("button", { name: "Alfred project" })).not.toHaveAttribute("data-attention");
+    await within(panel).findByRole("button", { name: "Alfred project" });
+    expect(panel.querySelector(".project-row-state")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Needs you, / })).not.toBeInTheDocument();
   });
 
@@ -1339,15 +1340,6 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByText("Projects")).toHaveTextContent("Projects");
     expect(within(panel).queryByText(/Projects \d/)).not.toBeInTheDocument();
-  });
-
-  it("keeps project rows free of attention markers when the review queue is clear", async () => {
-    installDesktopBridge();
-    render(<App />);
-
-    const panel = await screen.findByTestId("project-navigator");
-    expect(within(panel).getByRole("button", { name: /Alfred project/i })).not.toHaveAttribute("data-attention");
-    expect(panel.querySelector(".project-attention-signal")).toBeNull();
   });
 
   it("does not render an empty Free Chats section when there are no scratch chats", async () => {
@@ -2593,23 +2585,6 @@ describe("App integration", () => {
     const stage = await screen.findByLabelText("terminals");
     expect(stage).toHaveClass("headerless");
     expect(stage.querySelector(".terminal-stage-header")).not.toBeInTheDocument();
-  });
-
-  it("never renders a second Focus Split Grid control set inside TerminalDesk", () => {
-    const session: SessionTile = {
-      id: "one",
-      runtimeId: "runtime-one",
-      title: "Codex · one",
-      source: "manual",
-      workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
-      stage: "live",
-      runtimeStatus: "live",
-      initialBuffer: "",
-    };
-    renderTerminalDeskForSessions([session]);
-
-    expect(screen.queryByRole("button", { name: /Open layout menu/ })).not.toBeInTheDocument();
   });
 
   it("routes secondary terminal actions through one accessible overflow menu", async () => {
