@@ -76,7 +76,7 @@ describe("persisted-desktop-state", () => {
           id: "UI",
           label: "Interface",
           shortLabel: "UI",
-          rootPath: "/Users/patryk/Desktop/Interface",
+          rootPath: "/Users/sample/Desktop/Interface",
           gitBranch: "main",
           missionBrief: {
             goal: "Ship the desktop launcher without losing manual control.",
@@ -134,7 +134,7 @@ describe("persisted-desktop-state", () => {
           clientId: "manual-1",
           title: "zsh",
           source: "manual",
-          cwd: "/Users/patryk/Desktop/Interface",
+          cwd: "/Users/sample/Desktop/Interface",
           shell: "/bin/zsh",
           buffer: "ready\n",
           lastActivityAt: 123,
@@ -451,9 +451,9 @@ describe("persisted-desktop-state", () => {
         restoredTerminalSessions: [
           {
             clientId: "manual-secret",
-            title: "Manual /Users/patryk/Desktop/Alfred",
+            title: "Manual /Users/sample/Desktop/Alfred",
             source: "manual",
-            cwd: "/Users/patryk/Desktop/Alfred",
+            cwd: "/Users/sample/Desktop/Alfred",
             shell: "/bin/zsh",
             buffer: `${"a".repeat(20_000)}${retainedTail}`,
             activityEvents: [
@@ -461,7 +461,7 @@ describe("persisted-desktop-state", () => {
                 id: "manual-secret-activity-1",
                 kind: "tool",
                 title: "Tool sk-proj-1234567890abcdef",
-                detail: "Read /Users/patryk/.codex/sessions/session.jsonl",
+                detail: "Read /Users/sample/.codex/sessions/session.jsonl",
                 payload: {
                   type: "tool",
                   name: "Bash",
@@ -491,10 +491,10 @@ describe("persisted-desktop-state", () => {
     expect(session?.buffer?.length).toBeLessThanOrEqual(80_000);
     expect(session?.buffer).not.toContain("Bearer abc.def.ghi");
     expect(session?.buffer).toContain("Authorization: [redacted]");
-    expect(session?.title).toBe("Manual [redacted-path:44c8fe0e]");
+    expect(session?.title).toBe("Manual [redacted-path:cd97628a]");
     expect(session?.activityEvents?.[0]).toMatchObject({
       title: "Tool [redacted]",
-      detail: "Read [redacted-path:cbcdbb8b]",
+      detail: "Read [redacted-path:ea3222cc]",
       payload: { type: "tool", name: "Bash", input: "Authorization: [redacted]" },
     });
     // A message you sent is kept like the rest of the history, and redacted the same way.
@@ -570,13 +570,13 @@ describe("persisted-desktop-state", () => {
   it("keeps only safe isolated recovery identity when retention is off", () => {
     const isolated = {
       clientId: "codex-1",
-      title: "Codex /Users/patryk/Client",
+      title: "Codex /Users/sample/Client",
       source: "alfred" as const,
       agentKind: "codex" as const,
       workspaceId: "A",
       isolation: "worktree" as const,
       branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-      baseCwd: "/Users/patryk/Client",
+      baseCwd: "/Users/sample/Client",
       cwd: "/private/worktrees/client/codex-1",
       shell: "/bin/zsh",
       command: "codex",
@@ -641,12 +641,12 @@ describe("persisted-desktop-state", () => {
 
     expect(sanitizePersistedTerminalSession({
       ...identity,
-      workspaceRootFingerprint: "/Users/patryk/Client",
+      workspaceRootFingerprint: "/Users/sample/Client",
     }, privacySettings)).toBeNull();
     expect(sanitizePersistedTerminalSession({
       ...identity,
       workspaceRootFingerprint: "not-opaque",
-      baseCwd: "/Users/patryk/Client",
+      baseCwd: "/Users/sample/Client",
     }, privacySettings)?.workspaceRootFingerprint).toMatch(/^[a-f0-9]{16}$/);
     expect(sanitizePersistedTerminalSession({
       ...identity,
@@ -675,7 +675,7 @@ describe("persisted-desktop-state", () => {
           workspaceId: "A",
           isolation: "worktree",
           branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-          baseCwd: "/Users/patryk/Client",
+          baseCwd: "/Users/sample/Client",
         },
       ],
     });
@@ -740,13 +740,13 @@ describe("persisted-desktop-state", () => {
     const filePath = await temporaryStateFile();
     const isolated = {
       clientId: "codex-1",
-      title: "Codex /Users/patryk/Client",
+      title: "Codex /Users/sample/Client",
       source: "alfred" as const,
       agentKind: "codex" as const,
       workspaceId: "A",
       isolation: "worktree" as const,
       branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-      baseCwd: "/Users/patryk/Client",
+      baseCwd: "/Users/sample/Client",
       cwd: "/private/worktrees/client/codex-1",
       shell: "/bin/zsh",
       command: "codex",

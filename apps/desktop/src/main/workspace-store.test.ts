@@ -51,14 +51,14 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({
       filePath,
-      defaultRootPath: "/Users/patryk/Desktop/Alfred",
+      defaultRootPath: "/Users/sample/Desktop/Alfred",
       resolveGitBranch: async () => "main",
     });
     const expected: WorkspaceStateSnapshot = {
       workspaces: [
         {
           ...DEFAULT_WORKSPACE,
-          rootPath: "/Users/patryk/Desktop/Alfred",
+          rootPath: "/Users/sample/Desktop/Alfred",
           gitBranch: "main",
         },
       ],
@@ -75,7 +75,7 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({
       filePath,
-      defaultRootPath: "/Users/patryk/Desktop/PlainFolder",
+      defaultRootPath: "/Users/sample/Desktop/PlainFolder",
       resolveGitBranch: async () => undefined,
     });
 
@@ -83,7 +83,7 @@ describe("workspace-store", () => {
       workspaces: [
         {
           ...DEFAULT_WORKSPACE,
-          rootPath: "/Users/patryk/Desktop/PlainFolder",
+          rootPath: "/Users/sample/Desktop/PlainFolder",
         },
       ],
       activeWorkspaceId: DEFAULT_WORKSPACE.id,
@@ -95,12 +95,12 @@ describe("workspace-store", () => {
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
     await persistedStateStore.setState({
       ...DEFAULT_DESKTOP_STATE,
-      workspaces: [{ ...DEFAULT_WORKSPACE, rootPath: "/Users/patryk/Desktop/Existing" }],
+      workspaces: [{ ...DEFAULT_WORKSPACE, rootPath: "/Users/sample/Desktop/Existing" }],
       activeWorkspaceId: DEFAULT_WORKSPACE.id,
     });
     const store = createWorkspaceStore({
       persistedStateStore,
-      defaultRootPath: "/Users/patryk/Desktop/Alfred",
+      defaultRootPath: "/Users/sample/Desktop/Alfred",
       resolveGitBranch: async () => "main",
     });
 
@@ -108,7 +108,7 @@ describe("workspace-store", () => {
       workspaces: [
         {
           ...DEFAULT_WORKSPACE,
-          rootPath: "/Users/patryk/Desktop/Existing",
+          rootPath: "/Users/sample/Desktop/Existing",
           gitBranch: "main",
         },
       ],
@@ -144,14 +144,14 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({ filePath, resolveGitBranch: async () => "main" });
 
-    await expect(store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App")).resolves.toEqual({
+    await expect(store.createWorkspaceFromPath("/Users/sample/Desktop/Client App")).resolves.toEqual({
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
         {
           id: "CLIENT-APP",
           label: "Client App",
           shortLabel: "CA",
-          rootPath: "/Users/patryk/Desktop/Client App",
+          rootPath: "/Users/sample/Desktop/Client App",
           gitBranch: "main",
         },
       ],
@@ -163,8 +163,8 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({ filePath });
 
-    await store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App");
-    await store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App");
+    await store.createWorkspaceFromPath("/Users/sample/Desktop/Client App");
+    await store.createWorkspaceFromPath("/Users/sample/Desktop/Client App");
 
     await expect(store.getWorkspaceState()).resolves.toEqual({
       workspaces: [
@@ -173,7 +173,7 @@ describe("workspace-store", () => {
           id: "CLIENT-APP",
           label: "Client App",
           shortLabel: "CA",
-          rootPath: "/Users/patryk/Desktop/Client App",
+          rootPath: "/Users/sample/Desktop/Client App",
         },
       ],
       activeWorkspaceId: "CLIENT-APP",
@@ -203,14 +203,14 @@ describe("workspace-store", () => {
     const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch: async () => "feature/hardening" });
 
     await expect(
-      store.bindWorkspaceToPath({ workspaceId: "SCRATCH-1", rootPath: "/Users/patryk/Desktop/Client App" }),
+      store.bindWorkspaceToPath({ workspaceId: "SCRATCH-1", rootPath: "/Users/sample/Desktop/Client App" }),
     ).resolves.toEqual({
       workspaces: [
         {
           id: "SCRATCH-1",
           label: "Client App",
           shortLabel: "CA",
-          rootPath: "/Users/patryk/Desktop/Client App",
+          rootPath: "/Users/sample/Desktop/Client App",
           gitBranch: "feature/hardening",
           missionBrief: {
             goal: "Keep context while binding.",
@@ -388,7 +388,7 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({ filePath });
 
-    await store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App");
+    await store.createWorkspaceFromPath("/Users/sample/Desktop/Client App");
     const snapshot = await store.createWorkspaceFromPath("/tmp/Client App");
 
     expect(snapshot.workspaces.map((workspace) => workspace.id)).toEqual(["A", "CLIENT-APP", "CLIENT-APP-2"]);

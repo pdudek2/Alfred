@@ -8,7 +8,7 @@ type BeforeQuitHandler = (event: { preventDefault: () => void }) => void;
 const mocks = vi.hoisted(() => {
   const appEventHandlers = new Map<string, AppEventHandler>();
   const app = {
-    getAppPath: vi.fn(() => "/Users/patryk/Desktop/Alfred/apps/desktop"),
+    getAppPath: vi.fn(() => "/Users/sample/Desktop/Alfred/apps/desktop"),
     getPath: vi.fn(() => "/tmp/alfred-user-data"),
     on: vi.fn(),
     requestSingleInstanceLock: vi.fn(() => true),
@@ -74,7 +74,7 @@ const mocks = vi.hoisted(() => {
     registerSessionsIpc: vi.fn(),
     registerTerminalIpc: vi.fn(),
     registerWorkspaceIpc: vi.fn(),
-    resolveDefaultWorkspaceRootPath: vi.fn(() => "/Users/patryk/Desktop/Alfred"),
+    resolveDefaultWorkspaceRootPath: vi.fn(() => "/Users/sample/Desktop/Alfred"),
     restoreWindowPresentation: vi.fn(),
     shouldConfirmTerminalQuit: vi.fn(() => false),
     waitForTerminalExits: vi.fn(async () => {}),

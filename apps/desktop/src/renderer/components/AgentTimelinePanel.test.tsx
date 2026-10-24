@@ -203,9 +203,9 @@ describe("AgentTimelinePanel", () => {
   it("preserves full worktree path in title and copy action", async () => {
     const user = userEvent.setup();
     const onCopyActivityText = vi.fn();
-    const cwd = "/Users/patryk/Desktop/Alfred/.worktrees/path-noise-pass-with-extra-detail";
+    const cwd = "/Users/sample/Desktop/Alfred/.worktrees/path-noise-pass-with-extra-detail";
     const branchName = "codex/alfred/focus/right-dock/path-noise-pass-branch";
-    const baseCwd = "/Users/patryk/Desktop/Alfred";
+    const baseCwd = "/Users/sample/Desktop/Alfred";
     const session: SessionTile = {
       id: "s1",
       title: "codex — path noise",
