@@ -2834,53 +2834,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   }
 }
 
-.agent-timeline-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 13px 16px;
-  border-bottom: 1px solid color-mix(in oklab, white 5%, transparent);
-}
-
-.agent-timeline-header strong {
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0.005em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-timeline-header span {
-  font-size: 11px;
-  color: var(--muted);
-  font-family: var(--sans);
-}
-
-.agent-status-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--muted);
-}
-
-.agent-status-pill .agent-status-text {
-  color: inherit;
-}
-
-.agent-status-pill.status-working,
-.agent-status-pill.status-running { color: var(--cyan); }
-.agent-status-pill.status-needs-you,
-.agent-status-pill.status-unavailable { color: var(--brass); }
-.agent-status-pill.status-failed { color: var(--signal-danger); }
-
 .agent-timeline-body {
   flex: 1 1 auto;
   padding: 14px 16px 16px;
@@ -3364,11 +3317,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-primary);
 }
 
-.agent-timeline-header strong {
-  font-family: var(--sans);
-  font-weight: 600;
-}
-
 /* --- Terminal tile actions: cyan active, quiet danger --- */
 
 /* ============================================================
@@ -3393,26 +3341,11 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
    ============================================================ */
 
 /* Region titles use the shared sans token. */
-.agent-timeline-header strong,
 .command-palette-search input {
   font-family: var(--sans);
   letter-spacing: 0;
 }
 
-.agent-timeline-header span {
-  font-family: var(--sans);
-  letter-spacing: 0.08em;
-}
-
-.agent-timeline-header {
-  padding: 18px 20px;
-}
-
-.agent-timeline-header strong {
-  font-size: 15px;
-  font-weight: 650;
-  color: var(--text-primary);
-}
 
 .agent-staged-edit-form input,
 .agent-staged-edit-form textarea {
@@ -3634,7 +3567,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .context-drawer .agent-timeline-body { display: block; min-height: 0; padding: 0 0 18px; overflow-x: hidden; overflow-y: auto; }
-.context-drawer .agent-timeline-header { padding: 10px 10px 0; }
 .context-drawer .details-section { padding: 0; min-width: 0; }
 .context-drawer .details-section h2 { margin: 0; color: var(--text-secondary); font: 500 12px/16px var(--sans); text-transform: none; letter-spacing: normal; }
 .details-section-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 16px 10px 4px; }
@@ -3651,11 +3583,15 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .details-actions button { height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-control); color: var(--text-primary); font: 400 13px/18px var(--sans); }
 .details-actions button:hover { background: var(--surface-control-hover); }
 .details-actions button:disabled { opacity: .5; cursor: default; }
-.context-drawer .agent-activity-list { padding: 0; margin: 0; gap: 0; }
+/* One column as wide as Details, so a long step is cut instead of widening the list. */
+.context-drawer .agent-activity-list { grid-template-columns: minmax(0, 1fr); padding: 0; margin: 0; gap: 0; }
 .context-drawer .agent-activity-list li { display: flex; align-items: flex-start; gap: 9px; padding: 5px 10px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .context-drawer .agent-activity-list li::before { display: none; }
 .context-drawer .details-activity-glyph { display: flex; flex-shrink: 0; margin-top: 3px; }
-.context-drawer .details-activity-text { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; text-align: left; color: var(--text-secondary); font: 400 13px/18px var(--sans); overflow-wrap: anywhere; }
+.context-drawer .details-activity-text { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; text-align: left; color: var(--text-secondary); font: 400 13px/18px var(--sans); display: flex; }
+/* One line per step; the full text is in the row's tooltip, and a copy state stays visible past the ellipsis. */
+.details-activity-sentence { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details-activity-text [role="status"] { flex-shrink: 0; white-space: pre; }
 .context-drawer .agent-activity-list time { margin: 0; flex-shrink: 0; padding-top: 1px; color: var(--text-muted); font: 400 12px/16px var(--sans); font-variant-numeric: tabular-nums; }
 .details-location-name { margin: 0; padding: 2px 10px; color: var(--text-secondary); font: 400 13px/18px var(--sans); overflow-wrap: anywhere; }
 .details-location-path { margin: 0; padding: 0 10px 6px; color: var(--text-muted); font: 400 12px/17px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
@@ -3666,9 +3602,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .context-drawer .agent-staged-edit-form :is(input, textarea) { font: 400 13px/18px var(--sans); background: var(--surface-control); border-color: var(--border-strong); box-shadow: none; }
 .context-drawer :is(button, summary, input, textarea):focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
 
-.context-drawer .agent-status-pill { background: transparent; border: 0; box-shadow: none; color: var(--text-muted); }
-.context-drawer .agent-status-pill:is(.status-needs-you, .status-your-turn) { color: var(--signal); }
-.context-drawer .agent-status-text { color: inherit; font: 500 13px/18px var(--sans); }
 .context-drawer .agent-staged-editor button,
 .context-drawer .agent-staged-edit-actions button,
 .context-drawer .agent-handoff-buttons button,
@@ -3784,12 +3717,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--role-active);
 }
 
-.agent-timeline-header strong {
-  font: 650 13px/1.2 var(--sans);
-  letter-spacing: 0;
-}
-
-.agent-timeline-header strong,
 .agent-session-pulse strong {
   color: var(--text-primary);
 }
