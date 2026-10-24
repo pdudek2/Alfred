@@ -1,6 +1,6 @@
 import { ChevronDown, Plus } from "lucide-react";
 import { useId, type CSSProperties } from "react";
-import { activitySentence, pendingApproval, waitingSentence } from "../activity-presentation";
+import { activitySentence, pendingApproval, waitingSentence } from "../../shared/activity-presentation";
 import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionTileKind } from "../tile-kind";
