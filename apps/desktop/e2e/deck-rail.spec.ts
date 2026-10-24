@@ -2,8 +2,9 @@ import { appendFile, readdir } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
-import type { ElectronApplication, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
 
 // Fixture item 1 is a blocked draft in Alpha (Needs you); Beta gets a Codex session kept busy;
@@ -99,9 +100,3 @@ async function startSession(page: Page, kind: RegExp): Promise<void> {
   await expect(sheet).toHaveCount(0);
 }
 
-async function setWindowSize(app: ElectronApplication, page: Page, width: number, height: number): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, bounds) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, ...bounds });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
-}
