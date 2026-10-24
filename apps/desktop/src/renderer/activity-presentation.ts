@@ -137,8 +137,10 @@ export function activitySentence(event: SessionActivityEvent): string {
     case "approval":
       return askedSentence(payload?.type === "approval" ? payload.prompt : event.detail);
     case "command": {
+      const description = payload?.type === "command" ? payload.description?.trim() : undefined;
+      if (description) return description;
       const command = payload?.type === "command" ? payload.command : event.detail;
-      return command ? `Ran ${firstLine(command)}` : event.title;
+      return command ? `Ran ${withoutOutputPlumbing(firstLine(command))}` : event.title;
     }
     case "file":
       return payload?.type === "file" ? `${FILE_VERBS[payload.operation]} ${fileName(payload.path)}` : event.detail || event.title;
@@ -210,6 +212,13 @@ function readApproval(prompt: string): ApprovalAsk {
 
 function fileName(path: string): string {
   return path.trim().split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
+// `2>&1`, `| tail -40`, `| head -n 5` at the end only trim what the agent reads back; the command is what came before.
+const OUTPUT_PLUMBING = /(?:\s+2>&1|\s*\|\s*(?:head|tail)\s+(?:-n\s*)?-?\d+)+$/;
+
+function withoutOutputPlumbing(command: string): string {
+  return command.replace(OUTPUT_PLUMBING, "") || command;
 }
 
 function firstLine(text: string): string {

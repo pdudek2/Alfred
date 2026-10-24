@@ -15,7 +15,8 @@ export type SessionActivityEventKind =
 
 export type SessionActivityPayload =
   | { type: "approval"; prompt: string }
-  | { type: "command"; command: string }
+  /** `description` is the agent's own one-line account of the command, which Claude Code sends with Bash. */
+  | { type: "command"; command: string; description?: string }
   | { type: "error"; message: string }
   | {
       type: "file";

@@ -179,7 +179,13 @@ function toolActivity(payload: unknown): SessionActivityInput | null {
   if (!name || HOUSEKEEPING_TOOLS.has(name)) return null;
   const target = toolTarget(fields);
   if (SHELL_TOOLS.has(name) && target) {
-    return { kind: "command", title: "Ran command", detail: firstLine(target), payload: { type: "command", command: target } };
+    const description = typeof fields.description === "string" ? firstLine(fields.description) : "";
+    return {
+      kind: "command",
+      title: "Ran command",
+      detail: firstLine(target),
+      payload: { type: "command", command: target, ...(description ? { description } : {}) },
+    };
   }
   const patched = name === "apply_patch" ? firstPatchedFile(target) : undefined;
   const operation = patched ? "edited" : FILE_TOOLS[name];
