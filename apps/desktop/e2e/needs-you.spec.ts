@@ -153,7 +153,8 @@ test.describe("mixed Needs you actions", () => {
     await expect(popover).not.toContainText("Fixture item 3");
     await expect(popover).not.toContainText("Fixture item 4");
     await expect(popover).not.toContainText("Restored fixture");
-    expect(await rows.locator("button").allTextContents()).toEqual(["Edit", "Open"]);
+    // The first row's action carries the Enter hint: focus starts on it.
+    expect(await rows.locator("button").allTextContents()).toEqual(["Edit↩", "Open"]);
     await expect(popover.getByText("Fixture safety policy blocks launch outside the approved root.", { exact: true }))
       .toBeVisible();
     await expect(popover.getByText("Approval required: allow deterministic fixture?", { exact: true })).toBeVisible();

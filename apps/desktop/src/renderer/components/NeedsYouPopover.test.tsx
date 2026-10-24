@@ -139,3 +139,22 @@ it("keeps focus inside when the focused row stops waiting", async () => {
 
   expect(screen.getByRole("button", { name: /^Edit Reset/ })).toHaveFocus();
 });
+
+it("hangs under its trigger and marks the action Enter runs", async () => {
+  const user = userEvent.setup();
+  render(<Harness items={[approval, blocked]} />);
+  const trigger = screen.getByRole("button", { name: "Trigger" });
+  vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({ top: 12, bottom: 40, left: 1180, right: 1290, width: 110, height: 28, x: 1180, y: 12, toJSON: () => ({}) });
+  window.innerWidth = 1440;
+
+  await user.click(trigger);
+
+  const popover = screen.getByRole("dialog", { name: "Needs you" });
+  expect(popover.style.top).toBe("46px");
+  expect(popover.style.right).toBe("150px");
+  // The first row's action is the one focus starts on, so Enter runs it.
+  const [first, second] = screen.getAllByRole("button", { name: /^(?:Open|Edit) / });
+  expect(first).toHaveClass("is-default");
+  expect(first).toHaveTextContent("↩");
+  expect(second).not.toHaveClass("is-default");
+});
