@@ -1,5 +1,6 @@
 import { isTrustedIpcRecipient, trustedIpc } from "./trusted-ipc.js";
 import { BrowserWindow } from "electron";
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir } from "node:fs/promises";
@@ -7,6 +8,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import {
   appendActivityEvent,
   classifyTerminalOutputChunk,
@@ -111,6 +113,8 @@ type TerminalIpcOptions = {
   applyAgentWorktreePatch?: ApplyAgentWorktreePatch;
   cleanupAgentWorktree?: typeof defaultCleanupAgentWorktree;
   inspectAgentWorktree?: InspectAgentWorktree;
+  /** The command line of the process in the foreground of a shell's terminal, from the shell's pid. */
+  inspectForegroundCommand?: (shellPid: number) => Promise<string | undefined>;
   isStagedCommandAllowed?: (request: Pick<TerminalCreateRequest, "args" | "clientId" | "command">) => Promise<boolean>;
   launchTicketTtlMs?: number;
   loadNodePty?: () => Promise<NodePtyModule>;
@@ -168,6 +172,8 @@ type TerminalSession = {
   stoppedByOrchestrator?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
   submittedAgentKind?: TerminalForegroundAgentKind | undefined;
+  /** The foreground process last asked about, so each one is asked about once. */
+  probedProcess?: string | undefined;
   lastActivityAt?: number;
   lastOutputAt?: number;
   persistLaunchData: boolean;
@@ -603,6 +609,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       session.pty.onData((data) => {
         const now = Date.now();
         const activeAgentKind = updateForegroundAgentKind(session);
+        probeForegroundAgent(session, options.inspectForegroundCommand ?? inspectForegroundCommand);
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now, screenIsHistory(session) ? "all" : "blockers");
@@ -1039,6 +1046,61 @@ function updateForegroundAgentKind(session: TerminalSession): TerminalForeground
     // A PTY may disappear between output and process inspection.
   }
   return session.foregroundAgentKind;
+}
+
+/**
+ * A command recalled with ↑ or completed with Tab never shows its name in what was typed, and Codex runs as "node":
+ * ask the system once per foreground process what it runs.
+ */
+function probeForegroundAgent(
+  session: TerminalSession,
+  inspect: (shellPid: number) => Promise<string | undefined>,
+): void {
+  if (session.command !== undefined || session.foregroundAgentKind || process.platform === "win32") return;
+  let executable: string;
+  try {
+    executable = path.basename(session.pty.process.trim().split(/\s+/, 1)[0] ?? "").toLowerCase();
+  } catch {
+    return;
+  }
+  if (executable === path.basename(session.shell).toLowerCase()) {
+    session.probedProcess = undefined;
+    return;
+  }
+  if (session.probedProcess === executable) return;
+  session.probedProcess = executable;
+  void inspect(session.pty.pid).then((command) => {
+    const kind = agentKindFromCommand(command);
+    if (!kind || !sessions.has(session.id) || session.probedProcess !== executable) return;
+    // Held like a typed agent until the shell is back in the foreground.
+    session.submittedAgentKind = kind;
+    session.foregroundAgentKind = kind;
+    sendSignalUpdate(session, {});
+  }, () => {});
+}
+
+const execFileAsync = promisify(execFile);
+
+/** macOS and Linux ps: the foreground process group of the shell's terminal, then its leader's command line. */
+async function inspectForegroundCommand(shellPid: number): Promise<string | undefined> {
+  const { stdout: group } = await execFileAsync("ps", ["-o", "tpgid=", "-p", String(shellPid)]);
+  const leader = Number(group.trim());
+  if (!Number.isInteger(leader) || leader <= 0) return undefined;
+  const { stdout } = await execFileAsync("ps", ["-o", "args=", "-p", String(leader)]);
+  return stdout.trim() || undefined;
+}
+
+const SCRIPT_INTERPRETER = /^(?:node|bun|deno|python[\d.]*)$/;
+
+/** The program, or the script an interpreter runs; never a file the program was given ("vim codex-notes.md"). */
+function agentKindFromCommand(command: string | undefined): TerminalForegroundAgentKind | undefined {
+  const [program = "", script = ""] = (command ?? "").trim().split(/\s+/);
+  const programName = path.basename(program).toLowerCase();
+  for (const name of SCRIPT_INTERPRETER.test(programName) ? [path.basename(script).toLowerCase()] : [programName]) {
+    if (/^codex(?:$|[-_.])/.test(name)) return "codex";
+    if (/^claude(?:$|[-_.])/.test(name)) return "claude";
+  }
+  return undefined;
 }
 
 function consumeAgentCommandInput(buffer: string, data: string): {

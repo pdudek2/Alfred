@@ -1939,6 +1939,51 @@ describe("terminal-manager IPC", () => {
     expect(shellList.sessions[0]).not.toHaveProperty("foregroundAgentKind");
   });
 
+  it.each([
+    ["recalled with the up arrow", "\x1b[A\r", "node /opt/homebrew/bin/codex", "codex"],
+    ["completed with Tab", "cla\t\r", "/Users/sample/.local/bin/claude --resume", "claude"],
+  ])("recognises an agent %s from its foreground process", async (_how, typed, args, agentKind) => {
+    const pty = new FakePty();
+    const inspectForegroundCommand = vi.fn(async () => args);
+    registerTerminalIpc({ inspectForegroundCommand, loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<TerminalCreateResult>(terminalChannels.create, {
+      clientId: "manual-1", cols: 80, cwd: "/repo", rows: 24, source: "manual",
+    });
+
+    emit(terminalChannels.write, { id: created.id, data: typed });
+    pty.process = agentKind === "codex" ? "node" : "2.1.302";
+    pty.onDataHandler?.("Starting\n");
+    await vi.waitFor(() => expect(inspectForegroundCommand).toHaveBeenCalledOnce());
+
+    await vi.waitFor(async () => {
+      const listed = await invoke<TerminalListResult>(terminalChannels.list);
+      expect(listed.sessions[0]).toMatchObject({ foregroundAgentKind: agentKind });
+    });
+    expect(sentEvents.filter((event) => event.channel === terminalChannels.data).at(-1)?.payload)
+      .toMatchObject({ data: "", foregroundAgentKind: agentKind });
+    // Asked once per foreground process, not on every chunk of its output.
+    pty.onDataHandler?.("More output\n");
+    expect(inspectForegroundCommand).toHaveBeenCalledOnce();
+  });
+
+  it("does not take a file named after an agent for the agent", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({
+      inspectForegroundCommand: async () => "vim codex-notes.md",
+      loadNodePty: async () => fakeNodePty(pty) as never,
+    });
+    const created = await invoke<TerminalCreateResult>(terminalChannels.create, {
+      clientId: "manual-1", cols: 80, cwd: "/repo", rows: 24, source: "manual",
+    });
+    emit(terminalChannels.write, { id: created.id, data: "\x1b[A\r" });
+    pty.process = "vim";
+    pty.onDataHandler?.("~\n");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+    expect(listed.sessions[0]).not.toHaveProperty("foregroundAgentKind");
+  });
+
   it("keeps a typed agent's kind on an update that carries only its signal", async () => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
