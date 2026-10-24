@@ -130,6 +130,24 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   await harness.closeActiveTerminals();
 });
 
+test("a new terminal takes focus while another terminal streams output", async ({ harness }) => {
+  const { page } = harness;
+  const firstInput = page.getByRole("textbox", { name: "Terminal input" }).first();
+  await expect(firstInput).toBeVisible();
+  // Output renders often, so one lands between a Start click and the render that shows the new terminal.
+  await firstInput.fill("while :; do echo tick; sleep 0.003; done");
+  await firstInput.press("Enter");
+  for (let index = 2; index <= 9; index += 1) {
+    await addManualTerminal(page);
+    await expect(page.locator(`[data-testid="terminal-tile"][data-session-id="manual-${index}"]`)).toHaveClass(/selected/);
+  }
+  // Stop the stream: the harness closes idle terminals.
+  await treeRow(page, "manual-1").click();
+  const streaming = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  await streaming.getByRole("textbox", { name: "Terminal input" }).press("Control+C");
+  await expect(streaming).toHaveClass(/session-idle/);
+});
+
 async function addManualTerminal(page: Page): Promise<void> {
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("radio", { name: /^Terminal/ }).click();
