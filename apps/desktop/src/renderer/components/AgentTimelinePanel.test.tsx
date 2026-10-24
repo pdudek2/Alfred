@@ -716,6 +716,34 @@ describe("AgentTimelinePanel", () => {
     });
   });
 
+  it("says why a draft is blocked, as its plan row does", () => {
+    const session: SessionTile = {
+      id: "s3",
+      title: "web",
+      workspaceId: "w1",
+      stage: "staged",
+      cwd: "apps/web",
+      source: "alfred",
+      agentKind: "shell",
+      command: "echo",
+      args: [],
+      stagedReviewStatus: "edited",
+      launchPreflight: {
+        status: "blocked",
+        code: "cwd_missing",
+        label: "Folder missing",
+        reason: "apps/web is not a folder in this project.",
+      },
+    };
+
+    render(<AgentTimelinePanel now={Date.now()} session={session} onUpdateStagedSession={vi.fn()} />);
+
+    const editor = screen.getByRole("region", { name: "Edit draft command for web" });
+    expect(editor).toHaveTextContent("Folder missing");
+    expect(editor).toHaveTextContent("apps/web is not a folder in this project.");
+    expect(editor).not.toHaveTextContent("Edited and rechecked");
+  });
+
   it("keeps staged command edit state inside the context hierarchy", async () => {
     const user = userEvent.setup();
     const onUpdateStagedSession = vi.fn();
