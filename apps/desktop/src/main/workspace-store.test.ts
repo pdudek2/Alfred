@@ -97,7 +97,6 @@ describe("workspace-store", () => {
       ...DEFAULT_DESKTOP_STATE,
       workspaces: [{ ...DEFAULT_WORKSPACE, rootPath: "/Users/patryk/Desktop/Existing" }],
       activeWorkspaceId: DEFAULT_WORKSPACE.id,
-      layoutsByWorkspace: {},
     });
     const store = createWorkspaceStore({
       persistedStateStore,
@@ -199,9 +198,7 @@ describe("workspace-store", () => {
         },
       ],
       activeWorkspaceId: "SCRATCH-1",
-      layoutsByWorkspace: {
-        "SCRATCH-1": { desk: { tileId: "desk", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-      },
+      viewStateByWorkspace: { "SCRATCH-1": { selectedSessionId: "desk" } },
     });
     const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch: async () => "feature/hardening" });
 
@@ -226,9 +223,7 @@ describe("workspace-store", () => {
     });
     await expect(persistedStateStore.getState()).resolves.toEqual(
       expect.objectContaining({
-        layoutsByWorkspace: {
-          "SCRATCH-1": { desk: { tileId: "desk", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-        },
+        viewStateByWorkspace: { "SCRATCH-1": { selectedSessionId: "desk" } },
       }),
     );
   });
@@ -254,7 +249,6 @@ describe("workspace-store", () => {
         },
       ],
       activeWorkspaceId: "CLIENT",
-      layoutsByWorkspace: {},
     });
     const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch: async () => "feature/agent-space" });
 
@@ -293,7 +287,6 @@ describe("workspace-store", () => {
           gitBranch: "main",
         }],
         activeWorkspaceId: "CLIENT",
-        layoutsByWorkspace: {},
       });
       const branchLookup = deferred<string | undefined>();
       const resolveGitBranch = vi.fn(() => branchLookup.promise);
@@ -337,7 +330,6 @@ describe("workspace-store", () => {
         gitBranch: "main",
       }],
       activeWorkspaceId: "CLIENT",
-      layoutsByWorkspace: {},
     });
     const olderLookup = deferred<string | undefined>();
     const newerLookup = deferred<string | undefined>();
@@ -375,7 +367,6 @@ describe("workspace-store", () => {
         },
       ],
       activeWorkspaceId: "CLIENT",
-      layoutsByWorkspace: {},
     });
 
     await expect(createWorkspaceStoreBase({ persistedStateStore }).getWorkspaceState()).resolves.toEqual({
@@ -442,16 +433,14 @@ describe("workspace-store", () => {
     expect((await persistedStateStore.getState()).stagedPlans).toEqual({ A: plan, B: b });
   });
 
-  it("updates workspace state without dropping layout or staged plan data", async () => {
+  it("updates workspace state without dropping view state or staged plan data", async () => {
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
     await persistedStateStore.setState({
       ...DEFAULT_DESKTOP_STATE,
       workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
       activeWorkspaceId: "A",
-      layoutsByWorkspace: {
-        A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-      },
+      viewStateByWorkspace: { A: { selectedSessionId: "one" } },
       stagedPlans: { A: {
         workspaceId: "A",
         id: "plan-1",
@@ -481,9 +470,7 @@ describe("workspace-store", () => {
 
     await expect(persistedStateStore.getState()).resolves.toEqual(
       expect.objectContaining({
-        layoutsByWorkspace: {
-          A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
-        },
+        viewStateByWorkspace: { A: { selectedSessionId: "one" } },
         stagedPlans: { A: expect.objectContaining({ id: "plan-1" }) },
         restoredTerminalSessions: [expect.objectContaining({ clientId: "manual-1" })],
       }),
