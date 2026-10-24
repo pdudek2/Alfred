@@ -27,7 +27,7 @@ describe("WorktreeDiffPanel", () => {
     render(<WorktreeDiffPanel view={readyView} onClose={vi.fn()} />);
 
     expect(screen.getByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Last review" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Codex review" })).toBeInTheDocument();
     expect(screen.getByText("1 changed file")).toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
     expect(screen.getByText("−1")).toBeInTheDocument();
@@ -35,6 +35,9 @@ describe("WorktreeDiffPanel", () => {
     expect(screen.getByLabelText("Removed line 4")).toHaveTextContent("-old value");
     expect(screen.getByLabelText("Added line 4")).toHaveTextContent("+new value");
     expect(screen.getByLabelText("Unchanged line 5")).toHaveTextContent("unchanged value");
+    // Git's header line repeats the file row; the hunk line stays.
+    expect(screen.queryByText("diff --git a/src/app.tsx b/src/app.tsx")).toBeNull();
+    expect(screen.getByLabelText("Diff hunk")).toHaveTextContent("@@ -4,2 +4,2 @@");
   });
 
   it("reports whether Close diff or Escape dismissed the panel", async () => {
