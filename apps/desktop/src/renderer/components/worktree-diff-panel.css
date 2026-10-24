@@ -104,11 +104,11 @@
 }
 
 .worktree-diff-panel__additions {
-  color: var(--signal-success);
+  color: var(--diff-added-text);
 }
 
 .worktree-diff-panel__deletions {
-  color: var(--signal-danger);
+  color: var(--diff-removed-text);
 }
 
 .worktree-diff-panel__files {
@@ -171,19 +171,15 @@
 
 .worktree-diff-panel__line.is-add {
   background: var(--signal-success-soft);
-  color: var(--signal-success);
+  color: var(--diff-added-text);
 }
 
 .worktree-diff-panel__line.is-remove {
   background: var(--signal-danger-soft);
-  color: var(--signal-danger);
+  color: var(--diff-removed-text);
 }
 
 .worktree-diff-panel__line.is-hunk {
-  color: var(--signal-focus);
-}
-
-.worktree-diff-panel__line.is-meta {
   color: var(--text-muted);
 }
 
