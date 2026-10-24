@@ -4,8 +4,8 @@ import type { SessionTile } from "./session-state";
 import { buildSessionsProjection, sessionsPrimaryAction } from "./sessions-projection";
 
 const workspaces: SessionsProjectInput[] = [
-  { id: "A", label: "Alfred", rootPath: "/Users/patryk/Desktop/Alfred" },
-  { id: "FREE", label: "Free Chat", rootPath: "/Users/patryk/Documents/Codex" },
+  { id: "A", label: "Alfred", rootPath: "/Users/sample/Desktop/Alfred" },
+  { id: "FREE", label: "Free Chat", rootPath: "/Users/sample/Documents/Codex" },
 ];
 
 function managedSession(overrides: Partial<SessionTile> = {}): SessionTile {
@@ -13,7 +13,7 @@ function managedSession(overrides: Partial<SessionTile> = {}): SessionTile {
     id: "managed-codex",
     title: "Codex · active work",
     workspaceId: "A",
-    cwd: "/Users/patryk/Desktop/Alfred",
+    cwd: "/Users/sample/Desktop/Alfred",
     source: "manual",
     stage: "live",
     runtimeStatus: "live",
@@ -148,14 +148,14 @@ describe("buildSessionsProjection", () => {
       id: "free-chat",
       title: "Codex · scratch idea",
       workspaceId: "FREE",
-      cwd: "/Users/patryk/Documents/Codex/idea",
+      cwd: "/Users/sample/Documents/Codex/idea",
       lastActivityAt: 250,
     });
     const restoredFreeChat = managedSession({
       id: "restored-free-chat",
       title: "Codex · asleep scratch idea",
       workspaceId: "FREE",
-      cwd: "/Users/patryk/Documents/Codex/saved-idea",
+      cwd: "/Users/sample/Documents/Codex/saved-idea",
       runtimeStatus: "restored",
       lastActivityAt: 240,
     });
@@ -227,12 +227,12 @@ describe("buildSessionsProjection", () => {
     const projectB = managedSession({
       id: "client-session",
       workspaceId: "B",
-      cwd: "/Users/patryk/Desktop/ClientApp",
+      cwd: "/Users/sample/Desktop/ClientApp",
       title: "Client release",
     });
     const allWorkspaces = [
       ...workspaces,
-      { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
+      { id: "B", label: "ClientApp", rootPath: "/Users/sample/Desktop/ClientApp" },
     ];
 
     const client = buildSessionsProjection({

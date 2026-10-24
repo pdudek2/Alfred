@@ -357,14 +357,14 @@ describe("redactPayload", () => {
     expect(
       redactPayload(
         {
-          summary: "cwd /Users/patryk/Desktop/Alfred and /tmp/alfred-secret",
-          nested: { cwd: "/Users/patryk/.codex/sessions/session.jsonl" },
+          summary: "cwd /Users/sample/Desktop/Alfred and /tmp/alfred-secret",
+          nested: { cwd: "/Users/sample/.codex/sessions/session.jsonl" },
         },
         "standard",
       ),
     ).toEqual({
-      summary: "cwd [redacted-path:44c8fe0e] and [redacted-path:bf2fcc30]",
-      nested: { cwd: "[redacted-path:cbcdbb8b]" },
+      summary: "cwd [redacted-path:cd97628a] and [redacted-path:bf2fcc30]",
+      nested: { cwd: "[redacted-path:ea3222cc]" },
     });
   });
 

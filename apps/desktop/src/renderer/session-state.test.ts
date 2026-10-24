@@ -66,7 +66,7 @@ function restoreSessionWithoutResumeTarget() {
 
 describe("desktop session state", () => {
   it("starts with one first-class manual terminal session", () => {
-    const sessions = createInitialSessions("/Users/patryk/Desktop/Alfred");
+    const sessions = createInitialSessions("/Users/sample/Desktop/Alfred");
 
     expect(sessions).toEqual([
       {
@@ -76,14 +76,14 @@ describe("desktop session state", () => {
         runtimeStatus: "starting",
         title: "zsh",
         workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
       },
     ]);
   });
 
   it("adds manual terminal sessions with stable titles", () => {
-    const initial = createInitialSessions("/Users/patryk/Desktop/Alfred");
-    const next = addManualSession(initial, "/Users/patryk/Desktop/Alfred");
+    const initial = createInitialSessions("/Users/sample/Desktop/Alfred");
+    const next = addManualSession(initial, "/Users/sample/Desktop/Alfred");
 
     expect(next).toHaveLength(2);
     expect(next[1]).toEqual({
@@ -93,15 +93,15 @@ describe("desktop session state", () => {
       runtimeStatus: "starting",
       title: "zsh 2",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
     });
   });
 
   it("does not reuse an existing session id after close", () => {
-    const initial = createInitialSessions("/Users/patryk/Desktop/Alfred");
-    const twoSessions = addManualSession(initial, "/Users/patryk/Desktop/Alfred");
+    const initial = createInitialSessions("/Users/sample/Desktop/Alfred");
+    const twoSessions = addManualSession(initial, "/Users/sample/Desktop/Alfred");
     const closedFirst = closeSession(twoSessions, "manual-1");
-    const next = addManualSession(closedFirst, "/Users/patryk/Desktop/Alfred");
+    const next = addManualSession(closedFirst, "/Users/sample/Desktop/Alfred");
 
     expect(next.map((session) => session.id)).toEqual(["manual-2", "manual-3"]);
     expect(next.map((session) => session.title)).toEqual(["zsh 2", "zsh 3"]);
@@ -150,7 +150,7 @@ describe("desktop session state", () => {
   });
 
   it("renames a session with normalized display text", () => {
-    const initial = createInitialSessions("/Users/patryk/Desktop/Alfred");
+    const initial = createInitialSessions("/Users/sample/Desktop/Alfred");
     const renamed = renameSession(initial, "manual-1", "  Spec   reviewer  ");
 
     expect(renamed[0]?.title).toBe("Spec reviewer");
@@ -593,7 +593,7 @@ describe("desktop session state", () => {
       {
         clientId: "external-codex",
         title: "Codex · Load Alfred memory",
-        cwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/Alfred",
         source: "manual",
         agentKind: "codex",
         command: "codex",
@@ -709,8 +709,8 @@ describe("desktop session state", () => {
         detail: "Will create an isolated Git worktree on launch.",
         isolation: "worktree",
         branchName: "alfred-codex-codex-1-20260509191530-abc123",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
-        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/alfred-codex-codex-1-20260509191530-abc123",
+        baseCwd: "/Users/sample/Desktop/Alfred",
+        cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/alfred-codex-codex-1-20260509191530-abc123",
       } as const,
     }];
     const next = attachRuntimeSession(initial, "manual-1", {
@@ -719,10 +719,10 @@ describe("desktop session state", () => {
       title: "Manual · zsh 1",
       source: "manual",
       workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       isolation: "worktree",
       branchName: "alfred-codex-codex-1-20260509191530-abc123",
-      baseCwd: "/Users/patryk/Desktop/Alfred",
+      baseCwd: "/Users/sample/Desktop/Alfred",
       createdAt: 500,
       shell: "/bin/zsh",
     });
@@ -730,10 +730,10 @@ describe("desktop session state", () => {
     expect(next[0]).toMatchObject({
       runtimeId: "runtime-1",
       runtimeStatus: "live",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       isolation: "worktree",
       branchName: "alfred-codex-codex-1-20260509191530-abc123",
-      baseCwd: "/Users/patryk/Desktop/Alfred",
+      baseCwd: "/Users/sample/Desktop/Alfred",
       createdAt: 500,
     });
     expect(next[0]?.initialBuffer).toBeUndefined();

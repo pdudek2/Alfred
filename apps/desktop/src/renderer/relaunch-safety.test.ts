@@ -17,7 +17,7 @@ describe("sessionRelaunchSafety", () => {
     expect(sessionRelaunchSafety({
       source: "manual",
       command: "find",
-      args: ["/Users/patryk/Desktop", "-maxdepth", "1", "-exec", "mv", "{}", "/tmp/Alfred", ";"],
+      args: ["/Users/sample/Desktop", "-maxdepth", "1", "-exec", "mv", "{}", "/tmp/Alfred", ";"],
     })).toEqual({
       safe: false,
       reason: "find -exec mutates files when replayed",
@@ -57,7 +57,7 @@ describe("sessionRelaunchSafety", () => {
     ],
     [
       "recursive chown",
-      { source: "manual" as const, command: "chown", args: ["-R", "patryk", "dist"] },
+      { source: "manual" as const, command: "chown", args: ["-R", "sample", "dist"] },
       "chown -R would be replayed",
     ],
     [

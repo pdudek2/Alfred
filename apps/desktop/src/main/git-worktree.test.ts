@@ -92,37 +92,37 @@ describe("git worktree preparation", () => {
 
   it("creates a unique isolated worktree branch for agent sessions", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
-      if (args.includes("rev-parse")) return { stdout: "/Users/patryk/Desktop/Alfred\n", stderr: "" };
+      if (args.includes("rev-parse")) return { stdout: "/Users/sample/Desktop/Alfred\n", stderr: "" };
       if (args.includes("status")) return { stdout: "", stderr: "" };
       return { stdout: "prepared\n", stderr: "" };
     });
 
     const result = await prepareAgentWorktree(
-      { agentKind: "codex", clientId: "codex-1", cwd: "/Users/patryk/Desktop/Alfred" },
+      { agentKind: "codex", clientId: "codex-1", cwd: "/Users/sample/Desktop/Alfred" },
       {
         execFile,
         mkdir: vi.fn(async () => undefined),
         now: () => new Date("2026-05-09T19:15:30.000Z"),
         randomSuffix: () => "abc123",
-        worktreeStoreRoot: "/Users/patryk/Library/Application Support/Alfred/worktrees",
+        worktreeStoreRoot: "/Users/sample/Library/Application Support/Alfred/worktrees",
       },
     );
 
     expect(result).toEqual({
-      baseCwd: "/Users/patryk/Desktop/Alfred",
+      baseCwd: "/Users/sample/Desktop/Alfred",
       branchName: "alfred-codex-codex-1-20260509191530-abc123",
-      cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-codex-codex-1-20260509191530-abc123",
+      cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-codex-1-20260509191530-abc123",
     });
     expect(execFile).toHaveBeenLastCalledWith(
       "git",
       [
         "-C",
-        "/Users/patryk/Desktop/Alfred",
+        "/Users/sample/Desktop/Alfred",
         "worktree",
         "add",
         "-b",
         "alfred-codex-codex-1-20260509191530-abc123",
-        "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-codex-codex-1-20260509191530-abc123",
+        "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-codex-1-20260509191530-abc123",
         "HEAD",
       ],
       expect.any(Object),
@@ -169,23 +169,23 @@ describe("git worktree preparation", () => {
 
   it("preflights launch cwd under the managed worktree store root", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
-      if (args.includes("rev-parse")) return { stdout: "/Users/patryk/Desktop/Alfred\n", stderr: "" };
+      if (args.includes("rev-parse")) return { stdout: "/Users/sample/Desktop/Alfred\n", stderr: "" };
       if (args.includes("status")) return { stdout: "", stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
     });
 
     const result = await preflightAgentWorktree(
-      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/Users/patryk/Desktop/Alfred/apps/client" },
+      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/Users/sample/Desktop/Alfred/apps/client" },
       {
         execFile,
-        worktreeStoreRoot: "/Users/patryk/Library/Application Support/Alfred/worktrees",
+        worktreeStoreRoot: "/Users/sample/Library/Application Support/Alfred/worktrees",
       },
     );
 
     expect(result).toEqual({
-      baseCwd: "/Users/patryk/Desktop/Alfred",
+      baseCwd: "/Users/sample/Desktop/Alfred",
       branchName: "alfred-claude-review",
-      cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-claude-review/apps/client",
+      cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-claude-review/apps/client",
     });
   });
 
@@ -294,9 +294,9 @@ describe("git worktree preparation", () => {
 
     await cleanupAgentWorktree(
       {
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         branchName: "alfred-codex-review",
-        cwd: "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review/apps/client",
+        cwd: "/managed/worktrees/alfred-cd97628a/alfred-codex-review/apps/client",
         force: true,
       },
       { execFile, worktreeStoreRoot: "/managed/worktrees" },
@@ -307,11 +307,11 @@ describe("git worktree preparation", () => {
       "git",
       [
         "-C",
-        "/Users/patryk/Desktop/Alfred",
+        "/Users/sample/Desktop/Alfred",
         "worktree",
         "remove",
         "--force",
-        "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        "/managed/worktrees/alfred-cd97628a/alfred-codex-review",
       ],
       expect.any(Object),
     );
@@ -641,9 +641,9 @@ describe("git worktree preparation", () => {
 
     const result = await inspectAgentWorktree(
       {
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         branchName: "alfred-codex-review",
-        cwd: "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review/apps/desktop",
+        cwd: "/managed/worktrees/alfred-cd97628a/alfred-codex-review/apps/desktop",
       },
       { execFile, worktreeStoreRoot: "/managed/worktrees" },
     );
@@ -660,7 +660,7 @@ describe("git worktree preparation", () => {
       "git",
       [
         "-C",
-        "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        "/managed/worktrees/alfred-cd97628a/alfred-codex-review",
         "status",
         "--porcelain=v1",
         "-z",
@@ -672,7 +672,7 @@ describe("git worktree preparation", () => {
       "git",
       [
         "-C",
-        "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        "/managed/worktrees/alfred-cd97628a/alfred-codex-review",
         "diff",
         "--no-ext-diff",
         "--no-color",

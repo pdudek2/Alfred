@@ -11,10 +11,10 @@ describe("shortenPath", () => {
   });
 
   it("shortens absolute paths after two meaningful segments", () => {
-    expect(shortenPath("/Users/patryk/Desktop/Alfred")).toBe("…/Desktop/Alfred");
+    expect(shortenPath("/Users/sample/Desktop/Alfred")).toBe("…/Desktop/Alfred");
   });
 
   it("normalizes Windows separators for display", () => {
-    expect(shortenPath("C:\\Users\\patryk\\Desktop\\Alfred")).toBe("…/Desktop/Alfred");
+    expect(shortenPath("C:\\Users\\sample\\Desktop\\Alfred")).toBe("…/Desktop/Alfred");
   });
 });
