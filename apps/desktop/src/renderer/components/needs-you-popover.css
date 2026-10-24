@@ -125,6 +125,6 @@
 }
 
 .needs-you-popover__row button:focus-visible {
-  outline: 1px solid var(--signal-focus);
+  outline: 1px solid var(--focus-border);
   outline-offset: 1px;
 }
