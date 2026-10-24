@@ -570,11 +570,13 @@ describe("renderer CSS contracts", () => {
     expect(focusRules.length).toBeGreaterThan(20);
     const tealFocus = focusRules.filter(({ body }) => /var\(--(?:signal-focus(?:-strong)?|cyan|role-active)\)/.test(body));
     expect(tealFocus.map(({ selectors }) => selectors)).toEqual([]);
-    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain("--border-focus: color-mix(in oklab, var(--focus-border) 28%, transparent)");
+    // A text field's ring is half the focus colour: 3.7:1 on panels, over the 3:1 floor for focus indicators.
+    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain("--border-focus: color-mix(in oklab, var(--focus-border) 50%, transparent)");
   });
 
   it("draws one visible focus ring across Work destinations and controls", () => {
-    const buttonFocus = singleTopLevelRuleBodyIn(styles, "button:focus-visible");
+    // One rule draws the ring for every focusable element, not only buttons.
+    const buttonFocus = singleTopLevelRuleBodyIn(styles, ":focus-visible");
     const recentFocus = topLevelExactRuleBodies(".project-recent-result:focus-visible");
     const projectFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
     const sessionFocus = topLevelExactRuleBodies(".project-session:focus-visible");

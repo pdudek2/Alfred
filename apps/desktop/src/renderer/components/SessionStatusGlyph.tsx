@@ -43,7 +43,7 @@ const statusShapes: Record<SessionStatusGlyphKind, ReactNode> = {
 
 export function SessionStatusGlyph({ kind, label, className, size = 13 }: SessionStatusGlyphProps) {
   return (
-    <span className={`session-status-glyph status-${kind}${className ? ` ${className}` : ""}`} aria-label={`status ${label}`} title={label}>
+    <span className={`session-status-glyph status-${kind}${className ? ` ${className}` : ""}`} role="img" aria-label={`status ${label}`} title={label}>
       <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16" width={size} height={size}>
         {statusShapes[kind]}
       </svg>
