@@ -29,25 +29,29 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
     socket.on("close", () => resolve());
   });
 
+  const prompt = "Fix the build, then make sure typecheck and every desktop test pass before you stop";
   await tile.getByTestId("xterm-host").click();
-  await page.keyboard.type("Fix the build");
+  await page.keyboard.type(prompt);
   await page.keyboard.press("Enter");
-  await hook("UserPromptSubmit", { prompt: "Fix the build" });
-  await hook("PostToolUse", { tool_name: "Bash", tool_input: { command: "pnpm test", description: "Run tests" } });
+  await hook("UserPromptSubmit", { prompt });
+  // Claude Code describes each Bash command; a command without one is shown without its output plumbing.
+  await hook("PostToolUse", { tool_name: "Bash", tool_input: { command: "pnpm test 2>&1 | tail -40", description: "Run tests" } });
+  await hook("PostToolUse", { tool_name: "Bash", tool_input: { command: "pnpm --filter @alfred/desktop typecheck 2>&1 | tail -40" } });
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: "/repo/src/app.tsx", old_string: "a", new_string: "b" } });
   await hook("Stop", { last_assistant_message: "Fixed the build." });
 
   const activity = page.getByRole("complementary", { name: "Details" }).getByRole("region", { name: "Activity" });
-  for (const line of ["Fixed the build.", "Edited app.tsx", "Ran pnpm test", "You asked: Fix the build"]) {
+  const order = ["Fixed the build.", "Edited app.tsx", "Ran pnpm --filter @alfred/desktop typecheck", "Run tests", `You asked: ${prompt}`];
+  for (const line of order) {
     await expect(activity).toContainText(line);
   }
+  await expect(activity).not.toContainText("tail -40");
   const row = treeRow(page, sessionId);
   await expect(row.locator(".session-tree-meta")).toHaveText("Fixed the build.");
   const items = activity.getByRole("listitem");
   // Newest first, in the order the hooks came, even within one millisecond.
-  const order = ["Fixed the build.", "Edited app.tsx", "Ran pnpm test", "You asked: Fix the build"];
-  await expect.poll(async () => (await items.allInnerTexts()).map((text) => order.findIndex((line) => text.includes(line))).filter((index) => index >= 0))
-    .toEqual([0, 1, 2, 3]);
+  await expect.poll(async () => (await items.allTextContents()).map((text) => order.findIndex((line) => text.includes(line))).filter((index) => index >= 0))
+    .toEqual([0, 1, 2, 3, 4]);
   const count = await items.count();
 
   // Scrolling back through the transcript makes Claude draw its old tool lines and errors again.
