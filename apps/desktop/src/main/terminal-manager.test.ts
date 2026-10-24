@@ -1939,6 +1939,23 @@ describe("terminal-manager IPC", () => {
     expect(shellList.sessions[0]).not.toHaveProperty("foregroundAgentKind");
   });
 
+  it("keeps a typed agent's kind on an update that carries only its signal", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<TerminalCreateResult>(terminalChannels.create, {
+      clientId: "manual-1", cols: 80, cwd: "/repo", rows: 24, source: "manual",
+    });
+    emit(terminalChannels.write, { id: created.id, data: "codex\r" });
+    pty.process = "codex";
+    pty.onDataHandler?.("\x1b]9;Approval requested: ls\x07");
+
+    // Your answer clears Needs you with an update that has no output.
+    emit(terminalChannels.write, { id: created.id, data: "y" });
+
+    const update = sentEvents.filter((event) => event.channel === terminalChannels.data).at(-1)?.payload;
+    expect(update).toMatchObject({ data: "", agentSignal: null, foregroundAgentKind: "codex" });
+  });
+
   it("does not emit a classified activity suppressed as a duplicate", async () => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
@@ -4541,6 +4558,22 @@ describe("terminal-manager IPC", () => {
       expect(lastDataEvent()).toMatchObject({
         activities: [expect.objectContaining({ kind: "error", title: "Runtime blocked" })],
       });
+    });
+
+    it("keeps a hooked Codex at Your turn while you type, after its notification repeats the turn end", async () => {
+      const { bridge, fire } = fakeBridge();
+      const pty = new FakePty();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+      });
+      fire(created.id, { state: "your-turn", detail: "Done." });
+      pty.onDataHandler?.("\x1b]9;Done.\x07");
+
+      emit(terminalChannels.write, { id: created.id, data: "n" });
+
+      const listed = await invoke<TerminalListResult>(terminalChannels.list);
+      expect(listed.sessions[0]?.agentSignal).toMatchObject({ state: "your-turn", source: "hook" });
     });
 
     it("takes only blockers from an agent's screen until you send it a message", async () => {
