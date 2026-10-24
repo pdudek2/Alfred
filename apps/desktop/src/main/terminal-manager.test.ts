@@ -4410,12 +4410,14 @@ describe("terminal-manager IPC", () => {
         fire(workers[1]!.id, { state: "your-turn", detail: "Lint is clean." });
         expect(leadPty.writes).toEqual([]);
         await vi.advanceTimersByTimeAsync(2_000);
+        // Which workers changed, not what they wrote: their answers come through read_worker, as tool results.
         expect(leadPty.writes).toEqual([
           "\x1b[200~Message from Alfred (not from the user): 2 of your workers changed.\n"
-            + '- "Task 1" (codex-1) finished its turn: Typecheck passed.\n'
-            + '- "Task 2" (codex-2) finished its turn: Lint is clean.\n'
-            + "Use read_worker for a whole answer, or send_to_worker to give a worker its next message.\x1b[201~",
+            + '- "Task 1" (codex-1) finished its turn.\n'
+            + '- "Task 2" (codex-2) finished its turn.\n'
+            + "Read their answers with read_worker; send_to_worker gives a worker its next message.\x1b[201~",
         ]);
+        expect(leadPty.writes[0]).not.toContain("Typecheck passed");
         await vi.advanceTimersByTimeAsync(200);
         expect(leadPty.writes.at(-1)).toBe("\r");
         // Woken, it is working; nothing more is typed until its next turn ends.

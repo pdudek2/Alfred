@@ -87,7 +87,8 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   await hook(readme, "UserPromptSubmit", { prompt: "Read the README" });
   await hook(readme, "Stop", { last_assistant_message: "The README describes the desktop app." });
   await expect(leadTile.getByTestId("xterm-host")).toContainText("Message from Alfred (not from the user)", { timeout: 10_000 });
-  await expect(leadTile.getByTestId("xterm-host")).toContainText("The README describes the desktop app.");
+  await expect(leadTile.getByTestId("xterm-host")).toContainText('your worker "Codex" (codex-2) finished its turn.');
+  await expect(leadTile.getByTestId("xterm-host")).not.toContainText("The README describes the desktop app.");
 
   // Stopped by the orchestrator, the worker ends and the orchestrator is not told what it did itself.
   const leadText = async () => (await leadTile.getByTestId("xterm-host").textContent()) ?? "";
