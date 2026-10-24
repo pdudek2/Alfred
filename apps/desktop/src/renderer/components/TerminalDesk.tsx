@@ -10,7 +10,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type ReactNode,
 } from "react";
-import { activitySentence, pendingApproval, waitingSentence } from "../activity-presentation";
+import { activitySentence, pendingApproval, waitingSentence } from "../../shared/activity-presentation";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
 import { codexSentMessagesAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";

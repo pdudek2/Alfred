@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type FormEvent, type KeyboardEvent } from "react";
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
-import { activitySentence, presentActivityEvents } from "../activity-presentation";
+import { activitySentence, presentActivityEvents } from "../../shared/activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";

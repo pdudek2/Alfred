@@ -5,12 +5,15 @@ import os from "node:os";
 import path from "node:path";
 import type { SessionActivityInput } from "../shared/session-activity.js";
 import type { TerminalAgentSignal } from "../shared/terminal-ipc.js";
+import { WORKER_TOOL_DEFINITIONS } from "./worker-tools.js";
 
 /** Session model contract §3: how Alfred senses agent and shell state. */
 
 export type AgentSignalUpdate = Pick<TerminalAgentSignal, "detail" | "state"> & {
   /** What the hook says the agent did: the tool it ran or the message you sent. Its history comes from these, not its screen. */
   activity?: SessionActivityInput;
+  /** The whole answer a turn ended with, for an orchestrator reading its worker. */
+  answer?: string;
 };
 
 const HOOK_EVENTS = ["UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"] as const;
@@ -18,6 +21,9 @@ const KNOWN_SHELLS = new Set(["zsh", "bash", "sh", "fish", "nu", "dash", "ksh", 
 const MAX_HOOK_MESSAGE_BYTES = 1_000_000;
 const MAX_OSC_CARRY = 1_024;
 const MAX_DETAIL = 240;
+const MAX_ANSWER = 20_000;
+/** Long enough for wait_for_worker's two minutes; Claude reads it from the environment, Codex from its server entry. */
+const MCP_TOOL_TIMEOUT_SECONDS = 150;
 /** macOS limits unix socket paths to 104 bytes. */
 const MAX_SOCKET_PATH = 100;
 
@@ -38,6 +44,76 @@ process.stdin.on("end", () => {
   socket.on("close", () => process.exit(0));
 });
 setTimeout(() => process.exit(0), 1500).unref();
+`;
+
+/** Alfred's worker tools as an MCP server over stdio. It forwards each call to Alfred and never fails the agent. */
+const MCP_SERVER_SOURCE = `// Alfred's tools for an orchestrator agent. Started as: <this file> <Alfred socket> <session id>.
+const net = require("node:net");
+const [socketPath, sessionId] = process.argv.slice(2);
+const TOOLS = __TOOLS__;
+let pending = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  pending += chunk;
+  for (let end = pending.indexOf("\\n"); end !== -1; end = pending.indexOf("\\n")) {
+    const line = pending.slice(0, end).trim();
+    pending = pending.slice(end + 1);
+    if (line) void handle(line);
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n");
+async function handle(line) {
+  let request;
+  try {
+    request = JSON.parse(line);
+  } catch {
+    return send({ id: null, error: { code: -32700, message: "Parse error" } });
+  }
+  const { id, method, params } = request;
+  if (id === undefined || id === null) return;
+  if (method === "initialize") {
+    return send({ id, result: {
+      protocolVersion: (params && params.protocolVersion) || "2025-06-18",
+      capabilities: { tools: {} },
+      serverInfo: { name: "alfred", version: "1.0.0" },
+    } });
+  }
+  if (method === "ping") return send({ id, result: {} });
+  if (method === "tools/list") return send({ id, result: { tools: TOOLS } });
+  if (method === "tools/call") {
+    const reply = await callAlfred(params && params.name, (params && params.arguments) || {});
+    const text = reply.ok ? JSON.stringify(reply.result, null, 2) : String(reply.error);
+    return send({ id, result: { content: [{ type: "text", text }], ...(reply.ok ? {} : { isError: true }) } });
+  }
+  send({ id, error: { code: -32601, message: "Method not found: " + method } });
+}
+function callAlfred(tool, args) {
+  return new Promise((resolve) => {
+    let received = "";
+    let done = false;
+    const finish = (reply) => {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve(reply);
+    };
+    const socket = net.connect(socketPath, () => socket.write(JSON.stringify({ type: "tool", sessionId, tool, args }) + "\\n"));
+    socket.setEncoding("utf8");
+    socket.on("data", (chunk) => {
+      received += chunk;
+      const end = received.indexOf("\\n");
+      if (end === -1) return;
+      try {
+        finish(JSON.parse(received.slice(0, end)));
+      } catch {
+        finish({ ok: false, error: "Alfred sent a reply this server cannot read." });
+      }
+    });
+    socket.on("error", () => finish({ ok: false, error: "Alfred is not reachable. It may have quit." }));
+    socket.on("close", () => finish({ ok: false, error: "Alfred closed the connection without a reply." }));
+  });
+}
 `;
 
 export function isShellProcess(processName: string): boolean {
@@ -104,7 +180,8 @@ export function signalFromHook(event: string, payload: unknown): AgentSignalUpda
       return withActivity({ state: "working" }, toolActivity(payload));
     case "Stop": {
       const detail = describeTurnEnd(payload);
-      return detail ? { state: "your-turn", detail } : { state: "your-turn" };
+      const answer = turnAnswer(payload);
+      return { state: "your-turn", ...(detail ? { detail } : {}), ...(answer ? { answer } : {}) };
     }
     case "PermissionRequest":
       return { state: "needs-you", detail: describePermissionRequest(payload) };
@@ -113,12 +190,18 @@ export function signalFromHook(event: string, payload: unknown): AgentSignalUpda
   }
 }
 
-/** The first line of the agent's last answer, without Markdown marks. Claude and Codex both send it with Stop. */
-function describeTurnEnd(payload: unknown): string | undefined {
+/** The agent's last answer. Claude and Codex both send it with Stop. */
+function turnAnswer(payload: unknown): string | undefined {
   const message = typeof payload === "object" && payload !== null
     ? (payload as { last_assistant_message?: unknown }).last_assistant_message
     : undefined;
-  if (typeof message !== "string") return undefined;
+  return typeof message === "string" && message.trim() ? message.trim().slice(0, MAX_ANSWER) : undefined;
+}
+
+/** The first line of the agent's last answer, without Markdown marks. */
+function describeTurnEnd(payload: unknown): string | undefined {
+  const message = turnAnswer(payload);
+  if (message === undefined) return undefined;
   const line = message
     .split("\n")
     .map((part) => part.replace(/^\s*(?:#+|[-*>]|\d+\.)\s+/, "").replace(/`|\*\*|__/g, "").trim())
@@ -226,14 +309,20 @@ function transcriptPathFrom(payload: unknown): string | undefined {
 }
 
 export type AgentSignalListener = (sessionId: string, update: AgentSignalUpdate, transcriptPath?: string) => void;
+/** Answers one call from a session's worker tools; a thrown error's message is what the agent reads. */
+export type AgentToolHandler = (sessionId: string, tool: string, args: unknown) => Promise<unknown>;
 
 export type AgentSignalBridge = {
   close(): Promise<void>;
   /** Environment for a session's PTY; the relay uses it to find Alfred. */
-  env(sessionId: string): Record<string, string>;
-  /** Extra leading arguments that make `claude` or `codex` report their state. */
-  launchArgs(command: string | undefined): string[];
+  env(sessionId: string, command?: string): Record<string, string>;
+  /**
+   * Extra leading arguments that make `claude` or `codex` report their state. Given the session, a top-level agent
+   * also gets Alfred's worker tools; a worker does not, because it cannot have workers.
+   */
+  launchArgs(command: string | undefined, session?: { id: string; worker: boolean }): string[];
   setListener(listener: AgentSignalListener | null): void;
+  setToolHandler(handler: AgentToolHandler | null): void;
 };
 
 type BridgeOptions = {
@@ -253,8 +342,10 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
 
   await mkdir(options.dir, { recursive: true, mode: 0o700 });
   const relayPath = path.join(options.dir, "hook-relay.cjs");
+  const mcpServerPath = path.join(options.dir, "alfred-mcp.cjs");
   const settingsPath = path.join(options.dir, "claude-hooks.json");
   await writeFile(relayPath, RELAY_SOURCE, { mode: 0o600 });
+  await writeFile(mcpServerPath, MCP_SERVER_SOURCE.replace("__TOOLS__", JSON.stringify(WORKER_TOOL_DEFINITIONS)), { mode: 0o600 });
   const relayCommand = (event: string) =>
     `ELECTRON_RUN_AS_NODE=1 ${shellQuote(options.execPath)} ${shellQuote(relayPath)} ${event}`;
   await writeFile(
@@ -263,6 +354,8 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
       hooks: Object.fromEntries(
         HOOK_EVENTS.map((event) => [event, [{ hooks: [{ type: "command", command: relayCommand(event) }] }]]),
       ),
+      // Starting a worker is the orchestrator's own step; the user already chose not to be asked (plan of 2026-10-24).
+      permissions: { allow: ["mcp__alfred"] },
     }),
     { mode: 0o600 },
   );
@@ -274,21 +367,69 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     `hooks.${event}=[{hooks=[{type="command",command=${JSON.stringify(relayCommand(event))}}]}]`,
   ]);
 
+  const mcpServer = (sessionId: string) => ({
+    command: options.execPath,
+    args: [mcpServerPath, socketPath, sessionId],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+  });
+
   let listener: AgentSignalListener | null = null;
+  let toolHandler: AgentToolHandler | null = null;
+  // Each connection carries one JSON line: a hook event, or a tool call answered with one line on the same connection.
   const server = net.createServer((connection) => {
     let received = "";
+    let handled = false;
+    const handle = (line: string) => {
+      if (handled) return;
+      handled = true;
+      handleLine(line, connection);
+    };
     connection.setEncoding("utf8");
     connection.on("data", (chunk: string) => {
       received += chunk;
-      if (received.length > MAX_HOOK_MESSAGE_BYTES) connection.destroy();
+      if (received.length > MAX_HOOK_MESSAGE_BYTES) {
+        connection.destroy();
+        return;
+      }
+      const end = received.indexOf("\n");
+      if (end !== -1) handle(received.slice(0, end));
     });
     connection.on("error", () => {});
-    connection.on("end", () => handleMessage(received));
+    connection.on("end", () => handle(received));
   });
 
-  function handleMessage(raw: string): void {
+  function handleLine(line: string, connection: net.Socket): void {
+    let message: { args?: unknown; event?: unknown; payload?: unknown; sessionId?: unknown; tool?: unknown; type?: unknown };
     try {
-      const message = JSON.parse(raw) as { event?: unknown; payload?: unknown; sessionId?: unknown };
+      message = JSON.parse(line) as typeof message;
+    } catch {
+      connection.end();
+      return;
+    }
+    if (message.type === "tool") {
+      void answerTool(message, connection);
+      return;
+    }
+    connection.end();
+    handleMessage(message);
+  }
+
+  async function answerTool(message: { args?: unknown; sessionId?: unknown; tool?: unknown }, connection: net.Socket): Promise<void> {
+    let reply: { ok: true; result: unknown } | { ok: false; error: string };
+    if (typeof message.sessionId !== "string" || typeof message.tool !== "string" || !toolHandler) {
+      reply = { ok: false, error: "Alfred cannot run worker tools for this session." };
+    } else {
+      try {
+        reply = { ok: true, result: await toolHandler(message.sessionId, message.tool, message.args) };
+      } catch (error) {
+        reply = { ok: false, error: error instanceof Error && error.message ? error.message : "Alfred could not run this tool." };
+      }
+    }
+    if (!connection.destroyed) connection.end(`${JSON.stringify(reply)}\n`);
+  }
+
+  function handleMessage(message: { event?: unknown; payload?: unknown; sessionId?: unknown }): void {
+    try {
       if (typeof message.sessionId !== "string" || typeof message.event !== "string") return;
       let payload: unknown;
       try {
@@ -319,21 +460,44 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
         server.close(() => resolve());
         void unlink(socketPath).catch(() => {});
       }),
-    env: (sessionId) => ({ ALFRED_HOOK_SOCKET: socketPath, ALFRED_SESSION_ID: sessionId }),
-    launchArgs: (command) => {
-      if (command === "claude") return ["--settings", settingsPath];
+    env: (sessionId, command) => ({
+      ALFRED_HOOK_SOCKET: socketPath,
+      ALFRED_SESSION_ID: sessionId,
+      ...(command === "claude" ? { MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_SECONDS * 1000) } : {}),
+    }),
+    launchArgs: (command, session) => {
+      const tools = session && !session.worker ? mcpServer(session.id) : null;
+      if (command === "claude") {
+        // --mcp-config takes several values, so a following option has to end its list before the prompt.
+        return tools
+          ? ["--mcp-config", JSON.stringify({ mcpServers: { alfred: { type: "stdio", ...tools } } }), "--settings", settingsPath]
+          : ["--settings", settingsPath];
+      }
       // ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
       // The notifications stay as the fallback for hooks you chose not to trust.
       if (command === "codex") {
         return [
           "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
           ...codexHookArgs,
+          ...(tools
+            ? [
+                "-c", `mcp_servers.alfred.command=${JSON.stringify(tools.command)}`,
+                "-c", `mcp_servers.alfred.args=${JSON.stringify(tools.args)}`,
+                "-c", "mcp_servers.alfred.env={ELECTRON_RUN_AS_NODE=\"1\"}",
+                "-c", `mcp_servers.alfred.tool_timeout_sec=${MCP_TOOL_TIMEOUT_SECONDS}`,
+                // Codex asks before every MCP call otherwise; Claude gets the same through its settings' allow rule.
+                "-c", 'mcp_servers.alfred.default_tools_approval_mode="approve"',
+              ]
+            : []),
         ];
       }
       return [];
     },
     setListener: (next) => {
       listener = next;
+    },
+    setToolHandler: (next) => {
+      toolHandler = next;
     },
   };
 }

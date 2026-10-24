@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { IpcRendererEvent } from "electron";
-import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/terminal-ipc.js";
+import type { TerminalApi, TerminalDataEvent, TerminalExitEvent, TerminalWorkerRequest } from "../shared/terminal-ipc.js";
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
 import type { SessionsApi, SessionsChannels } from "../shared/sessions-ipc.js";
@@ -23,6 +23,8 @@ const terminalChannels = {
   worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
+  workerRequest: "alfred:terminal:worker-request",
+  workerReply: "alfred:terminal:worker-reply",
 } as const;
 
 const alfredChannels = {
@@ -116,6 +118,19 @@ const terminal: TerminalApi = {
     return () => {
       ipcRenderer.off(terminalChannels.exit, listener);
     };
+  },
+  onWorkerRequest: (callback) => {
+    const listener = (_event: IpcRendererEvent, payload: TerminalWorkerRequest) => {
+      callback(payload);
+    };
+
+    ipcRenderer.on(terminalChannels.workerRequest, listener);
+    return () => {
+      ipcRenderer.off(terminalChannels.workerRequest, listener);
+    };
+  },
+  answerWorkerRequest: (reply) => {
+    ipcRenderer.send(terminalChannels.workerReply, reply);
   },
 };
 

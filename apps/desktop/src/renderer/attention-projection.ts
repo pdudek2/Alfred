@@ -1,4 +1,4 @@
-import { pendingApproval, waitingSentence } from "./activity-presentation";
+import { pendingApproval, waitingSentence } from "../shared/activity-presentation";
 import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { sessionState, type SessionDisplayStatus } from "./session-status";
