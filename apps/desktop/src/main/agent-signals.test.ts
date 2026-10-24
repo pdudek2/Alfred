@@ -157,6 +157,15 @@ describe("signals", () => {
     });
     expect(signalFromHook("UserPromptSubmit", { prompt: "x".repeat(500) })?.activity?.detail).toHaveLength(240);
     expect(signalFromHook("UserPromptSubmit", { prompt: "   " })).toEqual({ state: "working" });
+    // Claude Code hands a long paste to the hook wrapped in tags; the message is what is inside.
+    expect(signalFromHook("UserPromptSubmit", {
+      prompt: '\n\n<pasted_content id="71d3">\nMessage from Alfred (not from the user): 2 of your workers changed.\n'
+        + '- "Alpha" (claude-2) finished its turn.\n</pasted_content id="71d3">\n',
+    })?.activity).toEqual({ kind: "prompt", title: "Alfred reported", detail: "2 of your workers changed." });
+    expect(signalFromHook("UserPromptSubmit", { prompt: 'Look at this:\n<pasted_content id="9a">\nTypeError: x is undefined\n</pasted_content id="9a">' })
+      ?.activity).toEqual({ kind: "prompt", title: "You asked", detail: "Look at this:" });
+    expect(signalFromHook("UserPromptSubmit", { prompt: '<pasted_content id="9a">\nTypeError: x is undefined\n</pasted_content id="9a">' })
+      ?.activity).toEqual({ kind: "prompt", title: "You asked", detail: "TypeError: x is undefined" });
     // A message Alfred typed says whose it is instead of reading as yours.
     expect(signalFromHook("UserPromptSubmit", {
       prompt: 'Message from your orchestrator, Alfred session "Lead" (not from the user):\n\nNow fix the lint.',

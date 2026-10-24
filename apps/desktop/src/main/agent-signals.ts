@@ -289,6 +289,9 @@ function toolActivity(payload: unknown): SessionActivityInput | null {
   return { kind: "tool", title: `Used ${name}`, detail: input, payload: { type: "tool", name, input } };
 }
 
+/** Claude Code hands a long paste to its hooks as <pasted_content id="…">…</pasted_content id="…">; the words are inside. */
+const PASTED_CONTENT_TAG = /<\/?pasted_content\b[^>]*>/g;
+
 /**
  * The message the turn started with, from UserPromptSubmit: its first line, as the turn's start in the history. A
  * message Alfred typed for an orchestrator, or about its workers, says so instead of reading as yours.
@@ -296,8 +299,9 @@ function toolActivity(payload: unknown): SessionActivityInput | null {
 function promptActivity(payload: unknown): SessionActivityInput | null {
   const prompt = typeof payload === "object" && payload !== null ? (payload as { prompt?: unknown }).prompt : undefined;
   if (typeof prompt !== "string") return null;
-  const typed = typedPromptSource(prompt);
-  const line = firstLine(typed ? typed.text : prompt);
+  const text = prompt.replace(PASTED_CONTENT_TAG, "");
+  const typed = typedPromptSource(text);
+  const line = firstLine(typed ? typed.text : text);
   return line ? { kind: "prompt", title: typed?.title ?? "You asked", detail: line } : null;
 }
 
