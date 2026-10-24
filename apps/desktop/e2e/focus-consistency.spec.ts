@@ -1,5 +1,6 @@
-import type { ElectronApplication, Locator, Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { setWindowSize } from "./support/app-state";
 import { openNewTerminalSheet, treeRow } from "./support/work-layout";
 
 test.use({
@@ -71,19 +72,3 @@ async function focusFromKeyboard(page: Page, control: Locator): Promise<void> {
   expect(await control.evaluate((node) => node.matches(":focus-visible"))).toBe(true);
 }
 
-async function setWindowSize(
-  app: ElectronApplication,
-  page: Page,
-  width: number,
-  height: number,
-): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, bounds) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ x: 0, y: 0, ...bounds });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({
-    width,
-    height,
-  });
-}

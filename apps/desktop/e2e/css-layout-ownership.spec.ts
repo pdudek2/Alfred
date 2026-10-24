@@ -1,7 +1,8 @@
 import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { ElectronApplication, ElementHandle, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { requiredHandle } from "./support/app-state";
 import {
   captureReadinessForState,
   captureCssEvidence,
@@ -24,7 +25,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 import { openPlan } from "./support/plan-line";
-import { openDetails, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
+import { addManualTerminal, openDetails, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -711,12 +712,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   }
 });
 
-async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Terminal/ }).click();
-  await page.getByRole("button", { name: "Start" }).click();
-}
-
 async function selectSurface(
   page: Page,
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
@@ -788,12 +783,6 @@ async function expectDeck(page: Page): Promise<void> {
   expect(geometry.tiles[0]!.height).toBeGreaterThan(geometry.grid.height * 0.7);
   expect(geometry.details).not.toBeNull();
   expect(geometry.tiles[0]!.right).toBeLessThanOrEqual(geometry.details!.left);
-}
-
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
 }
 
 async function proveFirstXtermIdentity(

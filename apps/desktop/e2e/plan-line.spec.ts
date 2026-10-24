@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { requiredHandle } from "./support/app-state";
 import { openPlan } from "./support/plan-line";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 import { settleTerminalTileAnimations } from "./support/work-layout";
@@ -99,12 +100,6 @@ async function geometry(locator: Locator) {
     const { x, y, width, height } = node.getBoundingClientRect();
     return { x, y, width, height };
   });
-}
-
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`Missing ${label}`);
-  return handle as ElementHandle<HTMLElement>;
 }
 
 async function expectSameNode(before: ElementHandle<HTMLElement>, current: Locator, message: string): Promise<void> {

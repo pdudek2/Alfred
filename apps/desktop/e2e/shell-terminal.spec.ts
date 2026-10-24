@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
-import { openDetails, openNewTerminalSheet, surfaceButton, treeRow } from "./support/work-layout";
+import { requiredHandle, setWindowSize } from "./support/app-state";
+import { addManualTerminal, openDetails, surfaceButton, treeRow } from "./support/work-layout";
 import {
   collectControlOverflowEvidence,
   type ControlOverflowViolation,
@@ -245,11 +246,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
 });
 
-async function addManualTerminal(page: Page): Promise<void> {
-  await openNewTerminalSheet(page);
-  await page.getByRole("button", { name: "Start" }).click();
-}
-
 async function selectSurface(
   page: Page,
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
@@ -263,12 +259,6 @@ async function selectSurface(
 
 function visibleTerminalTiles(page: Page): Locator {
   return page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])');
-}
-
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
 }
 
 async function isSameConnectedNode(
@@ -395,19 +385,3 @@ async function captureEvidence(page: Page, fileName: string): Promise<string> {
   return createHash("sha256").update(await readFile(filePath)).digest("hex");
 }
 
-async function setWindowSize(
-  app: ElectronApplication,
-  page: Page,
-  width: number,
-  height: number,
-): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, size) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ x: 0, y: 0, ...size });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({ width, height });
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
-}

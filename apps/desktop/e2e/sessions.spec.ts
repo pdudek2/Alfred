@@ -1,5 +1,6 @@
-import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { requiredHandle, setWindowSize } from "./support/app-state";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import { surfaceButton } from "./support/work-layout";
 
@@ -205,35 +206,6 @@ async function selectSurface(page: Page, surface: "Work" | "History"): Promise<v
 function encodedPrintCommand(value: string): string {
   const hex = Buffer.from(value, "utf8").toString("hex");
   return `printf '${hex}' | /usr/bin/xxd -r -p; printf '\\n'`;
-}
-
-async function requiredHandle(
-  locator: Locator,
-  label: string,
-): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
-}
-
-async function setWindowSize(
-  app: ElectronApplication,
-  page: Page,
-  width: number,
-  height: number,
-): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, bounds) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ x: 0, y: 0, ...bounds });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({
-    width,
-    height,
-  });
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
 }
 
 async function assertSessionsGeometry(page: Page, label: string) {
