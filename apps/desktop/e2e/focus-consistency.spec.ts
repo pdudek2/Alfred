@@ -52,7 +52,8 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
       await focusFromKeyboard(page, control);
       await expect(control).toHaveCSS("outline-style", "solid");
       await expect(control).toHaveCSS("outline-width", "2px");
-      await expect(control).toHaveCSS("outline-color", "rgb(77, 168, 181)");
+      // The grey of --text-secondary: focus is not a signal, so it carries no colour.
+      await expect(control).toHaveCSS("outline-color", "rgb(202, 202, 207)");
       await expect(control).toHaveCSS("outline-offset", offset);
       await page.screenshot({
         path: testInfo.outputPath(`focus-${width}x${height}-${index + 1}.png`),
