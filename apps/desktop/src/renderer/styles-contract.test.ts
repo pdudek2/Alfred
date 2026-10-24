@@ -1018,14 +1018,13 @@ describe("renderer CSS contracts", () => {
       ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
     );
 
-    expect(primaryOverlayBackdrop).toContain("background: rgba(0, 0, 0, 0.66)");
+    expect(primaryOverlayBackdrop).toContain("background: color-mix(in srgb, var(--surface-canvas) 55%, transparent)");
     expect(primaryOverlayBackdrop).toContain("background-image: none");
     expect(primaryOverlayBackdrop).toContain("backdrop-filter: none");
     expect(primaryOverlayBackdrop).toContain("-webkit-backdrop-filter: none");
     expect(overlayPanels).toContain("background: var(--surface-panel)");
     expect(overlayPanels).toContain("background-image: none");
-    expect(overlayPanels).toContain("border: 1px solid var(--border)");
-    expect(overlayPanels).toContain("box-shadow: var(--shadow-panel)");
+    expect(overlayPanels).toContain("box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-panel)");
     expect(activePaletteRow).not.toContain("linear-gradient");
   });
 
@@ -1036,11 +1035,10 @@ describe("renderer CSS contracts", () => {
       [".workspace-popover button small", "font: 500 12px/1.35 var(--sans)"],
       [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
       [".workspace-mission-form label span", "font: 600 12px/1.2 var(--sans)"],
-      [".command-palette-group", "font: 650 12px/1.2 var(--sans)"],
-      [".command-palette-list button small", "font: 500 12px/1.35 var(--sans)"],
-      [".command-palette-empty", "font: 500 12px/1.35 var(--sans)"],
-      [".discard-checkout-header span", "font: 650 13px/1.2 var(--sans)"],
-      [".discard-checkout-actions button", "font: 650 13px/1 var(--sans)"],
+      [".command-palette-group", "font: 500 12px/16px var(--sans)"],
+      [".command-palette-list button small", "font: 400 12px/16px var(--sans)"],
+      [".command-palette-empty", "font: 400 12px/16px var(--sans)"],
+      [".discard-checkout-actions button", "font: 400 13px/18px var(--sans)"],
     ] as const;
 
     for (const [selector, font] of expectedFonts) {
@@ -1052,7 +1050,6 @@ describe("renderer CSS contracts", () => {
       ".workspace-rename-form > div button",
       ".workspace-mission-actions button",
       ".command-palette-list button",
-      ".discard-checkout-actions button",
     ]) {
       const body = topLevelExactRuleBodies(selector).find((candidate) => candidate.includes("min-height:")) ?? "";
       expect(body, selector).toContain("min-height:");
@@ -1072,7 +1069,6 @@ describe("renderer CSS contracts", () => {
     }
 
     for (const selector of [
-      ".discard-checkout-body dl div",
       ".discard-checkout-body li",
     ]) {
       const row = singleTopLevelRuleBodyIn(styles, selector);

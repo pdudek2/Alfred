@@ -3134,30 +3134,11 @@ function DiscardCheckoutDialog({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="discard-checkout-header">
-          <div>
-            <span>Destructive action</span>
-            <strong>Discard isolated checkout</strong>
-            <small>{confirmation.title} has {changedFileLabel}.</small>
-          </div>
-          <button type="button" className="discard-checkout-close" onClick={onCancel} aria-label="Close discard dialog">
-            <X size={15} />
-          </button>
+          <strong>Discard isolated checkout</strong>
+          <small>{confirmation.title} has {changedFileLabel}.</small>
         </header>
         <div className="discard-checkout-body">
-          <p>
-            This checkout has local changes. Review them before deleting the isolated worktree, or confirm discard
-            explicitly.
-          </p>
-          <dl>
-            <div>
-              <dt>status</dt>
-              <dd>{confirmation.summary}</dd>
-            </div>
-            <div>
-              <dt>files</dt>
-              <dd>{changedFileLabel}</dd>
-            </div>
-          </dl>
+          <p>This checkout has local changes. Review them before you delete the isolated worktree, or discard them for good.</p>
           <ol aria-label="Changed files">
             {previewFiles.map((file) => (
               <li key={`${file.status}:${file.path}`}>
