@@ -8,6 +8,8 @@ export type SessionActivityEventKind =
   | "lifecycle"
   | "output"
   | "plan"
+  /** A message you sent the agent, from its UserPromptSubmit hook. */
+  | "prompt"
   | "tool"
   | "warning";
 

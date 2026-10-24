@@ -16,6 +16,7 @@ import {
   resetTerminalPersistenceForTests,
   waitForTerminalExits,
 } from "./terminal-manager.js";
+import type { SessionActivityInput } from "../shared/session-activity.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type {
   PersistedTerminalSessionSnapshot,
@@ -4211,7 +4212,7 @@ describe("terminal-manager IPC", () => {
   describe("agent state signals", () => {
     type Listener = (
       sessionId: string,
-      update: { detail?: string; state: "working" | "needs-you" | "your-turn" },
+      update: { activity?: SessionActivityInput; detail?: string; state: "working" | "needs-you" | "your-turn" },
       transcriptPath?: string,
     ) => void;
 
@@ -4285,6 +4286,56 @@ describe("terminal-manager IPC", () => {
         agentSignal: { state: "your-turn", source: "hook", detail: "Created hello world.txt on the desktop." },
         activities: [expect.objectContaining({ kind: "output", detail: "Created hello world.txt on the desktop." })],
       });
+    });
+
+    it("takes a hooked agent's history from its hooks, not from the screen it redraws", async () => {
+      const { bridge, fire } = fakeBridge();
+      const pty = new FakePty();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      emit(terminalChannels.write, { id: created.id, data: "fix the build\r" });
+
+      fire(created.id, {
+        state: "working",
+        activity: { kind: "command", title: "Ran command", detail: "pnpm test", payload: { type: "command", command: "pnpm test" } },
+      });
+      expect(lastDataEvent()).toMatchObject({
+        data: "",
+        agentSignal: { state: "working", source: "hook" },
+        activities: [expect.objectContaining({ kind: "command", detail: "pnpm test" })],
+      });
+
+      // Scrolling back through its transcript, Claude redraws tool lines and old errors; none of it is new work.
+      fire(created.id, { state: "your-turn", detail: "Done." });
+      pty.onDataHandler?.("⏺ Update(src/app.tsx)\n  ⎿  Updated with 3 additions\nBash(\"pnpm test\")\nError: old failure\n");
+      expect(lastDataEvent()).toMatchObject({ activities: [] });
+      // A blocker it prints still counts: it is why the session needs you.
+      pty.onDataHandler?.("Not logged in · Please run /login\n");
+      expect(lastDataEvent()).toMatchObject({
+        activities: [expect.objectContaining({ kind: "error", title: "Runtime blocked" })],
+      });
+    });
+
+    it("takes only blockers from an agent's screen until you send it a message", async () => {
+      const { bridge } = fakeBridge();
+      const pty = new FakePty();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+      });
+
+      // A resumed conversation is drawn again before anything new happens.
+      pty.onDataHandler?.("Bash(\"pnpm test\")\nError: old failure\n");
+      expect(lastDataEvent()).toMatchObject({ activities: [] });
+      pty.onDataHandler?.("MCP server github failed to start: interrupted\n");
+      expect(lastDataEvent()).toMatchObject({ activities: [expect.objectContaining({ kind: "error", title: "Runtime blocked" })] });
+
+      // Without hooks (a Codex whose hooks are not trusted), its screen stays the only record once you have written to it.
+      emit(terminalChannels.write, { id: created.id, data: "run the tests\r" });
+      pty.onDataHandler?.("Bash(\"pnpm test\")\n");
+      expect(lastDataEvent()).toMatchObject({ activities: [expect.objectContaining({ kind: "command" })] });
     });
 
     it("reads Codex OSC 9 notifications that only your input clears, not the terminal's own reports", async () => {
