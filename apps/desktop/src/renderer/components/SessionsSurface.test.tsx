@@ -20,7 +20,7 @@ import {
 import { SessionsSurface, type SessionsSurfaceProps } from "./SessionsSurface";
 
 const workspaces: SessionsProjectInput[] = [
-  { id: "A", label: "Alfred", rootPath: "/Users/patryk/Desktop/Alfred" },
+  { id: "A", label: "Alfred", rootPath: "/Users/sample/Desktop/Alfred" },
 ];
 
 function managedSession(index: number, overrides: Partial<SessionTile> = {}): SessionTile {
@@ -29,7 +29,7 @@ function managedSession(index: number, overrides: Partial<SessionTile> = {}): Se
     runtimeId: `runtime-${index}`,
     title: index === 0 ? "Atlas navigator" : `Managed session ${index}`,
     workspaceId: "A",
-    cwd: "/Users/patryk/Desktop/Alfred",
+    cwd: "/Users/sample/Desktop/Alfred",
     source: "manual",
     stage: "live",
     runtimeStatus: "live",
@@ -204,8 +204,8 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const scopedWorkspaces: SessionsProjectInput[] = [
       ...workspaces,
-      { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
-      { id: "FREE", label: "Free Chat", rootPath: "/Users/patryk/Documents/Codex" },
+      { id: "B", label: "ClientApp", rootPath: "/Users/sample/Desktop/ClientApp" },
+      { id: "FREE", label: "Free Chat", rootPath: "/Users/sample/Documents/Codex" },
       { id: "EMPTY", label: "Project 99" },
     ];
     renderSurface({
@@ -215,7 +215,7 @@ describe("SessionsSurface", () => {
         managedSession(1, {
           title: "Client release",
           workspaceId: "B",
-          cwd: "/Users/patryk/Desktop/ClientApp",
+          cwd: "/Users/sample/Desktop/ClientApp",
         }),
       ],
     });
@@ -269,7 +269,7 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const scopedWorkspaces: SessionsProjectInput[] = [
       ...workspaces,
-      { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
+      { id: "B", label: "ClientApp", rootPath: "/Users/sample/Desktop/ClientApp" },
     ];
     const view = renderSurface({
       workspaces: scopedWorkspaces,
@@ -278,7 +278,7 @@ describe("SessionsSurface", () => {
         managedSession(1, {
           title: "Client release",
           workspaceId: "B",
-          cwd: "/Users/patryk/Desktop/ClientApp",
+          cwd: "/Users/sample/Desktop/ClientApp",
           initialBuffer: "Client evidence",
           runtimeStatus: "restored",
         }),
@@ -1007,7 +1007,7 @@ describe("SessionsSurface", () => {
     const unsafeWithAgent = managedSession(10, {
       args: ["-rf", "dist"],
       command: "rm",
-      cwd: "/Users/patryk/Desktop/Alfred",
+      cwd: "/Users/sample/Desktop/Alfred",
       initialBuffer: "asleep output\n",
       runtimeStatus: "restored",
       title: "Unsafe recovery",
@@ -1042,7 +1042,7 @@ describe("SessionsSurface", () => {
     expect(screen.getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
     const review = screen.getByRole("region", { name: "Resume review" });
     expect(review).toHaveTextContent("rm -rf dist");
-    expect(review).toHaveTextContent("/Users/patryk/Desktop/Alfred");
+    expect(review).toHaveTextContent("/Users/sample/Desktop/Alfred");
     expect(review).toHaveTextContent("rm -rf would be replayed");
   });
 
@@ -1092,7 +1092,7 @@ describe("SessionsSurface", () => {
         runtimeStatus: "restored",
         isolation: "worktree",
         branchName: "wt/oracle-v2",
-        baseCwd: "/Users/patryk/Desktop/Alfred",
+        baseCwd: "/Users/sample/Desktop/Alfred",
         initialBuffer: "asleep output",
         createdAt: Date.now() - 9 * 24 * 60 * 60_000,
       })],

@@ -148,7 +148,7 @@ describe("activity presentation", () => {
         id: "plugin",
         kind: "error",
         title: "Error reported",
-        detail: "failed to parse plugin hooks config /Users/patryk/.codex/plugins/cache/openai",
+        detail: "failed to parse plugin hooks config /Users/sample/.codex/plugins/cache/openai",
         payload: { type: "error", message: "failed to parse plugin hooks config" },
       },
       {
