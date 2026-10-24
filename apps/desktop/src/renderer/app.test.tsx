@@ -8850,7 +8850,7 @@ describe("App integration", () => {
     const discardTrigger = within(history).getByRole("button", { name: "Discard asleep session" });
     await user.click(discardTrigger);
     const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
-    const firstControl = within(dialog).getByRole("button", { name: "Close discard dialog" });
+    const firstControl = within(dialog).getByRole("button", { name: "Review changes" });
     const lastControl = within(dialog).getByRole("button", { name: "Discard checkout permanently" });
     expect(forgetTerminal).not.toHaveBeenCalled();
 
