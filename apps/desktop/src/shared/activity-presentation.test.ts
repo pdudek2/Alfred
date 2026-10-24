@@ -70,6 +70,21 @@ describe("activity sentences", () => {
     expect(activitySentence(ran("pnpm lint", "  "))).toBe("Ran pnpm lint");
   });
 
+  it("writes Alfred's worker tools as steps, and other MCP tools by tool and server", () => {
+    const used = (name: string, input = ""): SessionActivityEvent => ({
+      ...baseEvent, kind: "tool", title: `Used ${name}`, detail: input, payload: { type: "tool", name, input },
+    });
+    expect(activitySentence(used("mcp__alfred__start_worker", "Run the typecheck"))).toBe("Started worker: Run the typecheck");
+    expect(activitySentence(used("mcp__alfred__list_workers"))).toBe("Listed workers");
+    expect(activitySentence(used("mcp__alfred__read_worker", "codex-1"))).toBe("Read worker codex-1");
+    expect(activitySentence(used("mcp__alfred__wait_for_worker", "codex-1"))).toBe("Waited for worker codex-1");
+    expect(activitySentence(used("mcp__alfred__send_to_worker", "codex-1"))).toBe("Sent worker codex-1 a message");
+    expect(activitySentence(used("mcp__alfred__stop_worker", "codex-1"))).toBe("Stopped worker codex-1");
+    expect(activitySentence(used("mcp__github__get_issue", "42"))).toBe("Used get_issue from github (42)");
+    expect(activitySentence(used("mcp__github__get_issue"))).toBe("Used get_issue from github");
+    expect(activitySentence(used("WebSearch", "Alfred terminal UX"))).toBe("Used WebSearch (Alfred terminal UX)");
+  });
+
   it("lists events of the same millisecond newest first, as they happened", () => {
     const at = (id: string, time: number): SessionActivityEvent => ({ id, at: time, kind: "command", title: "Ran command", detail: id, payload: { type: "command", command: id } });
     const events = [at("prompt", 1), at("test", 1), at("edit", 2), at("stop", 2)];

@@ -285,7 +285,9 @@ function toolActivity(payload: unknown): SessionActivityInput | null {
     const summary = typeof fields.subject === "string" ? firstLine(fields.subject) : "";
     return { kind: "plan", title: "Plan updated", detail: summary, payload: { type: "plan", summary } };
   }
-  const input = firstLine(target);
+  // Alfred's worker tools act on a worker, or start one for a title or a task.
+  const input = firstLine(target || [fields.worker_id, fields.title, fields.prompt]
+    .find((value): value is string => typeof value === "string" && value.trim() !== "") || "");
   return { kind: "tool", title: `Used ${name}`, detail: input, payload: { type: "tool", name, input } };
 }
 
