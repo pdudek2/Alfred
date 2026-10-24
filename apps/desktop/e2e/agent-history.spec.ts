@@ -44,6 +44,10 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   const row = treeRow(page, sessionId);
   await expect(row.locator(".session-tree-meta")).toHaveText("Fixed the build.");
   const items = activity.getByRole("listitem");
+  // Newest first, in the order the hooks came, even within one millisecond.
+  const order = ["Fixed the build.", "Edited app.tsx", "Ran pnpm test", "You asked: Fix the build"];
+  await expect.poll(async () => (await items.allInnerTexts()).map((text) => order.findIndex((line) => text.includes(line))).filter((index) => index >= 0))
+    .toEqual([0, 1, 2, 3]);
   const count = await items.count();
 
   // Scrolling back through the transcript makes Claude draw its old tool lines and errors again.
