@@ -25,7 +25,8 @@
 
   --border: rgba(255, 255, 255, 0.05);
   --border-strong: rgba(255, 255, 255, 0.082);
-  --border-focus: color-mix(in oklab, var(--focus-border) 28%, transparent);
+  /* Half the focus ring: 3.7:1 on panels, the WCAG floor for a focus indicator is 3:1. */
+  --border-focus: color-mix(in oklab, var(--focus-border) 50%, transparent);
 
   --signal-focus: #4DA8B5;
   --signal-focus-strong: color-mix(in oklab, var(--signal-focus) 60%, white 8%);
@@ -93,7 +94,8 @@ button {
   font: inherit;
 }
 
-button:focus-visible {
+/* One ring for everything that takes keyboard focus: buttons, and also a scrolled transcript, a summary or a tile. */
+:focus-visible {
   outline: 2px solid var(--focus-border);
   outline-offset: 2px;
 }
@@ -1115,6 +1117,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .workbench-breadcrumb > svg {
   flex: none;
+  opacity: 0.6;
 }
 
 .workbench-breadcrumb-parent {
@@ -1176,8 +1179,9 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-primary);
 }
 
+/* The key hint takes its button's colour: faint text failed 4.5:1 on a hovered button. */
 .workbench-actions kbd {
-  color: var(--text-faint);
+  color: inherit;
   font: 400 12px/16px var(--sans);
 }
 
@@ -1274,6 +1278,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .workbench-actions .workbench-control {
+  gap: 8px;
   padding: 0 10px;
   background: var(--surface-control);
   color: var(--text-muted);

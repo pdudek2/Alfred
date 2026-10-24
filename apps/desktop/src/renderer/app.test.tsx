@@ -5927,8 +5927,8 @@ describe("App integration", () => {
     expect(bridge.worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-diff-reader" });
     const diffRegion = await screen.findByRole("region", { name: "Worktree diff" });
     expect(within(diffRegion).getByText("src/live.ts")).toBeInTheDocument();
-    expect(screen.getByLabelText("Removed line 1")).toHaveTextContent("-old value");
-    expect(screen.getByLabelText("Added line 1")).toHaveTextContent("+new value");
+    expect(screen.getByText("Removed line 1:").parentElement).toHaveTextContent("-old value");
+    expect(screen.getByText("Added line 1:").parentElement).toHaveTextContent("+new value");
     expect(xtermHost.isConnected).toBe(true);
     expect(gridColumn).toHaveAttribute("aria-hidden", "true");
     expect(gridColumn).toHaveAttribute("inert");
