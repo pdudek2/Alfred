@@ -44,6 +44,7 @@ export function classifyActivityPresentationLayer(event: SessionActivityEvent): 
   switch (event.kind) {
     case "approval":
     case "error":
+    case "prompt":
     case "warning":
       return "signal";
     case "file":
@@ -146,6 +147,8 @@ export function activitySentence(event: SessionActivityEvent): string {
     // "Plan updated", "Checkout diff reviewed": the title reads as a sentence.
     case "plan":
       return event.title;
+    case "prompt":
+      return `You asked: ${event.detail}`;
     // Alfred writes these: the title names the step, the detail's first sentence says what happened.
     case "lifecycle":
       return event.detail.split(/(?<=\.)\s+/)[0] || event.title;

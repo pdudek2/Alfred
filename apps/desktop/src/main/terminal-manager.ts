@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 import {
   appendActivityEvent,
   classifyTerminalOutputChunk,
+  runtimeBlockerReason,
   type SessionActivityEvent,
   type TerminalOutputActivityChunkResult,
   type TerminalOutputActivityStreamState,
@@ -143,6 +144,8 @@ type TerminalSession = {
   shellBusy?: boolean | undefined;
   /** You have sent this session a message: input that ended with Enter. */
   promptSubmitted?: boolean | undefined;
+  /** A hook has reported from this session, so its history comes from hooks rather than from its screen. */
+  hooksLive?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
   submittedAgentKind?: TerminalForegroundAgentKind | undefined;
   lastActivityAt?: number;
@@ -237,6 +240,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     const session = sessions.get(sessionId);
     if (!session) return;
     if (transcriptPath) session.transcriptPath = transcriptPath;
+    session.hooksLive = true;
     const applied = applyAgentSignal(session, update, "hook", Date.now());
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal });
   });
@@ -511,7 +515,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const activeAgentKind = updateForegroundAgentKind(session);
         appendToBuffer(session, data);
         session.lastOutputAt = now;
-        const activities = recordOutputActivity(session, data, now);
+        const activities = recordOutputActivity(session, data, now, screenIsHistory(session) ? "all" : "blockers");
         let agentSignal: TerminalAgentSignal | undefined;
         if (isCodexSession(session)) {
           const osc = parseOsc9(session.oscCarry, data);
@@ -1282,14 +1286,28 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
   };
 }
 
+/**
+ * An agent's screen is redrawn, not appended to: scrolling back through its transcript, a resize or a resumed
+ * conversation draws old tool lines again. Its history therefore comes from hooks once they report, and before
+ * your first message nothing it draws is new. Shells, and agents without hooks after that, have only their screen.
+ */
+function screenIsHistory(session: TerminalSession): boolean {
+  if (session.hooksLive) return false;
+  const agent = isCodingAgentKind(session.agentKind) || session.command === "claude" || session.command === "codex";
+  return !agent || session.promptSubmitted === true;
+}
+
 function recordOutputActivity(
   session: TerminalSession,
   data: string,
   now = Date.now(),
+  // A blocker such as "Not logged in" comes through no hook, and it is why the session needs you.
+  scope: "all" | "blockers" = "all",
 ): SessionActivityEvent[] {
   const result: TerminalOutputActivityChunkResult = classifyTerminalOutputChunk(session.activityStream, data);
   session.activityStream = result.state;
   return result.activities.flatMap((activity) => {
+    if (scope === "blockers" && !runtimeBlockerReason(activity)) return [];
     const event = recordSessionActivity(session, activity, now);
     return event ? [event] : [];
   });
@@ -1416,7 +1434,8 @@ function applyAgentSignal(
     : update.state === "your-turn" && source === "hook" && update.detail
       ? recordSessionActivity(session, { kind: "output", title: "Turn finished", detail: update.detail }, now)
       : null;
-  return { activities: activity ? [activity] : [], signal };
+  const reported = update.activity ? recordSessionActivity(session, update.activity, now) : null;
+  return { activities: [activity, reported].filter((event): event is SessionActivityEvent => event !== null), signal };
 }
 
 /** Your answer resolves an approval; a Codex notification also ends when you type. Claude's Stop stays until its next hook. */

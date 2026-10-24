@@ -55,6 +55,12 @@ describe("activity sentences", () => {
     expect(activitySentence({ ...baseEvent, kind: "error", title: "Error reported", detail: "build failed", payload: { type: "error", message: "build failed" } }))
       .toBe("build failed");
   });
+
+  it("writes the message you sent as the start of the agent's history", () => {
+    const prompt: SessionActivityEvent = { ...baseEvent, kind: "prompt", title: "You asked", detail: "Split History into a list" };
+    expect(activitySentence(prompt)).toBe("You asked: Split History into a list");
+    expect(classifyActivityPresentationLayer(prompt)).toBe("signal");
+  });
 });
 
 describe("activity presentation", () => {
