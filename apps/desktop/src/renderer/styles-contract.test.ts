@@ -785,6 +785,14 @@ describe("renderer CSS contracts", () => {
     expect(focus).toContain("var(--focus-border)");
   });
 
+  it("keeps the New sheet on the medium weight of the type scale", () => {
+    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
+    const weights = [...sheet.matchAll(/font(?:-weight)?:\s*(\d{3})/g)].map((match) => Number(match[1]));
+    expect(weights.length).toBeGreaterThan(0);
+    expect(Math.max(...weights)).toBe(500);
+    expect(singleTopLevelRuleBodyIn(sheet, ".new-session-prompt label")).toContain("font: 500 12px/16px var(--sans)");
+  });
+
   it("keeps the New sheet action neutral and uses the panel surface", () => {
     const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
     expect(sheet).toContain("background: var(--surface-panel)");
