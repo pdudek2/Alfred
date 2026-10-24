@@ -43,6 +43,8 @@ import {
   type TerminalSnapshotRequest,
   type TerminalSnapshotResult,
   type TerminalWriteRequest,
+  type TerminalWorkerReply,
+  type TerminalWorkerRequest,
   type TerminalWorktreeApplyRequest,
   type TerminalWorktreeApplyResult,
   type TerminalWorktreeDiffRequest,
@@ -77,6 +79,13 @@ import {
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
 import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path.js";
+import {
+  createWorkerTools,
+  WorkerToolError,
+  type WorkerHost,
+  type WorkerRecord,
+  type WorkerStartRequest,
+} from "./worker-tools.js";
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
@@ -146,6 +155,10 @@ type TerminalSession = {
   promptSubmitted?: boolean | undefined;
   /** A hook has reported from this session, so its history comes from hooks rather than from its screen. */
   hooksLive?: boolean | undefined;
+  /** Turn marks an orchestrator reads this session by, as its worker (worker-tools.ts). */
+  lastPromptSeq?: number | undefined;
+  lastTurnEndSeq?: number | undefined;
+  lastAnswer?: string | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
   submittedAgentKind?: TerminalForegroundAgentKind | undefined;
   lastActivityAt?: number;
@@ -189,6 +202,17 @@ let persistTimer: NodeJS.Timeout | null = null;
 let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
 let privacyClearGeneration = 0;
 let explicitPrivacyPolicy: { clearLaunchData: boolean } | null = null;
+/** One counter for every worker's prompts and turn ends, so they order even within one millisecond. */
+let turnSeq = 0;
+const workerListeners = new Set<() => void>();
+/** Workers whose terminal ended or has not started yet, so their orchestrator still sees them. */
+const offstageWorkers = new Map<string, WorkerRecord & { parentClientId: string; since: number }>();
+const MAX_OFFSTAGE_WORKERS = 64;
+/** A worker the window added but whose terminal never started stops counting after this. */
+const WORKER_START_GRACE_MS = 2 * 60 * 1000;
+const WORKER_REPLY_TIMEOUT_MS = 10_000;
+/** Claude Code and Codex read an Enter that arrives with a paste as part of it; a separate one sends the message. */
+const PASTE_SUBMIT_DELAY_MS = 150;
 
 export function configureTerminalPersistence(
   store: PersistedDesktopStateStore,
@@ -224,6 +248,8 @@ export function resetTerminalPersistenceForTests(): void {
   forgottenClientIds.clear();
   recentTerminalExits.clear();
   pendingPtyExits.clear();
+  offstageWorkers.clear();
+  workerListeners.clear();
   persistDebounceMs = 250;
 }
 
@@ -244,6 +270,25 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     const applied = applyAgentSignal(session, update, "hook", Date.now());
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal });
   });
+
+  const workerReplies = new Map<string, (reply: TerminalWorkerReply) => void>();
+  trustedIpc.on(terminalChannels.workerReply, (_event, reply: TerminalWorkerReply) => {
+    if (typeof reply?.requestId === "string") workerReplies.get(reply.requestId)?.(reply);
+  });
+  const workerHost: WorkerHost = {
+    caller: (sessionId) => {
+      const session = sessions.get(sessionId);
+      return session?.clientId ? { clientId: session.clientId, isWorker: session.parentClientId !== undefined } : undefined;
+    },
+    workersOf,
+    startWorker: (parentClientId, request) => requestWorker(parentClientId, request, workerReplies),
+    send: sendToWorker,
+    onChange: (listener) => {
+      workerListeners.add(listener);
+      return () => workerListeners.delete(listener);
+    },
+  };
+  options.agentSignals?.setToolHandler(createWorkerTools(workerHost).call);
 
   // Codex shows a sent image as an unlinked [Image #1]; its rollout says which file that is.
   trustedIpc.handle(
@@ -455,7 +500,11 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const resolved = resolveCommand(safeRequest);
         const id = randomUUID();
         const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
-        const pty = nodePty.spawn(resolved.command, [...(options.agentSignals?.launchArgs(safeRequest.command) ?? []), ...resolved.args], {
+        const launchArgs = options.agentSignals?.launchArgs(safeRequest.command, {
+          id,
+          worker: parentClientId(safeRequest.parentClientId) !== undefined,
+        }) ?? [];
+        const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {
           name: "xterm-256color",
           cols: normalizeDimension(request.cols, 80),
           rows: normalizeDimension(request.rows, 24),
@@ -468,7 +517,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             COLORTERM: "truecolor",
             // xterm.js renders OSC 8 links. Claude Code links a sent [Image #N] to its file only when told so.
             FORCE_HYPERLINK: "1",
-            ...options.agentSignals?.env(id),
+            ...options.agentSignals?.env(id, safeRequest.command),
           },
         });
         session = {
@@ -487,6 +536,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         };
 
         sessions.set(id, session);
+        if (session.clientId && offstageWorkers.get(session.clientId)?.turn.exited === false) {
+          offstageWorkers.delete(session.clientId);
+        }
       } catch (error) {
         if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
         if (createdWorktree) {
@@ -575,6 +627,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           snapshot: toSnapshot(session),
         };
         if (effectivePrivacySettings.terminalScrollbackRetention === "off") scrubExitedSnapshot(recentExit);
+        rememberEndedWorker(session);
         recentTerminalExits.set(session.id, recentExit);
         while (recentTerminalExits.size > MAX_RECENT_TERMINAL_EXITS) {
           const oldestId = recentTerminalExits.keys().next().value;
@@ -605,6 +658,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       // ponytail: Enter inside pasted text counts too.
       const submitted = !session.promptSubmitted && request.data.includes("\r");
       if (submitted) session.promptSubmitted = true;
+      // Without hooks, your Enter is the only sign a turn started; with them, an Enter that starts nothing must not count.
+      const startedTurn = !session.hooksLive && isAgentSession(session) && request.data.includes("\r");
+      if (startedTurn) session.lastPromptSeq = ++turnSeq;
+      if (cleared || startedTurn) notifyWorkers();
       if (cleared || answered || submitted) {
         sendSignalUpdate(session, {
           ...(cleared ? { agentSignal: null } : {}),
@@ -868,7 +925,12 @@ function sessionMetadata(
 
 // The renderer names the parent; keep it only when it is a plausible client id.
 function parentClientId(value: unknown): { parentClientId: string } | undefined {
-  return typeof value === "string" && /^[\w.-]{1,128}$/.test(value) ? { parentClientId: value } : undefined;
+  const clientId = clientIdValue(value);
+  return clientId === undefined ? undefined : { parentClientId: clientId };
+}
+
+function clientIdValue(value: unknown): string | undefined {
+  return typeof value === "string" && /^[\w.-]{1,128}$/.test(value) ? value : undefined;
 }
 
 function normalizedSharedIsolation(request: TerminalCreateRequest): TerminalCreateRequest["isolation"] | undefined {
@@ -1390,6 +1452,7 @@ function killSession(
   }
 
   sessions.delete(id);
+  rememberEndedWorker(session);
   recordSessionActivity(session, reason === "close"
     ? {
         kind: "lifecycle",
@@ -1403,6 +1466,115 @@ function killSession(
       });
   rememberSessionSnapshot(session);
   session.pty.kill();
+}
+
+function notifyWorkers(): void {
+  for (const listener of [...workerListeners]) listener();
+}
+
+function isAgentSession(session: TerminalSession): boolean {
+  return isCodingAgentKind(session.agentKind) || session.command === "claude" || session.command === "codex";
+}
+
+function workerRecord(session: TerminalSession, exited = false): WorkerRecord {
+  return {
+    clientId: session.clientId ?? session.id,
+    title: session.title,
+    agent: session.agentKind ?? session.command ?? "terminal",
+    turn: {
+      lastPrompt: session.lastPromptSeq ?? 0,
+      lastTurnEnd: session.lastTurnEndSeq ?? 0,
+      waitingApproval: session.agentSignal?.state === "needs-you",
+      exited,
+    },
+    lastAnswer: session.lastAnswer,
+    activityEvents: session.activityEvents ?? [],
+  };
+}
+
+function rememberEndedWorker(session: TerminalSession): void {
+  if (!session.parentClientId || !session.clientId) return;
+  offstageWorkers.delete(session.clientId);
+  offstageWorkers.set(session.clientId, { ...workerRecord(session, true), parentClientId: session.parentClientId, since: Date.now() });
+  while (offstageWorkers.size > MAX_OFFSTAGE_WORKERS) {
+    const oldest = offstageWorkers.keys().next().value;
+    if (oldest === undefined) break;
+    offstageWorkers.delete(oldest);
+  }
+  notifyWorkers();
+}
+
+function workersOf(parentClientId: string): WorkerRecord[] {
+  const live = [...sessions.values()].filter((session) => session.clientId && session.parentClientId === parentClientId);
+  const liveIds = new Set(live.map((session) => session.clientId));
+  const now = Date.now();
+  const offstage = [...offstageWorkers.values()].filter((worker) =>
+    worker.parentClientId === parentClientId
+    && !liveIds.has(worker.clientId)
+    && (worker.turn.exited || now - worker.since < WORKER_START_GRACE_MS));
+  return [
+    ...live.map((session) => workerRecord(session)),
+    ...offstage.map(({ parentClientId: _parent, since: _since, ...worker }) => worker),
+  ];
+}
+
+/** Asks the orchestrator's window to add the worker under it; the window starts its terminal like any other. */
+async function requestWorker(
+  parentClientId: string,
+  request: WorkerStartRequest,
+  replies: Map<string, (reply: TerminalWorkerReply) => void>,
+): Promise<{ clientId: string; title: string }> {
+  const parent = findLiveSessionByClientId(parentClientId);
+  if (!parent?.window || parent.window.isDestroyed()) {
+    throw new WorkerToolError("Alfred has no open window for this session, so it cannot add a worker.");
+  }
+  const requestId = randomUUID();
+  const reply = await new Promise<TerminalWorkerReply>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      replies.delete(requestId);
+      reject(new WorkerToolError("Alfred's window did not answer in time. Check list_workers before starting another worker."));
+    }, WORKER_REPLY_TIMEOUT_MS);
+    replies.set(requestId, (answer) => {
+      clearTimeout(timer);
+      replies.delete(requestId);
+      resolve(answer);
+    });
+    const payload: TerminalWorkerRequest = { requestId, parentClientId, ...request };
+    sendToSessionWindow(parent, terminalChannels.workerRequest, payload);
+  });
+  if ("error" in reply) throw new WorkerToolError(typeof reply.error === "string" ? reply.error : "Alfred could not add the worker.");
+  const clientId = clientIdValue(reply.clientId);
+  if (!clientId || clientId === parentClientId) throw new WorkerToolError("Alfred could not add the worker.");
+  const title = typeof reply.title === "string" && reply.title.trim() ? reply.title.trim() : clientId;
+  offstageWorkers.set(clientId, {
+    clientId,
+    title,
+    agent: request.agent,
+    turn: { lastPrompt: 0, lastTurnEnd: 0, waitingApproval: false, exited: false },
+    activityEvents: [],
+    parentClientId,
+    since: Date.now(),
+  });
+  notifyWorkers();
+  return { clientId, title };
+}
+
+function sendToWorker(clientId: string, message: string): void {
+  const session = findLiveSessionByClientId(clientId);
+  if (!session) throw new WorkerToolError("The worker has ended.");
+  // The message is typed into another agent's terminal: no control sequence may end the paste early or press keys.
+  // eslint-disable-next-line no-control-regex
+  const text = message.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+  session.pty.write(`\x1b[200~${text}\x1b[201~`);
+  setTimeout(() => {
+    if (sessions.get(session.id) === session) session.pty.write("\r");
+  }, PASTE_SUBMIT_DELAY_MS).unref();
+  session.lastPromptSeq = ++turnSeq;
+  if (!session.promptSubmitted) {
+    session.promptSubmitted = true;
+    sendSignalUpdate(session, { promptSubmitted: true });
+  }
+  notifyWorkers();
 }
 
 function isCodexSession(session: TerminalSession): boolean {
@@ -1422,6 +1594,12 @@ function applyAgentSignal(
     ...(update.detail === undefined ? {} : { detail: update.detail }),
   };
   session.agentSignal = signal;
+  if (update.state === "working") session.lastPromptSeq = ++turnSeq;
+  if (update.state === "your-turn") {
+    session.lastTurnEndSeq = ++turnSeq;
+    session.lastAnswer = update.answer ?? update.detail;
+  }
+  notifyWorkers();
   const activity = update.state === "needs-you"
     ? recordSessionActivity(session, {
         kind: "approval",

@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -98,9 +98,14 @@ describe("signals", () => {
     expect(signalFromHook("Stop", {
       last_assistant_message: "## Done\n\nUtworzyłem plik `hello world.txt` na **pulpicie**.",
       stop_hook_active: false,
-    })).toEqual({ state: "your-turn", detail: "Done" });
+    })).toEqual({
+      state: "your-turn",
+      detail: "Done",
+      // An orchestrator reads its worker's whole answer.
+      answer: "## Done\n\nUtworzyłem plik `hello world.txt` na **pulpicie**.",
+    });
     expect(signalFromHook("Stop", { last_assistant_message: "\n- Pobrano `example.com` (kod 0).\n- Nie zapisywałem pliku." }))
-      .toEqual({ state: "your-turn", detail: "Pobrano example.com (kod 0)." });
+      .toMatchObject({ state: "your-turn", detail: "Pobrano example.com (kod 0)." });
     expect(signalFromHook("Stop", { last_assistant_message: "x".repeat(500) })?.detail).toHaveLength(240);
     expect(signalFromHook("Stop", { last_assistant_message: "  \n " })).toEqual({ state: "your-turn" });
     expect(signalFromHook("Stop", { last_assistant_message: null })).toEqual({ state: "your-turn" });
@@ -256,8 +261,128 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     });
     await expect.poll(() => received.length).toBe(1);
     // The rollout is where Codex keeps the paths of the images it shows as [Image #1].
-    expect(received[0]).toEqual(["codex-1", { state: "your-turn", detail: "Done" }, rollout]);
+    expect(received[0]).toEqual(["codex-1", { state: "your-turn", detail: "Done", answer: "Done" }, rollout]);
     // Codex adds a UserPromptSubmit hook's plain output to the model's context, so the relay prints nothing.
     expect(output).toBe("");
   });
+
+  it("gives a top-level agent Alfred's worker tools, and a worker none", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
+    const settingsPath = bridge!.launchArgs("claude")[1]!;
+    const lead = bridge!.launchArgs("claude", { id: "session-1", worker: false });
+    // --mcp-config takes several values; --settings after it keeps the prompt out of its list.
+    expect(lead).toEqual(["--mcp-config", expect.any(String), "--settings", settingsPath]);
+    expect(JSON.parse(lead[1]!)).toEqual({
+      mcpServers: {
+        alfred: {
+          type: "stdio",
+          command: process.execPath,
+          args: [path.join(dir, "d", "alfred-mcp.cjs"), path.join(dir, "s"), "session-1"],
+          env: { ELECTRON_RUN_AS_NODE: "1" },
+        },
+      },
+    });
+    expect(bridge!.launchArgs("claude", { id: "session-2", worker: true })).toEqual(["--settings", settingsPath]);
+    const settings = JSON.parse(await readFile(settingsPath, "utf8")) as { permissions: { allow: string[] } };
+    expect(settings.permissions.allow).toEqual(["mcp__alfred"]);
+    expect(bridge!.env("session-1", "claude")).toMatchObject({ MCP_TOOL_TIMEOUT: "150000" });
+    expect(bridge!.env("session-1", "codex")).not.toHaveProperty("MCP_TOOL_TIMEOUT");
+
+    const codex = bridge!.launchArgs("codex", { id: "session-3", worker: false });
+    expect(codex.slice(0, -8)).toEqual(bridge!.launchArgs("codex"));
+    expect(codex.slice(-8)).toEqual([
+      "-c", `mcp_servers.alfred.command=${JSON.stringify(process.execPath)}`,
+      "-c", `mcp_servers.alfred.args=${JSON.stringify([path.join(dir, "d", "alfred-mcp.cjs"), path.join(dir, "s"), "session-3"])}`,
+      "-c", 'mcp_servers.alfred.env={ELECTRON_RUN_AS_NODE="1"}',
+      "-c", "mcp_servers.alfred.tool_timeout_sec=150",
+    ]);
+    expect(bridge!.launchArgs("codex", { id: "session-4", worker: true })).toEqual(bridge!.launchArgs("codex"));
+  });
+
+  it("serves the worker tools over MCP and answers each call through Alfred", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
+    const calls: unknown[][] = [];
+    bridge!.setToolHandler(async (sessionId, tool, args) => {
+      calls.push([sessionId, tool, args]);
+      if (tool === "send_to_worker") throw new Error("The worker is working.");
+      return { worker_id: "codex-1" };
+    });
+    const server = mcpClient(JSON.parse(bridge!.launchArgs("claude", { id: "session-1", worker: false })[1]!));
+
+    expect(await server.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } }))
+      .toMatchObject({ result: { protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "alfred" } } });
+    server.notify("notifications/initialized");
+    const listed = await server.request("tools/list", {}) as { result: { tools: Array<{ name: string }> } };
+    expect(listed.result.tools.map((tool) => tool.name))
+      .toEqual(["start_worker", "list_workers", "read_worker", "wait_for_worker", "send_to_worker"]);
+    expect(await server.request("tools/call", { name: "start_worker", arguments: { agent: "codex", prompt: "Run it" } })).toMatchObject({
+      result: { content: [{ type: "text", text: JSON.stringify({ worker_id: "codex-1" }, null, 2) }] },
+    });
+    expect(await server.request("tools/call", { name: "send_to_worker", arguments: { worker_id: "codex-1", message: "x" } })).toMatchObject({
+      result: { content: [{ type: "text", text: "The worker is working." }], isError: true },
+    });
+    expect(await server.request("resources/list", {})).toMatchObject({ error: { code: -32601 } });
+    expect(calls).toEqual([
+      ["session-1", "start_worker", { agent: "codex", prompt: "Run it" }],
+      ["session-1", "send_to_worker", { worker_id: "codex-1", message: "x" }],
+    ]);
+
+    // Hooks keep arriving on the same socket.
+    const received: AgentSignalUpdate[] = [];
+    bridge!.setListener((_sessionId, update) => received.push(update));
+    const settings = JSON.parse(await readFile(bridge!.launchArgs("claude")[1]!, "utf8")) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+    await new Promise<void>((resolve, reject) => {
+      const child = execFile("sh", ["-c", settings.hooks.Stop![0]!.hooks[0]!.command], { env: { ...process.env, ...bridge!.env("session-1") } },
+        (error) => (error ? reject(error) : resolve()));
+      child.stdin!.end(JSON.stringify({ last_assistant_message: "Done" }));
+    });
+    await expect.poll(() => received).toEqual([{ state: "your-turn", detail: "Done", answer: "Done" }]);
+    server.close();
+  });
+
+  it("tells the agent when Alfred is not there instead of failing it", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
+    const config = JSON.parse(bridge!.launchArgs("claude", { id: "session-1", worker: false })[1]!) as McpConfig;
+    await bridge!.close();
+    bridge = null;
+    const server = mcpClient(config);
+    expect(await server.request("tools/call", { name: "list_workers", arguments: {} })).toMatchObject({
+      result: { content: [{ type: "text", text: "Alfred is not reachable. It may have quit." }], isError: true },
+    });
+    server.close();
+  });
 });
+
+type McpConfig = { mcpServers: { alfred: { args: string[]; command: string; env: Record<string, string> } } };
+
+/** Talks to the generated MCP server the way Claude Code and Codex do: one JSON-RPC message per line on stdio. */
+function mcpClient(config: McpConfig) {
+  const { command, args, env } = config.mcpServers.alfred;
+  const child = spawn(command, args, { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "inherit"] });
+  const waiting = new Map<number, (message: unknown) => void>();
+  let pending = "";
+  let nextId = 1;
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    pending += chunk;
+    for (let end = pending.indexOf("\n"); end !== -1; end = pending.indexOf("\n")) {
+      const message = JSON.parse(pending.slice(0, end)) as { id: number };
+      pending = pending.slice(end + 1);
+      waiting.get(message.id)?.(message);
+    }
+  });
+  return {
+    request: (method: string, params: unknown) => new Promise<unknown>((resolve) => {
+      const id = nextId++;
+      waiting.set(id, resolve);
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+    }),
+    notify: (method: string) => child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method })}\n`),
+    close: () => child.stdin.end(),
+  };
+}

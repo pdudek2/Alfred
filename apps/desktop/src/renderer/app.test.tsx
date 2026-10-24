@@ -20,6 +20,7 @@ import type {
   TerminalApi,
   TerminalDataEvent,
   TerminalExitEvent,
+  TerminalWorkerRequest,
   TerminalForgetResult,
   TerminalReconcileResult,
   TerminalSessionSnapshot,
@@ -273,10 +274,14 @@ function installDesktopBridge(
   emitDataNow: (event: TerminalDataEvent) => void;
   emitData: (event: TerminalDataEvent) => Promise<void>;
   emitExit: (event: TerminalExitEvent) => Promise<void>;
+  answerWorkerRequest: ReturnType<typeof vi.fn>;
+  emitWorkerRequest: (request: TerminalWorkerRequest) => Promise<void>;
   emitSaveStatus: (status: DesktopSaveStatus) => Promise<void>;
 } {
   const dataListeners = new Set<(event: TerminalDataEvent) => void>();
   const exitListeners = new Set<(event: TerminalExitEvent) => void>();
+  const workerRequestListeners = new Set<(request: TerminalWorkerRequest) => void>();
+  const answerWorkerRequest = vi.fn();
   const saveStatusListeners = new Set<(status: DesktopSaveStatus) => void>();
   const clearStagedPlan = vi.fn().mockResolvedValue({ plans: [] });
   const getStagedPlans = vi.fn().mockResolvedValue({ plans: stagedPlans ?? [] });
@@ -435,6 +440,11 @@ function installDesktopBridge(
       exitListeners.add(callback);
       return () => exitListeners.delete(callback);
     }),
+    onWorkerRequest: vi.fn((callback: (request: TerminalWorkerRequest) => void) => {
+      workerRequestListeners.add(callback);
+      return () => workerRequestListeners.delete(callback);
+    }),
+    answerWorkerRequest,
     resize: resizeTerminal,
     write: writeTerminal,
     worktreeApply,
@@ -540,6 +550,12 @@ function installDesktopBridge(
     emitExit: async (event: TerminalExitEvent) => {
       await act(async () => {
         for (const listener of exitListeners) listener(event);
+      });
+    },
+    answerWorkerRequest,
+    emitWorkerRequest: async (request: TerminalWorkerRequest) => {
+      await act(async () => {
+        for (const listener of workerRequestListeners) listener(request);
       });
     },
     emitSaveStatus: async (status: DesktopSaveStatus) => {
@@ -7919,6 +7935,35 @@ describe("App integration", () => {
     await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ parentClientId: "lead" })));
     const workers = within(railSessions()).getByRole("list", { name: "Workers of Codex · lead" });
     expect(within(workers).getByRole("button", { name: /^zsh/ })).toHaveAccessibleDescription(/Worker of Codex · lead/);
+  });
+
+  it("adds the worker an orchestrator asks for under it, and leaves your focus where it is", async () => {
+    const bridge = installDesktopBridge(undefined, null, [
+      liveSnapshot("lead", { title: "Codex · lead" }),
+      liveSnapshot("other", { title: "Codex · other" }),
+    ]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · lead/i });
+    const shownSession = () => screen.getAllByTestId("terminal-tile")
+      .find((tile) => tile.getAttribute("aria-hidden") !== "true")?.getAttribute("data-session-id");
+    const before = shownSession();
+
+    await bridge.emitWorkerRequest({
+      requestId: "r1", parentClientId: "lead", agent: "claude", prompt: "Run the typecheck", isolated: true, title: "Typecheck",
+    });
+    expect(bridge.answerWorkerRequest).toHaveBeenCalledWith({ requestId: "r1", clientId: "claude-1", title: "Typecheck" });
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      agentKind: "claude", args: ["--", "Run the typecheck"], clientId: "claude-1", isolation: "worktree", parentClientId: "lead",
+    })));
+    const workers = within(railSessions()).getByRole("list", { name: "Workers of Codex · lead" });
+    expect(within(workers).getByRole("button", { name: /^Typecheck/ })).toHaveAccessibleDescription(/Worker of Codex · lead/);
+    expect(shownSession()).toBe(before);
+    expect(bridge.setWorkspaceViewState).not.toHaveBeenCalledWith(
+      expect.objectContaining({ viewState: expect.objectContaining({ selectedSessionId: "claude-1" }) }),
+    );
+
+    await bridge.emitWorkerRequest({ requestId: "r2", parentClientId: "gone", agent: "codex", prompt: "x", isolated: false });
+    expect(bridge.answerWorkerRequest).toHaveBeenLastCalledWith({ requestId: "r2", error: "Alfred no longer shows this session." });
   });
 
   it("persists the session focused from the rail as workspace view state", async () => {
