@@ -20,7 +20,8 @@ export function presentActivityEvents(
     limit?: number;
   } = {},
 ): PresentedActivity {
-  const ordered = [...events].sort((left, right) => right.at - left.at);
+  // Newest first; events of the same millisecond (a burst of hooks, one output chunk) keep their order, latest on top.
+  const ordered = [...events].reverse().sort((left, right) => right.at - left.at);
   const rawEvents = ordered.filter((event) => classifyActivityPresentationLayer(event) === "raw");
   const primaryEvents = ordered.filter((event) => classifyActivityPresentationLayer(event) !== "raw");
   const sourceEvents = includeRaw ? ordered : primaryEvents;
