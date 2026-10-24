@@ -70,6 +70,16 @@ For help, see: https://nodejs.org/en/docs/inspector
     expect(isAllowedElectronMainOutput("main-stderr", `${firstXpcLine}\r\n${secondXpcLine}\r\n`)).toBe(true);
   });
 
+  it("allows Chromium's shared-image lines from a closing window and nothing appended to them", () => {
+    const line = (time: string) =>
+      `[71316:1024/${time}:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:253] SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox.`;
+
+    expect(isAllowedElectronMainOutput("main-stderr", line("202231.445504"))).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", `${line("202231.445504")}\n${line("202231.445801")}\n`)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stdout", line("202231.445504"))).toBe(false);
+    expect(isAllowedElectronMainOutput("main-stderr", `${line("202231.445504")}\nTypeError: boom`)).toBe(false);
+  });
+
   it("rejects non-canonical or mixed macOS XPC output", () => {
     const canonicalXpcLine =
       "2026-07-11 00:09:16.142 Electron Helper[3532:12612] XPC error for connection com.apple.backupd.sandbox.xpc: Connection invalid";
