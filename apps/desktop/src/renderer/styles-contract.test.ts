@@ -417,7 +417,6 @@ describe("renderer CSS contracts", () => {
       [".chrome-menu-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
-      [".project-session.is-active"],
       // The session strip is the one raised card in the deck, with hairlines on its controls (v4 canvas).
       [".session-strip"],
       [".session-strip .continue-button"],
@@ -427,7 +426,7 @@ describe("renderer CSS contracts", () => {
       // The hairline of the drop overlay over a dragged-on terminal (v4 Drop board).
       [".terminal-drop-overlay"],
     ]));
-    expect(materialShadows).toHaveLength(10);
+    expect(materialShadows).toHaveLength(9);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -762,8 +761,9 @@ describe("renderer CSS contracts", () => {
     expect(commandPalette).toContain("scrollbar-color: var(--ink-3) transparent");
     expect(paletteScrollbar).toContain("width: 8px");
     expect(paletteThumb).toContain("background: var(--ink-3)");
-    expect(selectedSession).toContain("box-shadow: inset 0 0 0 1px");
-    expect(selectedSession).toContain("var(--signal-focus) 10%");
+    // An open free chat takes the focused tree row's fill, not a teal ring.
+    expect(selectedSession).toContain("background: var(--surface-control)");
+    expect(selectedSession).not.toContain("signal-focus");
   });
 
   it("keeps the New sheet picker inline and lets native controls inherit the app scheme", () => {
@@ -979,7 +979,7 @@ describe("renderer CSS contracts", () => {
 
   it("keeps project navigator hierarchy quiet but readable", () => {
     const navPanel = singleTopLevelRuleBodyIn(styles, ".project-navigator");
-    const navSectionHeader = singleTopLevelRuleBodyIn(styles, ".free-chat-section > header");
+    const navSectionHeader = blockFor(".project-recents-header,\n.free-chat-section > header");
     const projectRow = singleTopLevelRuleBodyIn(styles, ".project-row");
     const navRow = singleTopLevelRuleBodyIn(styles, ".project-row-button");
     const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
@@ -987,8 +987,10 @@ describe("renderer CSS contracts", () => {
     const calmRow = singleTopLevelRuleBodyIn(styles, ".project-row-button.is-calm");
 
     expect(navPanel).toContain("background: var(--surface-chrome)");
-    expect(navSectionHeader).toContain("color: var(--ink-5)");
-    expect(navSectionHeader).toContain("var(--sans)");
+    // Section headings read like "Projects": quiet 12/16 text, no capitals.
+    expect(navSectionHeader).toContain("color: var(--text-faint)");
+    expect(navSectionHeader).toContain("font: 500 12px/16px var(--sans)");
+    expect(navSectionHeader).not.toContain("text-transform");
     expect(navRow).toContain("background: transparent");
     expectCanonicalBase(".project-row-button", [
       "height: 30px",
@@ -996,8 +998,8 @@ describe("renderer CSS contracts", () => {
       "gap: 10px",
     ]);
     expectCanonicalBase(".project-session", [
-      "min-height: 44px",
-      "border-radius: 10px",
+      "border-radius: 8px",
+      "padding: 6px 10px",
     ]);
     expect(projectRow).toContain("grid-template-columns: minmax(0, 1fr) auto");
     expect(navRow).toContain("color: var(--text-secondary)");

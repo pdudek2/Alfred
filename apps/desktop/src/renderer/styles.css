@@ -706,18 +706,20 @@ button {
   border-bottom: 1px solid var(--border);
 }
 
-.project-recents-header {
-  min-height: 27px;
-  padding: 0 8px;
-  color: var(--ink-5);
-  font: 620 12px/1 var(--sans);
+/* Section headings read like "Projects": quiet 12/16 text, no capitals or icons. */
+.project-recents-header,
+.free-chat-section > header {
+  padding: 8px 10px 6px;
+  color: var(--text-faint);
+  font: 500 12px/16px var(--sans);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.project-recents-header span {
-  font: 500 11px/1 var(--sans);
+.project-recents-header strong,
+.free-chat-section > header strong {
+  font-weight: 500;
 }
 
 .project-recent-list {
@@ -725,27 +727,27 @@ button {
   gap: 2px;
 }
 
+/* Recent and Free Chats rows read like the session tree's rows. */
 .project-recent-result {
   min-width: 0;
   width: 100%;
-  min-height: 44px;
   border: 0;
-  border-radius: 7px;
-  padding: 5px 7px;
+  border-radius: 8px;
+  padding: 6px 10px;
   background: transparent;
-  color: var(--ink-6);
+  color: var(--text-secondary);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
+  column-gap: 8px;
   text-align: left;
 }
 
 .project-recent-result:hover,
 .project-recent-result:focus-visible {
-  background: var(--ink-2);
-  color: var(--ink-7);
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
 }
 
 .project-recent-result:focus-visible {
@@ -762,7 +764,7 @@ button {
 .project-recent-copy {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 1px;
 }
 
 .project-recent-copy strong,
@@ -774,18 +776,18 @@ button {
 }
 
 .project-recent-copy strong {
-  color: var(--ink-6);
-  font: 590 12px/1.2 var(--sans);
+  color: inherit;
+  font: 500 13px/18px var(--sans);
 }
 
 .project-recent-copy small {
-  color: var(--ink-5);
-  font: 500 12px/1.2 var(--sans);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
 }
 
 .project-recent-result time {
-  color: var(--ink-5);
-  font: 500 12px/1 var(--sans);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
 }
 
 .project-list,
@@ -938,37 +940,35 @@ button {
 .project-session {
   min-width: 0;
   width: 100%;
-  min-height: 44px;
   border: 0;
-  border-radius: 10px;
-  padding: 7px;
+  border-radius: 8px;
+  padding: 6px 10px;
   background: transparent;
-  color: var(--ink-6);
+  color: var(--text-secondary);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 14px minmax(0, 1fr);
   align-items: start;
-  gap: 7px;
-  font: 500 12px/1.2 var(--sans);
+  column-gap: 8px;
+  font: 500 13px/18px var(--sans);
   text-align: left;
 }
 
 .project-session:hover {
-  background: var(--ink-2);
-  color: var(--ink-7);
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
 }
 
+/* The open chat takes the focused tree row's fill, not a teal one. */
 .project-session.is-active {
-  background: color-mix(in oklab, var(--signal-focus) 10%, var(--ink-1));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent);
-  color: var(--ink-7);
-  font-weight: 620;
+  background: var(--surface-control);
+  color: var(--text-primary);
 }
 
 .project-session-kind {
-  width: 18px;
+  width: 14px;
   height: 18px;
-  color: var(--ink-5);
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -977,14 +977,14 @@ button {
 .project-session-copy {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 1px;
 }
 
 .project-session-meta {
   min-width: 0;
   overflow: hidden;
-  color: var(--ink-5);
-  font: 500 12px/1.2 var(--sans);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1000,28 +1000,15 @@ button {
 }
 
 .project-session:focus-visible {
-  background: var(--ink-2);
-  color: var(--ink-7);
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
   outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
 
 .free-chat-section {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--ink-3);
-}
-
-.free-chat-section > header {
-  min-height: 26px;
-  padding: 0 7px;
-  color: var(--ink-5);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font: 650 10px/1 var(--sans);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .orchestrator-surface {
@@ -1084,7 +1071,12 @@ html[data-alfred-window-material="native"] .session-tree-entry:hover {
 }
 
 html[data-alfred-window-material="native"] .project-session.is-active {
-  background: color-mix(in oklab, var(--signal-focus) 5%, transparent);
+  background: color-mix(in oklab, white 11%, transparent);
+}
+
+html[data-alfred-window-material="native"] .project-session:hover,
+html[data-alfred-window-material="native"] .project-recent-result:hover {
+  background: color-mix(in oklab, white 14%, transparent);
 }
 
 html[data-alfred-window-material="native"] .orchestrator-surface,
