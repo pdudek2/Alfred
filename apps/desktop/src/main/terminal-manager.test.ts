@@ -4338,8 +4338,9 @@ describe("terminal-manager IPC", () => {
       // Pasted as typed text: an escape or a Ctrl+C inside the message cannot end the paste or press a key.
       await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now lint\x1b[201~\x03 it\r\nthanks" }))
         .resolves.toEqual({ worker_id: "codex-1", sent: true, state: "working" });
-      expect(workerPty.writes).toEqual(["\x1b[200~Now lint[201~ it\nthanks\x1b[201~"]);
-      await vi.waitFor(() => expect(workerPty.writes).toEqual(["\x1b[200~Now lint[201~ it\nthanks\x1b[201~", "\r"]));
+      const labelled = '\x1b[200~Message from your orchestrator, Alfred session "Manual terminal" (not from the user):\n\nNow lint[201~ it\nthanks\x1b[201~';
+      expect(workerPty.writes).toEqual([labelled]);
+      await vi.waitFor(() => expect(workerPty.writes).toEqual([labelled, "\r"]));
       await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Again" })).rejects.toThrow(/is working/);
 
       workerPty.onExitHandler?.({ exitCode: 0 });
@@ -4369,6 +4370,120 @@ describe("terminal-manager IPC", () => {
         vi.useRealTimers();
       }
       await expect(callTool(lead.id, "list_workers", {})).resolves.toEqual({ workers: [] });
+    });
+
+    async function orchestratorWithWorkers(count: number) {
+      const { bridge, fire, callTool } = fakeBridge();
+      const leadPty = new FakePty();
+      const workerPtys = Array.from({ length: count }, () => new FakePty());
+      const spawn = vi.fn().mockReturnValueOnce(leadPty);
+      for (const pty of workerPtys) spawn.mockReturnValueOnce(pty);
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn }) as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24, title: "Lead",
+      });
+      const workers: Array<{ id: string; clientId: string }> = [];
+      for (let index = 1; index <= count; index += 1) {
+        const starting = callTool(lead.id, "start_worker", { agent: "codex", prompt: `Task ${index}` });
+        const request = sentEvents.filter((event) => event.channel === terminalChannels.workerRequest).at(-1)!.payload as TerminalWorkerRequest;
+        emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: `codex-${index}`, title: `Task ${index}` });
+        await starting;
+        const created = await invoke<{ id: string }>(terminalChannels.create, {
+          agentKind: "codex", clientId: `codex-${index}`, cols: 80, command: "codex", cwd: "/repo", parentClientId: "claude-1", rows: 24,
+          title: `Task ${index}`,
+        });
+        workers.push({ id: created.id, clientId: `codex-${index}` });
+      }
+      // The orchestrator handed the work out and ended its turn: it waits for the user.
+      fire(lead.id, { state: "working" });
+      fire(lead.id, { state: "your-turn", detail: "Started two workers." });
+      return { bridge, fire, callTool, lead, leadPty, workers, workerPtys };
+    }
+
+    it("wakes an orchestrator that waits for the user once its workers finish, in one message", async () => {
+      vi.useFakeTimers();
+      try {
+        const { fire, lead, leadPty, workers } = await orchestratorWithWorkers(2);
+        fire(workers[0]!.id, { state: "working" });
+        fire(workers[0]!.id, { state: "your-turn", detail: "Typecheck passed.", answer: "Typecheck passed.\nNo errors." });
+        await vi.advanceTimersByTimeAsync(1_000);
+        fire(workers[1]!.id, { state: "your-turn", detail: "Lint is clean." });
+        expect(leadPty.writes).toEqual([]);
+        await vi.advanceTimersByTimeAsync(2_000);
+        // Which workers changed, not what they wrote: their answers come through read_worker, as tool results.
+        expect(leadPty.writes).toEqual([
+          "\x1b[200~Message from Alfred (not from the user): 2 of your workers changed.\n"
+            + '- "Task 1" (codex-1) finished its turn.\n'
+            + '- "Task 2" (codex-2) finished its turn.\n'
+            + "Read their answers with read_worker; send_to_worker gives a worker its next message.\x1b[201~",
+        ]);
+        expect(leadPty.writes[0]).not.toContain("Typecheck passed");
+        await vi.advanceTimersByTimeAsync(200);
+        expect(leadPty.writes.at(-1)).toBe("\r");
+        // Woken, it is working; nothing more is typed until its next turn ends.
+        fire(workers[0]!.id, { state: "your-turn", detail: "Again." });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes).toHaveLength(2);
+        fire(lead.id, { state: "your-turn", detail: "Both done." });
+        await vi.advanceTimersByTimeAsync(2_200);
+        expect(leadPty.writes.at(-2)).toContain('your worker "Task 1" (codex-1) finished its turn.');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not wake an orchestrator whose draft you are typing, asking for approval, or that read the news", async () => {
+      vi.useFakeTimers();
+      try {
+        const { fire, callTool, lead, leadPty, workers } = await orchestratorWithWorkers(1);
+        // You started typing to it: Alfred's Enter would send your half-written message.
+        emit(terminalChannels.write, { id: lead.id, data: "plea" });
+        fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes).toEqual(["plea"]);
+
+        // You sent it; it worked and ended its turn: now the news goes, once.
+        emit(terminalChannels.write, { id: lead.id, data: "se\r" });
+        fire(lead.id, { state: "working" });
+        fire(lead.id, { state: "your-turn", detail: "Answered you." });
+        await vi.advanceTimersByTimeAsync(2_200);
+        expect(leadPty.writes.filter((write) => write.includes("Message from Alfred"))).toHaveLength(1);
+
+        // Asking you for approval, it is not woken.
+        fire(lead.id, { state: "working" });
+        fire(lead.id, { state: "needs-you", detail: "Bash: rm -rf dist" });
+        fire(workers[0]!.id, { state: "working" });
+        fire(workers[0]!.id, { state: "your-turn", detail: "Again." });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes.filter((write) => write.includes("Message from Alfred"))).toHaveLength(1);
+
+        // It read the worker itself before its turn ended, so there is no news left.
+        await callTool(lead.id, "read_worker", { worker_id: "codex-1" });
+        fire(lead.id, { state: "your-turn", detail: "Done." });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes.filter((write) => write.includes("Message from Alfred"))).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("stops a worker for its orchestrator without waking it about that", async () => {
+      vi.useFakeTimers();
+      try {
+        const { callTool, lead, leadPty, workerPtys } = await orchestratorWithWorkers(1);
+        await expect(callTool(lead.id, "stop_worker", { worker_id: "codex-1" })).resolves.toEqual({ worker_id: "codex-1", stopped: true });
+        expect(workerPtys[0]!.killed).toBe(true);
+        workerPtys[0]!.onExitHandler?.({ exitCode: 0 });
+        expect(sentEvents.some((event) => event.channel === terminalChannels.exit)).toBe(true);
+        await expect(callTool(lead.id, "read_worker", { worker_id: "codex-1" })).resolves.toMatchObject({
+          state: "ended",
+          recent_steps: expect.arrayContaining(["Its orchestrator stopped this worker."]),
+        });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("takes a hooked agent's history from its hooks, not from the screen it redraws", async () => {

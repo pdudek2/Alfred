@@ -80,7 +80,9 @@ import {
 } from "./persisted-desktop-state.js";
 import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path.js";
 import {
+  alfredNotice,
   createWorkerTools,
+  workerState,
   WorkerToolError,
   type WorkerHost,
   type WorkerRecord,
@@ -159,6 +161,10 @@ type TerminalSession = {
   lastPromptSeq?: number | undefined;
   lastTurnEndSeq?: number | undefined;
   lastAnswer?: string | undefined;
+  /** You typed into this session since its last turn ended: a draft Alfred's Enter must not send. */
+  typedSinceTurnEnd?: boolean | undefined;
+  /** Its orchestrator stopped it, so its end is no news to wake that orchestrator with. */
+  stoppedByOrchestrator?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
   submittedAgentKind?: TerminalForegroundAgentKind | undefined;
   lastActivityAt?: number;
@@ -213,6 +219,14 @@ const WORKER_START_GRACE_MS = 2 * 60 * 1000;
 const WORKER_REPLY_TIMEOUT_MS = 10_000;
 /** Claude Code and Codex read an Enter that arrives with a paste as part of it; a separate one sends the message. */
 const PASTE_SUBMIT_DELAY_MS = 150;
+/** Workers an orchestrator started with its tools; only these wake it. */
+const toolStartedWorkers = new Set<string>();
+type WorkerNews = { title: string; ended: boolean };
+/** What each orchestrator has not been told yet about its workers, by worker. */
+const pendingWakes = new Map<string, Map<string, WorkerNews>>();
+const wakeTimers = new Map<string, NodeJS.Timeout>();
+/** Workers that finish close together reach their orchestrator in one message. */
+const WAKE_BATCH_MS = 2_000;
 
 export function configureTerminalPersistence(
   store: PersistedDesktopStateStore,
@@ -250,6 +264,10 @@ export function resetTerminalPersistenceForTests(): void {
   pendingPtyExits.clear();
   offstageWorkers.clear();
   workerListeners.clear();
+  toolStartedWorkers.clear();
+  pendingWakes.clear();
+  for (const timer of wakeTimers.values()) clearTimeout(timer);
+  wakeTimers.clear();
   persistDebounceMs = 250;
 }
 
@@ -279,12 +297,27 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     caller: (sessionId) => {
       const session = sessions.get(sessionId);
       return session?.clientId
-        ? { clientId: session.clientId, isAgent: isAgentSession(session), isWorker: session.parentClientId !== undefined }
+        ? {
+            clientId: session.clientId,
+            title: session.title,
+            isAgent: isAgentSession(session),
+            isWorker: session.parentClientId !== undefined,
+          }
         : undefined;
     },
     workersOf,
     startWorker: (parentClientId, request) => requestWorker(parentClientId, request, workerReplies),
-    send: sendToWorker,
+    send: (clientId, text) => {
+      const session = findLiveSessionByClientId(clientId);
+      if (!session) throw new WorkerToolError("The worker has ended.");
+      typeIntoAgent(session, text);
+    },
+    stop: stopWorker,
+    markSeen: (parentClientId, workerClientIds) => {
+      const news = pendingWakes.get(parentClientId);
+      for (const id of workerClientIds) news?.delete(id);
+      if (news?.size === 0) pendingWakes.delete(parentClientId);
+    },
     onChange: (listener) => {
       workerListeners.add(listener);
       return () => workerListeners.delete(listener);
@@ -654,6 +687,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     // Moving the mouse over or clicking into a waiting Codex terminal sends mouse and focus reports; only your own
     // input answers it.
     if (!isTerminalReport(request.data)) {
+      session.typedSinceTurnEnd = true;
       const cleared = clearWaitingSignal(session);
       const answered = answerApproval(session);
       // Until Enter sends your first message, an agent waits for it, whatever it draws.
@@ -1503,7 +1537,72 @@ function rememberEndedWorker(session: TerminalSession): void {
     if (oldest === undefined) break;
     offstageWorkers.delete(oldest);
   }
+  if (!session.stoppedByOrchestrator) queueWake(session, true);
   notifyWorkers();
+}
+
+/** Keeps the news for the worker's orchestrator; a worker you started yourself is not its news. */
+function queueWake(worker: TerminalSession, ended: boolean): void {
+  if (!worker.clientId || !worker.parentClientId || !toolStartedWorkers.has(worker.clientId)) return;
+  const news = pendingWakes.get(worker.parentClientId) ?? new Map<string, WorkerNews>();
+  news.set(worker.clientId, { title: worker.title, ended });
+  pendingWakes.set(worker.parentClientId, news);
+  scheduleWake(worker.parentClientId);
+}
+
+function scheduleWake(parentClientId: string): void {
+  clearTimeout(wakeTimers.get(parentClientId));
+  wakeTimers.set(parentClientId, setTimeout(() => {
+    wakeTimers.delete(parentClientId);
+    deliverWake(parentClientId);
+  }, WAKE_BATCH_MS).unref());
+}
+
+/**
+ * Tells an orchestrator that waits for the user what its workers did, so it need not wait for them itself. Only when
+ * its hooks say it waits for a message, and you have not started typing one: the news then waits for its next turn end.
+ */
+function deliverWake(parentClientId: string): void {
+  const news = pendingWakes.get(parentClientId);
+  if (!news?.size) return;
+  const orchestrator = findLiveSessionByClientId(parentClientId);
+  if (!orchestrator) {
+    pendingWakes.delete(parentClientId);
+    return;
+  }
+  const waitsForMessage = orchestrator.hooksLive && workerState(workerRecord(orchestrator).turn) === "your turn";
+  if (!waitsForMessage || orchestrator.typedSinceTurnEnd) return;
+  pendingWakes.delete(parentClientId);
+  typeIntoAgent(orchestrator, alfredNotice(wakeText(news)));
+}
+
+/**
+ * Which workers changed, never what they wrote: a worker's answer under Alfred's label would read as Alfred's own word,
+ * so the orchestrator reads it with read_worker, as a tool result.
+ */
+function wakeText(news: Map<string, WorkerNews>): string {
+  const items = [...news.entries()];
+  const [onlyId, only] = items.length === 1 ? items[0]! : [];
+  const head = only
+    ? `your worker ${JSON.stringify(only.title)} (${onlyId}) ${only.ended ? "has ended" : "finished its turn"}.`
+    : `${items.length} of your workers changed.`;
+  const lines = items.length === 1
+    ? []
+    : items.map(([id, item]) => `- ${JSON.stringify(item.title)} (${id}) ${item.ended ? "ended" : "finished its turn"}.`);
+  return [head, ...lines, "Read their answers with read_worker; send_to_worker gives a worker its next message."].join("\n");
+}
+
+function stopWorker(clientId: string): void {
+  const session = findLiveSessionByClientId(clientId);
+  if (!session) throw new WorkerToolError("The worker has already ended.");
+  session.stoppedByOrchestrator = true;
+  recordSessionActivity(session, {
+    kind: "lifecycle",
+    title: "Stopped by its orchestrator",
+    detail: "Its orchestrator stopped this worker. Its files stay as they are.",
+  });
+  // The exit is reported like any other, so the window shows it ended.
+  session.pty.kill();
 }
 
 function workersOf(parentClientId: string): WorkerRecord[] {
@@ -1548,6 +1647,7 @@ async function requestWorker(
   const clientId = clientIdValue(reply.clientId);
   if (!clientId || clientId === parentClientId) throw new WorkerToolError("Alfred could not add the worker.");
   const title = typeof reply.title === "string" && reply.title.trim() ? reply.title.trim() : clientId;
+  toolStartedWorkers.add(clientId);
   offstageWorkers.set(clientId, {
     clientId,
     title,
@@ -1561,9 +1661,8 @@ async function requestWorker(
   return { clientId, title };
 }
 
-function sendToWorker(clientId: string, message: string): void {
-  const session = findLiveSessionByClientId(clientId);
-  if (!session) throw new WorkerToolError("The worker has ended.");
+/** Pastes text into an agent's terminal and presses Enter: an orchestrator's message to its worker, or Alfred's news. */
+function typeIntoAgent(session: TerminalSession, message: string): void {
   // Only hooks say for sure that the agent waits for a message rather than shows an approval menu, where Enter would answer.
   if (!session.hooksLive) {
     throw new WorkerToolError(
@@ -1578,6 +1677,7 @@ function sendToWorker(clientId: string, message: string): void {
     if (sessions.get(session.id) === session && session.agentSignal?.state !== "needs-you") session.pty.write("\r");
   }, PASTE_SUBMIT_DELAY_MS).unref();
   session.lastPromptSeq = ++turnSeq;
+  session.typedSinceTurnEnd = false;
   if (!session.promptSubmitted) {
     session.promptSubmitted = true;
     sendSignalUpdate(session, { promptSubmitted: true });
@@ -1606,6 +1706,10 @@ function applyAgentSignal(
   if (update.state === "your-turn") {
     session.lastTurnEndSeq = ++turnSeq;
     session.lastAnswer = update.answer ?? update.detail;
+    session.typedSinceTurnEnd = false;
+    queueWake(session, false);
+    // Its own turn just ended: news that waited for it can go now.
+    if (session.clientId && pendingWakes.get(session.clientId)?.size) scheduleWake(session.clientId);
   }
   notifyWorkers();
   const activity = update.state === "needs-you"

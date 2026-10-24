@@ -27,7 +27,8 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   const orchestrator = mcpClient(config);
   await orchestrator.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } });
   const listed = await orchestrator.request("tools/list", {}) as { result: { tools: Array<{ name: string }> } };
-  expect(listed.result.tools.map((tool) => tool.name)).toEqual(["start_worker", "list_workers", "read_worker", "wait_for_worker", "send_to_worker"]);
+  expect(listed.result.tools.map((tool) => tool.name))
+    .toEqual(["start_worker", "list_workers", "read_worker", "wait_for_worker", "send_to_worker", "stop_worker"]);
 
   const leadInput = leadTile.getByRole("textbox", { name: "Terminal input" });
   await leadTile.getByTestId("xterm-host").click();
@@ -63,14 +64,40 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   const workerTile = page.locator('[data-testid="terminal-tile"]:visible');
   await expect(workerTile).toHaveAttribute("data-session-id", "codex-1");
   await expect(workerTile.getByTestId("xterm-host")).toContainText("> Run the typecheck");
+  await expect(workerTile.getByTestId("xterm-host")).toContainText("Message from your orchestrator, Alfred session");
   await expect(workerTile.getByTestId("xterm-host")).toContainText("Now run the lint");
   expect((await workerTile.getByTestId("xterm-host").boundingBox())!.width).toBeGreaterThan(600);
 
   expect(parse(await orchestrator.call("start_worker", { agent: "claude", prompt: "Review the diff" }))).toMatchObject({ state: "starting" });
-  expect(parse(await orchestrator.call("start_worker", { agent: "codex", prompt: "Write the notes" }))).toMatchObject({ state: "starting" });
+  expect(parse(await orchestrator.call("start_worker", { agent: "codex", prompt: "Write the notes", model: "gpt-6.1-sol", effort: "medium" })))
+    .toMatchObject({ state: "starting", model: "gpt-6.1-sol", effort: "medium" });
+  const notes = await launchedAgent(paths.root, "codex", (args) => args.includes("Write the notes"));
+  expect(notes.args.slice(notes.args.indexOf("--") - 4, notes.args.indexOf("--")))
+    .toEqual(["-m", "gpt-6.1-sol", "-c", 'model_reasoning_effort="medium"']);
   expect(await orchestrator.call("start_worker", { agent: "codex", prompt: "One too many" }))
     .toMatchObject({ isError: true, text: expect.stringMatching(/already run 4 live workers/) });
   await expect(workers.locator(".session-tree-row")).toHaveCount(4);
+
+  // The orchestrator ends its turn; when a worker it started finishes, Alfred tells it, under its own label.
+  await treeRow(page, leadId).click();
+  await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveAttribute("data-session-id", leadId);
+  await hook(lead, "UserPromptSubmit", { prompt: "Hand the work out" });
+  await hook(lead, "Stop", { last_assistant_message: "Started the workers." });
+  const readme = await launchedAgent(paths.root, "codex", (args) => args.includes("Read the README"));
+  await hook(readme, "UserPromptSubmit", { prompt: "Read the README" });
+  await hook(readme, "Stop", { last_assistant_message: "The README describes the desktop app." });
+  await expect(leadTile.getByTestId("xterm-host")).toContainText("Message from Alfred (not from the user)", { timeout: 10_000 });
+  await expect(leadTile.getByTestId("xterm-host")).toContainText('your worker "Codex" (codex-2) finished its turn.');
+  await expect(leadTile.getByTestId("xterm-host")).not.toContainText("The README describes the desktop app.");
+
+  // Stopped by the orchestrator, the worker ends and the orchestrator is not told what it did itself.
+  const leadText = async () => (await leadTile.getByTestId("xterm-host").textContent()) ?? "";
+  const notices = (await leadText()).split("Message from Alfred").length;
+  expect(parse(await orchestrator.call("stop_worker", { worker_id: "codex-2" }))).toEqual({ worker_id: "codex-2", stopped: true });
+  await expect.poll(async () => (parse(await orchestrator.call("read_worker", { worker_id: "codex-2" })) as { state: string }).state)
+    .toBe("ended");
+  await page.waitForTimeout(3_000);
+  expect((await leadText()).split("Message from Alfred").length).toBe(notices);
 
   // A worker has no tools of its own; called with its session, Alfred refuses.
   const worker = mcpClient({ ...config, args: [...config.args.slice(0, -1), typecheck.sessionId] });

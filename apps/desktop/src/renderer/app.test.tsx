@@ -7950,10 +7950,15 @@ describe("App integration", () => {
 
     await bridge.emitWorkerRequest({
       requestId: "r1", parentClientId: "lead", agent: "claude", prompt: "Run the typecheck", isolated: true, title: "Typecheck",
+      model: "claude-opus-5-5", effort: "high",
     });
     expect(bridge.answerWorkerRequest).toHaveBeenCalledWith({ requestId: "r1", clientId: "claude-1", title: "Typecheck" });
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledWith(expect.objectContaining({
-      agentKind: "claude", args: ["--", "Run the typecheck"], clientId: "claude-1", isolation: "worktree", parentClientId: "lead",
+      agentKind: "claude",
+      args: ["--model", "claude-opus-5-5", "--effort", "high", "--", "Run the typecheck"],
+      clientId: "claude-1",
+      isolation: "worktree",
+      parentClientId: "lead",
     })));
     const workers = within(railSessions()).getByRole("list", { name: "Workers of Codex · lead" });
     expect(within(workers).getByRole("button", { name: /^Typecheck/ })).toHaveAccessibleDescription(/Worker of Codex · lead/);
@@ -7961,6 +7966,14 @@ describe("App integration", () => {
     expect(bridge.setWorkspaceViewState).not.toHaveBeenCalledWith(
       expect.objectContaining({ viewState: expect.objectContaining({ selectedSessionId: "claude-1" }) }),
     );
+
+    // Codex takes its model with -m and its effort as a config override.
+    await bridge.emitWorkerRequest({
+      requestId: "r3", parentClientId: "lead", agent: "codex", prompt: "Lint", isolated: false, model: "gpt-6.1-sol", effort: "medium",
+    });
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      agentKind: "codex", args: ["-m", "gpt-6.1-sol", "-c", 'model_reasoning_effort="medium"', "--", "Lint"],
+    })));
 
     await bridge.emitWorkerRequest({ requestId: "r2", parentClientId: "gone", agent: "codex", prompt: "x", isolated: false });
     expect(bridge.answerWorkerRequest).toHaveBeenLastCalledWith({ requestId: "r2", error: "Alfred no longer shows this session." });
