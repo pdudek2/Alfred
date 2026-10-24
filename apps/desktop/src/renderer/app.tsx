@@ -3025,12 +3025,12 @@ function PrivacyPanel({
                 <button ref={keepDataButtonRef} type="button" onClick={cancelClearSavedTerminalData}>
                   Keep data
                 </button>
-                <button type="button" className="privacy-action-button" onClick={() => void clearSavedTerminalData()}>
+                <button type="button" className="privacy-action-button danger" onClick={() => void clearSavedTerminalData()}>
                   Clear asleep sessions
                 </button>
               </div>
             ) : (
-              <button ref={clearActionRef} type="button" className="privacy-action-button" onClick={() => setClearArmed(true)}>
+              <button ref={clearActionRef} type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
                 Clear asleep sessions…
               </button>
             )}
