@@ -290,12 +290,13 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     expect(bridge!.env("session-1", "codex")).not.toHaveProperty("MCP_TOOL_TIMEOUT");
 
     const codex = bridge!.launchArgs("codex", { id: "session-3", worker: false });
-    expect(codex.slice(0, -8)).toEqual(bridge!.launchArgs("codex"));
-    expect(codex.slice(-8)).toEqual([
+    expect(codex.slice(0, -10)).toEqual(bridge!.launchArgs("codex"));
+    expect(codex.slice(-10)).toEqual([
       "-c", `mcp_servers.alfred.command=${JSON.stringify(process.execPath)}`,
       "-c", `mcp_servers.alfred.args=${JSON.stringify([path.join(dir, "d", "alfred-mcp.cjs"), path.join(dir, "s"), "session-3"])}`,
       "-c", 'mcp_servers.alfred.env={ELECTRON_RUN_AS_NODE="1"}',
       "-c", "mcp_servers.alfred.tool_timeout_sec=150",
+      "-c", 'mcp_servers.alfred.default_tools_approval_mode="approve"',
     ]);
     expect(bridge!.launchArgs("codex", { id: "session-4", worker: true })).toEqual(bridge!.launchArgs("codex"));
   });

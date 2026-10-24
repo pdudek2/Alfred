@@ -6,6 +6,7 @@ import {
   WorkerToolError,
   type WorkerHost,
   type WorkerRecord,
+  type WorkerStartRequest,
   type WorkerTurn,
 } from "./worker-tools";
 
@@ -16,8 +17,9 @@ function fakeHost(workers: WorkerRecord[] = []) {
   const sent: Array<[string, string]> = [];
   const host: WorkerHost = {
     caller: (sessionId) => {
-      if (sessionId === "lead-session") return { clientId: "claude-1", isWorker: false };
-      if (sessionId === "worker-session") return { clientId: "codex-1", isWorker: true };
+      if (sessionId === "lead-session") return { clientId: "claude-1", isAgent: true, isWorker: false };
+      if (sessionId === "worker-session") return { clientId: "codex-1", isAgent: true, isWorker: true };
+      if (sessionId === "shell-session") return { clientId: "manual-1", isAgent: false, isWorker: false };
       return undefined;
     },
     workersOf: (parent) => (parent === "claude-1" ? workers : []),
@@ -78,6 +80,7 @@ describe("worker tools", () => {
     const { host } = fakeHost();
     const tools = createWorkerTools(host);
     await expect(tools.call("worker-session", "start_worker", { agent: "codex", prompt: "x" })).rejects.toThrow(/cannot start or run workers/);
+    await expect(tools.call("shell-session", "start_worker", { agent: "codex", prompt: "x" })).rejects.toThrow(/Only a Claude or Codex/);
     await expect(tools.call("gone", "list_workers", {})).rejects.toThrow(/not running in Alfred/);
     await expect(tools.call("lead-session", "start_worker", { agent: "gemini", prompt: "x" })).rejects.toThrow(/agent must be/);
     await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: "  " })).rejects.toBeInstanceOf(WorkerToolError);
@@ -91,6 +94,20 @@ describe("worker tools", () => {
     await expect(tools.call("lead-session", "start_worker", { agent: "claude", prompt: "x" })).rejects.toThrow(/already run 4 live workers/);
     live[0]!.turn.exited = true;
     await expect(tools.call("lead-session", "start_worker", { agent: "claude", prompt: "x" })).resolves.toMatchObject({ state: "starting" });
+  });
+
+  it("counts starts still waiting for the window, so parallel calls stop at the limit too", async () => {
+    const { host } = fakeHost();
+    const pending: Array<() => void> = [];
+    host.startWorker = vi.fn((_parent: string, request: WorkerStartRequest) => new Promise<{ clientId: string; title: string }>((resolve) => {
+      pending.push(() => resolve({ clientId: `${request.agent}-${pending.length}`, title: "Codex" }));
+    }));
+    const tools = createWorkerTools(host);
+    const calls = Array.from({ length: MAX_LIVE_WORKERS + 1 }, () => tools.call("lead-session", "start_worker", { agent: "codex", prompt: "x" }));
+    await expect(calls.at(-1)).rejects.toThrow(/already run 4 live workers/);
+    expect(host.startWorker).toHaveBeenCalledTimes(MAX_LIVE_WORKERS);
+    pending.forEach((resolve) => resolve());
+    await expect(Promise.all(calls.slice(0, -1))).resolves.toHaveLength(MAX_LIVE_WORKERS);
   });
 
   it("reads a worker's last answer and its last steps, newest first", async () => {

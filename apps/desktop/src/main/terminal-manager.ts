@@ -278,7 +278,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const workerHost: WorkerHost = {
     caller: (sessionId) => {
       const session = sessions.get(sessionId);
-      return session?.clientId ? { clientId: session.clientId, isWorker: session.parentClientId !== undefined } : undefined;
+      return session?.clientId
+        ? { clientId: session.clientId, isAgent: isAgentSession(session), isWorker: session.parentClientId !== undefined }
+        : undefined;
     },
     workersOf,
     startWorker: (parentClientId, request) => requestWorker(parentClientId, request, workerReplies),
@@ -1562,12 +1564,18 @@ async function requestWorker(
 function sendToWorker(clientId: string, message: string): void {
   const session = findLiveSessionByClientId(clientId);
   if (!session) throw new WorkerToolError("The worker has ended.");
+  // Only hooks say for sure that the agent waits for a message rather than shows an approval menu, where Enter would answer.
+  if (!session.hooksLive) {
+    throw new WorkerToolError(
+      "Alfred cannot tell when this worker waits for a message, because it does not run Alfred's hooks. The user can trust them in its terminal (/hooks in Codex).",
+    );
+  }
   // The message is typed into another agent's terminal: no control sequence may end the paste early or press keys.
   // eslint-disable-next-line no-control-regex
   const text = message.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
   session.pty.write(`\x1b[200~${text}\x1b[201~`);
   setTimeout(() => {
-    if (sessions.get(session.id) === session) session.pty.write("\r");
+    if (sessions.get(session.id) === session && session.agentSignal?.state !== "needs-you") session.pty.write("\r");
   }, PASTE_SUBMIT_DELAY_MS).unref();
   session.lastPromptSeq = ++turnSeq;
   if (!session.promptSubmitted) {

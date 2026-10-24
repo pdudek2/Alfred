@@ -485,6 +485,8 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
                 "-c", `mcp_servers.alfred.args=${JSON.stringify(tools.args)}`,
                 "-c", "mcp_servers.alfred.env={ELECTRON_RUN_AS_NODE=\"1\"}",
                 "-c", `mcp_servers.alfred.tool_timeout_sec=${MCP_TOOL_TIMEOUT_SECONDS}`,
+                // Codex asks before every MCP call otherwise; Claude gets the same through its settings' allow rule.
+                "-c", 'mcp_servers.alfred.default_tools_approval_mode="approve"',
               ]
             : []),
         ];
