@@ -1,4 +1,4 @@
-import { chmod, mkdir, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import net from "node:net";
 import os from "node:os";
@@ -24,6 +24,14 @@ const MAX_DETAIL = 240;
 const MAX_ANSWER = 20_000;
 /** Long enough for wait_for_worker's two minutes; Claude reads it from the environment, Codex from its server entry. */
 const MCP_TOOL_TIMEOUT_SECONDS = 150;
+/**
+ * Codex reports a turn end or a wait as an OSC 9 notification, the fallback for hooks you chose not to trust or a
+ * bridge that did not start.
+ * ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
+ */
+export const CODEX_NOTIFICATION_ARGS: readonly string[] = [
+  "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
+];
 /** macOS limits unix socket paths to 104 bytes. */
 const MAX_SOCKET_PATH = 100;
 
@@ -31,13 +39,24 @@ const RELAY_SOURCE = `// Forwards one agent hook event to Alfred. It must never 
 const net = require("node:net");
 const chunks = [];
 process.stdin.on("data", (chunk) => chunks.push(chunk));
+// Alfred reads names, paths and at most __MAX_TEXT__ characters of any text; a written file's content would
+// push the message past Alfred's limit and lose the event.
+// shortcut: each text is cut, not the whole message; a call with dozens of long texts still goes over.
+const shorten = (value) => typeof value === "string" ? value.slice(0, __MAX_TEXT__)
+  : Array.isArray(value) ? value.map(shorten)
+  : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, shorten(item)]))
+  : value;
 process.stdin.on("end", () => {
   const socketPath = process.env.ALFRED_HOOK_SOCKET;
   if (!socketPath) process.exit(0);
+  let payload = Buffer.concat(chunks).toString("utf8");
+  try {
+    payload = JSON.stringify(shorten(JSON.parse(payload)));
+  } catch {}
   const message = JSON.stringify({
     sessionId: process.env.ALFRED_SESSION_ID,
     event: process.argv[2],
-    payload: Buffer.concat(chunks).toString("utf8"),
+    payload,
   }) + "\\n";
   const socket = net.connect(socketPath, () => socket.end(message));
   socket.on("error", () => process.exit(0));
@@ -344,18 +363,44 @@ type BridgeOptions = {
   socketPath?: string;
 };
 
+const SOCKET_NAME = /^alfred-(\d+)-[0-9a-f]{6}\.sock$/;
+
+/** A crashed Alfred leaves its socket behind; another running Alfred (such as Preview) keeps its own. */
+export async function removeOrphanedSockets(dir: string): Promise<void> {
+  const names = await readdir(dir).catch(() => []);
+  await Promise.all(names.map(async (name) => {
+    const pid = Number(SOCKET_NAME.exec(name)?.[1]);
+    if (!pid || isRunning(pid)) return;
+    await unlink(path.join(dir, name)).catch(() => {});
+  }));
+}
+
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM: the process exists but belongs to someone else.
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
 export async function createAgentSignalBridge(options: BridgeOptions): Promise<AgentSignalBridge | null> {
   // ponytail: hooks run through a POSIX shell command line; Windows keeps the output-window fallback.
   if (process.platform === "win32") return null;
 
+  if (!options.socketPath) await removeOrphanedSockets(os.tmpdir());
   const socketPath = options.socketPath ?? path.join(os.tmpdir(), `alfred-${process.pid}-${randomBytes(3).toString("hex")}.sock`);
-  if (Buffer.byteLength(socketPath) > MAX_SOCKET_PATH) return null;
+  if (Buffer.byteLength(socketPath) > MAX_SOCKET_PATH) {
+    console.error(`Agent state signals are unavailable: the socket path is longer than ${MAX_SOCKET_PATH} bytes.`, socketPath);
+    return null;
+  }
 
   await mkdir(options.dir, { recursive: true, mode: 0o700 });
   const relayPath = path.join(options.dir, "hook-relay.cjs");
   const mcpServerPath = path.join(options.dir, "alfred-mcp.cjs");
   const settingsPath = path.join(options.dir, "claude-hooks.json");
-  await writeFile(relayPath, RELAY_SOURCE, { mode: 0o600 });
+  await writeFile(relayPath, RELAY_SOURCE.replaceAll("__MAX_TEXT__", String(MAX_ANSWER)), { mode: 0o600 });
   await writeFile(mcpServerPath, MCP_SERVER_SOURCE.replace("__TOOLS__", JSON.stringify(WORKER_TOOL_DEFINITIONS)), { mode: 0o600 });
   const relayCommand = (event: string) =>
     `ELECTRON_RUN_AS_NODE=1 ${shellQuote(options.execPath)} ${shellQuote(relayPath)} ${event}`;
@@ -484,11 +529,9 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
           ? ["--mcp-config", JSON.stringify({ mcpServers: { alfred: { type: "stdio", ...tools } } }), "--settings", settingsPath]
           : ["--settings", settingsPath];
       }
-      // ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
-      // The notifications stay as the fallback for hooks you chose not to trust.
       if (command === "codex") {
         return [
-          "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
+          ...CODEX_NOTIFICATION_ARGS,
           ...codexHookArgs,
           ...(tools
             ? [
