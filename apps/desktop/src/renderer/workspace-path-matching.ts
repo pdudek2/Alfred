@@ -1,21 +1,3 @@
-export type WorkspacePathTarget = {
-  rootPath?: string | undefined;
-};
-
-export function findWorkspaceForCwd<T extends WorkspacePathTarget>(
-  cwd: string | undefined,
-  workspaces: readonly T[],
-): T | null {
-  const normalizedCwd = normalizePosixPath(cwd);
-  if (!normalizedCwd) return null;
-
-  return (
-    workspaces
-      .filter((workspace) => pathMatchesWorkspace(normalizedCwd, workspace.rootPath))
-      .sort((left, right) => normalizedPathLength(right.rootPath) - normalizedPathLength(left.rootPath))[0] ?? null
-  );
-}
-
 export function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): boolean {
   const root = normalizePosixPath(rootPath);
   if (!root) return false;
@@ -41,10 +23,6 @@ function legacyProjectWorktreeRoot(rootPath: string): string {
 
 function isSameOrChildPath(candidate: string, root: string): boolean {
   return candidate === root || candidate.startsWith(`${root}/`);
-}
-
-function normalizedPathLength(path: string | undefined): number {
-  return normalizePosixPath(path)?.length ?? 0;
 }
 
 function normalizePosixPath(path: string | undefined): string | null {

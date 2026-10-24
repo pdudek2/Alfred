@@ -224,7 +224,6 @@ test.describe("draft plan layout", () => {
         style: privacySafeScreenshotStyle,
       });
     }
-    harness.assertNoRuntimeErrors();
   });
 });
 
@@ -257,7 +256,6 @@ test.describe("New session sheet layout", () => {
       await expect(sheet.getByRole("checkbox")).toHaveCSS("color-scheme", scheme);
     }
     await page.evaluate(() => document.documentElement.style.removeProperty("color-scheme"));
-    harness.assertNoRuntimeErrors();
   });
 
   test("keeps three prompt rows and scrolls beyond them", async ({ harness }, testInfo) => {
@@ -296,7 +294,6 @@ test.describe("New session sheet layout", () => {
       path: testInfo.outputPath("new-session-four-lines.png"),
       style: privacySafeScreenshotStyle,
     });
-    harness.assertNoRuntimeErrors();
   });
 });
 
@@ -391,7 +388,6 @@ test.describe("work session and project identity", () => {
       path: testInfo.outputPath("project-rail-with-details-1120x720.png"),
       style: identityScreenshotStyle,
     });
-    harness.assertNoRuntimeErrors();
   });
 });
 

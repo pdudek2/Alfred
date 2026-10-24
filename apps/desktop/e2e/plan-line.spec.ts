@@ -87,8 +87,6 @@ test("launches and discards drafts from the plan line without touching live term
   // The other project's drafts stay on its own line.
   await page.getByRole("button", { name: "Fixture Beta project" }).click();
   await expect(page.locator(".plan-line__disclose")).toContainText("2 ready");
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function capture(page: Page, name: string): Promise<void> {

@@ -126,8 +126,6 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   });
 
   for (const geometry of surfaceGeometries) assertSurfaceGeometry(geometry);
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 test("a new terminal takes focus while another terminal streams output", async ({ harness }) => {

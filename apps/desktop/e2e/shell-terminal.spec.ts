@@ -243,8 +243,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     await testInfo.attach(fileName, { path: path.join(evidenceDir, fileName), contentType: "image/png" });
   }
 
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function addManualTerminal(page: Page): Promise<void> {

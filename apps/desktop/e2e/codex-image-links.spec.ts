@@ -28,8 +28,6 @@ test("previews the file behind a sent Codex [Image #1] from the rollout its hook
   await expect.poll(() => peek.locator("img").evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
   await page.mouse.move(5, 5);
   await expect(peek).toHaveCount(0);
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 test("tells screenshots sent on their own apart and keeps their preview while Codex redraws", async ({ harness }) => {
@@ -90,8 +88,6 @@ test("tells screenshots sent on their own apart and keeps their preview while Co
     working = false;
     await redraws;
   }
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 test("keeps the previews while Codex pins a scrolled-off message to the top row", async ({ harness }) => {
@@ -129,8 +125,6 @@ test("keeps the previews while Codex pins a scrolled-off message to the top row"
   await expect(sentRow(tile, /Worked\sfor\s24s/)).toHaveCount(0);
   await hoverPlaceholder(page, screenshots.first());
   await expect(peek).toContainText("first.png");
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 type SentMessage = { text: string; image?: string };

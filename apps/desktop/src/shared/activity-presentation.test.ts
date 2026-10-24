@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   activitySentence,
   classifyActivityPresentationLayer,
-  meaningfulSignalEvents,
   presentActivityEvents,
   waitingSentence,
 } from "./activity-presentation";
@@ -164,7 +163,6 @@ describe("activity presentation", () => {
 
     expect(classifyActivityPresentationLayer(events[0]!)).toBe("raw");
     expect(classifyActivityPresentationLayer(events[1]!)).toBe("signal");
-    expect(meaningfulSignalEvents(events).map((event) => event.id)).toEqual(["approval"]);
   });
 
   it("can include raw events explicitly for inspection", () => {
