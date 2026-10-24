@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { preflightAlfredPlan } from "./alfred-launch-preflight.js";
 
@@ -35,6 +38,28 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
+  it("blocks a draft whose folder is not in the project", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "preflight-"));
+    await mkdir(path.join(root, "apps", "desktop"), { recursive: true });
+
+    const result = await preflightAlfredPlan(
+      {
+        sessions: [
+          { kind: "codex", title: "Web", command: "codex", args: [], cwd: "apps/web" },
+          { kind: "codex", title: "Desktop", command: "codex", args: [], cwd: "apps/desktop" },
+        ],
+      },
+      { id: "A", label: "Alfred", rootPath: root },
+      { commandExists: async () => true },
+    );
+
+    expect(result.sessions.map((session) => session.launchPreflight)).toEqual([
+      expect.objectContaining({ status: "blocked", code: "cwd_missing", label: "Folder missing" }),
+      expect.objectContaining({ status: "ready", label: "Ready" }),
+    ]);
+    await rm(root, { force: true, recursive: true });
+  });
+
   it("preflights plain coding agents in Git workspaces as shared", async () => {
     const preflightAgentWorktree = vi.fn();
 
@@ -45,6 +70,7 @@ describe("preflightAlfredPlan", () => {
       { id: "A", label: "Alfred", rootPath: "/repo" },
       {
         commandExists: async () => true,
+        directoryExists: async () => true,
         preflightAgentWorktree,
       },
     );
@@ -81,6 +107,7 @@ describe("preflightAlfredPlan", () => {
       { id: "A", label: "Alfred", rootPath: "/repo" },
       {
         commandExists: async () => true,
+        directoryExists: async () => true,
         preflightAgentWorktree,
       },
     );

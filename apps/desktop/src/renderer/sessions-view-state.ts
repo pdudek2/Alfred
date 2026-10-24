@@ -31,6 +31,12 @@ export function createInitialSessionsViewState(): SessionsViewState {
 
 export function appendTranscriptPage(state: SessionsViewState, page: TranscriptPage): SessionsViewState {
   const pages = [...state.readerPages.filter((item) => item.revision === page.revision), page];
-  while (pages.reduce((sum, item) => sum + item.blocks.length, 0) > 120) pages.shift();
+  let trimmed = false;
+  while (pages.reduce((sum, item) => sum + item.blocks.length, 0) > 120) {
+    pages.shift();
+    trimmed = true;
+  }
+  // The start is gone, so what the reader shows is incomplete.
+  if (trimmed && pages[0]) pages[0] = { ...pages[0], partial: true };
   return { ...state, readerPages: pages };
 }

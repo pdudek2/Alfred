@@ -838,7 +838,8 @@ function isAlfredLaunchPreflight(value: unknown): value is NonNullable<AlfredSta
 }
 
 function isLaunchPreflightBlockCode(value: unknown): boolean {
-  return value === "command_missing" || value === "cwd_outside_workspace" || value === "git_not_ready" || value === "no_workspace";
+  return value === "command_missing" || value === "cwd_missing" || value === "cwd_outside_workspace" || value === "git_not_ready"
+    || value === "no_workspace";
 }
 
 function cloneLaunchPreflight<T extends NonNullable<AlfredStagedPlanSnapshot["sessions"][number]["launchPreflight"]>>(

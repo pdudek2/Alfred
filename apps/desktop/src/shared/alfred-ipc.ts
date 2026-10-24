@@ -16,7 +16,7 @@ export type AlfredLaunchPreflight =
     }
   | {
       status: "blocked";
-      code: "command_missing" | "cwd_outside_workspace" | "git_not_ready" | "no_workspace";
+      code: "command_missing" | "cwd_missing" | "cwd_outside_workspace" | "git_not_ready" | "no_workspace";
       label: string;
       reason: string;
       detail?: string;

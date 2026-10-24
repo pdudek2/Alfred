@@ -19,6 +19,9 @@ describe("session time", () => {
     expect(sessionAgeLabel(now - 2 * 60 * 60_000 - 16 * 60_000, now)).toBe("2h 16m");
     expect(sessionAgeLabel(now - 3 * 24 * 60 * 60_000 - 4 * 60 * 60_000, now)).toBe("3d 4h");
     expect(sessionAgeLabel(now - 15 * 24 * 60 * 60_000, now)).toBe("2w");
+    // From a week on, the same one-unit age History shows.
+    expect(sessionAgeLabel(now - 10 * 24 * 60 * 60_000, now)).toBe("10d");
+    expect(sessionAgeLabel(now - 800 * 24 * 60 * 60_000, now)).toBe("2y");
   });
 
   it("spells out when the focused session started", () => {
