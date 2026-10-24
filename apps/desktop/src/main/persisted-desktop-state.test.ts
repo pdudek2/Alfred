@@ -40,8 +40,7 @@ describe("persisted-desktop-state", () => {
       ...DEFAULT_DESKTOP_STATE,
       workspaces: [{ id: "A", label: "Alpha", shortLabel: "A" }, { id: "B", label: "Beta", shortLabel: "B" }],
       activeWorkspaceId: "B",
-      layoutsByWorkspace: { A: { tile: { tileId: "tile", col: 1, row: 1, colSpan: 6, rowSpan: 4 } } },
-      viewStateByWorkspace: { A: { workMode: "focus" as const, selectedSessionId: "tile" } },
+      viewStateByWorkspace: { A: { selectedSessionId: "tile" } },
     };
     const draft = { kind: "shell", title: "Draft", command: "echo", args: [] };
     const { stagedPlans: _plans, ...legacyState } = preserved;
@@ -87,13 +86,8 @@ describe("persisted-desktop-state", () => {
         },
       ],
       activeWorkspaceId: "UI",
-      layoutsByWorkspace: {
-        UI: {
-          "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
-        },
-      },
       viewStateByWorkspace: {
-        UI: { workMode: "focus", selectedSessionId: "manual-1" },
+        UI: { selectedSessionId: "manual-1" },
       },
       windowState: {
         bounds: { x: 120, y: 80, width: 1512, height: 982 },
@@ -282,12 +276,12 @@ describe("persisted-desktop-state", () => {
         maximized: false,
       },
       viewStateByWorkspace: {
-        A: { workMode: "focus", selectedSessionId: "manual-1" },
+        A: { selectedSessionId: "manual-1" },
       },
     });
   });
 
-  it("preserves active workspace view state while dropping the retired context drawer field", async () => {
+  it("preserves active workspace view state while dropping the retired context drawer, work mode and collapsed stack", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -319,9 +313,7 @@ describe("persisted-desktop-state", () => {
     const state = await store.getState();
     expect(state.viewStateByWorkspace).toEqual({
       A: {
-        workMode: "focus",
         selectedSessionId: "manual-1",
-        collapsedSessionIds: ["manual-2"],
         previewDockOpen: false,
         dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
       },
@@ -416,7 +408,6 @@ describe("persisted-desktop-state", () => {
         },
       ],
       activeWorkspaceId: "A",
-      layoutsByWorkspace: {},
       viewStateByWorkspace: {},
       stagedPlans: {},
       restoredTerminalSessions: [],

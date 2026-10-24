@@ -212,8 +212,7 @@ function installDesktopBridge(
     openRouterConfigured: true,
   },
   layouts: WorkspaceLayoutsSnapshot = {
-    layoutsByWorkspace: {},
-    viewStateByWorkspace: { A: { workMode: "desk" } },
+    viewStateByWorkspace: { A: {  } },
   },
   workspaceState: WorkspaceStateSnapshot = {
     workspaces: [
@@ -243,7 +242,6 @@ function installDesktopBridge(
   revealPath: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
-  setWorkspaceLayout: ReturnType<typeof vi.fn>;
   setWorkspaceViewState: ReturnType<typeof vi.fn>;
   getWorkspaceState: ReturnType<typeof vi.fn>;
   bindFolderToWorkspace: ReturnType<typeof vi.fn>;
@@ -293,7 +291,6 @@ function installDesktopBridge(
     Promise.resolve({ ok: false, error: { code: "not_found", message: `No draft session ${request.sessionId}` } }),
   );
   const getLayouts = vi.fn().mockResolvedValue(layouts);
-  const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
@@ -468,7 +465,7 @@ function installDesktopBridge(
       revealStateFile,
       updatePrivacySettings,
     },
-    layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
+    layout: { getLayouts, setWorkspaceViewState },
     sessions: {
       listExternalSessions,
       releaseListSnapshot,
@@ -517,7 +514,6 @@ function installDesktopBridge(
     createWorkspaceFromFolder,
     getWorkspaceState,
     setWorkspaceState,
-    setWorkspaceLayout,
     setWorkspaceViewState,
     writeTerminal,
     worktreeApply,
@@ -1363,9 +1359,9 @@ describe("App integration", () => {
     expect(screen.queryByText("No scratch chats yet.")).not.toBeInTheDocument();
   });
 
-  it("selects a free chat in its own workspace without replacing its layout", async () => {
+  it("selects a free chat in its own workspace", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
+    const { setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
       [
@@ -1406,7 +1402,6 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByRole("group", { name: "Free Chats" })).toBeInTheDocument();
     expect(within(panel).queryByText(/~\/Documents\/Codex\//)).not.toBeInTheDocument();
-    setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 
@@ -1419,9 +1414,8 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Scratch API worker");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "CLIENT",
-      viewState: { workMode: "desk", selectedSessionId: "scratch-client" },
+      viewState: { selectedSessionId: "scratch-client" },
     });
-    expect(setWorkspaceLayout).not.toHaveBeenCalled();
   });
 
   it("lists every rootless workspace flat, without an overflow control", async () => {
@@ -1935,8 +1929,7 @@ describe("App integration", () => {
   it("opens Details again after reload and never saves or reads the retired drawer field", async () => {
     const user = userEvent.setup();
     const legacyLayouts = {
-      layoutsByWorkspace: {},
-      viewStateByWorkspace: { A: { workMode: "desk" as const, contextDrawerOpen: false } },
+      viewStateByWorkspace: { A: { previewDockOpen: false, contextDrawerOpen: false } },
     };
     const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [], undefined, legacyLayouts);
     const { unmount } = render(<App />);
@@ -2271,9 +2264,8 @@ describe("App integration", () => {
       ],
       undefined,
       {
-        layoutsByWorkspace: {},
         viewStateByWorkspace: {
-          A: { workMode: "focus", selectedSessionId: "codex-a" },
+          A: { selectedSessionId: "codex-a" },
         },
       },
     );
@@ -2460,9 +2452,8 @@ describe("App integration", () => {
       [liveSnapshot("solo", { title: "Codex · solo" })],
       undefined,
       {
-        layoutsByWorkspace: {},
         viewStateByWorkspace: {
-          A: { workMode: "focus", selectedSessionId: "solo" },
+          A: { selectedSessionId: "solo" },
         },
       },
     );
@@ -2856,7 +2847,7 @@ describe("App integration", () => {
       null,
       [alpha, beta],
       undefined,
-      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      { viewStateByWorkspace: {} },
       {
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
@@ -3355,7 +3346,6 @@ describe("App integration", () => {
     const {
       createTerminal,
       resolveExternalSession,
-      setWorkspaceLayout,
       setWorkspaceViewState,
       writeTerminal,
     } = installDesktopBridge(
@@ -3401,7 +3391,6 @@ describe("App integration", () => {
 
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
     createTerminal.mockClear();
-    setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
     await selectSurface(user, "History");
 
@@ -3438,7 +3427,7 @@ describe("App integration", () => {
 
     expect(persistedView).toEqual({
       workspaceId: "A",
-      viewState: { workMode: "focus", selectedSessionId: actualTileId },
+      viewState: { selectedSessionId: actualTileId },
     });
     expect(renderedTileIds.filter((tileId) => tileId?.startsWith("external-codex-"))).toEqual([actualTileId]);
     expect(terminalFocusSessionIds.at(-1)).toBe(actualTileId);
@@ -3602,7 +3591,6 @@ describe("App integration", () => {
     const {
       createTerminal,
       resolveExternalSession,
-      setWorkspaceLayout,
       setWorkspaceViewState,
       writeTerminal,
     } = installDesktopBridge(
@@ -3618,10 +3606,9 @@ describe("App integration", () => {
       ],
       undefined,
       {
-        layoutsByWorkspace: {},
         viewStateByWorkspace: {
-          A: { workMode: "desk", selectedSessionId: "active-a" },
-          B: { workMode: "focus", selectedSessionId: "stale-b" },
+          A: { selectedSessionId: "active-a" },
+          B: { selectedSessionId: "stale-b" },
         },
       },
       {
@@ -3650,7 +3637,6 @@ describe("App integration", () => {
 
     const backgroundHost = await screen.findByTestId("background-xterm-host");
     expect(backgroundHost).toHaveAttribute("data-session-id", "real-b");
-    setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
     terminalFocusSessionIds.length = 0;
     await selectSurface(user, "History");
@@ -3668,9 +3654,8 @@ describe("App integration", () => {
     expect(within(realTile).getByTestId("xterm-host")).toBe(backgroundHost);
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "B",
-      viewState: { workMode: "focus", selectedSessionId: "real-b" },
+      viewState: { selectedSessionId: "real-b" },
     });
-    expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
     expect(resolveExternalSession).not.toHaveBeenCalled();
     expect(writeTerminal).not.toHaveBeenCalled();
@@ -3690,10 +3675,9 @@ describe("App integration", () => {
       [liveSnapshot("active-a", { title: "Active Alfred", workspaceId: "A" })],
       undefined,
       {
-        layoutsByWorkspace: {},
         viewStateByWorkspace: {
-          A: { workMode: "desk", selectedSessionId: "active-a" },
-          B: { workMode: "focus", selectedSessionId: "stale-empty-b" },
+          A: { selectedSessionId: "active-a" },
+          B: { selectedSessionId: "stale-empty-b" },
         },
       },
       {
@@ -4340,7 +4324,6 @@ describe("App integration", () => {
       ],
       undefined,
       {
-        layoutsByWorkspace: {},
         viewStateByWorkspace: {
           A: { previewDockOpen: false },
           B: { previewDockOpen: true },
@@ -4376,7 +4359,6 @@ describe("App integration", () => {
       [],
       undefined,
       {
-        layoutsByWorkspace: {},
         viewStateByWorkspace: {
           A: { previewDockOpen: true },
         },
@@ -4968,7 +4950,7 @@ describe("App integration", () => {
   });
 
   it("hydrates persisted workspaces and opens the last active workspace", async () => {
-    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {}, viewStateByWorkspace: {} }, {
+    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, { viewStateByWorkspace: {} }, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
         { id: "W2", label: "Project 2", shortLabel: "W2", rootPath: "/tmp/workspace-2" },
@@ -4993,7 +4975,6 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const hydration = deferred<Awaited<ReturnType<TerminalApi["list"]>>>();
     const bridge = installDesktopBridge(undefined, null, [], undefined, {
-      layoutsByWorkspace: {},
       viewStateByWorkspace: {},
     });
     window.alfredDesktop!.terminal.list = vi.fn().mockReturnValue(hydration.promise);
@@ -5023,7 +5004,7 @@ describe("App integration", () => {
     expect(selectedTile).toHaveClass("selected");
     expect(bridge.setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
-      viewState: { workMode: "desk", selectedSessionId: "manual-2" },
+      viewState: { selectedSessionId: "manual-2" },
     });
   });
 
@@ -5093,8 +5074,7 @@ describe("App integration", () => {
       [],
       undefined,
       {
-        layoutsByWorkspace: {},
-        viewStateByWorkspace: { W2: { workMode: "focus" } },
+        viewStateByWorkspace: { W2: {  } },
       },
       {
         workspaces: [
@@ -5112,7 +5092,6 @@ describe("App integration", () => {
     expect(hydrationAlert).toHaveTextContent("Project not loaded");
     expect(hydrationAlert).toHaveTextContent("Failed to hydrate desktop state.");
     expect(bridge.setWorkspaceState).not.toHaveBeenCalled();
-    expect(bridge.setWorkspaceLayout).not.toHaveBeenCalled();
     expect(bridge.setWorkspaceViewState).not.toHaveBeenCalled();
 
     await user.click(within(hydrationAlert).getByRole("button", { name: "Retry" }));
@@ -5171,9 +5150,9 @@ describe("App integration", () => {
   it.each([
     ["New terminal", "zsh 2"],
     ["New Codex session", "Codex"],
-  ] as const)("focuses a newly added %s and records its layout slot", async (menuItem, title) => {
+  ] as const)("focuses a newly added %s and records it as selected", async (menuItem, title) => {
     const user = userEvent.setup();
-    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
+    const { setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
@@ -5184,13 +5163,6 @@ describe("App integration", () => {
     const added = await screen.findByRole("article", { name: new RegExp(title, "i") });
     expect(added).not.toHaveAttribute("aria-hidden", "true");
     expect(added).toHaveStyle({ gridColumn: "" });
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        layouts: expect.objectContaining({
-          [added.dataset.sessionId!]: expect.any(Object),
-        }),
-      }),
-    );
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith(
       expect.objectContaining({
         viewState: expect.objectContaining({
@@ -5200,7 +5172,7 @@ describe("App integration", () => {
     );
   });
 
-  it("keeps restored Alfred sessions out of a persisted split without an update loop", async () => {
+  it("keeps restored Alfred sessions asleep instead of mounting them", async () => {
     const restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [
       {
         clientId: "alfred-1",
@@ -5235,14 +5207,8 @@ describe("App integration", () => {
       [],
       undefined,
       {
-        layoutsByWorkspace: {
-          A: {
-            "alfred-1": { tileId: "alfred-1", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
-            "alfred-2": { tileId: "alfred-2", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
-          },
-        },
         viewStateByWorkspace: {
-          A: { workMode: "split", selectedSessionId: "alfred-2" },
+          A: { selectedSessionId: "alfred-2" },
         },
       },
       undefined,
@@ -5292,14 +5258,8 @@ describe("App integration", () => {
       ],
       undefined,
       {
-        layoutsByWorkspace: {
-          A: {
-            "alfred-1": { tileId: "alfred-1", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
-            "alfred-2": { tileId: "alfred-2", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
-          },
-        },
         viewStateByWorkspace: {
-          A: { workMode: "split", selectedSessionId: "alfred-2" },
+          A: { selectedSessionId: "alfred-2" },
         },
       },
     );
@@ -5323,7 +5283,7 @@ describe("App integration", () => {
     expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
     expect(setWorkspaceViewState).toHaveBeenCalledWith({
       workspaceId: "A",
-      viewState: { workMode: "focus", selectedSessionId: "alfred-1" },
+      viewState: { selectedSessionId: "alfred-1" },
     });
   });
 
@@ -5361,14 +5321,8 @@ describe("App integration", () => {
       ],
       undefined,
       {
-        layoutsByWorkspace: {
-          A: {
-            "alfred-1": { tileId: "alfred-1", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
-            "alfred-2": { tileId: "alfred-2", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
-          },
-        },
         viewStateByWorkspace: {
-          A: { workMode: "focus", selectedSessionId: "alfred-2" },
+          A: { selectedSessionId: "alfred-2" },
         },
       },
     );
@@ -5560,7 +5514,7 @@ describe("App integration", () => {
   });
 
   it("focus mode isolates the selected session and keeps navigator selection available", async () => {
-    const { setWorkspaceLayout } = installDesktopBridge(undefined, null, [
+    installDesktopBridge(undefined, null, [
       {
         id: "runtime-a",
         clientId: "manual-1",
@@ -5594,7 +5548,6 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "History" })).not.toBeInTheDocument();
-    expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
     await userEvent.click(within(railSessions())
       .getByRole("button", { name: /^zsh(?! \d)(?! ·)/ }));
@@ -5604,8 +5557,8 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).not.toBeInTheDocument();
   });
 
-  it("focuses a project session picked in the rail without touching layouts", async () => {
-    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(undefined, null, [
+  it("focuses a project session picked in the rail", async () => {
+    const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [
       manualLiveSnapshot("manual-1", "zsh"),
       manualLiveSnapshot("manual-2", "zsh 2"),
     ]);
@@ -5613,7 +5566,6 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
-    setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
 
     await userEvent.click(within(railSessions())
@@ -5621,7 +5573,6 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
-    expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
       viewState: expect.objectContaining({ selectedSessionId: "manual-2" }),
@@ -5630,7 +5581,7 @@ describe("App integration", () => {
 
   it("selects a new terminal immediately while Focus mode is active", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
+    const { setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
       [
@@ -5657,14 +5608,8 @@ describe("App integration", () => {
       ],
       undefined,
       {
-        layoutsByWorkspace: {
-          A: {
-            "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
-            "manual-2": { tileId: "manual-2", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
-          },
-        },
         viewStateByWorkspace: {
-          A: { workMode: "focus", selectedSessionId: "manual-1" },
+          A: { selectedSessionId: "manual-1" },
         },
       },
     );
@@ -5682,15 +5627,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 3");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
-      viewState: { workMode: "focus", selectedSessionId: "manual-3" },
-    });
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: {
-        "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
-        "manual-2": { tileId: "manual-2", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
-        "manual-3": { tileId: "manual-3", col: 1, row: 17, colSpan: 12, rowSpan: 3 },
-      },
+      viewState: { selectedSessionId: "manual-3" },
     });
   });
 
@@ -7783,11 +7720,10 @@ describe("App integration", () => {
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
   });
 
-  it("hydrates saved workspace view mode and selected session", async () => {
+  it("hydrates the saved selected session", async () => {
     installDesktopBridge(undefined, null, [], undefined, {
-      layoutsByWorkspace: {},
       viewStateByWorkspace: {
-        A: { workMode: "focus", selectedSessionId: "manual-1" },
+        A: { selectedSessionId: "manual-1" },
       },
     });
 
@@ -7878,7 +7814,7 @@ describe("App integration", () => {
         liveSnapshot("other", { workspaceId: "B", cwd: "/Users/patryk/Desktop/IronLog" }),
       ],
       undefined,
-      { layoutsByWorkspace: {}, viewStateByWorkspace: { A: { workMode: "focus", selectedSessionId: "one" } } },
+      { viewStateByWorkspace: { A: { selectedSessionId: "one" } } },
       {
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
@@ -7992,7 +7928,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(setWorkspaceViewState).toHaveBeenCalledWith({
         workspaceId: "A",
-        viewState: { workMode: "focus", selectedSessionId: "two" },
+        viewState: { selectedSessionId: "two" },
       });
     });
   });
@@ -8412,15 +8348,13 @@ describe("App integration", () => {
 
   it("resumes a restored agent transcript from Sessions without mounting it first", async () => {
     const user = userEvent.setup();
-    const customLayout = { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 };
-    const { createTerminal, forgetTerminal, setWorkspaceLayout } = installDesktopBridge(
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
       null,
       [manualLiveSnapshot("manual-1", "zsh")],
       undefined,
       {
-        layoutsByWorkspace: { A: { "manual-1": customLayout } },
-        viewStateByWorkspace: { A: { workMode: "desk" } },
+        viewStateByWorkspace: {},
       },
       undefined,
       [
@@ -8454,8 +8388,6 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId("xterm-host")).not.toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalled();
-
-    setWorkspaceLayout.mockClear();
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Resume" }));
@@ -8472,14 +8404,6 @@ describe("App integration", () => {
     );
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Codex · asleep sibling/i })).not.toBeInTheDocument();
-    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: expect.objectContaining({
-        "manual-1": customLayout,
-        "codex-9": expect.objectContaining({ tileId: "codex-9" }),
-      }),
-    });
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh 10(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
