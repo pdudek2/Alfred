@@ -146,8 +146,7 @@ export function activitySentence(event: SessionActivityEvent): string {
     case "file":
       return payload?.type === "file" ? `${FILE_VERBS[payload.operation]} ${fileName(payload.path)}` : event.detail || event.title;
     case "tool":
-      if (payload?.type !== "tool") return event.title;
-      return payload.input ? `Used ${payload.name} (${payload.input})` : `Used ${payload.name}`;
+      return payload?.type === "tool" ? toolSentence(payload.name, payload.input) : event.title;
     // "Plan updated", "Checkout diff reviewed": the title reads as a sentence.
     case "plan":
       return event.title;
@@ -210,6 +209,25 @@ function readApproval(prompt: string): ApprovalAsk {
   if (mcpServer && mcpTool) return { verb: "use", object: `${mcpTool} from ${mcpServer}` };
   if (verb || OTHER_CLAUDE_TOOLS.has(tool)) return { verb: "use", object: tool };
   return { question: text };
+}
+
+// Alfred's own worker tools read as steps of the orchestration; the input names the worker.
+const WORKER_TOOL_SENTENCES: Readonly<Record<string, (worker: string) => string>> = {
+  list_workers: () => "Listed workers",
+  read_worker: (worker) => `Read ${worker}`,
+  wait_for_worker: (worker) => `Waited for ${worker}`,
+  send_to_worker: (worker) => `Sent ${worker} a message`,
+  stop_worker: (worker) => `Stopped ${worker}`,
+};
+
+// An MCP tool is named mcp__<server>__<tool>.
+function toolSentence(name: string, input: string): string {
+  const [, server, tool = ""] = /^mcp__(.+?)__(.+)$/.exec(name) ?? [];
+  if (server === "alfred" && tool === "start_worker") return input ? `Started worker: ${input}` : "Started a worker";
+  const workerSentence = server === "alfred" ? WORKER_TOOL_SENTENCES[tool] : undefined;
+  if (workerSentence) return workerSentence(input ? `worker ${input}` : "a worker");
+  const label = server ? `${tool} from ${server}` : name;
+  return input ? `Used ${label} (${input})` : `Used ${label}`;
 }
 
 function fileName(path: string): string {

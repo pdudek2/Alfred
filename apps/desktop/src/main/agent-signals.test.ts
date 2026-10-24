@@ -139,6 +139,13 @@ describe("signals", () => {
     });
     expect(tool("mcp__github__get_issue", { owner: "a", repo: "b" })?.activity)
       .toMatchObject({ kind: "tool", payload: { type: "tool", name: "mcp__github__get_issue", input: "" } });
+    // An MCP call names what it acts on: the worker, or the new worker's title or first prompt line.
+    expect(tool("mcp__alfred__start_worker", { agent: "codex", prompt: "Run the typecheck\nthen report" })?.activity?.payload)
+      .toEqual({ type: "tool", name: "mcp__alfred__start_worker", input: "Run the typecheck" });
+    expect(tool("mcp__alfred__start_worker", { agent: "codex", prompt: "Run it", title: "Typecheck" })?.activity?.payload)
+      .toMatchObject({ input: "Typecheck" });
+    expect(tool("mcp__alfred__read_worker", { worker_id: "codex-1" })?.activity?.payload)
+      .toEqual({ type: "tool", name: "mcp__alfred__read_worker", input: "codex-1" });
     // Claude Code loads its deferred tools through ToolSearch; that is its housekeeping, not the agent's work.
     expect(tool("ToolSearch", { query: "select:TaskCreate" })).toEqual({ state: "working" });
     expect(signalFromHook("PostToolUse", {})).toEqual({ state: "working" });
