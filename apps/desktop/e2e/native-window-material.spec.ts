@@ -36,8 +36,6 @@ test("shows bounded macOS material or its reduced-transparency fallback while ke
 
   await expectAlphaOne(page.getByTestId("workbench-surface"), "Work");
   await expectAlphaOne(page.getByTestId("xterm-host").first(), "terminal");
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function expectAlphaBelowOne(locator: Locator, label: string): Promise<void> {

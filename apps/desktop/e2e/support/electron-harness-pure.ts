@@ -15,13 +15,20 @@ const MACOS_BACKUPD_XPC_OUTPUT = new RegExp(
   String.raw`^(?:${MACOS_BACKUPD_XPC_LINE})(?:\r?\n${MACOS_BACKUPD_XPC_LINE})*\r?\n?$`,
 );
 
+// Chromium's GPU process logs this when a frame still refers to an image that a closing window already freed.
+const CHROMIUM_SHARED_IMAGE_LINE =
+  String.raw`\[\d+:\d+\/\d+\.\d+:ERROR:gpu\/command_buffer\/service\/shared_image\/shared_image_manager\.cc:\d+\] SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox\.`;
+const CHROMIUM_SHARED_IMAGE_OUTPUT = new RegExp(
+  String.raw`^(?:${CHROMIUM_SHARED_IMAGE_LINE})(?:\r?\n${CHROMIUM_SHARED_IMAGE_LINE})*\r?\n?$`,
+);
+
 export function isAllowedElectronWarning(text: string): boolean {
   return normalizeElectronConsoleText(text) === ELECTRON_42_CSP_WARNING;
 }
 
 export function isAllowedElectronMainOutput(source: string, text: string): boolean {
   return source === "main-stderr" &&
-    (PLAYWRIGHT_INSPECTOR_SHUTDOWN.test(text) || MACOS_BACKUPD_XPC_OUTPUT.test(text));
+    (PLAYWRIGHT_INSPECTOR_SHUTDOWN.test(text) || MACOS_BACKUPD_XPC_OUTPUT.test(text) || CHROMIUM_SHARED_IMAGE_OUTPUT.test(text));
 }
 
 export function isPgrepNoChildren(error: unknown): boolean {

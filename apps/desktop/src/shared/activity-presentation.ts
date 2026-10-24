@@ -33,12 +33,6 @@ export function presentActivityEvents(
   };
 }
 
-export function meaningfulSignalEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
-  return [...events]
-    .filter((event) => classifyActivityPresentationLayer(event) === "signal")
-    .sort((left, right) => left.at - right.at);
-}
-
 export function classifyActivityPresentationLayer(event: SessionActivityEvent): ActivityPresentationLayer {
   if (isRawActivity(event)) return "raw";
 

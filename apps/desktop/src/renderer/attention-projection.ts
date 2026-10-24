@@ -114,10 +114,6 @@ export function needsYouItems(items: readonly AttentionProjection[]): AttentionP
   return items.filter(isNeedsYouAttention);
 }
 
-export function blockingAttentionCount(items: readonly AttentionProjection[]): number {
-  return items.reduce((count, item) => count + Number(isNeedsYouAttention(item)), 0);
-}
-
 export function blockingAttentionCountByWorkspace(
   items: readonly AttentionProjection[],
 ): ReadonlyMap<string, number> {

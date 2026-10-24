@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  blockingAttentionCount,
   blockingAttentionCountByWorkspace,
   needsYouItems,
   buildAttentionProjection,
@@ -167,7 +166,6 @@ describe("buildAttentionProjection", () => {
 
     // A draft waits for Launch but does not block anything, so it is not
     // counted as Needs you.
-    expect(blockingAttentionCount(items)).toBe(2);
     expect(blockingAttentionCountByWorkspace(items)).toEqual(new Map([
       ["ALFRED", 1],
       ["CLIENT", 1],

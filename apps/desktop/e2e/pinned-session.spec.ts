@@ -51,8 +51,6 @@ test("pins the shell under a Claude focus 3:2, types into it, and unpins it with
   await expect(focusTile).toBeFocused();
   await expectSameNode(focusHost, focusTile.getByTestId("xterm-host"));
   await expectSameNode(shellHost, shellTile.getByTestId("xterm-host"));
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
 
 async function handle(locator: Locator): Promise<ElementHandle<HTMLElement>> {

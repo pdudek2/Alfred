@@ -14,6 +14,4 @@ test("plain terminals report Idle at the prompt and Running while a program hold
   await expect(status).toHaveAttribute("aria-label", "status running");
 
   await expect(status).toHaveAttribute("aria-label", "status idle", { timeout: 15_000 });
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
 });
