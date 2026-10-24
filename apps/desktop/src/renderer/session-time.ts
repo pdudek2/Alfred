@@ -17,7 +17,7 @@ export function sessionAgeLabel(createdAt: number | undefined, now = Date.now())
     return remainingHours > 0 ? `${elapsedDays}d ${remainingHours}h` : `${elapsedDays}d`;
   }
 
-  return `${Math.floor(elapsedDays / 7)}w`;
+  return sessionAgeShort(createdAt, now);
 }
 
 /** The focused session's strip spells the age out: "Started 6 min ago". */

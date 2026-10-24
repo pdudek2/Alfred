@@ -182,6 +182,44 @@ describe("staged-plan-store", () => {
     );
   });
 
+  it("lets other state writes finish while an edited draft is preflighted", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    configureStagedPlanPersistence(persistedStateStore);
+    await setStagedPlanSnapshot(createPlan());
+    let finishPreflight!: (exists: boolean) => void;
+    const preflight = new Promise<boolean>((resolve) => { finishPreflight = resolve; });
+
+    const edit = updateStagedPlanSession(
+      { planId: "plan-1", sessionId: "alfred-1", patch: { args: ["b"] }, workspace: { id: "A", label: "Alfred", rootPath: "/repo" } },
+      { preflightOptions: { commandExists: () => preflight } },
+    );
+    // A window or terminal save, unrelated to the plan, does not wait for git and the shell.
+    let otherWrite = "pending";
+    void persistedStateStore.updateState((state) => state).then(() => { otherWrite = "done"; });
+    await vi.waitFor(() => expect(otherWrite).toBe("done"));
+
+    finishPreflight(true);
+    await expect(edit).resolves.toMatchObject({ ok: true, plan: { sessions: [expect.objectContaining({ args: ["b"] }), expect.anything()] } });
+  });
+
+  it("refuses an edit when the plan was replaced while it was preflighted", async () => {
+    configureStagedPlanPersistence(createPersistedDesktopStateStore({ filePath: await temporaryStateFile() }));
+    await setStagedPlanSnapshot(createPlan());
+    let finishPreflight!: (exists: boolean) => void;
+    const preflight = new Promise<boolean>((resolve) => { finishPreflight = resolve; });
+
+    const edit = updateStagedPlanSession(
+      { planId: "plan-1", sessionId: "alfred-1", patch: { args: ["b"] }, workspace: { id: "A", label: "Alfred", rootPath: "/repo" } },
+      { preflightOptions: { commandExists: () => preflight } },
+    );
+    await resolveStagedPlanSessions({ sessionIds: ["alfred-2"] });
+    finishPreflight(true);
+
+    await expect(edit).resolves.toMatchObject({ ok: false });
+    expect((await getStagedPlansSnapshot()).plans[0]?.sessions).toEqual([expect.objectContaining({ id: "alfred-1", args: ["a"] })]);
+  });
+
   it("persists updates to command, args, and cwd on one staged session", async () => {
     const plan = createPlan();
     const filePath = await temporaryStateFile();
@@ -196,7 +234,7 @@ describe("staged-plan-store", () => {
         patch: { command: "pnpm", args: ["--filter", "@alfred/desktop", "test"], cwd: "apps/desktop" },
         workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
       },
-      { preflightOptions: { commandExists: async () => true } },
+      { preflightOptions: { commandExists: async () => true, directoryExists: async () => true } },
     );
 
     expect(response).toMatchObject({ ok: true });
