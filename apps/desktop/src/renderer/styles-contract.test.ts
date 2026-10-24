@@ -637,9 +637,8 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(3);
+    expect(blurredRules).toHaveLength(2);
     expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      [".privacy-backdrop"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
     ]));
@@ -858,20 +857,18 @@ describe("renderer CSS contracts", () => {
     const body = singleTopLevelRuleBodyIn(styles, ".privacy-panel-body");
     const rows = blockFor(".privacy-control-row,\n.privacy-action-row");
 
-    expect(panel).toContain("width: min(640px, calc(100vw - 88px))");
-    expect(panel).toContain("background: var(--ink-1)");
-    expect(body).toContain("overflow: auto");
-    expect(body).toContain("background: var(--ink-1)");
-    expect(rows).toContain("border-bottom: 1px solid var(--ink-3)");
+    // The New sheet's shell: one panel surface, rows divided by hairlines, no nested cards.
+    expect(panel).toContain("background: var(--surface-panel)");
+    expect(body).toContain("overflow-y: auto");
+    expect(body).not.toContain("background:");
+    expect(rows).toContain("border-bottom: 1px solid var(--border)");
     expect(rows).toContain("border-radius: 0");
-    expect(rows).toContain("background: var(--ink-1)");
+    expect(rows).toContain("background: transparent");
     const controls = blockFor(
-      ".privacy-segmented button,\n.privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button",
+      ".privacy-segmented button,\n.privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button,\n.privacy-panel-done",
     );
-    const toggle = singleTopLevelRuleBodyIn(styles, ".privacy-toggle");
-    expect(controls).toContain("min-height: 32px");
-    expect(controls).toContain("font-size: 13px");
-    expect(toggle).toContain("min-height: 32px");
+    expect(controls).toContain("height: 30px");
+    expect(controls).toContain("font: 400 13px/18px var(--sans)");
     const privacyRuleBodies = allRulesIn(styles)
       .filter((rule) => rule.selectors.some((selector) =>
         selector.startsWith(".privacy-"),
@@ -882,9 +879,8 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(3);
+    expect(blurredRules).toHaveLength(2);
     expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      [".privacy-backdrop"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
     ]));
@@ -1018,14 +1014,13 @@ describe("renderer CSS contracts", () => {
       ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
     );
 
-    expect(primaryOverlayBackdrop).toContain("background: rgba(0, 0, 0, 0.66)");
+    expect(primaryOverlayBackdrop).toContain("background: color-mix(in srgb, var(--surface-canvas) 55%, transparent)");
     expect(primaryOverlayBackdrop).toContain("background-image: none");
     expect(primaryOverlayBackdrop).toContain("backdrop-filter: none");
     expect(primaryOverlayBackdrop).toContain("-webkit-backdrop-filter: none");
     expect(overlayPanels).toContain("background: var(--surface-panel)");
     expect(overlayPanels).toContain("background-image: none");
-    expect(overlayPanels).toContain("border: 1px solid var(--border)");
-    expect(overlayPanels).toContain("box-shadow: var(--shadow-panel)");
+    expect(overlayPanels).toContain("box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-panel)");
     expect(activePaletteRow).not.toContain("linear-gradient");
   });
 
@@ -1036,11 +1031,10 @@ describe("renderer CSS contracts", () => {
       [".workspace-popover button small", "font: 500 12px/1.35 var(--sans)"],
       [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
       [".workspace-mission-form label span", "font: 600 12px/1.2 var(--sans)"],
-      [".command-palette-group", "font: 650 12px/1.2 var(--sans)"],
-      [".command-palette-list button small", "font: 500 12px/1.35 var(--sans)"],
-      [".command-palette-empty", "font: 500 12px/1.35 var(--sans)"],
-      [".discard-checkout-header span", "font: 650 13px/1.2 var(--sans)"],
-      [".discard-checkout-actions button", "font: 650 13px/1 var(--sans)"],
+      [".command-palette-group", "font: 500 12px/16px var(--sans)"],
+      [".command-palette-list button small", "font: 400 12px/16px var(--sans)"],
+      [".command-palette-empty", "font: 400 12px/16px var(--sans)"],
+      [".discard-checkout-actions button", "font: 400 13px/18px var(--sans)"],
     ] as const;
 
     for (const [selector, font] of expectedFonts) {
@@ -1052,7 +1046,6 @@ describe("renderer CSS contracts", () => {
       ".workspace-rename-form > div button",
       ".workspace-mission-actions button",
       ".command-palette-list button",
-      ".discard-checkout-actions button",
     ]) {
       const body = topLevelExactRuleBodies(selector).find((candidate) => candidate.includes("min-height:")) ?? "";
       expect(body, selector).toContain("min-height:");
@@ -1072,7 +1065,6 @@ describe("renderer CSS contracts", () => {
     }
 
     for (const selector of [
-      ".discard-checkout-body dl div",
       ".discard-checkout-body li",
     ]) {
       const row = singleTopLevelRuleBodyIn(styles, selector);

@@ -170,11 +170,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
   await selectSurface(page, "Local Data & Privacy");
   const privacyDialog = page.getByRole("dialog", { name: "Local Data & Privacy" });
-  const closePrivacy = privacyDialog.getByRole("button", { name: "Close privacy controls" });
+  const closePrivacy = privacyDialog.getByRole("button", { name: "Done" });
   await expect(closePrivacy).toBeFocused();
   await page.keyboard.press("Tab");
   expect(await privacyDialog.evaluate((dialog) => dialog.contains(document.activeElement))).toBe(true);
-  const clearSavedTranscripts = privacyDialog.getByRole("button", { name: "Clear saved transcripts…" });
+  const clearSavedTranscripts = privacyDialog.getByRole("button", { name: "Clear asleep sessions…" });
   await clearSavedTranscripts.click();
   const keepData = privacyDialog.getByRole("button", { name: "Keep data" });
   await expect(keepData).toBeFocused();

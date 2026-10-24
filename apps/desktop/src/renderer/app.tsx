@@ -1,10 +1,4 @@
-import {
-  Eye,
-  RefreshCcw,
-  ShieldCheck,
-  Trash2,
-  X,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -2617,8 +2611,7 @@ export function App() {
                 <span>{desktopSaveStatus.message}</span>
               </div>
               <button type="button" onClick={() => void handleRetryStateSave()}>
-                <RefreshCcw size={14} />
-                <span>Retry</span>
+                Retry
               </button>
             </div>
           )}
@@ -2630,8 +2623,7 @@ export function App() {
                 <span>{workspaceHydrationStatus.message}</span>
               </div>
               <button type="button" onClick={handleRetryWorkspaceHydration}>
-                <RefreshCcw size={14} />
-                <span>Retry</span>
+                Retry
               </button>
             </div>
           )}
@@ -2975,15 +2967,8 @@ function PrivacyPanel({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="privacy-panel-header">
-          <div>
-            <strong>Local Data & Privacy</strong>
-            <small>
-              Control what Alfred keeps on this Mac and which local Codex sessions appear in Sessions.
-            </small>
-          </div>
-          <button ref={closeButtonRef} type="button" className="privacy-panel-close" onClick={onClose} aria-label="Close privacy controls">
-            <X size={15} />
-          </button>
+          <strong>Local Data & Privacy</strong>
+          <small>Choose what Alfred keeps on this Mac and which local Codex sessions History lists.</small>
         </header>
         <div className="privacy-panel-body">
           <section className="privacy-control-row">
@@ -2997,16 +2982,14 @@ function PrivacyPanel({
                 aria-pressed={settings.terminalScrollbackRetention === "redactedTail"}
                 onClick={() => updateRetention("redactedTail")}
               >
-                <ShieldCheck size={14} />
-                <span>Redacted tail</span>
+                Redacted tail
               </button>
               <button
                 type="button"
                 aria-pressed={settings.terminalScrollbackRetention === "off"}
                 onClick={() => updateRetention("off")}
               >
-                <X size={14} />
-                <span>Off</span>
+                Off
               </button>
             </div>
           </section>
@@ -3042,14 +3025,13 @@ function PrivacyPanel({
                 <button ref={keepDataButtonRef} type="button" onClick={cancelClearSavedTerminalData}>
                   Keep data
                 </button>
-                <button type="button" className="danger" onClick={() => void clearSavedTerminalData()}>
-                  Clear saved transcripts
+                <button type="button" className="privacy-action-button" onClick={() => void clearSavedTerminalData()}>
+                  Clear asleep sessions
                 </button>
               </div>
             ) : (
-              <button ref={clearActionRef} type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
-                <Trash2 size={14} />
-                <span>Clear saved transcripts…</span>
+              <button ref={clearActionRef} type="button" className="privacy-action-button" onClick={() => setClearArmed(true)}>
+                Clear asleep sessions…
               </button>
             )}
           </section>
@@ -3060,8 +3042,7 @@ function PrivacyPanel({
               <span>Reveal Alfred's desktop state file in Finder.</span>
             </div>
             <button type="button" className="privacy-action-button" onClick={() => void revealStateFile()}>
-              <Eye size={14} />
-              <span>Reveal in Finder</span>
+              Reveal in Finder
             </button>
           </section>
 
@@ -3069,8 +3050,7 @@ function PrivacyPanel({
             <div className="privacy-panel-status error" role="alert">
               <span>{saveStatus.message}</span>
               <button type="button" onClick={() => void onRetrySave()}>
-                <RefreshCcw size={14} />
-                <span>Retry</span>
+                Retry
               </button>
             </div>
           )}
@@ -3080,6 +3060,11 @@ function PrivacyPanel({
             </div>
           )}
         </div>
+        <footer className="privacy-panel-actions">
+          <button ref={closeButtonRef} type="button" className="privacy-panel-done" onClick={onClose}>
+            Done
+          </button>
+        </footer>
       </div>
     </div>
   );
@@ -3134,30 +3119,11 @@ function DiscardCheckoutDialog({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="discard-checkout-header">
-          <div>
-            <span>Destructive action</span>
-            <strong>Discard isolated checkout</strong>
-            <small>{confirmation.title} has {changedFileLabel}.</small>
-          </div>
-          <button type="button" className="discard-checkout-close" onClick={onCancel} aria-label="Close discard dialog">
-            <X size={15} />
-          </button>
+          <strong>Discard isolated checkout</strong>
+          <small>{confirmation.title} has {changedFileLabel}.</small>
         </header>
         <div className="discard-checkout-body">
-          <p>
-            This checkout has local changes. Review them before deleting the isolated worktree, or confirm discard
-            explicitly.
-          </p>
-          <dl>
-            <div>
-              <dt>status</dt>
-              <dd>{confirmation.summary}</dd>
-            </div>
-            <div>
-              <dt>files</dt>
-              <dd>{changedFileLabel}</dd>
-            </div>
-          </dl>
+          <p>This checkout has local changes. Review them before you delete the isolated worktree, or discard them for good.</p>
           <ol aria-label="Changed files">
             {previewFiles.map((file) => (
               <li key={`${file.status}:${file.path}`}>
