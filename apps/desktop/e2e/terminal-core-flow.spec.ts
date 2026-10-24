@@ -146,6 +146,17 @@ test("a new terminal takes focus while another terminal streams output", async (
   await expect(streaming).toHaveClass(/session-idle/);
 });
 
+test("runs a dozen terminals without one IPC listener per terminal", async ({ harness }) => {
+  const { page } = harness;
+  await expect(page.getByRole("textbox", { name: "Terminal input" }).first()).toBeVisible();
+  for (let index = 2; index <= 12; index += 1) {
+    await addManualTerminal(page);
+    await expect(page.locator(`[data-testid="terminal-tile"][data-session-id="manual-${index}"]`)).toHaveClass(/selected/);
+  }
+  // The harness fails the test on Node's MaxListenersExceededWarning when it closes the app.
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(12);
+});
+
 async function addManualTerminal(page: Page): Promise<void> {
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("radio", { name: /^Terminal/ }).click();
