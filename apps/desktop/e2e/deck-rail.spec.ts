@@ -82,8 +82,11 @@ test("the rail shows one state glyph per project and folds rootless projects int
     harness.assertNoRuntimeErrors();
   } finally {
     if (keepBusy) clearInterval(keepBusy);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    // Close Preview and the terminals before the server, so nothing asks a closed port during cleanup.
+    const terminalTab = page.getByRole("tab", { name: "Terminal" });
+    if (await terminalTab.isVisible()) await terminalTab.click();
     await harness.closeActiveTerminals();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
 
