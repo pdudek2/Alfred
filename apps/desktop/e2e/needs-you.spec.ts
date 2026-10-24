@@ -1,10 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
-import { terminalChannels, type TerminalListResult } from "../src/shared/terminal-ipc";
+import { terminalChannels } from "../src/shared/terminal-ipc";
 import { openPlan } from "./support/plan-line";
 import { settleTerminalTileAnimations, surfaceButton } from "./support/work-layout";
 import { expect, test } from "./support/electron-app";
+import { listMainProcessTerminals, requiredHandle, setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
 const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwright/needs-you-production");
@@ -304,34 +305,6 @@ async function bootstrapMixedAttention(page: Page): Promise<Locator> {
   return popover;
 }
 
-type DesktopTerminalWindow = Window & {
-  alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
-};
-
-async function setWindowSize(
-  app: ElectronApplication,
-  page: Page,
-  width: number,
-  height: number,
-): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, size) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ ...window.getBounds(), ...size });
-  }, { width, height });
-  await expect.poll(() => app.evaluate(({ BrowserWindow }) => {
-    const bounds = BrowserWindow.getAllWindows()[0]?.getBounds();
-    return bounds ? { width: bounds.width, height: bounds.height } : null;
-  })).toEqual({ width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({
-    width,
-    height,
-  });
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
-}
-
 async function documentOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 }
@@ -349,12 +322,6 @@ async function expectRealDiff(diff: Locator): Promise<void> {
   await expect(diff.locator(".kind-remove")).toContainText("-handoff status: pending");
 }
 
-async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
-  const handle = await locator.elementHandle();
-  if (!handle) throw new Error(`${label} is not mounted.`);
-  return handle as ElementHandle<HTMLElement>;
-}
-
 async function expectSameNode(
   before: ElementHandle<HTMLElement>,
   current: Locator,
@@ -368,14 +335,6 @@ async function elementGeometry(locator: Locator): Promise<{ x: number; y: number
   return locator.evaluate((node) => {
     const { x, y, width, height } = node.getBoundingClientRect();
     return { x, y, width, height };
-  });
-}
-
-async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
-  return page.evaluate(async () => {
-    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
-    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
-    return terminalApi.list();
   });
 }
 

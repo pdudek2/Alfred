@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
-import type { ElectronApplication, ElementHandle, Page } from "@playwright/test";
+import type { ElementHandle, Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state";
 import { expect, test } from "./support/electron-app";
+import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
 import { sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
@@ -146,9 +147,3 @@ async function captureHosts(page: Page): Promise<ElementHandle<HTMLElement>[]> {
   return handles;
 }
 
-async function setWindowSize(app: ElectronApplication, page: Page, width: number, height: number): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, bounds) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, ...bounds });
-  }, { width, height });
-  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
-}

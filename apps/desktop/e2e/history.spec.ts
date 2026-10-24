@@ -1,12 +1,7 @@
 import { realpath } from "node:fs/promises";
-import type { Page } from "@playwright/test";
-import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { listMainProcessTerminals } from "./support/app-state";
 import { surfaceButton } from "./support/work-layout";
-
-type DesktopTerminalWindow = Window & {
-  alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
-};
 
 test.use({ fixtureOptions: { restoredSessions: 6, unsafeRecoveryItem: 1 } });
 
@@ -69,10 +64,3 @@ test("History recovery safety requires review, supports Escape disarm, and start
 
 });
 
-async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
-  return page.evaluate(async () => {
-    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
-    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
-    return terminalApi.list();
-  });
-}

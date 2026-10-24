@@ -32,6 +32,12 @@ export async function openDetails(page: Page): Promise<void> {
   await expect(column).toHaveClass(/(^| )open( |$)/);
 }
 
+/** Starts a plain terminal in the active project through the New session sheet. */
+export async function addManualTerminal(page: Page): Promise<void> {
+  await openNewTerminalSheet(page);
+  await page.getByRole("button", { name: "Start" }).click();
+}
+
 /** Opens the New session sheet with Terminal picked; the caller presses Start. */
 export async function openNewTerminalSheet(page: Page): Promise<void> {
   await page.getByRole("button", { name: "New", exact: true }).click();

@@ -3,10 +3,10 @@ import { realpath } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import type {
   TerminalApi,
-  TerminalListResult,
   TerminalSnapshotResult,
 } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { listMainProcessTerminals } from "./support/app-state";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: TerminalApi };
@@ -193,14 +193,6 @@ async function installRendererTerminalDataWait(
       }, waitId);
     },
   };
-}
-
-async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
-  return page.evaluate(async () => {
-    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
-    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
-    return terminalApi.list();
-  });
 }
 
 async function snapshotMainProcessTerminal(
