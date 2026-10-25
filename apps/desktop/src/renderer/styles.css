@@ -2648,6 +2648,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .details-location-path { margin: 0; padding: 0 10px 6px; color: var(--text-muted); font: 400 12px/17px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
 .details-location-actions { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 10px; }
 .details-location-actions button { padding: 0; min-height: 32px; border: 0; background: transparent; box-shadow: none; color: var(--text-secondary); font: 400 13px/18px var(--sans); }
+.details-location-actions button:hover { color: var(--text-primary); }
 /* The draft editor: a block that opens a form, then the form; below them the raw-activity toggle. */
 .context-drawer .agent-staged-editor,
 .context-drawer .agent-staged-edit-form { margin: -2px 0 14px; padding: 16px 10px 0; display: grid; }
@@ -2683,6 +2684,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 .context-drawer .agent-raw-toggle { border-radius: 9px; padding: 0 9px; }
 .context-drawer .agent-staged-edit-actions button:disabled { cursor: wait; opacity: 0.55; }
+.context-drawer :is(.agent-staged-editor, .agent-staged-edit-actions) button:not(:disabled):hover,
+.context-drawer .agent-raw-toggle:hover { background: var(--surface-control-hover); color: var(--text-primary); }
 
 @media (prefers-reduced-transparency: reduce) {
   .context-drawer {
