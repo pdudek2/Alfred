@@ -2049,7 +2049,13 @@ export function App() {
         && session.resumeTarget?.sessionId === resolved.sessionId
       ));
       if (alreadyManaged) {
-        handleFocusSessionInWorkspace(alreadyManaged.workspaceId, alreadyManaged.id);
+        // An asleep or ended session that holds the conversation resumes it in place, as its own Resume would.
+        const { runtimeStatus } = alreadyManaged;
+        if (runtimeStatus === "restored" || runtimeStatus === "exited" || runtimeStatus === "error") {
+          handleRecoverSession(alreadyManaged.workspaceId, alreadyManaged.id);
+        } else {
+          handleFocusSessionInWorkspace(alreadyManaged.workspaceId, alreadyManaged.id);
+        }
         return;
       }
       if (externalResumeReservationsRef.current.has(resolved.sessionId)) return;
@@ -2094,7 +2100,7 @@ export function App() {
     } finally {
       resumingExternalSessionKeysRef.current.delete(sessionKey);
     }
-  }, [handleFocusSessionInWorkspace, workspaces]);
+  }, [handleFocusSessionInWorkspace, handleRecoverSession, workspaces]);
 
   const handleAddExternalProject = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();
