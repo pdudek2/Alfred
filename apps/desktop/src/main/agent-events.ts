@@ -44,7 +44,7 @@ const IDENTITY_KEY = /^user\.|^organization\.id$/;
 const ENDPOINT_PATH = /^\/([0-9a-f]{32})\/(claude|codex)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/v1\/logs$/;
 
 export async function createAgentEventLog(options: AgentEventLogOptions): Promise<AgentEventLog> {
-  const secret = randomBytes(16).toString("hex");
+  let secret = randomBytes(16).toString("hex");
   // One write at a time, so lines from two sessions never interleave and a clear never races a write.
   let queue = Promise.resolve();
   const enqueue = (task: () => Promise<unknown>): Promise<void> => {
@@ -103,7 +103,11 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
     `http://127.0.0.1:${port}/${secret}/${agent}/${sessionId}/v1/logs`;
 
   return {
-    clear: () => enqueue(() => rm(options.dir, { recursive: true, force: true })),
+    clear: () => {
+      // Sessions launched before the clear keep the old address, so they cannot write the log again.
+      secret = randomBytes(16).toString("hex");
+      return enqueue(() => rm(options.dir, { recursive: true, force: true }));
+    },
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
