@@ -268,14 +268,6 @@ describe("renderer CSS contracts", () => {
 
   it("defines the approved achromatic material ramp exactly once", () => {
     const expectedTokens = {
-      "--ink-0": "#050506",
-      "--ink-1": "#0A0A0B",
-      "--ink-2": "#111113",
-      "--ink-3": "#1B1B1E",
-      "--ink-4": "#64646B",
-      "--ink-5": "#929299",
-      "--ink-6": "#CECED2",
-      "--ink-7": "#F3F3F4",
       "--signal": "#E29B6E",
       "--surface-terminal": "#101010",
       "--surface-canvas": "#060607",
@@ -300,8 +292,10 @@ describe("renderer CSS contracts", () => {
     const root = singleTopLevelRuleBodyIn(styles, ":root");
     expect(root).toContain("--radius-control: 10px");
     expect(root).toContain("--radius-panel: 14px");
-    expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-0"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-1"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-canvas"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
+    // One grey scale: the canvas tokens above.
+    expect(productStyles).not.toMatch(/--ink-\d/);
   });
 
   it("uses macOS system type for visible app chrome and technical content", () => {
@@ -375,7 +369,6 @@ describe("renderer CSS contracts", () => {
       /var\(--(?:signal-focus-strong|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?)\)/.test(body),
     );
     const focusSignalUses = liveRules.filter(({ body }) => body.includes("var(--signal-focus)"));
-    const lowContrastControlUses = liveRules.filter(({ body }) => /color:\s*var\(--ink-4\)/.test(body));
     const literalColorUses = liveRules.filter(({ body }) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(body));
 
     expect(liveSelectors).toEqual(expect.arrayContaining([
@@ -391,7 +384,6 @@ describe("renderer CSS contracts", () => {
         || selector.includes("aria-pressed"),
       ),
     )).toBe(true);
-    expect(lowContrastControlUses.map(({ selectors }) => selectors)).toEqual([]);
     expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
@@ -460,11 +452,11 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/\.(?:review-modal-header|recovery-banner|empty-workspace-card)/);
   });
 
-  it("keeps one canonical body owner on the ink canvas", () => {
+  it("keeps one canonical body owner on the canvas surface", () => {
     const bodyRules = topLevelExactRuleBodies("body");
 
     expect(bodyRules).toHaveLength(1);
-    expect(bodyRules[0]).toContain("background: var(--ink-0)");
+    expect(bodyRules[0]).toContain("background: var(--surface-canvas)");
     expect(bodyRules[0]).toContain("min-width: 0");
     expect(bodyRules[0]).not.toContain("gradient");
     expect(bodyRules[0]).not.toContain("background-size");
@@ -653,7 +645,6 @@ describe("renderer CSS contracts", () => {
 
     // The padding around xterm shows the box, so any other colour draws a frame around the terminal.
     expect(rootToken("--surface-terminal").toLowerCase()).toBe(ghosttyVesperTerminalProfile.theme.background);
-    expect(rootToken("--ink-0")).toBe("#050506");
     expect(tile).toContain("background: var(--surface-terminal)");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(standaloneXtermHost).toContain("background: var(--surface-terminal)");
@@ -758,9 +749,9 @@ describe("renderer CSS contracts", () => {
     const selectedSession = exactBlockFor(".project-session.is-active");
 
     expect(commandPalette).toContain("scrollbar-width: thin");
-    expect(commandPalette).toContain("scrollbar-color: var(--ink-3) transparent");
+    expect(commandPalette).toContain("scrollbar-color: var(--surface-control-hover) transparent");
     expect(paletteScrollbar).toContain("width: 8px");
-    expect(paletteThumb).toContain("background: var(--ink-3)");
+    expect(paletteThumb).toContain("background: var(--surface-control-hover)");
     // An open free chat takes the focused tree row's fill, not a teal ring.
     expect(selectedSession).toContain("background: var(--surface-control)");
     expect(selectedSession).not.toContain("signal-focus");
