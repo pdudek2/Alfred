@@ -83,12 +83,6 @@ When the desktop test suite needs to run serially, use:
 pnpm --filter @alfred/desktop test --no-file-parallelism --maxWorkers=1
 ```
 
-The product-boundary contract can be run without starting services:
-
-```bash
-node --test scripts/test/desktop-product-boundary.test.mjs
-```
-
 ## Release gate
 
 Run the complete local release gate:
