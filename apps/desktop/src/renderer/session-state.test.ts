@@ -432,6 +432,60 @@ describe("desktop session state", () => {
     });
   });
 
+  it.each([
+    ["claude", "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10", ["--resume", "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10"]],
+    ["codex", "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b", ["resume", "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b"]],
+  ] as const)("restarts an ended %s in the conversation it named, not with its first prompt again", (agent, conversation, args) => {
+    const exited = markSessionExited(hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: `${agent}-1`,
+        title: "Fix the login bug",
+        cwd: "/repo",
+        source: "manual",
+        shell: agent,
+        buffer: "",
+        agentKind: agent,
+        command: agent,
+        args: ["--", "fix the login bug"],
+        resumeTarget: { agentKind: agent, sessionId: conversation, source: "agent-hook" },
+        foregroundAgentKind: agent,
+        agentSignal: { state: "needs-you", source: "hook", at: 100 },
+        promptSubmitted: true,
+        shellBusy: true,
+      },
+    ]), "pty-a");
+
+    const restarted = restartSession(exited, `${agent}-1`)[0]!;
+
+    expect(restarted).toMatchObject({ command: agent, args, resumeMode: "exact", runtimeStatus: "starting" });
+    for (const stale of ["agentSignal", "promptSubmitted", "detectedAgentKind", "shellBusy"]) {
+      expect(restarted).not.toHaveProperty(stale);
+    }
+  });
+
+  it("restarts an agent that never named its conversation as it was launched", () => {
+    const exited = markSessionExited(hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "claude-1",
+        title: "Fix the login bug",
+        cwd: "/repo",
+        source: "manual",
+        shell: "claude",
+        buffer: "",
+        agentKind: "claude",
+        command: "claude",
+        args: ["--", "fix the login bug"],
+      },
+    ]), "pty-a");
+
+    const restarted = restartSession(exited, "claude-1")[0]!;
+
+    expect(restarted).toMatchObject({ command: "claude", args: ["--", "fix the login bug"], runtimeStatus: "starting" });
+    expect(restarted).not.toHaveProperty("resumeMode");
+  });
+
   it("hydrates restored transcript tiles without runtime ids", () => {
     const hydrated = hydratePersistedTerminalSessions([
       {
