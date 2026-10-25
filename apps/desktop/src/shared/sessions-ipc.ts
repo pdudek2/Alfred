@@ -8,6 +8,8 @@ export const SUMMARY_CACHE_TEXT_LIMIT = 10 * 1024 * 1024;
 
 export type SessionProjectRef = { id: string | null; label: string };
 export type SessionLifecycle = "live" | "recoverable" | "resumable" | "read-only";
+/** A transcript Alfred did not run, by the agent that wrote it. */
+export type ExternalSessionSource = "external-codex" | "external-claude";
 
 export type SessionSummary = {
   sessionKey: string;
@@ -15,7 +17,7 @@ export type SessionSummary = {
   contentSessionKey: string | null;
   parentContentSessionKey?: string | null;
   delegatedRunCount?: number;
-  source: "managed" | "external-codex";
+  source: "managed" | ExternalSessionSource;
   kind: "codex" | "claude" | "manual";
   title: string;
   project: SessionProjectRef;
@@ -29,8 +31,8 @@ export type SessionSummary = {
 };
 
 export type ExternalSessionSummary = SessionSummary & {
-  source: "external-codex";
-  kind: "codex";
+  source: ExternalSessionSource;
+  kind: "codex" | "claude";
   contentSessionKey: string;
   parentContentSessionKey?: string | null;
   lifecycle: "resumable" | "read-only";
@@ -49,7 +51,7 @@ export type ListExternalSessionsResult = {
   total: number;
 };
 export type ResolveExternalSessionResult =
-  | { kind: "resume"; projectId: string; cwd: string; sessionId: string }
+  | { kind: "resume"; projectId: string; cwd: string; sessionId: string; agentKind: "codex" | "claude" }
   | { kind: "add-project" }
   | { kind: "none" };
 

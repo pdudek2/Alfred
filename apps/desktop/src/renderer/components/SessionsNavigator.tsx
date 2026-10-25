@@ -20,6 +20,7 @@ const SOURCE_TABS: ReadonlyArray<{ id: SessionsViewState["source"]; label: strin
   { id: "all", label: "All" },
   { id: "managed", label: "From Alfred" },
   { id: "external-codex", label: "Codex CLI" },
+  { id: "external-claude", label: "Claude Code" },
 ];
 
 type SessionsNavigatorProps = {

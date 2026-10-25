@@ -78,12 +78,14 @@
   box-shadow: inset 0 0 0 1px var(--focus-border);
 }
 
+/* With a tab per tool the scope may not fit beside the tabs; it then takes its own line instead of an ellipsis. */
 .sessions-navigator__filters {
   flex: none;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 14px 10px 0;
 }
 
@@ -94,7 +96,7 @@
 
 /* The canvas reads "41 in Alfred": the count, then the project the list is scoped to. */
 .sessions-navigator__scope {
-  min-width: 0;
+  flex: none;
   margin-left: auto;
   display: flex;
   align-items: center;

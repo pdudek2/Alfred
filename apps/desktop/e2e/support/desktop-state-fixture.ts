@@ -31,8 +31,13 @@ export type DesktopStateFixtureOptions = {
   unsafeRecoveryItem?: number;
   externalSessionFixture?: "mixed";
   externalSessionSummaryCount?: number;
+  /** One Claude Code transcript in project A, as Claude Code writes it. */
+  claudeSessionFixture?: boolean;
   missingWorkspaceId?: "A" | "B";
 };
+
+/** The conversation in the Claude Code transcript fixture. */
+export const CLAUDE_FIXTURE_CONVERSATION = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
 
 export type DesktopFixturePaths = {
   root: string;
@@ -239,6 +244,16 @@ export async function createDesktopFixture(
     }
     if (options.externalSessionSummaryCount !== undefined) {
       await writeCodexSummaryFixtures(codexHome, options.externalSessionSummaryCount, paths.workspaceA);
+    }
+    if (options.claudeSessionFixture) {
+      const folder = path.join(paths.home, ".claude", "projects", paths.workspaceA.replace(/[^a-zA-Z0-9]/g, "-"));
+      const record = (value: Record<string, unknown>) => `${JSON.stringify({ sessionId: CLAUDE_FIXTURE_CONVERSATION, cwd: paths.workspaceA, gitBranch: "main", ...value })}\n`;
+      await mkdir(folder, { recursive: true });
+      await writeFile(path.join(folder, `${CLAUDE_FIXTURE_CONVERSATION}.jsonl`), [
+        record({ type: "user", message: { role: "user", content: "Explain the launch check" } }),
+        record({ type: "assistant", message: { role: "assistant", model: "claude-opus-5-5", content: [{ type: "text", text: "It runs before every start." }] } }),
+        record({ type: "ai-title", aiTitle: "Launch check explained" }),
+      ].join(""));
     }
 
     if (state.version !== DESKTOP_STATE_VERSION) throw new Error("Fixture state version drifted.");
