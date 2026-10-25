@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
-import { createCodexSessionsReader } from "./codex-sessions.js";
+import { createExternalSessionsReader } from "./external-sessions.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { sessionsChannels } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
@@ -18,7 +18,7 @@ vi.mock("./trusted-ipc.js", async () => {
   return { trustedIpc: ipcMain };
 });
 
-type SessionsReader = ReturnType<typeof createCodexSessionsReader>;
+type SessionsReader = ReturnType<typeof createExternalSessionsReader>;
 
 function readerDefaults(): Pick<SessionsReader, "releaseListSnapshot" | "readTranscriptPage" | "getDiagnostics"> {
   return {
@@ -86,7 +86,7 @@ describe("sessions IPC", () => {
     const reader = {
       ...readerDefaults(),
       listExternalSessions: vi.fn(),
-      resolveExternalSession: vi.fn(async () => ({ kind: "resume" as const, projectId: "A", cwd: "/authoritative/root/.alfred-worktrees/feature", sessionId: "stale" })),
+      resolveExternalSession: vi.fn(async () => ({ kind: "resume" as const, projectId: "A", cwd: "/authoritative/root/.alfred-worktrees/feature", sessionId: "stale", agentKind: "codex" as const })),
     };
     registerSessionsIpc({
       reader,
@@ -108,6 +108,7 @@ describe("sessions IPC", () => {
         projectId: "A",
         cwd: managedCwd,
         sessionId: "managed-session",
+        agentKind: "codex" as const,
       })),
     };
     registerSessionsIpc({
@@ -121,6 +122,7 @@ describe("sessions IPC", () => {
       projectId: "A",
       cwd: managedCwd,
       sessionId: "managed-session",
+      agentKind: "codex" as const,
     });
   });
 
@@ -135,6 +137,7 @@ describe("sessions IPC", () => {
         projectId: "A",
         cwd: `${root}/../outside`,
         sessionId: "escaped",
+        agentKind: "codex" as const,
       })),
     };
     registerSessionsIpc({

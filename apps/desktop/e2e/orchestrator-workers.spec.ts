@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
-import net from "node:net";
-import path from "node:path";
 import { expect, test } from "./support/electron-app";
+import { launchedAgent, sendHook } from "./support/fixture-agents";
 import { sessionTree, treeRow } from "./support/work-layout";
 
 type McpServerConfig = { command: string; args: string[]; env: Record<string, string> };
@@ -46,10 +44,10 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   await expect(leadInput).toBeFocused();
 
   const typecheck = await launchedAgent(paths.root, "codex", (args) => args.includes("Run the typecheck"));
-  await hook(typecheck, "UserPromptSubmit", { prompt: "Run the typecheck" });
+  await sendHook(typecheck, "UserPromptSubmit", { prompt: "Run the typecheck" });
   const waited = orchestrator.call("wait_for_worker", { worker_id: "codex-1", timeout_seconds: 30 });
-  await hook(typecheck, "PostToolUse", { tool_name: "Bash", tool_input: { command: "pnpm typecheck 2>&1 | tail -40", description: "Run typecheck" } });
-  await hook(typecheck, "Stop", { last_assistant_message: "Typecheck passed.\nNo errors in 3 projects." });
+  await sendHook(typecheck, "PostToolUse", { tool_name: "Bash", tool_input: { command: "pnpm typecheck 2>&1 | tail -40", description: "Run typecheck" } });
+  await sendHook(typecheck, "Stop", { last_assistant_message: "Typecheck passed.\nNo errors in 3 projects." });
   const read = parse(await waited) as { last_answer: string; recent_steps: string[]; state: string };
   expect(read).toMatchObject({ state: "your turn", last_answer: "Typecheck passed.\nNo errors in 3 projects." });
   expect(read.recent_steps.slice(0, 3)).toEqual(["Typecheck passed.", "Run typecheck", "You asked: Run the typecheck"]);
@@ -81,11 +79,11 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   // The orchestrator ends its turn; when a worker it started finishes, Alfred tells it, under its own label.
   await treeRow(page, leadId).click();
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveAttribute("data-session-id", leadId);
-  await hook(lead, "UserPromptSubmit", { prompt: "Hand the work out" });
-  await hook(lead, "Stop", { last_assistant_message: "Started the workers." });
+  await sendHook(lead, "UserPromptSubmit", { prompt: "Hand the work out" });
+  await sendHook(lead, "Stop", { last_assistant_message: "Started the workers." });
   const readme = await launchedAgent(paths.root, "codex", (args) => args.includes("Read the README"));
-  await hook(readme, "UserPromptSubmit", { prompt: "Read the README" });
-  await hook(readme, "Stop", { last_assistant_message: "The README describes the desktop app." });
+  await sendHook(readme, "UserPromptSubmit", { prompt: "Read the README" });
+  await sendHook(readme, "Stop", { last_assistant_message: "The README describes the desktop app." });
   await expect(leadTile.getByTestId("xterm-host")).toContainText("Message from Alfred (not from the user)", { timeout: 10_000 });
   await expect(leadTile.getByTestId("xterm-host")).toContainText('your worker "Codex" (codex-2) finished its turn.');
   await expect(leadTile.getByTestId("xterm-host")).not.toContainText("The README describes the desktop app.");
@@ -109,39 +107,10 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   worker.close();
 });
 
-type LaunchedAgent = { args: string[]; sessionId: string; socketPath: string };
-
-/** The fixture agent writes what Alfred launched it with and where its hooks report. */
-async function launchedAgent(root: string, agent: string, matches: (args: string[]) => boolean): Promise<LaunchedAgent> {
-  let found: LaunchedAgent | undefined;
-  await expect.poll(async () => {
-    for (const name of await readdir(root)) {
-      const [, pid] = new RegExp(`^alfred-${agent}-args-(\\d+)$`).exec(name) ?? [];
-      if (!pid) continue;
-      const args = (await readFile(path.join(root, name), "utf8")).split("\n").slice(0, -1);
-      if (!matches(args)) continue;
-      const hookFile = await readFile(path.join(root, `alfred-${agent}-hook-${pid}`), "utf8").catch(() => "");
-      const [socketPath, sessionId] = hookFile.trim().split("\n");
-      if (socketPath && sessionId) found = { args, sessionId, socketPath };
-    }
-    return found !== undefined;
-  }).toBe(true);
-  return found!;
-}
 
 function mcpServerConfig(args: string[]): McpServerConfig {
   const json = args[args.indexOf("--mcp-config") + 1]!;
   return (JSON.parse(json) as { mcpServers: { alfred: McpServerConfig } }).mcpServers.alfred;
-}
-
-/** What Alfred's relay forwards when an agent runs a hook. */
-function hook(agent: LaunchedAgent, event: string, payload: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const message = JSON.stringify({ sessionId: agent.sessionId, event, payload: JSON.stringify({ hook_event_name: event, ...payload }) });
-    const socket = net.connect(agent.socketPath, () => socket.end(`${message}\n`));
-    socket.on("error", reject);
-    socket.on("close", () => resolve());
-  });
 }
 
 /** One JSON-RPC message per line on stdio, as Claude Code and Codex talk to an MCP server. */

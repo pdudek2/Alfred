@@ -174,9 +174,9 @@ export function App() {
     status: "loading",
   });
   const [workspaceHydrationRetryIndex, setWorkspaceHydrationRetryIndex] = useState<number>(0);
-  const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalSessionSummary[]>([]);
-  const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
-  const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
+  const [externalSessions, setExternalSessions] = useState<ExternalSessionSummary[]>([]);
+  const [externalSessionsError, setExternalSessionsError] = useState<string | null>(null);
+  const [externalSessionsLoading, setExternalSessionsLoading] = useState<boolean>(false);
   const externalSessionsRequestGenerationRef = useRef(0);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
@@ -942,13 +942,10 @@ export function App() {
   ]);
 
   useEffect(() => {
-    for (const [codexSessionId] of externalResumeReservationsRef.current) {
-      const actual = terminalSessions.find((session) => (
-        session.resumeTarget?.agentKind === "codex"
-        && session.resumeTarget.sessionId === codexSessionId
-      ));
+    for (const [conversationId] of externalResumeReservationsRef.current) {
+      const actual = terminalSessions.find((session) => session.resumeTarget?.sessionId === conversationId);
       if (!actual) continue;
-      externalResumeReservationsRef.current.delete(codexSessionId);
+      externalResumeReservationsRef.current.delete(conversationId);
       handleFocusSessionInWorkspace(actual.workspaceId, actual.id);
     }
   }, [handleFocusSessionInWorkspace, terminalSessions]);
@@ -1859,17 +1856,17 @@ export function App() {
     setCommandQuery("");
   }, []);
 
-  const handleRefreshExternalCodexSessions = useCallback(async () => {
+  const handleRefreshExternalSessions = useCallback(async () => {
     const sessionsApi = getDesktopSessionsApi();
     if (!sessionsApi) {
-      setExternalCodexSessionsError("Session history is unavailable in this build.");
+      setExternalSessionsError("Session history is unavailable in this build.");
       return;
     }
 
     const requestGeneration = externalSessionsRequestGenerationRef.current + 1;
     externalSessionsRequestGenerationRef.current = requestGeneration;
-    setExternalCodexSessionsLoading(true);
-    setExternalCodexSessionsError(null);
+    setExternalSessionsLoading(true);
+    setExternalSessionsError(null);
     let snapshotCursorToRelease: string | undefined;
     try {
       const accumulated: ExternalSessionSummary[] = [];
@@ -1894,7 +1891,7 @@ export function App() {
           accumulated.push(session);
           if (accumulated.length === SUMMARY_CACHE_COUNT_LIMIT) break;
         }
-        setExternalCodexSessions((current) => {
+        setExternalSessions((current) => {
           const merged = new Map(current.map((session) => [session.sessionKey, session]));
           for (const session of accumulated) merged.set(session.sessionKey, session);
           return [...merged.values()];
@@ -1913,16 +1910,16 @@ export function App() {
       }
 
       if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
-      setExternalCodexSessions(accumulated);
-      setExternalCodexSessionsError(null);
+      setExternalSessions(accumulated);
+      setExternalSessionsError(null);
     } catch {
       if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
-      setExternalCodexSessionsError("Refresh failed. Retry when the local session index is available.");
+      setExternalSessionsError("Refresh failed. Retry when the local session index is available.");
     } finally {
       if (snapshotCursorToRelease) {
         await sessionsApi.releaseListSnapshot({ cursor: snapshotCursorToRelease }).catch(() => {});
       }
-      if (externalSessionsRequestGenerationRef.current === requestGeneration) setExternalCodexSessionsLoading(false);
+      if (externalSessionsRequestGenerationRef.current === requestGeneration) setExternalSessionsLoading(false);
     }
   }, [workspaces]);
 
@@ -2033,7 +2030,7 @@ export function App() {
     setNeedsYouOpen(false);
   }, []);
 
-  const handleResumeExternalCodexSession = useCallback(async (summary: SessionSummary) => {
+  const handleResumeExternalSession = useCallback(async (summary: SessionSummary) => {
     const sessionKey = summary.sessionKey;
     if (resumingExternalSessionKeysRef.current.has(sessionKey)) return;
     resumingExternalSessionKeysRef.current.add(sessionKey);
@@ -2045,37 +2042,39 @@ export function App() {
       if (resolved.kind !== "resume") return;
       const targetWorkspace = workspaces.find((workspace) => workspace.id === resolved.projectId);
       if (!targetWorkspace) return;
+      const { agentKind } = resolved;
+      const agentLabel = agentKind === "claude" ? "Claude" : "Codex";
       const alreadyManaged = terminalSessionsRef.current.find((session) => (
-        session.resumeTarget?.agentKind === "codex"
-        && session.resumeTarget.sessionId === resolved.sessionId
+        session.resumeTarget?.agentKind === agentKind
+        && session.resumeTarget?.sessionId === resolved.sessionId
       ));
       if (alreadyManaged) {
         handleFocusSessionInWorkspace(alreadyManaged.workspaceId, alreadyManaged.id);
         return;
       }
       if (externalResumeReservationsRef.current.has(resolved.sessionId)) return;
-      const title = normalizeSessionTitle(summary.title ?? "") || "Codex resume";
+      const title = normalizeSessionTitle(summary.title ?? "") || `${agentLabel} resume`;
       const tile: SessionTile = {
-        id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}`,
+        id: `external-${agentKind}-${resolved.sessionId.slice(0, 8)}-${now}`,
         title,
         workspaceId: targetWorkspace.id,
         cwd: resolved.cwd,
         source: "manual",
         stage: "live",
         runtimeStatus: "starting",
-        agentKind: "codex",
-        command: "codex",
-        args: ["resume", resolved.sessionId],
-        resumeTarget: { agentKind: "codex", sessionId: resolved.sessionId, source: "external-session-index" },
+        agentKind,
+        command: agentKind,
+        args: agentKind === "claude" ? ["--resume", resolved.sessionId] : ["resume", resolved.sessionId],
+        resumeTarget: { agentKind, sessionId: resolved.sessionId, source: "external-session-index" },
         resumeMode: "exact",
         isolation: "shared",
         createdAt: now,
         activityEvents: [
           {
-            id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}-resume`,
+            id: `external-${agentKind}-${resolved.sessionId.slice(0, 8)}-${now}-resume`,
             kind: "lifecycle",
-            title: "External Codex session resumed",
-            detail: "Alfred is opening this Codex transcript in a managed terminal.",
+            title: `External ${agentLabel} session resumed`,
+            detail: `Alfred is opening this ${agentLabel} transcript in a managed terminal.`,
             at: now,
           },
         ],
@@ -2087,8 +2086,8 @@ export function App() {
       });
       setTerminalSessions((sessions) => {
         if (sessions.some((session) => (
-          session.resumeTarget?.agentKind === "codex"
-          && session.resumeTarget.sessionId === resolved.sessionId
+          session.resumeTarget?.agentKind === agentKind
+          && session.resumeTarget?.sessionId === resolved.sessionId
         ))) return sessions;
         return [...sessions, tile];
       });
@@ -2097,7 +2096,7 @@ export function App() {
     }
   }, [handleFocusSessionInWorkspace, workspaces]);
 
-  const handleAddExternalCodexProject = useCallback(async () => {
+  const handleAddExternalProject = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (!workspaceApi) return;
 
@@ -2115,10 +2114,10 @@ export function App() {
         if (request.target) handleRecoverSession(request.target.workspaceId, request.target.sessionId);
         return;
       case "resume-external":
-        void handleResumeExternalCodexSession(request.summary);
+        void handleResumeExternalSession(request.summary);
         return;
       case "add-project":
-        void handleAddExternalCodexProject();
+        void handleAddExternalProject();
         return;
       case "open-project": {
         const workspaceId = request.summary.project.id;
@@ -2138,25 +2137,25 @@ export function App() {
       }
     }
   }, [
-    handleAddExternalCodexProject,
+    handleAddExternalProject,
     handleFocusSessionInWorkspace,
     handleRecoverSession,
-    handleResumeExternalCodexSession,
+    handleResumeExternalSession,
     selectedSessionIdsByWorkspace,
     workspaces,
   ]);
 
   useEffect(() => {
     if (activeSurface !== "sessions" && !needsGeneratedCodexTitleBackfill) return;
-    void handleRefreshExternalCodexSessions();
-  }, [activeSurface, handleRefreshExternalCodexSessions, needsGeneratedCodexTitleBackfill]);
+    void handleRefreshExternalSessions();
+  }, [activeSurface, handleRefreshExternalSessions, needsGeneratedCodexTitleBackfill]);
 
   useEffect(() => {
-    if (externalCodexSessions.length === 0) return;
-    for (const backfill of generatedCodexTitleBackfills(terminalSessionsRef.current, externalCodexSessions)) {
+    if (externalSessions.length === 0) return;
+    for (const backfill of generatedCodexTitleBackfills(terminalSessionsRef.current, externalSessions)) {
       handleRenameSession(backfill.sessionId, backfill.title);
     }
-  }, [externalCodexSessions, handleRenameSession]);
+  }, [externalSessions, handleRenameSession]);
 
   useEffect(() => {
     if (activeSurface !== "work") return;
@@ -2689,9 +2688,9 @@ export function App() {
               <div className="surface-panel active">
                 <SessionsSurface
                   armedRecoverySessionIds={armedRecoverySessionIds}
-                  externalSessions={externalCodexSessions}
-                  externalSessionsError={externalCodexSessionsError}
-                  loadingExternalSessions={externalCodexSessionsLoading}
+                  externalSessions={externalSessions}
+                  externalSessionsError={externalSessionsError}
+                  loadingExternalSessions={externalSessionsLoading}
                   now={now}
                   sessions={terminalSessions}
                   sessionsApi={getDesktopSessionsApi()}
@@ -2704,7 +2703,7 @@ export function App() {
                   onDiscardSavedSession={handleCloseSession}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onSelectionChange={handleHistorySelectionChange}
-                  onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions()}
+                  onRefreshExternalSessions={() => void handleRefreshExternalSessions()}
                   onReviewWorktree={handleReviewWorktree}
                   onStateChange={setSessionsViewState}
                 />

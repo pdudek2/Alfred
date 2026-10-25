@@ -166,10 +166,14 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
       tabs: row?.querySelector("[role='tablist']")?.getBoundingClientRect(),
     };
   });
-  // The source tabs and the scope share one row under the search field without touching.
+  // The scope sits under the search field beside the source tabs, or on its own line when the tabs leave no room;
+  // it never touches them and is never cut off.
   expect(scopeGeometry.row && scopeGeometry.tabs).toBeTruthy();
   expect(scopeGeometry.scope.right).toBeLessThanOrEqual(scopeGeometry.row!.right);
-  expect(scopeGeometry.scope.left).toBeGreaterThanOrEqual(scopeGeometry.tabs!.right + 8);
+  const besideTabs = scopeGeometry.scope.left >= scopeGeometry.tabs!.right + 8;
+  const belowTabs = scopeGeometry.scope.top >= scopeGeometry.tabs!.bottom;
+  expect(besideTabs || belowTabs).toBe(true);
+  expect(await projectScope.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await projectScope.focus();
   await expect(projectScope).toBeFocused();
   await expect(sessions.locator(".sessions-results")).toBeVisible();

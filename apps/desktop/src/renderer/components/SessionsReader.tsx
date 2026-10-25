@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { SessionSummary, TranscriptBlock, TranscriptPage } from "../../shared/sessions-ipc";
-import type { HistorySummarySentence } from "../history-presentation";
+import { EXTERNAL_SOURCE_LABELS, type HistorySummarySentence } from "../history-presentation";
 import type { SessionsPrimaryAction } from "../sessions-projection";
 
 export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "error";
@@ -303,7 +303,7 @@ export function SessionsReader({
             </header>
             <dl>
               <RunDetail label="Project" value={selected.project.label} />
-              <RunDetail label="Source" value={selected.source === "managed" ? "From Alfred" : "Codex CLI"} />
+              <RunDetail label="Source" value={selected.source === "managed" ? "From Alfred" : EXTERNAL_SOURCE_LABELS[selected.source]} />
               <RunDetail label="Location" value={selected.locationLabel} technical />
               {selected.branch && <RunDetail label="Branch" value={selected.branch} technical />}
               {selected.model && <RunDetail label="Model" value={selected.model} technical />}

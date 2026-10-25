@@ -2,24 +2,26 @@ import { trustedIpc } from "./trusted-ipc.js";
 import { app } from "electron";
 import os from "node:os";
 import path from "node:path";
-import { createCodexSessionsReader } from "./codex-sessions.js";
+import { createExternalSessionsReader } from "./external-sessions.js";
 import { projectWorktreeRoots } from "./git-worktree.js";
 import { isAllowedWorkspacePath } from "./workspace-path.js";
 import { sessionsChannels, type ReadTranscriptPageRequest, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
 import type { SessionsProjectInput } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
-type SessionsReader = ReturnType<typeof createCodexSessionsReader>;
+type SessionsReader = ReturnType<typeof createExternalSessionsReader>;
 type RegisterSessionsOptions = {
   codexHome?: string;
+  claudeHome?: string;
   managedWorktreeRootPath?: string;
   reader?: SessionsReader;
   workspaceStore?: WorkspaceStore;
 };
 
 export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void {
-  const reader = options.reader ?? createCodexSessionsReader({
+  const reader = options.reader ?? createExternalSessionsReader({
     codexHome: options.codexHome ?? defaultCodexHome(),
+    claudeHome: options.claudeHome ?? defaultClaudeHome(),
     ...(options.managedWorktreeRootPath === undefined
       ? {}
       : { managedWorktreeRootPath: options.managedWorktreeRootPath }),
@@ -81,6 +83,7 @@ function isTranscriptPageRequest(value: unknown): value is ReadTranscriptPageReq
 }
 
 function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }
+function defaultClaudeHome(): string { return process.env.CLAUDE_CONFIG_DIR ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".claude"); }
 
 function sanitizeListRequest(
   request: unknown,

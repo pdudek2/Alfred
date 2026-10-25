@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { open, opendir, readFile, stat } from "node:fs/promises";
+import { open, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import {
   SESSIONS_PAGE_SIZE,
   SUMMARY_CACHE_COUNT_LIMIT,
@@ -25,6 +24,8 @@ import {
 import { sessionPresentationText as presentationText } from "../shared/session-presentation.js";
 import { projectWorktreeRoots } from "./git-worktree.js";
 import { canonicalWorkspacePath } from "./workspace-path.js";
+import { claudeFormat } from "./claude-transcripts.js";
+import { findJsonlFiles, isRecord, parseJsonRecord, readTranscriptPrefixLines, stringValue, type SessionFile } from "./transcript-files.js";
 
 const MAX_TITLE_LENGTH = 92;
 const LATEST_CONVERSATION_MESSAGE_LIMIT = 6;
@@ -39,9 +40,9 @@ const MALFORMED_NOTICE = "Some malformed transcript records were omitted.";
 const TRUNCATED_NOTICE = "Some transcript content was truncated to fit this page.";
 
 type SessionMetaPayload = { cwd?: unknown; id?: unknown; model?: unknown; originator?: unknown; parent_thread_id?: unknown; timestamp?: unknown };
-type TranscriptSource = { path: string; id: string; cwd: string; revision: string; projectId: string | null };
+/** Read-only sources (a subagent's transcript) are listed but cannot be resumed. */
+type TranscriptSource = { path: string; id: string; cwd: string; revision: string; projectId: string | null; readOnly?: true };
 type ListedTranscript = { summary: ExternalSessionSummary; source: TranscriptSource; fallbackTitle: string };
-type SessionFile = { path: string; updatedAt: number; size: number };
 type SummaryCacheEntry = { summary: ListedTranscript; bytes: number };
 type TranscriptCursor = { offset: number; revision: string; mode: TranscriptReadMode };
 type ListCursor = { offset: number; snapshot: number };
@@ -49,10 +50,20 @@ type ListSnapshot = { id: number; requestSignature: string; summaries: ListedTra
 type CanonicalSessionsProject = SessionsProjectInput & { canonicalRoots: string[] };
 type CanonicalCwdCache = Map<string, Promise<string>>;
 /** What one agent's transcript says about itself. */
-type TranscriptDetails = { id: string; cwd: string; firstPrompt: string; title?: string; model?: string; originator?: string; parentId?: string };
-type ParsedRecord = { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" };
+export type TranscriptDetails = {
+  id: string;
+  cwd: string;
+  firstPrompt: string;
+  title?: string;
+  branch?: string;
+  model?: string;
+  originator?: string;
+  parentId?: string;
+  readOnly?: true;
+};
+export type ParsedRecord = { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" };
 /** How one agent keeps its transcripts: where they are, what each says about itself, and how a line reads. */
-type SessionFormat = {
+export type SessionFormat = {
   source: ExternalSessionSummary["source"];
   kind: ExternalSessionSummary["kind"];
   findFiles(): Promise<SessionFile[]>;
@@ -64,13 +75,18 @@ type SessionFormat = {
   parseRecord(line: string, id: string, mode: TranscriptReadMode): ParsedRecord;
 };
 
-export function createCodexSessionsReader(options: {
+export function createExternalSessionsReader(options: {
   codexHome: string;
   managedWorktreeRootPath?: string;
   summaryLimit?: number;
+  /** Claude Code's config folder; its transcripts join the list when given. */
+  claudeHome?: string;
   onSummaryDiscovery?: () => void;
 }) {
-  const formats: SessionFormat[] = [codexFormat(options.codexHome)];
+  const formats: SessionFormat[] = [
+    codexFormat(options.codexHome),
+    ...(options.claudeHome === undefined ? [] : [claudeFormat(options.claudeHome)]),
+  ];
   // Every session key starts with its format's source, so a key alone says how its transcript reads.
   const formatFor = (sessionKey: string): SessionFormat | undefined =>
     formats.find((format) => sessionKey.startsWith(`${format.source}:`));
@@ -214,8 +230,10 @@ export function createCodexSessionsReader(options: {
       const sessionKey = typeof request === "string" ? request : request.sessionKey;
       const source = sourceBySessionKey.get(sessionKey);
       if (!source) return { kind: "none" };
+      const format = formatFor(sessionKey);
+      if (!format || source.readOnly) return { kind: "none" };
       if (!source.projectId) return { kind: "add-project" };
-      return { kind: "resume", projectId: source.projectId, cwd: source.cwd, sessionId: source.id };
+      return { kind: "resume", projectId: source.projectId, cwd: source.cwd, sessionId: source.id, agentKind: format.kind };
     },
     async readTranscriptPage(request: { sessionKey: string; cursor?: string; mode?: TranscriptReadMode }): Promise<TranscriptPage> {
       const source = sourceBySessionKey.get(request.sessionKey) ?? sourceByContentSessionKey.get(request.sessionKey);
@@ -294,7 +312,7 @@ async function remapProject(
       title: titles.get(value.source.id) || value.fallbackTitle,
       project,
       locationLabel: boundedDisplayText(project.id ? project.label : (value.source.cwd ? path.basename(value.source.cwd) : "Unknown workspace")),
-      lifecycle: project.id ? "resumable" : "read-only",
+      lifecycle: project.id && !value.source.readOnly ? "resumable" : "read-only",
     },
     source: { ...value.source, projectId: project.id },
     fallbackTitle: value.fallbackTitle,
@@ -310,7 +328,7 @@ async function summarizeTranscript(
 ): Promise<ListedTranscript | null> {
   const details = await format.readDetails(file);
   if (!details || details.id.length > MAX_SESSION_ID_LENGTH) return null;
-  const { id, cwd, firstPrompt, model, originator, parentId } = details;
+  const { id, cwd, firstPrompt, branch, model, originator, parentId, readOnly } = details;
   if (Buffer.byteLength(cwd, "utf8") > MAX_SESSION_CWD_BYTES) return null;
   const project = await projectForCwd(cwd, projects, canonicalCwds);
   const fallback = titleFromText(details.title ?? "") || titleFromText(firstPrompt) || titleFromText(format.untitled(cwd, id));
@@ -332,11 +350,20 @@ async function summarizeTranscript(
     project,
     locationLabel: boundedDisplayText(project.id ? project.label : (cwd ? path.basename(cwd) : "Unknown workspace")),
     updatedAt: file.updatedAt,
-    lifecycle: project.id ? "resumable" : "read-only",
+    lifecycle: project.id && !readOnly ? "resumable" : "read-only",
+    ...(branch ? { branch: boundedDisplayText(branch) } : {}),
     ...(model ? { model: boundedDisplayText(model) } : {}),
     ...(originator ? { originator: boundedDisplayText(originator) } : {}),
   };
-  return { summary, source: { path: file.path, id, cwd, revision: revisionFrom(file.updatedAt, file.size), projectId: project.id }, fallbackTitle: fallback };
+  const source: TranscriptSource = {
+    path: file.path,
+    id,
+    cwd,
+    revision: revisionFrom(file.updatedAt, file.size),
+    projectId: project.id,
+    ...(readOnly ? { readOnly } : {}),
+  };
+  return { summary, source, fallbackTitle: fallback };
 }
 
 async function streamTranscriptPage(
@@ -716,11 +743,6 @@ async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string
   }
   return titles;
 }
-async function findJsonlFiles(root: string): Promise<SessionFile[]> { const files: SessionFile[] = []; async function visit(dir: string): Promise<void> { let handle: Awaited<ReturnType<typeof opendir>>; try { handle = await opendir(dir); } catch { return; } for await (const entry of handle) { const entryPath = path.join(dir, entry.name); if (entry.isDirectory()) await visit(entryPath); else if (entry.isFile() && entry.name.endsWith(".jsonl")) try { const details = await stat(entryPath); files.push({ path: entryPath, updatedAt: details.mtimeMs, size: details.size }); } catch { /* File changed while Codex was writing it. */ } } } await visit(root); return files; }
-async function readTranscriptPrefixLines(filePath: string, maxLines: number): Promise<string[]> { const stream = createReadStream(filePath, { encoding: "utf8" }); const reader = createInterface({ input: stream, crlfDelay: Infinity }); const lines: string[] = []; try { for await (const line of reader) { lines.push(line); if (lines.length >= maxLines) { reader.close(); stream.destroy(); break; } } } finally { reader.close(); stream.destroy(); } return lines; }
-function parseJsonRecord(line: string): Record<string, unknown> | null { try { const value = JSON.parse(line) as unknown; return isRecord(value) ? value : null; } catch { return null; } }
-function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
-function stringValue(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value : undefined; }
 function extractUserText(record: Record<string, unknown>): string { if (record.type === "event_msg" && isRecord(record.payload)) return stringValue(record.payload.message) ?? ""; if (record.type !== "response_item" || !isRecord(record.payload) || record.payload.type !== "message" || record.payload.role !== "user" || !Array.isArray(record.payload.content)) return ""; return record.payload.content.flatMap((item) => isRecord(item) ? [stringValue(item.text) ?? stringValue(item.input_text) ?? ""] : []).join(" ").trim(); }
 function titleFromText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return !text ? "" : text.length > MAX_TITLE_LENGTH ? `${text.slice(0, MAX_TITLE_LENGTH - 1)}...` : text; }
 function boundedDisplayText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return text.length > MAX_DISPLAY_TEXT_LENGTH ? `${text.slice(0, MAX_DISPLAY_TEXT_LENGTH - 1)}...` : text; }

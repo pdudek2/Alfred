@@ -114,9 +114,9 @@ export function SessionsSurface({
       const managed = oneProject ? ranSessions.filter((session) => session.workspaceId === projectId) : ranSessions;
       const external = oneProject ? externalSessions.filter((session) => session.project.id === projectId) : externalSessions;
       return buildSessionsProjection({
-        sessions: state.source === "external-codex" ? [] : managed,
+        sessions: state.source === "all" || state.source === "managed" ? managed : [],
         workspaces,
-        externalSessions: state.source === "managed" ? [] : external,
+        externalSessions: state.source === "managed" ? [] : external.filter((session) => state.source === "all" || session.source === state.source),
         query: state.query,
         pageIndex: state.pageIndex,
         projectId: oneProject ? "all" : projectId,
@@ -323,7 +323,7 @@ export function SessionsSurface({
     setReaderPageError(null);
 
     try {
-      if (summary.source === "external-codex" || summary.contentSessionKey) {
+      if (summary.source !== "managed" || summary.contentSessionKey) {
         if (!sessionsApi) {
           setReaderStatus("error");
           return;
@@ -420,7 +420,7 @@ export function SessionsSurface({
   useEffect(() => () => onSelectionChange?.(null), [onSelectionChange]);
 
   const loadMore = useCallback(async () => {
-    if (!selected || !sessionsApi || (selected.source !== "external-codex" && !selected.contentSessionKey)) return;
+    if (!selected || !sessionsApi || (selected.source === "managed" && !selected.contentSessionKey)) return;
     const cursor = state.readerPages.at(-1)?.nextCursor;
     if (!cursor) return;
     const requestSequence = requestSequenceRef.current + 1;
@@ -510,7 +510,7 @@ export function SessionsSurface({
         status={readerStatus}
         pageError={readerPageError}
         readerMode={state.readerMode}
-        canReadRaw={Boolean(selected && (selected.source === "external-codex" || selected.contentSessionKey))}
+        canReadRaw={Boolean(selected && (selected.source !== "managed" || selected.contentSessionKey))}
         onLoadMore={() => void loadMore()}
         onRetryTranscript={() => {
           if (selected) void selectSession(selected);

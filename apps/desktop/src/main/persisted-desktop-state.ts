@@ -636,8 +636,11 @@ function isTerminalSessionSource(value: unknown): value is TerminalSessionSource
 
 function isTerminalResumeTarget(value: unknown): value is TerminalResumeTarget {
   if (!isRecord(value)) return false;
-  if (value.source === "agent-hook") {
-    return (value.agentKind === "claude" || value.agentKind === "codex") && isAgentConversationId(value.sessionId);
+  // Claude resumes take the id as an argument, so it must be a UUID, as from hooks.
+  if (value.source === "agent-hook" || value.agentKind === "claude") {
+    return (value.agentKind === "claude" || value.agentKind === "codex")
+      && isAgentConversationId(value.sessionId)
+      && (value.source === "agent-hook" || value.source === "external-session-index");
   }
   return (
     value.agentKind === "codex" &&
