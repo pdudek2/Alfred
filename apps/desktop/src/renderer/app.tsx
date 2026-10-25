@@ -2941,7 +2941,7 @@ function PrivacyPanel({
           <section className="privacy-control-row">
             <div>
               <strong>Terminal scrollback</strong>
-              <span>{settings.terminalScrollbackRetention === "off" ? "Saved terminal buffers are disabled." : "Only a redacted 80k tail is saved."}</span>
+              <span>{settings.terminalScrollbackRetention === "off" ? "Saved terminal buffers and agent events are disabled." : "Only a redacted 80k tail and redacted agent events are saved."}</span>
             </div>
             <div className="privacy-segmented" role="group" aria-label="Terminal scrollback retention">
               <button
@@ -2965,7 +2965,7 @@ function PrivacyPanel({
             <div>
               <strong>Asleep sessions</strong>
               <span>
-                Clear Alfred&apos;s persisted terminal buffers, activity previews, and the draft plan.
+                Clear Alfred&apos;s persisted terminal buffers, activity previews, the draft plan, and the agent event log.
                 This can&apos;t be undone.
               </span>
             </div>

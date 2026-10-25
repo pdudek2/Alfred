@@ -17,8 +17,10 @@ import {
   getTerminalSessionCount,
   killAllTerminalSessions,
   registerTerminalIpc,
+  savesTerminalData,
   waitForTerminalExits,
 } from "./terminal-manager.js";
+import { createAgentEventLog } from "./agent-events.js";
 import { createAgentSignalBridge } from "./agent-signals.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
@@ -210,7 +212,16 @@ if (!hasSingleInstanceLock) {
     configureLayoutPersistence(persistedDesktopStateStore);
     configureStagedPlanPersistence(persistedDesktopStateStore);
     configureTerminalPersistence(persistedDesktopStateStore);
-    registerDesktopStateIpc(persistedDesktopStateStore);
+    const agentEvents = await createAgentEventLog({
+      dir: path.join(app.getPath("userData"), "agent-events"),
+      isRecording: savesTerminalData,
+    }).catch((error: unknown) => {
+      console.error("Agent events are not recorded.", error);
+      return null;
+    });
+    // will-quit, not before-quit: agents still flush their last events while their terminals close.
+    app.on("will-quit", () => void agentEvents?.close());
+    registerDesktopStateIpc(persistedDesktopStateStore, { clearAgentEvents: () => agentEvents?.clear() });
     const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
     const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
     const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
@@ -231,6 +242,7 @@ if (!hasSingleInstanceLock) {
     });
     app.on("will-quit", () => void agentSignals?.close());
     registerTerminalIpc({
+      agentEvents,
       agentSignals,
       appOnlyEnvKeys,
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),

@@ -14,6 +14,7 @@ import {
   killAllTerminalSessions,
   registerTerminalIpc as registerTerminalIpcBase,
   resetTerminalPersistenceForTests,
+  savesTerminalData,
   waitForTerminalExits,
 } from "./terminal-manager.js";
 import type { SessionActivityInput } from "../shared/session-activity.js";
@@ -1581,6 +1582,34 @@ describe("terminal-manager IPC", () => {
       TERM: "xterm-256color",
       FORCE_HYPERLINK: "1",
     });
+  });
+
+  it("hands each agent the event log's environment and arguments after its own", async () => {
+    const spawn = vi.fn(() => new FakePty());
+    registerTerminalIpc({
+      agentEvents: {
+        clear: async () => {},
+        close: async () => {},
+        env: (id, command) => (command === "claude" ? { OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: id } : {}),
+        launchArgs: (id, command) => (command === "codex" ? ["-c", `otel.session=${id}`] : []),
+      },
+      loadNodePty: async () => ({ spawn }) as never,
+    });
+
+    const claude = await invoke<{ id: string }>(terminalChannels.create, { command: "claude", cols: 80, cwd: "/repo", rows: 24 });
+    const codex = await invoke<{ id: string }>(terminalChannels.create, { command: "codex", cols: 80, cwd: "/repo", rows: 24 });
+
+    const [claudeCall, codexCall] = spawn.mock.calls as unknown as Array<[string, string[], { env: Record<string, string> }]>;
+    expect(claudeCall![2].env).toMatchObject({ OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: claude.id });
+    expect(codexCall![1]).toEqual([...CODEX_NOTIFICATION_ARGS, "-c", `otel.session=${codex.id}`]);
+    expect(codexCall![2].env).not.toHaveProperty("OTEL_LOGS_EXPORTER");
+  });
+
+  it("reports whether terminal data is saved, which the agent event log follows", () => {
+    applyTerminalPrivacyPolicyInMemory({ ...DEFAULT_DESKTOP_STATE.privacySettings, terminalScrollbackRetention: "off" });
+    expect(savesTerminalData()).toBe(false);
+    applyTerminalPrivacyPolicyInMemory({ ...DEFAULT_DESKTOP_STATE.privacySettings, terminalScrollbackRetention: "redactedTail" });
+    expect(savesTerminalData()).toBe(true);
   });
 
   it.each([
