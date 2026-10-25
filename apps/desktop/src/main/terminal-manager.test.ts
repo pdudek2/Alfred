@@ -2146,12 +2146,20 @@ describe("terminal-manager IPC", () => {
     }));
   });
 
+  const savedConversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+
   it.each([
     { agentKind: "codex" as const, args: ["resume", "--last"] },
     { agentKind: "claude" as const, args: ["--continue"] },
-  ])("resumes an exact saved $agentKind session when its legacy workspace is no longer bound", async ({
+    {
+      agentKind: "claude" as const,
+      args: ["--resume", savedConversation],
+      resumeTarget: { agentKind: "claude" as const, sessionId: savedConversation, source: "agent-hook" as const },
+    },
+  ])("resumes an exact saved $agentKind session ($args) when its legacy workspace is no longer bound", async ({
     agentKind,
     args,
+    resumeTarget,
   }) => {
     const nodePty = fakeNodePty(new FakePty());
     const snapshot: PersistedTerminalSessionSnapshot = {
@@ -2164,6 +2172,7 @@ describe("terminal-manager IPC", () => {
       shell: agentKind,
       command: agentKind,
       args: ["original prompt"],
+      ...(resumeTarget === undefined ? {} : { resumeTarget }),
       buffer: "saved transcript\n",
     };
     configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
@@ -2182,6 +2191,7 @@ describe("terminal-manager IPC", () => {
       rows: 24,
       source: snapshot.source,
       ...(snapshot.workspaceId === undefined ? {} : { workspaceId: snapshot.workspaceId }),
+      ...(resumeTarget === undefined ? {} : { resumeTarget }),
     };
 
     const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
@@ -2192,6 +2202,42 @@ describe("terminal-manager IPC", () => {
       agentKind === "codex" ? [...CODEX_NOTIFICATION_ARGS, ...args] : args,
       expect.objectContaining({ cwd: snapshot.cwd }),
     );
+  });
+
+  it("does not let a saved Claude session outside the bound folders resume a different conversation", async () => {
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "claude-legacy",
+      title: "Claude legacy session",
+      workspaceId: "W16",
+      cwd: "/legacy/unbound/project",
+      source: "manual",
+      agentKind: "claude",
+      shell: "claude",
+      command: "claude",
+      args: [],
+      resumeTarget: { agentKind: "claude", sessionId: savedConversation, source: "agent-hook" },
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      allowedCwdRoots: async () => ["/repo"],
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      requireLaunchTickets: true,
+    });
+    const other = "7a2d3b5f-9c2e-4d4f-8a3b-1e6f8c9dab21";
+
+    await expect(invoke(terminalChannels.prepareLaunch, {
+      agentKind: "claude",
+      args: ["--resume", other],
+      clientId: snapshot.clientId,
+      cols: 80,
+      command: "claude",
+      cwd: snapshot.cwd,
+      resumeTarget: { agentKind: "claude", sessionId: other, source: "agent-hook" },
+      rows: 24,
+      source: snapshot.source,
+      workspaceId: snapshot.workspaceId,
+    })).rejects.toThrow("Terminal cwd is outside registered workspaces.");
   });
 
   it("lets Codex report its turns through OSC 9 when the hook bridge is unavailable", async () => {
@@ -4298,6 +4344,7 @@ describe("terminal-manager IPC", () => {
       sessionId: string,
       update: { activity?: SessionActivityInput; answer?: string; detail?: string; state: "working" | "needs-you" | "your-turn" },
       transcriptPath?: string,
+      conversationId?: string,
     ) => void;
 
     type ToolHandler = (sessionId: string, tool: string, args: unknown) => Promise<unknown>;
@@ -4318,8 +4365,8 @@ describe("terminal-manager IPC", () => {
             toolHandler = next;
           },
         },
-        fire: (sessionId: string, update: Parameters<Listener>[1], transcriptPath?: string) =>
-          listener?.(sessionId, update, transcriptPath),
+        fire: (sessionId: string, update: Parameters<Listener>[1], transcriptPath?: string, conversationId?: string) =>
+          listener?.(sessionId, update, transcriptPath, conversationId),
         callTool: (sessionId: string, tool: string, args: unknown) => toolHandler!(sessionId, tool, args),
       };
     }
@@ -4377,6 +4424,45 @@ describe("terminal-manager IPC", () => {
         agentSignal: { state: "your-turn", source: "hook", detail: "Created hello world.txt on the desktop." },
         activities: [expect.objectContaining({ kind: "output", detail: "Created hello world.txt on the desktop." })],
       });
+    });
+
+    it("remembers the conversation an agent's hooks name, so Resume can reopen that one", async () => {
+      const first = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+      const second = "7a2d3b5f-9c2e-4d4f-8a3b-1e6f8c9dab21";
+      let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+      const store: PersistedDesktopStateStore = {
+        ...persistedStateStoreMethods(() => state),
+        getState: vi.fn(async () => state),
+        setState: vi.fn(async (next) => { state = next; return state; }),
+        updateState: vi.fn(async (updater) => { state = await updater(state); return state; }),
+      };
+      configureTerminalPersistence(store, { debounceMs: 0 });
+      const { bridge, fire } = fakeBridge();
+      const nodePty = { spawn: vi.fn(() => new FakePty()) };
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => nodePty as never });
+      const claude = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      const shell = await invoke<{ id: string }>(terminalChannels.create, { clientId: "shell-1", cols: 80, cwd: "/repo", rows: 24 });
+
+      fire(claude.id, { state: "your-turn" }, undefined, first);
+      expect(lastDataEvent()).toMatchObject({ resumeTarget: { agentKind: "claude", sessionId: first, source: "agent-hook" } });
+      await flushTerminalPersistence();
+      expect(state.restoredTerminalSessions.find((session) => session.clientId === "claude-1")?.resumeTarget)
+        .toEqual({ agentKind: "claude", sessionId: first, source: "agent-hook" });
+
+      // /clear starts another conversation in the same terminal; the newest one is the one to resume.
+      fire(claude.id, { state: "your-turn" }, undefined, second);
+      await flushTerminalPersistence();
+      expect(state.restoredTerminalSessions.find((session) => session.clientId === "claude-1")?.resumeTarget?.sessionId).toBe(second);
+
+      // The same conversation again is not news.
+      fire(claude.id, { state: "working" }, undefined, second);
+      expect(lastDataEvent()).not.toHaveProperty("resumeTarget");
+
+      // A shell is not an agent, whatever reaches its socket.
+      fire(shell.id, { state: "your-turn" }, undefined, first);
+      expect(lastDataEvent()).not.toHaveProperty("resumeTarget");
     });
 
     it("adds an orchestrator's worker through its window and answers its tools from the worker's hooks", async () => {

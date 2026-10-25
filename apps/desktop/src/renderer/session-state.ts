@@ -374,7 +374,10 @@ function resumeLaunchForRestoredAgent(
   }
 
   if (agentKind === "claude") {
-    return { command: "claude", args: ["--continue"] };
+    if (session.resumeTarget?.agentKind === "claude") {
+      return { command: "claude", args: ["--resume", session.resumeTarget.sessionId], resumeMode: "exact" };
+    }
+    return { command: "claude", args: ["--continue"], resumeMode: "latest" };
   }
 
   return {};
@@ -393,8 +396,9 @@ function resumeModeForRestoredAgent(
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.command === undefined ? {} : { command: session.command }),
   })) return {};
-  if (restoredAgentKind(session) !== "codex") return {};
-  return { resumeMode: session.resumeTarget?.agentKind === "codex" ? "exact" : "latest" };
+  const agentKind = restoredAgentKind(session);
+  if (agentKind !== "codex" && agentKind !== "claude") return {};
+  return { resumeMode: session.resumeTarget?.agentKind === agentKind ? "exact" : "latest" };
 }
 
 function restoredAgentKind(
@@ -571,6 +575,7 @@ export function recordSessionOutputActivity(
       ...(agentSignal == null ? {} : { agentSignal }),
       ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
       ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
+      ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
     };

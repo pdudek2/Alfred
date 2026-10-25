@@ -416,6 +416,32 @@ describe("persisted-desktop-state", () => {
     });
   });
 
+  it("keeps the conversation an agent's hooks named, and only a UUID one", async () => {
+    const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        restoredTerminalSessions: [
+          { clientId: "named", title: "Claude", source: "alfred", agentKind: "claude", command: "claude", cwd: "/repo",
+            resumeTarget: { agentKind: "claude", sessionId: conversation, source: "agent-hook" } },
+          { clientId: "forged", title: "Claude", source: "alfred", agentKind: "claude", command: "claude", cwd: "/repo",
+            resumeTarget: { agentKind: "claude", sessionId: "--dangerously-skip-permissions", source: "agent-hook" } },
+        ],
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    const sessions = (await store.getState()).restoredTerminalSessions;
+    expect(sessions.find((session) => session.clientId === "named")?.resumeTarget)
+      .toEqual({ agentKind: "claude", sessionId: conversation, source: "agent-hook" });
+    expect(sessions.find((session) => session.clientId === "forged")).not.toHaveProperty("resumeTarget");
+  });
+
   it("normalizes invalid privacy settings to defaults", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
