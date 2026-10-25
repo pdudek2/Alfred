@@ -3,7 +3,7 @@ import type { Ref } from "react";
 import type { HistorySelection } from "../history-presentation";
 import type { SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
-import { moveTabFocus } from "../tab-keys";
+import { moveTabFocus, SESSION_VIEW_IDS } from "../tab-keys";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
@@ -90,7 +90,9 @@ export function WorkbenchHeader({
               <button
                 type="button"
                 role="tab"
+                id={SESSION_VIEW_IDS.terminalTab}
                 aria-selected={!previewOpen}
+                aria-controls={session ? SESSION_VIEW_IDS.terminalPanel : undefined}
                 tabIndex={previewOpen ? -1 : 0}
                 onClick={previewOpen ? onTogglePreview : undefined}
               >
@@ -99,7 +101,9 @@ export function WorkbenchHeader({
               <button
                 type="button"
                 role="tab"
+                id={SESSION_VIEW_IDS.previewTab}
                 aria-selected={previewOpen}
+                aria-controls={previewOpen ? SESSION_VIEW_IDS.previewPanel : undefined}
                 tabIndex={previewOpen ? 0 : -1}
                 disabled={!previewAvailable}
                 title={previewAvailable ? "Preview" : "Start a local dev server to enable Preview"}

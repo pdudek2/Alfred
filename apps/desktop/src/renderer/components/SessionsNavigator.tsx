@@ -12,6 +12,8 @@ import type { SessionDisplayStatus } from "../session-status";
 import type { SessionsViewState } from "../sessions-view-state";
 import { historyDayGroup, sessionAgeShort, sessionDateTimeLabel, type HistoryDayGroup } from "../session-time";
 import { moveTabFocus } from "../tab-keys";
+
+const RESULTS_DOM_ID = "sessions-results";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 const SOURCE_TABS: ReadonlyArray<{ id: SessionsViewState["source"]; label: string }> = [
@@ -137,6 +139,7 @@ export function SessionsNavigator({
                   role="tab"
                   key={tab.id}
                   aria-selected={state.source === tab.id}
+                  aria-controls={RESULTS_DOM_ID}
                   tabIndex={state.source === tab.id ? 0 : -1}
                   onClick={() => onStatePatch({ source: tab.id, pageIndex: 0 })}
                 >
@@ -189,6 +192,7 @@ export function SessionsNavigator({
       )}
       <div
         ref={navigatorRef}
+        id={RESULTS_DOM_ID}
         className="sessions-results"
         role="listbox"
         aria-label="Session results"

@@ -31,6 +31,10 @@ test("Preview takes the terminal's place, keeps Details beside it, and preserves
     await expect(previewTab).toBeEnabled();
     await expect(previewTab).toHaveAttribute("aria-selected", "false");
     await expect(page.getByLabel("Project preview")).toHaveCount(0);
+    // Each tab points at the panel it shows: the focused terminal, then the preview in its place.
+    const terminalPanel = page.getByRole("tabpanel", { name: "Terminal" });
+    await expect(terminalPanel).toHaveAttribute("data-testid", "xterm-host");
+    await expectControls(terminalTab, terminalPanel);
     const terminalBox = await xterm.boundingBox();
     const details = page.getByRole("complementary", { name: "Details" });
     const detailsBox = await details.boundingBox();
@@ -40,6 +44,9 @@ test("Preview takes the terminal's place, keeps Details beside it, and preserves
     const frame = page.getByTitle(`Preview of ${url}`);
     await expect(preview).toBeVisible();
     await expect(frame).toBeVisible();
+    const previewPanel = page.getByRole("tabpanel", { name: "Preview" });
+    await expect(previewPanel.getByLabel("Project preview")).toBeVisible();
+    await expectControls(previewTab, previewPanel);
     await expect(page.frameLocator(`iframe[title="Preview of ${url}"]`).getByText("Preview fixture ready")).toBeVisible();
     await expectSameNode(xtermHandle, xterm);
 
@@ -119,4 +126,10 @@ async function expectSameNode(before: ElementHandle<HTMLElement | SVGElement>, c
   const after = await current.elementHandle();
   if (!after) throw new Error("Expected the current xterm host.");
   expect(await before.evaluate((node, next) => node.isSameNode(next) && node.isConnected, after)).toBe(true);
+}
+
+async function expectControls(tab: Locator, panel: Locator): Promise<void> {
+  const id = await panel.getAttribute("id");
+  expect(id).toBeTruthy();
+  await expect(tab).toHaveAttribute("aria-controls", id!);
 }
