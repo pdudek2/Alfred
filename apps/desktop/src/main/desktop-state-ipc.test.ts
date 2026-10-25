@@ -153,6 +153,16 @@ describe("desktop-state IPC", () => {
     expect((await store.getState()).stagedPlans).toEqual({});
   });
 
+  it("deletes the agent event log when saved terminal data is cleared", async () => {
+    mocks.handlers.clear();
+    const clearAgentEvents = vi.fn(async () => {});
+    registerDesktopStateIpc(createMemoryStore(DEFAULT_DESKTOP_STATE), { clearAgentEvents });
+
+    await expect(mocks.handlers.get(desktopStateChannels.clearSavedTerminalData)?.()).resolves.toMatchObject({ ok: true });
+
+    expect(clearAgentEvents).toHaveBeenCalledOnce();
+  });
+
   it("drops the draft plan when retention is turned off, but keeps it when turned on", async () => {
     mocks.handlers.clear();
     const store = createMemoryStore({ ...DEFAULT_DESKTOP_STATE, stagedPlans: { A: planWithSecret } });
