@@ -1389,7 +1389,6 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
 
   const identity = sanitizePersistedTerminalSession(snapshot, {
     terminalScrollbackRetention: "redactedTail",
-    externalSessionIndexingEnabled: false,
   }, true);
   if (!identity) return null;
   return {

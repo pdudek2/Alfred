@@ -91,7 +91,6 @@ function createSessionsApi(): SessionsApi {
       summaryCount: 0,
       summaryBytes: 0,
     }),
-    clearCaches: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -103,7 +102,6 @@ function createTerminalApi(snapshots: TerminalSessionSnapshot[] = []): Pick<Term
 
 const baseProps = {
   armedRecoverySessionIds: new Set<string>(),
-  externalSessionIndexingEnabled: true,
   externalSessions: [],
   externalSessionsError: null,
   loadingExternalSessions: false,
@@ -728,24 +726,19 @@ describe("SessionsSurface", () => {
     expect(transcriptText).not.toContain("�");
   });
 
-  it("shows loading, no-result, disabled-indexing, and stale-refresh states without hiding managed sessions", async () => {
+  it("shows loading, no-result, and stale-refresh states without hiding managed sessions", async () => {
     const user = userEvent.setup();
-    const onOpenPrivacySettings = vi.fn();
     const view = renderSurface({ loadingExternalSessions: true });
     expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("…");
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toBeInTheDocument();
 
     view.unmount();
     renderSurface({
-      externalSessionIndexingEnabled: false,
       externalSessions: [],
       externalSessionsError: "Refresh failed.",
       sessions: [managedSession(1)],
-      onOpenPrivacySettings,
     });
-    expect(screen.getByText("External Codex indexing is off.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open Local Data & Privacy" }));
-    expect(onOpenPrivacySettings).toHaveBeenCalledOnce();
+    expect(screen.getByText("External sessions may be incomplete.")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox", { name: "Search sessions" }), "no such session");
@@ -769,7 +762,7 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const onBackToWork = vi.fn();
     renderSurface({
-      externalSessionsError: "External Codex indexing is unavailable in this build.",
+      externalSessionsError: "Session history is unavailable in this build.",
       onBackToWork,
     });
 
@@ -780,35 +773,6 @@ describe("SessionsSurface", () => {
 
     await user.click(within(reader).getByRole("button", { name: "Go to Deck" }));
     expect(onBackToWork).toHaveBeenCalledOnce();
-  });
-
-  it("drops retained external transcript pages when indexing is disabled without hiding a merged managed session", async () => {
-    const session = managedSession(0, {
-      title: "Managed privacy boundary",
-      resumeTarget: {
-        agentKind: "codex",
-        sessionId: "content-0",
-        source: "codex-session-index",
-      },
-    });
-    const initialState: SessionsViewState = {
-      ...createInitialSessionsViewState(),
-      selectedSessionKey: "managed:managed-0",
-      readerPages: [transcriptPage(
-        "external-codex:content-0",
-        [{ id: "private", kind: "message", role: "assistant", text: "Private external content" }],
-      )],
-    };
-    const view = renderSurface({
-      externalSessionIndexingEnabled: false,
-      externalSessions: [],
-      sessions: [session],
-    }, initialState);
-
-    await waitFor(() => expect(screen.queryByText("Private external content")).not.toBeInTheDocument());
-    expect(screen.getByRole("option", { name: /Managed privacy boundary/ })).toBeInTheDocument();
-    expect(view.getState().selectedSessionKey).toBe("managed:managed-0");
-    expect(view.getState().readerPages).toEqual([]);
   });
 
   it("renders missing and malformed partial transcript states", async () => {

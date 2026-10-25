@@ -591,11 +591,9 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const narrowPrivacyEvidence = await capture("privacy-narrow", [...frameProbes, ...overlayProbes.privacy]);
   expect(narrowPrivacyEvidence.documentOverflowX, "Narrow Privacy must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  const narrowPrivacyToggle = narrowPrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
   const narrowPrivacyControls = [
     narrowPrivacy.getByRole("button", { name: "Done" }),
     narrowPrivacy.getByRole("button", { name: "Redacted tail" }),
-    narrowPrivacyToggle,
     narrowPrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     narrowPrivacy.getByRole("button", { name: "Reveal in Finder" }),
   ];
@@ -603,7 +601,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(30);
   }
   expect(await collectControlOverflowEvidence(page, {
-    controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
+    controlSelector: ".privacy-panel button:not(:disabled)",
     verticalScrollOwners: [{
       id: "privacy-body",
       label: "Privacy body",
@@ -626,11 +624,9 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const widePrivacyEvidence = await capture("privacy-wide", [...frameProbes, ...overlayProbes.privacy]);
   expect(widePrivacyEvidence.documentOverflowX, "Wide Privacy must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  const widePrivacyToggle = widePrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
   const widePrivacyControls = [
     widePrivacy.getByRole("button", { name: "Done" }),
     widePrivacy.getByRole("button", { name: "Redacted tail" }),
-    widePrivacyToggle,
     widePrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     widePrivacy.getByRole("button", { name: "Reveal in Finder" }),
   ];
@@ -638,7 +634,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(30);
   }
   expect(await collectControlOverflowEvidence(page, {
-    controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
+    controlSelector: ".privacy-panel button:not(:disabled)",
     verticalScrollOwners: [{
       id: "privacy-body",
       label: "Privacy body",

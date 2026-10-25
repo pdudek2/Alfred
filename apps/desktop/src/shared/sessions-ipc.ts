@@ -88,7 +88,6 @@ export type SessionsApi = {
   resolveExternalSession(request: { sessionKey: string }): Promise<ResolveExternalSessionResult>;
   readTranscriptPage(request: ReadTranscriptPageRequest): Promise<TranscriptPage>;
   getDiagnostics(): Promise<SessionsDiagnostics>;
-  clearCaches(): Promise<void>;
 };
 
 export const sessionsChannels = {
@@ -97,7 +96,6 @@ export const sessionsChannels = {
   resolveExternal: "alfred:sessions:resolve-external",
   readTranscriptPage: "alfred:sessions:read-transcript-page",
   getDiagnostics: "alfred:sessions:get-diagnostics",
-  clearCaches: "alfred:sessions:clear-caches",
 } as const;
 
 export type SessionsChannels = typeof sessionsChannels;

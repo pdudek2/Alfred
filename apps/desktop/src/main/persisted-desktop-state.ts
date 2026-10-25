@@ -32,7 +32,6 @@ export type TerminalScrollbackRetention = "off" | "redactedTail";
 
 export type DesktopPrivacySettings = {
   terminalScrollbackRetention: TerminalScrollbackRetention;
-  externalSessionIndexingEnabled: boolean;
 };
 
 export type DesktopSaveStatus =
@@ -102,7 +101,6 @@ export const DEFAULT_DESKTOP_WINDOW_STATE: DesktopWindowState = {
 
 export const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
-  externalSessionIndexingEnabled: true,
 };
 
 export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
@@ -284,10 +282,6 @@ export function normalizeDesktopPrivacySettings(value: unknown): DesktopPrivacyS
       value.terminalScrollbackRetention === "off" || value.terminalScrollbackRetention === "redactedTail"
         ? value.terminalScrollbackRetention
         : DEFAULT_PRIVACY_SETTINGS.terminalScrollbackRetention,
-    externalSessionIndexingEnabled:
-      typeof value.externalSessionIndexingEnabled === "boolean"
-        ? value.externalSessionIndexingEnabled
-        : DEFAULT_PRIVACY_SETTINGS.externalSessionIndexingEnabled,
   };
 }
 
