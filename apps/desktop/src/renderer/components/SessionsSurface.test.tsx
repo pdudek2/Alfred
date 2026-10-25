@@ -247,6 +247,10 @@ describe("SessionsSurface", () => {
     const tabs = screen.getByRole("tablist", { name: "Source" });
     expect(within(tabs).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["All", "From Alfred", "Codex CLI"]);
     expect(within(tabs).getByRole("tab", { name: "All" })).toHaveAttribute("aria-selected", "true");
+    // The source tabs filter the one results list, so each of them controls it.
+    const resultsId = screen.getByRole("listbox", { name: "Session results" }).id;
+    expect(resultsId).not.toBe("");
+    for (const tab of within(tabs).getAllByRole("tab")) expect(tab).toHaveAttribute("aria-controls", resultsId);
     // Day groups replace the time filter, and the source choice is no longer a select.
     expect(screen.queryByRole("combobox", { name: "Session source" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Session time range" })).not.toBeInTheDocument();

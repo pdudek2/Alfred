@@ -1,5 +1,13 @@
 import type { KeyboardEvent } from "react";
 
+/** The Terminal and Preview tabs live in the header; their panels live in the focused tile. */
+export const SESSION_VIEW_IDS = {
+  terminalTab: "session-view-terminal-tab",
+  terminalPanel: "session-view-terminal",
+  previewTab: "session-view-preview-tab",
+  previewPanel: "session-view-preview",
+} as const;
+
 /**
  * Keys for a row of tabs: Left and Right move focus to the previous or next tab, wrapping around,
  * Home and End to the first and last. Enter or Space selects the focused tab, as on any button.
