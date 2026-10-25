@@ -43,9 +43,6 @@
   --shadow-preview-page: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
 
   --focus-border: var(--text-secondary);
-  /* Only the staged editor's older layers still use these two. */
-  --surface-sunken: #09090A;
-  --brass: var(--signal-agent);
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   color: var(--text-primary);
   background: var(--surface-canvas);
@@ -2586,243 +2583,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   overflow: hidden;
 }
 
-/* The draft editor and the raw toggle, from the older Details layers; .context-drawer below adjusts them. */
-.agent-staged-editor,
-.agent-staged-edit-form {
-  margin: -2px 0 14px;
-  border: 1px solid color-mix(in oklab, var(--brass) 20%, transparent);
-  border-radius: 13px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--brass) 8%, transparent), transparent 66px),
-    color-mix(in oklab, black 18%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
-}
-
-.agent-staged-editor {
-  padding: 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.agent-staged-editor span,
-.agent-staged-editor strong {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-staged-editor span,
-.agent-staged-edit-form label span {
-  color: var(--brass);
-  font-family: var(--sans);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: lowercase;
-}
-
-.agent-staged-editor strong {
-  margin-top: 3px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 620;
-}
-
-.agent-staged-editor button,
-.agent-staged-edit-actions button {
-  min-height: 30px;
-  border-radius: 8px;
-  font: 700 11px var(--sans);
-  cursor: pointer;
-}
-
-.agent-staged-editor button,
-.agent-staged-edit-actions button[type="submit"] {
-  border: 1px solid color-mix(in oklab, var(--brass) 36%, transparent);
-  background: color-mix(in oklab, var(--brass) 9%, transparent);
-  color: #f5e6b8;
-}
-
-.agent-staged-edit-form {
-  padding: 10px;
-  display: grid;
-  gap: 10px;
-}
-
-.agent-staged-edit-form label {
-  display: grid;
-  gap: 5px;
-}
-
-.agent-staged-edit-form input,
-.agent-staged-edit-form textarea {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid color-mix(in oklab, white 8%, transparent);
-  border-radius: 8px;
-  padding: 8px 9px;
-  background: rgba(2, 4, 6, 0.66);
-  color: var(--text-primary);
-  font: 12px var(--sans);
-  outline: none;
-}
-
-.agent-staged-edit-form textarea {
-  resize: vertical;
-  line-height: 1.45;
-}
-
-.agent-staged-edit-form input:focus-visible,
-.agent-staged-edit-form textarea:focus-visible {
-  border-color: color-mix(in oklab, var(--brass) 42%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brass) 12%, transparent);
-}
-
-.agent-staged-edit-form p[role="alert"] {
-  margin: 0;
-  color: var(--signal-danger);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.agent-staged-edit-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: 8px;
-}
-
-.agent-staged-edit-actions button[type="button"] {
-  border: 1px solid color-mix(in oklab, white 10%, transparent);
-  background: color-mix(in oklab, white 4%, transparent);
-  color: var(--text-muted);
-}
-
-.agent-staged-editor button:hover,
-.agent-staged-editor button:focus-visible,
-.agent-staged-edit-actions button:hover,
-.agent-staged-edit-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--brass) 48%, transparent);
-  color: var(--text-primary);
-}
-
-.agent-staged-edit-actions button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.agent-staged-edit-form input,
-.agent-staged-edit-form textarea {
-  background: var(--surface-sunken);
-  border-color: var(--border);
-  color: var(--text-primary);
-}
-
-.agent-staged-edit-form input:focus-visible,
-.agent-staged-edit-form textarea:focus-visible {
-  outline: none;
-  border-color: color-mix(in oklab, var(--focus-border) 42%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--focus-border) 28%, transparent),
-    0 0 0 4px color-mix(in oklab, var(--focus-border) 11%, transparent);
-}
-
-.agent-staged-editor,
-.agent-staged-edit-form {
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.agent-staged-editor {
-  padding: 14px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-}
-
-.agent-staged-editor-copy,
-.agent-staged-edit-heading {
-  min-width: 0;
-}
-
-.agent-staged-editor-copy span,
-.agent-staged-edit-heading span,
-.agent-staged-edit-form label span {
-  color: var(--signal-focus-strong);
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.agent-staged-editor-copy strong,
-.agent-staged-edit-heading strong {
-  display: block;
-  margin-top: 4px;
-  color: var(--text-primary);
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.agent-staged-editor-copy p,
-.agent-staged-edit-heading p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font: 12px/1.45 var(--sans);
-}
-
-.agent-staged-editor button,
-.agent-staged-edit-actions button[type="submit"] {
-  border-color: var(--border-strong);
-  background: var(--surface-control);
-  color: var(--signal-focus-strong);
-  box-shadow: none;
-}
-
-.agent-staged-edit-form {
-  padding: 14px;
-  gap: 12px;
-}
-
-.agent-staged-edit-heading {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-}
-
-.agent-staged-edit-actions {
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr);
-}
-
-.agent-staged-edit-actions button[type="button"] {
-  background: rgba(255, 255, 255, 0.035);
-  border-color: var(--border);
-  color: var(--text-secondary);
-}
-
-.agent-raw-toggle {
-  min-height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 0 9px;
-  background: transparent;
-  color: var(--text-muted);
-  font: 620 11px/1 var(--sans);
-  cursor: pointer;
-}
-
-.agent-raw-toggle:hover,
-.agent-raw-toggle:focus-visible {
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-  outline: none;
-}
-
 /* The panel stacks its sections and scrolls its body; .context-drawer below sets the rest. */
 .agent-timeline-panel { display: flex; flex-direction: column; flex-shrink: 0; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
 .agent-timeline-body { flex: 1 1 auto; scrollbar-width: thin; scrollbar-color: color-mix(in oklab, white 12%, transparent) transparent; }
@@ -2871,24 +2631,41 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .details-location-path { margin: 0; padding: 0 10px 6px; color: var(--text-muted); font: 400 12px/17px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
 .details-location-actions { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 10px; }
 .details-location-actions button { padding: 0; min-height: 32px; border: 0; background: transparent; box-shadow: none; color: var(--text-secondary); font: 400 13px/18px var(--sans); }
+/* The draft editor: a block that opens a form, then the form; below them the raw-activity toggle. */
 .context-drawer .agent-staged-editor,
-.context-drawer .agent-staged-edit-form { background: transparent; border: 0; border-radius: 0; padding: 16px 10px 0; }
-.context-drawer .agent-staged-edit-form :is(input, textarea) { font: 400 13px/18px var(--sans); background: var(--surface-control); border-color: var(--border-strong); box-shadow: none; }
+.context-drawer .agent-staged-edit-form { margin: -2px 0 14px; padding: 16px 10px 0; display: grid; }
+.context-drawer .agent-staged-editor { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.context-drawer .agent-staged-edit-form { gap: 12px; }
+.context-drawer .agent-staged-editor-copy,
+.context-drawer .agent-staged-edit-heading { min-width: 0; }
+.context-drawer .agent-staged-edit-heading { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.context-drawer .agent-staged-editor-copy strong,
+.context-drawer .agent-staged-edit-heading strong { display: block; margin-top: 4px; color: var(--text-primary); font-family: var(--sans); font-size: 14px; font-weight: 650; }
+.context-drawer .agent-staged-editor-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.context-drawer .agent-staged-editor-copy p,
+.context-drawer .agent-staged-edit-heading p { margin: 5px 0 0; color: var(--text-muted); font: 400 12px/17px var(--sans); }
+.context-drawer .agent-staged-edit-form label { display: grid; gap: 5px; }
+.context-drawer .agent-staged-edit-form label > span { color: var(--text-muted); font: 500 12px/16px var(--sans); }
+.context-drawer .agent-staged-edit-form :is(input, textarea) { width: 100%; min-width: 0; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 9px; background: var(--surface-control); color: var(--text-primary); font: 400 13px/18px var(--sans); box-shadow: none; }
+.context-drawer .agent-staged-edit-form textarea { resize: vertical; }
+.context-drawer .agent-staged-edit-form p[role="alert"] { margin: 0; color: var(--signal-danger); font-size: 11px; line-height: 1.4; }
+.context-drawer .agent-staged-edit-actions { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr); gap: 8px; }
 .context-drawer :is(button, summary, input, textarea):focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
 .context-drawer .agent-staged-editor button,
 .context-drawer .agent-staged-edit-actions button,
 .context-drawer .agent-raw-toggle {
   min-height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   background: var(--surface-control);
   color: var(--text-secondary);
-  border: 1px solid var(--border-strong);
   font: 400 12px/16px var(--sans);
   box-shadow: none;
+  cursor: pointer;
 }
-.context-drawer .agent-staged-edit-form label > span { color: var(--text-muted); font: 500 12px/16px var(--sans); }
-.context-drawer .agent-staged-editor-copy p,
-.context-drawer .agent-staged-edit-heading p { color: var(--text-muted); font: 400 12px/17px var(--sans); }
+.context-drawer .agent-raw-toggle { border-radius: 9px; padding: 0 9px; }
+.context-drawer .agent-staged-edit-actions button:disabled { cursor: wait; opacity: 0.55; }
 
 @media (prefers-reduced-transparency: reduce) {
   .context-drawer {
