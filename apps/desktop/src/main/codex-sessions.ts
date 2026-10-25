@@ -39,15 +39,30 @@ const MALFORMED_NOTICE = "Some malformed transcript records were omitted.";
 const TRUNCATED_NOTICE = "Some transcript content was truncated to fit this page.";
 
 type SessionMetaPayload = { cwd?: unknown; id?: unknown; model?: unknown; originator?: unknown; parent_thread_id?: unknown; timestamp?: unknown };
-type CodexSessionSource = { path: string; id: string; cwd: string; revision: string; projectId: string | null };
-type CodexSummary = { summary: ExternalSessionSummary; source: CodexSessionSource; fallbackTitle: string };
+type TranscriptSource = { path: string; id: string; cwd: string; revision: string; projectId: string | null };
+type ListedTranscript = { summary: ExternalSessionSummary; source: TranscriptSource; fallbackTitle: string };
 type SessionFile = { path: string; updatedAt: number; size: number };
-type SummaryCacheEntry = { summary: CodexSummary; bytes: number };
+type SummaryCacheEntry = { summary: ListedTranscript; bytes: number };
 type TranscriptCursor = { offset: number; revision: string; mode: TranscriptReadMode };
 type ListCursor = { offset: number; snapshot: number };
-type ListSnapshot = { id: number; requestSignature: string; summaries: CodexSummary[] };
+type ListSnapshot = { id: number; requestSignature: string; summaries: ListedTranscript[] };
 type CanonicalSessionsProject = SessionsProjectInput & { canonicalRoots: string[] };
 type CanonicalCwdCache = Map<string, Promise<string>>;
+/** What one agent's transcript says about itself. */
+type TranscriptDetails = { id: string; cwd: string; firstPrompt: string; title?: string; model?: string; originator?: string; parentId?: string };
+type ParsedRecord = { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" };
+/** How one agent keeps its transcripts: where they are, what each says about itself, and how a line reads. */
+type SessionFormat = {
+  source: ExternalSessionSummary["source"];
+  kind: ExternalSessionSummary["kind"];
+  findFiles(): Promise<SessionFile[]>;
+  /** Titles kept outside the transcripts, read once per listing. */
+  readTitles(): Promise<Map<string, string>>;
+  readDetails(file: SessionFile): Promise<TranscriptDetails | null>;
+  /** The title when neither a title nor a prompt is known. */
+  untitled(cwd: string, id: string): string;
+  parseRecord(line: string, id: string, mode: TranscriptReadMode): ParsedRecord;
+};
 
 export function createCodexSessionsReader(options: {
   codexHome: string;
@@ -55,8 +70,12 @@ export function createCodexSessionsReader(options: {
   summaryLimit?: number;
   onSummaryDiscovery?: () => void;
 }) {
-  const sourceBySessionKey = new Map<string, CodexSessionSource>();
-  const sourceByContentSessionKey = new Map<string, CodexSessionSource>();
+  const formats: SessionFormat[] = [codexFormat(options.codexHome)];
+  // Every session key starts with its format's source, so a key alone says how its transcript reads.
+  const formatFor = (sessionKey: string): SessionFormat | undefined =>
+    formats.find((format) => sessionKey.startsWith(`${format.source}:`));
+  const sourceBySessionKey = new Map<string, TranscriptSource>();
+  const sourceByContentSessionKey = new Map<string, TranscriptSource>();
   const sourceSessionAliasOrder: string[] = [];
   const sourceContentAliasOrder: string[] = [];
   const summaryCache = new Map<string, SummaryCacheEntry>();
@@ -75,7 +94,7 @@ export function createCodexSessionsReader(options: {
     if (index >= 0) summaryOrder.splice(index, 1);
     summaryOrder.push(key);
   };
-  const cacheSummary = (key: string, summary: CodexSummary): void => {
+  const cacheSummary = (key: string, summary: ListedTranscript): void => {
     const bytes = summaryEntryBytes(key, summary);
     const existing = summaryCache.get(key);
     if (existing) summaryBytes -= existing.bytes;
@@ -133,7 +152,7 @@ export function createCodexSessionsReader(options: {
       map.delete(oldest);
     }
   };
-  const cacheSourceAliases = (item: CodexSummary): void => {
+  const cacheSourceAliases = (item: ListedTranscript): void => {
     touchAlias(sourceBySessionKey, sourceSessionAliasOrder, item.summary.sessionKey, item.source);
     touchAlias(sourceByContentSessionKey, sourceContentAliasOrder, item.summary.contentSessionKey, item.source);
   };
@@ -157,8 +176,8 @@ export function createCodexSessionsReader(options: {
         offset = cursor.offset;
       } else {
         options.onSummaryDiscovery?.();
-        const summaries = await discoverCodexSummaries(
-          options.codexHome,
+        const summaries = await discoverSummaries(
+          formats,
           request.projects,
           options.managedWorktreeRootPath,
           summaryCache,
@@ -200,7 +219,8 @@ export function createCodexSessionsReader(options: {
     },
     async readTranscriptPage(request: { sessionKey: string; cursor?: string; mode?: TranscriptReadMode }): Promise<TranscriptPage> {
       const source = sourceBySessionKey.get(request.sessionKey) ?? sourceByContentSessionKey.get(request.sessionKey);
-      if (!source) throw new Error("Unknown external session.");
+      const format = formatFor(request.sessionKey);
+      if (!source || !format) throw new Error("Unknown external session.");
       const mode = request.mode ?? "conversation";
       let current: { revision: string; size: number };
       try { current = await currentRevision(source.path); } catch { throw transcriptReadError(); }
@@ -211,7 +231,7 @@ export function createCodexSessionsReader(options: {
       const cached = pageCache.get(cacheKey);
       if (cached) { touchSession(request.sessionKey); return cached; }
       let page: TranscriptPage;
-      try { page = await streamTranscriptPage(source, request.sessionKey, cursor, mode); } catch { throw transcriptReadError(); }
+      try { page = await streamTranscriptPage(format, source, request.sessionKey, cursor, mode); } catch { throw transcriptReadError(); }
       cachePage(request.sessionKey, request.cursor, mode, page);
       return page;
     },
@@ -228,45 +248,50 @@ export function createCodexSessionsReader(options: {
   };
 }
 
-async function discoverCodexSummaries(
-  codexHome: string,
+async function discoverSummaries(
+  formats: SessionFormat[],
   projects: SessionsProjectInput[],
   managedWorktreeRootPath: string | undefined,
   cache: Map<string, SummaryCacheEntry>,
   touch: (key: string) => void,
-  cacheSummary: (key: string, summary: CodexSummary) => void,
-): Promise<CodexSummary[]> {
-  const titleIndex = await readCodexSessionTitleIndex(codexHome);
+  cacheSummary: (key: string, summary: ListedTranscript) => void,
+): Promise<ListedTranscript[]> {
+  const listed: Array<{ format: SessionFormat; file: SessionFile; titles: Map<string, string> }> = [];
+  for (const format of formats) {
+    const titles = await format.readTitles();
+    for (const file of await format.findFiles()) listed.push({ format, file, titles });
+  }
   const canonicalProjects = await canonicalizeProjects(projects, managedWorktreeRootPath);
   const canonicalCwds: CanonicalCwdCache = new Map();
-  const files = (await findJsonlFiles(path.join(codexHome, "sessions"))).sort((left, right) => right.updatedAt - left.updatedAt);
-  const summaries: CodexSummary[] = [];
+  listed.sort((left, right) => right.file.updatedAt - left.file.updatedAt);
+  const summaries: ListedTranscript[] = [];
   const ids = new Set<string>();
-  for (const file of files) {
+  for (const { format, file, titles } of listed) {
     const cacheKey = `${file.path}:${file.updatedAt}:${file.size}`;
     const cached = cache.get(cacheKey);
     const parsed = cached
-      ? (touch(cacheKey), await remapProject(cached.summary, canonicalProjects, canonicalCwds, titleIndex))
-      : await summarizeCodexSessionFile(file, titleIndex, canonicalProjects, canonicalCwds);
+      ? (touch(cacheKey), await remapProject(cached.summary, canonicalProjects, canonicalCwds, titles))
+      : await summarizeTranscript(format, file, titles, canonicalProjects, canonicalCwds);
     if (!cached && parsed) cacheSummary(cacheKey, parsed);
-    if (!parsed || ids.has(parsed.source.id)) continue;
-    ids.add(parsed.source.id);
+    const identity = parsed ? `${format.source}:${parsed.source.id}` : "";
+    if (!parsed || ids.has(identity)) continue;
+    ids.add(identity);
     summaries.push(parsed);
   }
   return summaries.sort((left, right) => right.summary.updatedAt - left.summary.updatedAt);
 }
 
 async function remapProject(
-  value: CodexSummary,
+  value: ListedTranscript,
   projects: CanonicalSessionsProject[],
   canonicalCwds: CanonicalCwdCache,
-  titleIndex: Map<string, string>,
-): Promise<CodexSummary> {
+  titles: Map<string, string>,
+): Promise<ListedTranscript> {
   const project = await projectForCwd(value.source.cwd, projects, canonicalCwds);
   return {
     summary: {
       ...value.summary,
-      title: titleIndex.get(value.source.id) || value.fallbackTitle,
+      title: titles.get(value.source.id) || value.fallbackTitle,
       project,
       locationLabel: boundedDisplayText(project.id ? project.label : (value.source.cwd ? path.basename(value.source.cwd) : "Unknown workspace")),
       lifecycle: project.id ? "resumable" : "read-only",
@@ -276,50 +301,34 @@ async function remapProject(
   };
 }
 
-async function summarizeCodexSessionFile(
+async function summarizeTranscript(
+  format: SessionFormat,
   file: SessionFile,
-  titleIndex: Map<string, string>,
+  titles: Map<string, string>,
   projects: CanonicalSessionsProject[],
   canonicalCwds: CanonicalCwdCache,
-): Promise<CodexSummary | null> {
-  let lines: string[];
-  try { lines = await readTranscriptPrefixLines(file.path, MAX_TRANSCRIPT_PREFIX_LINES); } catch { return null; }
-  let meta: SessionMetaPayload | null = null;
-  let titleText = "";
-  for (const line of lines) {
-    const record = parseJsonRecord(line);
-    if (!record) continue;
-    if (record.type === "session_meta" && isRecord(record.payload)) { meta = record.payload as SessionMetaPayload; continue; }
-    if (!titleText) {
-      const candidate = presentationText(extractUserText(record));
-      if (candidate) titleText = candidate;
-    }
-    if (meta && titleText) break;
-  }
-  const id = stringValue(meta?.id) ?? idFromFilename(file.path);
-  if (id.length > MAX_SESSION_ID_LENGTH) return null;
-  const cwd = stringValue(meta?.cwd) ?? "";
+): Promise<ListedTranscript | null> {
+  const details = await format.readDetails(file);
+  if (!details || details.id.length > MAX_SESSION_ID_LENGTH) return null;
+  const { id, cwd, firstPrompt, model, originator, parentId } = details;
   if (Buffer.byteLength(cwd, "utf8") > MAX_SESSION_CWD_BYTES) return null;
   const project = await projectForCwd(cwd, projects, canonicalCwds);
-  const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
-  const title = titleIndex.get(id) || fallback;
-  const model = stringValue(meta?.model);
-  const originator = stringValue(meta?.originator);
-  const sessionKey = `external-codex:${opaqueSessionToken(id, file.updatedAt)}`;
+  const fallback = titleFromText(details.title ?? "") || titleFromText(firstPrompt) || titleFromText(format.untitled(cwd, id));
+  const title = titles.get(id) || fallback;
+  const sessionKey = `${format.source}:${opaqueSessionToken(id, file.updatedAt)}`;
   const contentId = boundedSessionIdentity(id);
-  const parentThreadId = stringValue(meta?.parent_thread_id);
   const summary: ExternalSessionSummary = {
     sessionKey,
-    lineageKey: `external-codex:${boundedSessionIdentity(parentThreadId ?? id)}`,
-    contentSessionKey: `external-codex:${contentId}`,
-    parentContentSessionKey: parentThreadId
-      ? `external-codex:${boundedSessionIdentity(parentThreadId)}`
+    lineageKey: `${format.source}:${boundedSessionIdentity(parentId ?? id)}`,
+    contentSessionKey: `${format.source}:${contentId}`,
+    parentContentSessionKey: parentId
+      ? `${format.source}:${boundedSessionIdentity(parentId)}`
       : null,
     delegatedRunCount: 0,
-    source: "external-codex",
-    kind: "codex",
+    source: format.source,
+    kind: format.kind,
     title,
-    ...(titleText ? { snippet: boundedDisplayText(titleText) } : {}),
+    ...(firstPrompt ? { snippet: boundedDisplayText(firstPrompt) } : {}),
     project,
     locationLabel: boundedDisplayText(project.id ? project.label : (cwd ? path.basename(cwd) : "Unknown workspace")),
     updatedAt: file.updatedAt,
@@ -331,13 +340,14 @@ async function summarizeCodexSessionFile(
 }
 
 async function streamTranscriptPage(
-  source: CodexSessionSource,
+  format: SessionFormat,
+  source: TranscriptSource,
   sessionKey: string,
   cursor: TranscriptCursor,
   mode: TranscriptReadMode,
 ): Promise<TranscriptPage> {
   if (mode === "conversation") {
-    return streamLatestConversationPage(source, sessionKey, cursor);
+    return streamLatestConversationPage(format, source, sessionKey, cursor);
   }
 
   const blocks: TranscriptBlock[] = [];
@@ -352,7 +362,7 @@ async function streamTranscriptPage(
     partial: Boolean(partialNotice),
   });
   for await (const line of rawTranscriptLines(source.path, cursor.offset)) {
-    const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`, mode);
+    const parsed = format.parseRecord(line.text, `${sessionKey}:${line.start}`, mode);
     if (parsed.kind === "malformed") {
       if (!partialNotice && !canAppendNotice(blocks, textBytes, MALFORMED_NOTICE)) return makePage(line.start);
       partialNotice = MALFORMED_NOTICE;
@@ -382,14 +392,15 @@ async function streamTranscriptPage(
 }
 
 async function streamLatestConversationPage(
-  source: CodexSessionSource,
+  format: SessionFormat,
+  source: TranscriptSource,
   sessionKey: string,
   cursor: TranscriptCursor,
 ): Promise<TranscriptPage> {
   const newestFirst: TranscriptBlock[] = [];
   let malformed = false;
   for await (const line of rawTranscriptLinesReverse(source.path, cursor.offset)) {
-    const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`, "conversation");
+    const parsed = format.parseRecord(line.text, `${sessionKey}:${line.start}`, "conversation");
     if (parsed.kind === "malformed") {
       malformed = true;
       continue;
@@ -503,11 +514,51 @@ function appendPartialNotice(blocks: TranscriptBlock[], textBytes: number, notic
     : blocks;
 }
 
-function parseTranscriptRecord(
+function codexFormat(codexHome: string): SessionFormat {
+  return {
+    source: "external-codex",
+    kind: "codex",
+    findFiles: () => findJsonlFiles(path.join(codexHome, "sessions")),
+    readTitles: () => readCodexSessionTitleIndex(codexHome),
+    readDetails: readCodexDetails,
+    untitled: (cwd, id) => (cwd ? `${path.basename(cwd)} Codex session` : id),
+    parseRecord: parseCodexRecord,
+  };
+}
+
+async function readCodexDetails(file: SessionFile): Promise<TranscriptDetails | null> {
+  let lines: string[];
+  try { lines = await readTranscriptPrefixLines(file.path, MAX_TRANSCRIPT_PREFIX_LINES); } catch { return null; }
+  let meta: SessionMetaPayload | null = null;
+  let firstPrompt = "";
+  for (const line of lines) {
+    const record = parseJsonRecord(line);
+    if (!record) continue;
+    if (record.type === "session_meta" && isRecord(record.payload)) { meta = record.payload as SessionMetaPayload; continue; }
+    if (!firstPrompt) {
+      const candidate = presentationText(extractUserText(record));
+      if (candidate) firstPrompt = candidate;
+    }
+    if (meta && firstPrompt) break;
+  }
+  const model = stringValue(meta?.model);
+  const originator = stringValue(meta?.originator);
+  const parentId = stringValue(meta?.parent_thread_id);
+  return {
+    id: stringValue(meta?.id) ?? idFromFilename(file.path),
+    cwd: stringValue(meta?.cwd) ?? "",
+    firstPrompt,
+    ...(model ? { model } : {}),
+    ...(originator ? { originator } : {}),
+    ...(parentId ? { parentId } : {}),
+  };
+}
+
+function parseCodexRecord(
   line: string,
   id: string,
   mode: TranscriptReadMode,
-): { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" } {
+): ParsedRecord {
   const record = parseJsonRecord(line);
   if (!record) return { kind: "malformed" };
   if (record.type !== "response_item" || !isRecord(record.payload)) return { kind: "unknown" };
@@ -555,13 +606,13 @@ async function currentRevision(filePath: string): Promise<{ revision: string; si
 function revisionFrom(updatedAt: number, size: number): string { return `${updatedAt}:${size}`; }
 function transcriptReadError(): Error { return new Error("Unable to read external session transcript."); }
 
-function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexSummary[] {
+function filterSummaryMetadata(summaries: ListedTranscript[], query: string): ListedTranscript[] {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
 }
-function boundSummarySnapshot(summaries: CodexSummary[]): CodexSummary[] {
-  const bounded: CodexSummary[] = [];
+function boundSummarySnapshot(summaries: ListedTranscript[]): ListedTranscript[] {
+  const bounded: ListedTranscript[] = [];
   let bytes = 0;
   for (const summary of summaries) {
     const entryBytes = summaryEntryBytes(summaryCacheKey(summary), summary);
@@ -571,15 +622,15 @@ function boundSummarySnapshot(summaries: CodexSummary[]): CodexSummary[] {
   }
   return bounded;
 }
-function summaryCacheKey(summary: CodexSummary): string {
+function summaryCacheKey(summary: ListedTranscript): string {
   return `${summary.source.path}:${summary.source.revision}`;
 }
-function summaryEntryBytes(key: string, summary: CodexSummary): number {
+function summaryEntryBytes(key: string, summary: ListedTranscript): number {
   return Buffer.byteLength(key, "utf8") + Buffer.byteLength(JSON.stringify(summary), "utf8");
 }
 function validateProjects(projects: SessionsProjectInput[]): void { for (const project of projects) if (!project.id.trim() || Buffer.byteLength(project.id, "utf8") > MAX_PROJECT_ID_BYTES) throw new Error("Invalid external sessions project id."); }
-function pageWithinResponseCeiling(summaries: CodexSummary[], offset: number, limit: number, snapshot: number): CodexSummary[] {
-  const page: CodexSummary[] = [];
+function pageWithinResponseCeiling(summaries: ListedTranscript[], offset: number, limit: number, snapshot: number): ListedTranscript[] {
+  const page: ListedTranscript[] = [];
   for (const item of summaries.slice(offset, offset + limit)) {
     const candidate = [...page, item];
     const candidateOffset = offset + candidate.length;
@@ -673,7 +724,6 @@ function stringValue(value: unknown): string | undefined { return typeof value =
 function extractUserText(record: Record<string, unknown>): string { if (record.type === "event_msg" && isRecord(record.payload)) return stringValue(record.payload.message) ?? ""; if (record.type !== "response_item" || !isRecord(record.payload) || record.payload.type !== "message" || record.payload.role !== "user" || !Array.isArray(record.payload.content)) return ""; return record.payload.content.flatMap((item) => isRecord(item) ? [stringValue(item.text) ?? stringValue(item.input_text) ?? ""] : []).join(" ").trim(); }
 function titleFromText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return !text ? "" : text.length > MAX_TITLE_LENGTH ? `${text.slice(0, MAX_TITLE_LENGTH - 1)}...` : text; }
 function boundedDisplayText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return text.length > MAX_DISPLAY_TEXT_LENGTH ? `${text.slice(0, MAX_DISPLAY_TEXT_LENGTH - 1)}...` : text; }
-function fallbackTitle(cwd: string, id: string): string { return cwd ? `${path.basename(cwd)} Codex session` : id; }
 function idFromFilename(filePath: string): string { const basename = path.basename(filePath, ".jsonl"); return basename.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)?.[0] ?? basename; }
 function opaqueSessionToken(id: string, revision: number): string { return createHash("sha256").update(`${id}:${revision}`).digest("base64url"); }
 function boundedSessionIdentity(id: string): string { return id.length <= MAX_SESSION_ID_LENGTH ? id : opaqueSessionToken(id, 0); }
