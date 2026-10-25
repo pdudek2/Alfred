@@ -419,6 +419,7 @@ export function App() {
         isolation,
         prompt,
         parentSessionId,
+        closingSessionIdsRef.current.keys(),
       ),
     );
   }, [
@@ -448,6 +449,7 @@ export function App() {
         request.isolated ? "worktree" : "shared",
         request.prompt,
         parent.id,
+        closingSessionIdsRef.current.keys(),
       );
       const generated = added.at(-1)!;
       // The orchestrator's model and effort, as each CLI takes them; main has checked the values.
@@ -493,7 +495,7 @@ export function App() {
         if (workspace && rootPath && workspace.rootStatus !== "missing") {
           setTerminalSessions((sessions) => {
             const workspaceSessions = sessions.filter((session) => session.workspaceId === workspace.id);
-            if (workspaceSessions.length === 0) return addManualSession(sessions, rootPath, workspace.id);
+            if (workspaceSessions.length === 0) return addManualSession(sessions, rootPath, workspace.id, undefined, closingSessionIdsRef.current.keys());
 
             return sessions.map((session) => {
               if (
@@ -522,7 +524,7 @@ export function App() {
       setWorkspaces(snapshot.workspaces);
       setActiveWorkspaceId(snapshot.activeWorkspaceId);
       if (workspace && !previousWorkspaceIds.has(workspace.id)) {
-        setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id));
+        setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id, undefined, closingSessionIdsRef.current.keys()));
       }
       return;
     }
@@ -535,7 +537,7 @@ export function App() {
     };
     setWorkspaces([...workspaces, workspace]);
     setActiveWorkspaceId(workspace.id);
-    setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
+    setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id, undefined, closingSessionIdsRef.current.keys()));
   }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus, workspaces]);
 
   const handleCloseActiveWorkspace = useCallback(() => {
@@ -806,6 +808,7 @@ export function App() {
         workspace.rootPath ?? "",
         workspace.id,
         parentSessionId,
+        closingSessionIdsRef.current.keys(),
       ),
     );
   }, [

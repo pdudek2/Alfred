@@ -158,6 +158,26 @@ test("runs a dozen terminals without one IPC listener per terminal", async ({ ha
   await expect(page.getByTestId("terminal-tile")).toHaveCount(12);
 });
 
+test("starts a new agent right after you close one of its kind", async ({ harness }) => {
+  const { page } = harness;
+  const startClaude = async () => {
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+    await sheet.getByRole("radio", { name: /^Claude/ }).click();
+    await sheet.getByRole("button", { name: "Start", exact: true }).click();
+  };
+  await startClaude();
+  const closed = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]');
+  await expect(closed).toContainText("claude fixture ready");
+  await closed.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByRole("menuitem", { name: "Close" }).click();
+  await expect(closed).toHaveCount(0);
+
+  // While claude-1 is still closing, the new one gets another id, so the close does not end it too.
+  await startClaude();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="claude-2"]')).toContainText("claude fixture ready");
+});
+
 async function captureReviewScreenshot(
   page: Page,
   testInfo: TestInfo,

@@ -324,6 +324,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     send: (clientId, text) => {
       const session = findLiveSessionByClientId(clientId);
       if (!session) throw new WorkerToolError("The worker has ended.");
+      // Pasted after the user's half-typed message, it would reach the worker as one message with theirs.
+      if (session.typedSinceTurnEnd) {
+        throw new WorkerToolError(
+          "The user is typing in this worker's terminal. Wait for its turn to end with wait_for_worker, or ask the user.",
+        );
+      }
       typeIntoAgent(session, text);
     },
     stop: stopWorker,
@@ -800,6 +806,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         );
       }
       forgetPersistedSession(request.clientId);
+      releaseWorkers(request.clientId);
       await flushTerminalPersistence();
       for (const [id, exit] of recentTerminalExits) {
         if (exit.event.clientId === request.clientId) recentTerminalExits.delete(id);
@@ -1584,7 +1591,38 @@ function killSession(
         detail: "Alfred stopped this terminal while quitting.",
       });
   rememberSessionSnapshot(session);
+  // On quit its workers stay its own, for after the restart.
+  if (reason === "close") releaseWorkers(session.clientId);
   session.pty.kill();
+}
+
+/**
+ * Closing an orchestrator ends its hold on its workers: they run on as sessions of their own, and a later session under
+ * its id starts with none of them or their news.
+ */
+function releaseWorkers(parentClientId: string | undefined): void {
+  if (!parentClientId) return;
+  clearTimeout(wakeTimers.get(parentClientId));
+  wakeTimers.delete(parentClientId);
+  pendingWakes.delete(parentClientId);
+  for (const [clientId, worker] of offstageWorkers) {
+    if (worker.parentClientId === parentClientId) offstageWorkers.delete(clientId);
+  }
+  for (const session of sessions.values()) {
+    if (session.parentClientId !== parentClientId) continue;
+    delete session.parentClientId;
+    rememberSessionSnapshot(session);
+  }
+  let releasedAsleep = false;
+  for (const snapshot of restoredSessionSnapshots.values()) {
+    if (snapshot.parentClientId !== parentClientId) continue;
+    const { parentClientId: _parentClientId, ...released } = snapshot;
+    persistenceHydrationMutations?.set(snapshot.clientId, privacyClearGeneration);
+    restoredSessionSnapshots.set(snapshot.clientId, released);
+    releasedAsleep = true;
+  }
+  if (releasedAsleep) scheduleTerminalPersistence();
+  notifyWorkers();
 }
 
 function notifyWorkers(): void {
