@@ -130,7 +130,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   // Settings uses the New sheet's 30 px buttons.
   await expectMinimumHeight(privacy.getByRole("button", { name: "Redacted tail" }), 30);
   expect(await collectControlOverflowEvidence(page, {
-    controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
+    controlSelector: ".privacy-panel button:not(:disabled)",
     verticalScrollOwners: [{ id: "privacy-body", label: "Privacy body", selector: ".privacy-panel-body" }],
   })).toEqual([]);
   await privacy.getByRole("button", { name: "Done" }).click();

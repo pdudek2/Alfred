@@ -14,7 +14,6 @@ type RegisterSessionsOptions = {
   codexHome?: string;
   managedWorktreeRootPath?: string;
   reader?: SessionsReader;
-  isExternalSessionIndexingEnabled?: () => Promise<boolean> | boolean;
   workspaceStore?: WorkspaceStore;
 };
 
@@ -25,18 +24,12 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
       ? {}
       : { managedWorktreeRootPath: options.managedWorktreeRootPath }),
   });
-  const isEnabled = async () => options.isExternalSessionIndexingEnabled?.() ?? true;
-  let cacheGeneration = 0;
   let mutationQueue = Promise.resolve();
 
   const queueMutation = <T>(mutation: () => Promise<T> | T): Promise<T> => {
     const operation = mutationQueue.then(mutation, mutation);
     mutationQueue = operation.then(() => undefined, () => undefined);
     return operation;
-  };
-  const invalidateCaches = (): Promise<void> => {
-    cacheGeneration += 1;
-    return queueMutation(() => reader.clearCaches());
   };
   const authoritativeProjects = async (request: unknown): Promise<SessionsProjectInput[]> => {
     if (!options.workspaceStore) return sanitizeProjectsFromRequest(request);
@@ -50,21 +43,14 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   };
 
   trustedIpc.handle(sessionsChannels.listExternal, async (_event, request) => {
-    if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
-    const projects = await authoritativeProjects(request);
-    const sanitizedRequest = sanitizeListRequest(request, projects);
-    const requestGeneration = cacheGeneration;
-    const result = await queueMutation(() => reader.listExternalSessions(sanitizedRequest));
-    if (requestGeneration !== cacheGeneration) return { sessions: [], nextCursor: null, total: 0 };
-    if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
-    return result;
+    const sanitizedRequest = sanitizeListRequest(request, await authoritativeProjects(request));
+    return queueMutation(() => reader.listExternalSessions(sanitizedRequest));
   });
   trustedIpc.handle(sessionsChannels.releaseListSnapshot, (_event, request) => {
     if (!isListSnapshotReleaseRequest(request)) throw new Error("Invalid external sessions snapshot release request.");
     return queueMutation(() => reader.releaseListSnapshot(request));
   });
   trustedIpc.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
-    if (!(await isEnabled())) { await invalidateCaches(); return { kind: "none" }; }
     const result = await reader.resolveExternalSession(request);
     if (result.kind !== "resume" || !options.workspaceStore) return result;
     const state = await options.workspaceStore.getWorkspaceState();
@@ -75,20 +61,9 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   });
   trustedIpc.handle(sessionsChannels.readTranscriptPage, async (_event, request): Promise<TranscriptPage> => {
     if (!isTranscriptPageRequest(request)) throw new Error("Invalid transcript page request.");
-    if (!(await isEnabled())) { await invalidateCaches(); return emptyTranscriptPage(request.sessionKey); }
-    const requestGeneration = cacheGeneration;
-    const result = await queueMutation(() => reader.readTranscriptPage(request));
-    if (requestGeneration !== cacheGeneration) return emptyTranscriptPage(request.sessionKey);
-    if (!(await isEnabled())) { await invalidateCaches(); return emptyTranscriptPage(request.sessionKey); }
-    return result;
+    return queueMutation(() => reader.readTranscriptPage(request));
   });
-  trustedIpc.handle(sessionsChannels.getDiagnostics, async () => {
-    if (!(await isEnabled())) await invalidateCaches();
-    return queueMutation(() => reader.getDiagnostics());
-  });
-  trustedIpc.handle(sessionsChannels.clearCaches, () => {
-    return invalidateCaches();
-  });
+  trustedIpc.handle(sessionsChannels.getDiagnostics, () => queueMutation(() => reader.getDiagnostics()));
 }
 
 function isListSnapshotReleaseRequest(value: unknown): value is { cursor: string } {
@@ -103,10 +78,6 @@ function isTranscriptPageRequest(value: unknown): value is ReadTranscriptPageReq
     && (value as { sessionKey: string }).sessionKey.length > 0
     && ((value as { cursor?: unknown }).cursor === undefined || typeof (value as { cursor?: unknown }).cursor === "string")
     && ((value as { mode?: unknown }).mode === undefined || (value as { mode?: unknown }).mode === "conversation" || (value as { mode?: unknown }).mode === "raw");
-}
-
-function emptyTranscriptPage(sessionKey: string): TranscriptPage {
-  return { sessionKey, blocks: [], nextCursor: null, revision: "", partial: false };
 }
 
 function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }

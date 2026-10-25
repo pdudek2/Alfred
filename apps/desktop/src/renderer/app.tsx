@@ -143,7 +143,6 @@ const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred"
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
 const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
-  externalSessionIndexingEnabled: true,
 };
 
 export function App() {
@@ -1861,17 +1860,9 @@ export function App() {
   }, []);
 
   const handleRefreshExternalCodexSessions = useCallback(async () => {
-    if (!privacySettings.externalSessionIndexingEnabled) {
-      externalSessionsRequestGenerationRef.current += 1;
-      setExternalCodexSessions([]);
-      setExternalCodexSessionsLoading(false);
-      setExternalCodexSessionsError(null);
-      return;
-    }
-
     const sessionsApi = getDesktopSessionsApi();
     if (!sessionsApi) {
-      setExternalCodexSessionsError("External Codex indexing is unavailable in this build.");
+      setExternalCodexSessionsError("Session history is unavailable in this build.");
       return;
     }
 
@@ -1933,7 +1924,7 @@ export function App() {
       }
       if (externalSessionsRequestGenerationRef.current === requestGeneration) setExternalCodexSessionsLoading(false);
     }
-  }, [privacySettings.externalSessionIndexingEnabled, workspaces]);
+  }, [workspaces]);
 
   // The main process already dropped the saved plans; drop their draft sessions from the view too.
   const dropPendingPlan = useCallback(() => {
@@ -1945,13 +1936,6 @@ export function App() {
   const handleUpdatePrivacySettings = useCallback(async (nextSettings: DesktopPrivacySettings) => {
     const desktopStateApi = getDesktopStateApi();
     setPrivacySettings(nextSettings);
-    if (!nextSettings.externalSessionIndexingEnabled) {
-      externalSessionsRequestGenerationRef.current += 1;
-      setExternalCodexSessions([]);
-      setExternalCodexSessionsLoading(false);
-      setExternalCodexSessionsError(null);
-      void getDesktopSessionsApi()?.clearCaches().catch(() => {});
-    }
 
     if (!desktopStateApi) return;
     try {
@@ -2163,15 +2147,9 @@ export function App() {
   ]);
 
   useEffect(() => {
-    if (!privacySettings.externalSessionIndexingEnabled) return;
     if (activeSurface !== "sessions" && !needsGeneratedCodexTitleBackfill) return;
     void handleRefreshExternalCodexSessions();
-  }, [
-    activeSurface,
-    handleRefreshExternalCodexSessions,
-    needsGeneratedCodexTitleBackfill,
-    privacySettings.externalSessionIndexingEnabled,
-  ]);
+  }, [activeSurface, handleRefreshExternalCodexSessions, needsGeneratedCodexTitleBackfill]);
 
   useEffect(() => {
     if (externalCodexSessions.length === 0) return;
@@ -2711,7 +2689,6 @@ export function App() {
               <div className="surface-panel active">
                 <SessionsSurface
                   armedRecoverySessionIds={armedRecoverySessionIds}
-                  externalSessionIndexingEnabled={privacySettings.externalSessionIndexingEnabled}
                   externalSessions={externalCodexSessions}
                   externalSessionsError={externalCodexSessionsError}
                   loadingExternalSessions={externalCodexSessionsLoading}
@@ -2725,7 +2702,6 @@ export function App() {
                   onApplyWorktree={handleApplyWorktree}
                   onBackToWork={handleExitSessionsToWork}
                   onDiscardSavedSession={handleCloseSession}
-                  onOpenPrivacySettings={handleOpenPrivacyPanel}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onSelectionChange={handleHistorySelectionChange}
                   onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions()}
@@ -2903,14 +2879,6 @@ function PrivacyPanel({
     void onUpdateSettings({ ...settings, terminalScrollbackRetention });
   };
 
-  const updateExternalIndexing = () => {
-    setMessage(null);
-    void onUpdateSettings({
-      ...settings,
-      externalSessionIndexingEnabled: !settings.externalSessionIndexingEnabled,
-    });
-  };
-
   const clearSavedTerminalData = async () => {
     const result = await onClearSavedTerminalData();
     restoreClearFocusRef.current = true;
@@ -2968,7 +2936,7 @@ function PrivacyPanel({
       >
         <header className="privacy-panel-header">
           <strong>Local Data & Privacy</strong>
-          <small>Choose what Alfred keeps on this Mac and which local Codex sessions History lists.</small>
+          <small>Choose what Alfred keeps on this Mac.</small>
         </header>
         <div className="privacy-panel-body">
           <section className="privacy-control-row">
@@ -2992,24 +2960,6 @@ function PrivacyPanel({
                 Off
               </button>
             </div>
-          </section>
-
-          <section className="privacy-control-row">
-            <div>
-              <strong>External Codex indexing</strong>
-              <span>{settings.externalSessionIndexingEnabled ? "History can index local Codex transcripts." : "History will not scan external Codex transcripts."}</span>
-            </div>
-            <label className="privacy-toggle">
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label="External Codex indexing"
-                checked={settings.externalSessionIndexingEnabled}
-                onChange={updateExternalIndexing}
-              />
-              <span className="privacy-toggle-track" aria-hidden="true" />
-              <span>{settings.externalSessionIndexingEnabled ? "On" : "Off"}</span>
-            </label>
           </section>
 
           <section className="privacy-action-row">

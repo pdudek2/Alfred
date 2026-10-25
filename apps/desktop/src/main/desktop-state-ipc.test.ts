@@ -63,21 +63,17 @@ describe("desktop-state IPC", () => {
     await expect(
       handler?.(undefined, {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       }),
     ).resolves.toEqual({
       terminalScrollbackRetention: "off",
-      externalSessionIndexingEnabled: false,
     });
     await expect(store.getState()).resolves.toMatchObject({
       privacySettings: {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
     });
     expect(mocks.applyTerminalPrivacyPolicyInMemory).toHaveBeenCalledWith({
       terminalScrollbackRetention: "off",
-      externalSessionIndexingEnabled: false,
     });
     expect((await store.getState()).restoredTerminalSessions).toEqual([
       {

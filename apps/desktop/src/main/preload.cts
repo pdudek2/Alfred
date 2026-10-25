@@ -79,7 +79,6 @@ const sessionsChannels = {
   resolveExternal: "alfred:sessions:resolve-external",
   readTranscriptPage: "alfred:sessions:read-transcript-page",
   getDiagnostics: "alfred:sessions:get-diagnostics",
-  clearCaches: "alfred:sessions:clear-caches",
 } as const satisfies SessionsChannels;
 
 const desktopStateChannels = {
@@ -186,7 +185,6 @@ const sessions: SessionsApi = {
   readTranscriptPage: (request) =>
     ipcRenderer.invoke(sessionsChannels.readTranscriptPage, request) as ReturnType<SessionsApi["readTranscriptPage"]>,
   getDiagnostics: () => ipcRenderer.invoke(sessionsChannels.getDiagnostics) as ReturnType<SessionsApi["getDiagnostics"]>,
-  clearCaches: () => ipcRenderer.invoke(sessionsChannels.clearCaches) as ReturnType<SessionsApi["clearCaches"]>,
 };
 
 const desktopState: DesktopStateApi = {
