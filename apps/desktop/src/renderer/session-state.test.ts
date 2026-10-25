@@ -107,6 +107,22 @@ describe("desktop session state", () => {
     expect(next.map((session) => session.title)).toEqual(["zsh 2", "zsh 3"]);
   });
 
+  it("leaves the workers of a closed orchestrator as sessions of their own", () => {
+    let sessions = addAgentSession([], "claude", "/repo");
+    sessions = addAgentSession(sessions, "codex", "/repo", "A", "shared", "Run the typecheck", "claude-1");
+    expect(sessions[1]).toMatchObject({ id: "codex-1", parentSessionId: "claude-1" });
+
+    const closed = closeSession(sessions, "claude-1");
+
+    expect(closed.map((session) => session.id)).toEqual(["codex-1"]);
+    expect(closed[0]).not.toHaveProperty("parentSessionId");
+  });
+
+  it("does not give a new session the id of one still closing", () => {
+    expect(addAgentSession([], "claude", "/repo", "A", "shared", "", undefined, ["claude-1"]).at(-1)!.id).toBe("claude-2");
+    expect(addManualSession([], "/repo", "A", undefined, ["manual-1", "claude-3"]).at(-1)!.id).toBe("manual-2");
+  });
+
   it("titles a session by its shell or agent and numbers only another one of the same title in its project", () => {
     let sessions = createInitialSessions("/repo");
     sessions = addManualSession(sessions, "/repo");
