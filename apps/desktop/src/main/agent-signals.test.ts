@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  conversationIdFrom,
   createAgentSignalBridge,
   isTerminalReport,
   isShellProcess,
@@ -19,6 +20,27 @@ describe("isShellProcess", () => {
   it("recognizes shells, login shells and nested shells, and nothing else", () => {
     for (const name of ["zsh", "-zsh", "bash", "/bin/fish", "sh"]) expect(isShellProcess(name)).toBe(true);
     for (const name of ["sleep", "vim", "node", "2.1.285", "Python", ""]) expect(isShellProcess(name)).toBe(false);
+  });
+});
+
+describe("conversationIdFrom", () => {
+  const claude = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+  const codex = "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b";
+
+  it("reads the session_id both agents put in every hook", () => {
+    expect(conversationIdFrom({ session_id: claude, transcript_path: "/x/other.jsonl" })).toBe(claude);
+  });
+
+  it("falls back to the id in the transcript's file name", () => {
+    expect(conversationIdFrom({ transcript_path: `/Users/sample/.claude/projects/-repo/${claude}.jsonl` })).toBe(claude);
+    expect(conversationIdFrom({ transcript_path: `/Users/sample/.codex/sessions/2026/10/25/rollout-2026-10-25T09-00-00-${codex}.jsonl` })).toBe(codex);
+  });
+
+  it("takes nothing that is not a UUID, since the id becomes a launch argument", () => {
+    expect(conversationIdFrom({ session_id: "--dangerously-skip-permissions" })).toBeUndefined();
+    expect(conversationIdFrom({ session_id: "../../etc", transcript_path: "relative/x.jsonl" })).toBeUndefined();
+    expect(conversationIdFrom({ transcript_path: "/x/not-an-id.jsonl" })).toBeUndefined();
+    expect(conversationIdFrom(undefined)).toBeUndefined();
   });
 });
 

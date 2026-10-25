@@ -9,11 +9,12 @@ import type {
   SessionActivityEventKind,
   SessionActivityPayload,
 } from "../shared/session-activity.js";
-import type {
-  PersistedTerminalSessionSnapshot,
-  TerminalResumeTarget,
-  TerminalSessionIsolation,
-  TerminalSessionSource,
+import {
+  isAgentConversationId,
+  type PersistedTerminalSessionSnapshot,
+  type TerminalResumeTarget,
+  type TerminalSessionIsolation,
+  type TerminalSessionSource,
 } from "../shared/terminal-ipc.js";
 import type { WorkspaceMissionBrief, WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 import { isAlfredManagedBranchName, workspaceRootFingerprint } from "./git-worktree.js";
@@ -635,6 +636,9 @@ function isTerminalSessionSource(value: unknown): value is TerminalSessionSource
 
 function isTerminalResumeTarget(value: unknown): value is TerminalResumeTarget {
   if (!isRecord(value)) return false;
+  if (value.source === "agent-hook") {
+    return (value.agentKind === "claude" || value.agentKind === "codex") && isAgentConversationId(value.sessionId);
+  }
   return (
     value.agentKind === "codex" &&
     typeof value.sessionId === "string" &&

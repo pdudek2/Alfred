@@ -94,6 +94,18 @@ describe("sessionsPrimaryAction", () => {
 });
 
 describe("buildSessionsProjection", () => {
+  it("shows a Codex session Alfred started and its Codex CLI transcript as one row once its hooks named the conversation", () => {
+    const conversation = "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b";
+    const page = buildSessionsProjection({
+      sessions: [managedSession({ resumeTarget: { agentKind: "codex", sessionId: conversation, source: "agent-hook" } })],
+      workspaces,
+      externalSessions: [externalSession(conversation, { title: "Fix the flaky test" })],
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ source: "managed", title: "Fix the flaky test", contentSessionKey: `external-codex:${conversation}` });
+  });
+
   it("projects recovery-only Codex as read-only without a Resume action", () => {
     const { command: _command, ...recoveryOnly } = managedSession({
       id: "codex-private",

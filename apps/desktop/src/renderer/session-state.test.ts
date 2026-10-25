@@ -614,6 +614,36 @@ describe("desktop session state", () => {
     });
   });
 
+  it("resumes the Claude conversation its hooks named, and the latest one without it", () => {
+    const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "claude-named",
+        title: "Claude",
+        cwd: "/repo",
+        source: "alfred",
+        agentKind: "claude",
+        command: "claude",
+        args: [],
+        resumeTarget: { agentKind: "claude", sessionId: conversation, source: "agent-hook" },
+        shell: "claude",
+        buffer: "asleep\n",
+      },
+      { clientId: "claude-unnamed", title: "Claude", cwd: "/repo", source: "alfred", agentKind: "claude", command: "claude", args: [], shell: "claude", buffer: "asleep\n" },
+    ]);
+
+    expect(relaunchRestoredSession(restored, "claude-named")[0]).toMatchObject({
+      command: "claude",
+      args: ["--resume", conversation],
+      resumeMode: "exact",
+    });
+    expect(relaunchRestoredSession(restored, "claude-unnamed")[1]).toMatchObject({
+      command: "claude",
+      args: ["--continue"],
+      resumeMode: "latest",
+    });
+  });
+
   it("resumes exact Codex target when resumeTarget is present", () => {
     const restored = restoreSessionWithResumeTarget("codex-session-123");
     expect(restored.command).toBe("codex");
