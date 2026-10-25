@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { createCodexSessionsReader } from "./codex-sessions.js";
+import { createExternalSessionsReader } from "./external-sessions.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { SUMMARY_CACHE_COUNT_LIMIT, SUMMARY_CACHE_TEXT_LIMIT } from "../shared/sessions-ipc.js";
 import {
@@ -37,7 +37,7 @@ describe("Codex sessions reader", () => {
       codexLines({ id: "managed-session", cwd: managedCheckout, title: "Managed worktree session" }),
     );
 
-    const reader = createCodexSessionsReader({ codexHome, managedWorktreeRootPath });
+    const reader = createExternalSessionsReader({ codexHome, managedWorktreeRootPath });
     const listed = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Alfred", rootPath: projectRoot }],
     });
@@ -51,6 +51,7 @@ describe("Codex sessions reader", () => {
       projectId: "A",
       cwd: managedCheckout,
       sessionId: "managed-session",
+      agentKind: "codex",
     });
   });
 
@@ -67,7 +68,7 @@ describe("Codex sessions reader", () => {
       codexLines({ id: "nested-session", cwd: childRoot, title: "Nested project session" }),
     );
 
-    const listed = await createCodexSessionsReader({ codexHome, managedWorktreeRootPath }).listExternalSessions({
+    const listed = await createExternalSessionsReader({ codexHome, managedWorktreeRootPath }).listExternalSessions({
       projects: [
         { id: "PARENT", label: "Parent", rootPath: parentRoot },
         { id: "CHILD", label: "Child", rootPath: childRoot },
@@ -96,7 +97,7 @@ describe("Codex sessions reader", () => {
       }),
     );
 
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const result = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Alfred", rootPath: workspaceA }],
     });
@@ -112,6 +113,7 @@ describe("Codex sessions reader", () => {
       projectId: "A",
       cwd: workspaceA,
       sessionId,
+      agentKind: "codex",
     });
   });
 
@@ -135,7 +137,7 @@ describe("Codex sessions reader", () => {
       codexLines({ id: "symlink-escape", cwd: symlinkEscape, title: "Symlink escape" }),
     );
 
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Workspace", rootPath: workspaceRoot }],
     });
@@ -151,7 +153,7 @@ describe("Codex sessions reader", () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
     const onSummaryDiscovery = vi.fn();
-    const reader = createCodexSessionsReader({
+    const reader = createExternalSessionsReader({
       codexHome,
       onSummaryDiscovery,
     });
@@ -176,7 +178,7 @@ describe("Codex sessions reader", () => {
   it("releases an unfinished list snapshot without clearing aliases for published rows", async () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const request = {
       projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
       limit: 80,
@@ -198,7 +200,7 @@ describe("Codex sessions reader", () => {
       { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Alias question" }] } },
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Alias answer" }] } },
     ]);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Repo", rootPath: "/repo" }],
     });
@@ -216,12 +218,13 @@ describe("Codex sessions reader", () => {
       projectId: "A",
       cwd: "/repo",
       sessionId: "content-alias",
+      agentKind: "codex",
     });
   });
 
   it("rejects unknown content-shaped transcript keys without exposing local paths", async () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const error = await reader.readTranscriptPage({ sessionKey: "external-codex:not-listed" }).catch((reason: unknown) => reason);
 
     assert(error instanceof Error);
@@ -244,7 +247,7 @@ describe("Codex sessions reader", () => {
     await utimes(olderFile, new Date("2026-07-19T10:00:00.000Z"), new Date("2026-07-19T10:00:00.000Z"));
     await utimes(newerFile, new Date("2026-07-20T10:00:00.000Z"), new Date("2026-07-20T10:00:00.000Z"));
 
-    const result = await createCodexSessionsReader({ codexHome }).listExternalSessions({
+    const result = await createExternalSessionsReader({ codexHome }).listExternalSessions({
       projects: [{ id: "A", label: "Alfred", rootPath: "/workspaces/alfred" }],
     });
 
@@ -263,7 +266,7 @@ describe("Codex sessions reader", () => {
       thread_name: exactTitle,
     }));
 
-    const listed = await createCodexSessionsReader({ codexHome }).listExternalSessions({ projects: [] });
+    const listed = await createExternalSessionsReader({ codexHome }).listExternalSessions({ projects: [] });
 
     expect(listed.sessions[0]?.title).toBe(exactTitle);
   });
@@ -285,7 +288,7 @@ describe("Codex sessions reader", () => {
       },
     ]);
 
-    const listed = await createCodexSessionsReader({ codexHome }).listExternalSessions({
+    const listed = await createExternalSessionsReader({ codexHome }).listExternalSessions({
       projects: [{ id: "A", label: "Repo", rootPath: "/repo" }],
     });
 
@@ -304,7 +307,7 @@ describe("Codex sessions reader", () => {
     await Promise.all(Array.from({ length: 101 }, async (_, index) => {
       await writeFile(path.join(sessionDir, `rollout-${index}.jsonl`), codexLines({ id: `session-${index}`, cwd: "/workspaces/alfred", title: `Session ${index}` }));
     }));
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
 
     await expect(reader.listExternalSessions({ projects: [], cursor: "not-a-cursor" })).rejects.toThrow("Invalid external sessions cursor.");
     await expect(reader.listExternalSessions({ projects: [], limit: 101 })).resolves.toMatchObject({ sessions: expect.any(Array) });
@@ -331,7 +334,7 @@ describe("Codex sessions reader", () => {
       ].join("\n"),
     );
 
-    const result = await createCodexSessionsReader({ codexHome }).listExternalSessions({
+    const result = await createExternalSessionsReader({ codexHome }).listExternalSessions({
       projects: [{ id: "A", label: "p".repeat(600 * 1024), rootPath: "/workspaces/alfred" }],
     });
 
@@ -359,7 +362,7 @@ describe("Codex sessions reader", () => {
     await utimes(oversizedFile, new Date("2026-07-20T12:00:00.000Z"), new Date("2026-07-20T12:00:00.000Z"));
     await utimes(validFile, new Date("2026-07-20T11:00:00.000Z"), new Date("2026-07-20T11:00:00.000Z"));
 
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const result = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Alfred", rootPath: "/workspaces/alfred" }],
       limit: 1,
@@ -373,6 +376,7 @@ describe("Codex sessions reader", () => {
     await expect(reader.resolveExternalSession(result.sessions[0]!.sessionKey)).resolves.toMatchObject({
       kind: "resume",
       sessionId: "valid-session",
+      agentKind: "codex",
     });
   });
 
@@ -395,7 +399,7 @@ describe("Codex sessions reader", () => {
     await utimes(oversizedFile, new Date("2026-07-20T12:00:00.000Z"), new Date("2026-07-20T12:00:00.000Z"));
     await utimes(validFile, new Date("2026-07-20T11:00:00.000Z"), new Date("2026-07-20T11:00:00.000Z"));
 
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const result = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Alfred", rootPath: "/workspaces/alfred" }],
       limit: 1,
@@ -424,7 +428,7 @@ describe("Codex sessions reader", () => {
         payload: { id: `metadata-${index}`, cwd: "/workspaces/alfred", model: largeMetadata, originator: largeMetadata },
       }),
     )));
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const request = { projects: [{ id: "A", label: largeMetadata, rootPath: "/workspaces/alfred" }], limit: 100 };
 
     const first = await reader.listExternalSessions(request);
@@ -439,7 +443,7 @@ describe("Codex sessions reader", () => {
 
   it("rejects an oversized project id before it can stall a byte-limited cursor", async () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
 
     await expect(reader.listExternalSessions({
       projects: [{ id: "x".repeat(512 * 1024), label: "Alfred", rootPath: "/workspaces/alfred" }],
@@ -456,7 +460,7 @@ describe("Codex sessions reader", () => {
       { type: "response_item", payload: { type: "function_call", name: "exec_command", arguments: "{}" } },
       "{ not json",
     ]);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
 
     const page = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
@@ -479,7 +483,7 @@ describe("Codex sessions reader", () => {
       })),
     ];
     const { codexHome } = await transcriptFixture("latest-messages", records);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
 
     const conversation = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
@@ -508,7 +512,7 @@ describe("Codex sessions reader", () => {
       })),
     ];
     const { codexHome } = await transcriptFixture("latest-unicode", records);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
 
     const conversation = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
@@ -536,7 +540,7 @@ describe("Codex sessions reader", () => {
       id: "clean-presentation",
       thread_name: "Build the compact project conversation library — Codex title",
     }));
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
 
     expect(listed.sessions[0]).toMatchObject({
@@ -560,7 +564,7 @@ describe("Codex sessions reader", () => {
       records.push({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `message-${index}` }] } });
     }
     const { codexHome, file } = await transcriptFixture("bounded", records);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     const first = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, mode: "raw" });
 
@@ -576,7 +580,7 @@ describe("Codex sessions reader", () => {
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "x".repeat(300 * 1024) }] } },
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "After oversized record" }] } },
     ]);
-    const hugeReader = createCodexSessionsReader({ codexHome: huge.codexHome });
+    const hugeReader = createExternalSessionsReader({ codexHome: huge.codexHome });
     const hugeListed = await hugeReader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     const hugePage = await hugeReader.readTranscriptPage({ sessionKey: hugeListed.sessions[0]!.sessionKey, mode: "raw" });
     expect(Buffer.byteLength(hugePage.blocks[0]!.text)).toBeLessThan(256 * 1024);
@@ -595,7 +599,7 @@ describe("Codex sessions reader", () => {
       "{ malformed",
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "After malformed" }] } },
     ]);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     const first = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, mode: "raw" });
     const second = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, cursor: first.nextCursor!, mode: "raw" });
@@ -616,7 +620,7 @@ describe("Codex sessions reader", () => {
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: nearLimit }] } },
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Later valid" }] } },
     ]);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     const sessionKey = listed.sessions[0]!.sessionKey;
     const pages = [];
@@ -639,7 +643,7 @@ describe("Codex sessions reader", () => {
       ...messages.map((text) => ({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text }] } })),
     ];
     const { codexHome } = await transcriptFixture("byte-pages", records);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     const sessionKey = listed.sessions[0]!.sessionKey;
     const first = await reader.readTranscriptPage({ sessionKey, mode: "raw" });
@@ -665,7 +669,7 @@ describe("Codex sessions reader", () => {
     ]);
     const index = path.join(codexHome, "session_index.jsonl");
     await writeFile(index, JSON.stringify({ id: "indexed", thread_name: "First indexed title" }));
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("First indexed title");
 
     await writeFile(index, JSON.stringify({ id: "indexed", thread_name: "Updated indexed title" }));
@@ -690,7 +694,7 @@ describe("Codex sessions reader", () => {
       await writeFile(path.join(sessionDir, `private-${index}.jsonl`), JSON.stringify({ type: "session_meta", payload: { id: `private-${index}`, cwd: privateCwd } }));
     }
 
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [] });
 
     expect(listed.total).toBeLessThan(4);
@@ -703,7 +707,7 @@ describe("Codex sessions reader", () => {
       { type: "session_meta", payload: { id: "gone", cwd: "/repo" } },
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Gone" }] } },
     ]);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     await unlink(file);
     const error = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey }).catch((reason: unknown) => reason);
@@ -721,7 +725,7 @@ describe("Codex sessions reader", () => {
     for (let index = 0; index < 4; index += 1) {
       await writeFile(path.join(sessionDir, `session-${index}.jsonl`), codexLines({ id: `session-${index}`, cwd: "/repo", title: "x".repeat(64 * 1024) }));
     }
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     for (const session of listed.sessions) await reader.readTranscriptPage({ sessionKey: session.sessionKey });
 
@@ -744,7 +748,7 @@ describe("Codex sessions reader", () => {
       SUMMARY_CACHE_COUNT_LIMIT: 3,
     }));
     try {
-      const { createCodexSessionsReader: createReaderWithSmallCache } = await import("./codex-sessions.js");
+      const { createExternalSessionsReader: createReaderWithSmallCache } = await import("./external-sessions.js");
       const reader = createReaderWithSmallCache({ codexHome });
       await reader.listExternalSessions({ projects: [], limit: 1 });
 
@@ -759,7 +763,7 @@ describe("Codex sessions reader", () => {
   it("indexes 5,000 deterministic summaries while keeping summary diagnostics capped", async () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, 5_000, "/fixture/project");
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
 
     const listed = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
@@ -783,7 +787,7 @@ describe("Codex sessions reader", () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     await writeCodexSummaryFixtures(codexHome, SUMMARY_CACHE_COUNT_LIMIT + 1, "/fixture/project");
     const onSummaryDiscovery = vi.fn();
-    const reader = createCodexSessionsReader({ codexHome, onSummaryDiscovery });
+    const reader = createExternalSessionsReader({ codexHome, onSummaryDiscovery });
     const request = {
       projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
       limit: 80,
@@ -836,7 +840,7 @@ describe("Codex sessions reader", () => {
       JSON.stringify({ id: oldestId, thread_name: "Late unique query target" }),
       "utf8",
     );
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
 
     const queried = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
@@ -863,7 +867,7 @@ describe("Codex sessions reader", () => {
       SUMMARY_CACHE_COUNT_LIMIT: 3,
     }));
     try {
-      const { createCodexSessionsReader: createReaderWithSmallAliasBound } = await import("./codex-sessions.js");
+      const { createExternalSessionsReader: createReaderWithSmallAliasBound } = await import("./external-sessions.js");
       const reader = createReaderWithSmallAliasBound({ codexHome });
       for (let revision = 0; revision < 5; revision += 1) {
         const when = new Date(Date.parse("2026-07-20T12:00:00.000Z") + revision * 60_000);
@@ -894,7 +898,7 @@ describe("Codex sessions reader", () => {
       SUMMARY_CACHE_TEXT_LIMIT: 2_000,
     }));
     try {
-      const { createCodexSessionsReader: createReaderWithSmallByteCache } = await import("./codex-sessions.js");
+      const { createExternalSessionsReader: createReaderWithSmallByteCache } = await import("./external-sessions.js");
       const reader = createReaderWithSmallByteCache({ codexHome });
       const listed = await reader.listExternalSessions({ projects: [], limit: 5 });
 
@@ -911,7 +915,7 @@ describe("Codex sessions reader", () => {
   it("reads the latest six messages of a 10 MiB 100k-line transcript within the reference budget", async () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     const resource = await writeLargeCodexTranscriptFixture(codexHome);
-    const reader = createCodexSessionsReader({ codexHome });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/fixture/project" }], limit: 1 });
     const large = listed.sessions.find((session) => session.contentSessionKey === "external-codex:resource-100k-lines")!;
     const startedAt = performance.now();
@@ -969,3 +973,101 @@ function codexLines({ cwd, id, title }: { cwd: string; id: string; title: string
     }),
   ].join("\n");
 }
+
+describe("Claude Code transcripts", () => {
+  const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+  const record = (value: Record<string, unknown>) => `${JSON.stringify({ sessionId: conversation, ...value })}\n`;
+
+  async function claudeTranscript(lines: (projectRoot: string) => string[], options: { titles?: string[] } = {}) {
+    const claudeHome = temporaryDirectory("alfred-claude-home-");
+    const codexHome = temporaryDirectory("alfred-codex-home-");
+    const projectRoot = path.join(claudeHome, "repo");
+    const folder = path.join(claudeHome, "projects", "-repo");
+    await mkdir(projectRoot, { recursive: true });
+    await mkdir(path.join(folder, conversation, "subagents"), { recursive: true });
+    await mkdir(path.join(folder, "vercel-plugin"), { recursive: true });
+    await writeFile(path.join(folder, `${conversation}.jsonl`), [...lines(projectRoot), ...(options.titles ?? [])].join(""));
+    await writeFile(path.join(folder, conversation, "subagents", "agent-a1b2c3.jsonl"), [
+      record({ type: "user", isSidechain: true, cwd: projectRoot, message: { role: "user", content: "Search the tests" } }),
+    ].join(""));
+    await writeFile(path.join(folder, "vercel-plugin", "skill-injections.jsonl"), "{}\n");
+    const reader = createExternalSessionsReader({ codexHome, claudeHome });
+    return { reader, projectRoot, projects: [{ id: "A", label: "Alfred", rootPath: projectRoot }] };
+  }
+
+  function conversationLines(projectRoot: string): string[] {
+    return [
+      record({ type: "user", isMeta: true, cwd: projectRoot, message: { role: "user", content: "<local-command-caveat>Caveat</local-command-caveat>" } }),
+      record({ type: "user", cwd: projectRoot, gitBranch: "feature-x", message: { role: "user", content: "<system-reminder>ctx</system-reminder>Fix the flaky test" } }),
+      record({
+        type: "assistant",
+        cwd: projectRoot,
+        message: {
+          role: "assistant",
+          model: "claude-opus-5-5",
+          content: [{ type: "thinking", thinking: "hmm" }, { type: "text", text: "Fixed it." }, { type: "tool_use", name: "Bash", input: {} }],
+        },
+      }),
+      record({ type: "user", cwd: projectRoot, message: { role: "user", content: [{ type: "tool_result", content: "ok" }] } }),
+      record({ type: "user", cwd: projectRoot, message: { role: "user", content: "<task-notification>done</task-notification>" } }),
+    ];
+  }
+
+  it("lists a conversation under its project with Claude Code's own title and branch", async () => {
+    const { reader, projectRoot, projects } = await claudeTranscript(conversationLines, {
+      titles: [record({ type: "ai-title", aiTitle: "Flaky test fix" }), record({ type: "custom-title", customTitle: "My flaky fix" }), record({ type: "ai-title", aiTitle: "Later AI title" })],
+    });
+    const listed = await reader.listExternalSessions({ projects });
+
+    const main = listed.sessions.find((session) => session.contentSessionKey === `external-claude:${conversation}`);
+    expect(main).toMatchObject({
+      source: "external-claude",
+      kind: "claude",
+      title: "My flaky fix",
+      snippet: "Fix the flaky test",
+      branch: "feature-x",
+      model: "claude-opus-5-5",
+      project: { id: "A" },
+      lifecycle: "resumable",
+    });
+    // A subagent's run hangs under its conversation and cannot be resumed; a plugin's log is not a transcript.
+    const subagent = listed.sessions.find((session) => session.parentContentSessionKey === `external-claude:${conversation}`);
+    expect(subagent).toMatchObject({ lifecycle: "read-only", title: "Search the tests" });
+    expect(listed.sessions).toHaveLength(2);
+    await expect(reader.resolveExternalSession(subagent!.sessionKey)).resolves.toEqual({ kind: "none" });
+
+    await expect(reader.resolveExternalSession(main!.sessionKey)).resolves.toEqual({
+      kind: "resume",
+      projectId: "A",
+      cwd: projectRoot,
+      sessionId: conversation,
+      agentKind: "claude",
+    });
+  });
+
+  it("falls back to the generated title, then to the first prompt you typed", async () => {
+    const generated = await claudeTranscript(conversationLines, { titles: [record({ type: "ai-title", aiTitle: "Flaky test fix" })] });
+    const byAi = await generated.reader.listExternalSessions({ projects: [] });
+    expect(byAi.sessions.find((session) => !session.parentContentSessionKey)?.title).toBe("Flaky test fix");
+
+    const untitled = await claudeTranscript(conversationLines);
+    const byPrompt = await untitled.reader.listExternalSessions({ projects: [] });
+    expect(byPrompt.sessions.find((session) => !session.parentContentSessionKey)?.title).toBe("Fix the flaky test");
+  });
+
+  it("reads the conversation without Claude Code's own turns, thinking or tool calls", async () => {
+    const { reader } = await claudeTranscript((projectRoot) => [
+      ...conversationLines(projectRoot),
+      record({ type: "user", cwd: projectRoot, message: { role: "user", content: "<command-name>/review</command-name>\n<command-args>PR 12</command-args>" } }),
+    ]);
+    const listed = await reader.listExternalSessions({ projects: [] });
+    const main = listed.sessions.find((session) => !session.parentContentSessionKey)!;
+
+    const page = await reader.readTranscriptPage({ sessionKey: main.sessionKey });
+    expect(page.blocks.map((block) => block.kind === "message" ? `${block.role}: ${block.text}` : block.text)).toEqual([
+      "user: Fix the flaky test",
+      "assistant: Fixed it.",
+      "user: /review PR 12",
+    ]);
+  });
+});

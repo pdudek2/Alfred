@@ -430,6 +430,8 @@ describe("persisted-desktop-state", () => {
             resumeTarget: { agentKind: "claude", sessionId: conversation, source: "agent-hook" } },
           { clientId: "forged", title: "Claude", source: "alfred", agentKind: "claude", command: "claude", cwd: "/repo",
             resumeTarget: { agentKind: "claude", sessionId: "--dangerously-skip-permissions", source: "agent-hook" } },
+          { clientId: "from-history", title: "Claude", source: "manual", agentKind: "claude", command: "claude", cwd: "/repo",
+            resumeTarget: { agentKind: "claude", sessionId: conversation, source: "external-session-index" } },
         ],
       }),
       "utf8",
@@ -440,6 +442,9 @@ describe("persisted-desktop-state", () => {
     expect(sessions.find((session) => session.clientId === "named")?.resumeTarget)
       .toEqual({ agentKind: "claude", sessionId: conversation, source: "agent-hook" });
     expect(sessions.find((session) => session.clientId === "forged")).not.toHaveProperty("resumeTarget");
+    // A Claude conversation resumed from History keeps its target too.
+    expect(sessions.find((session) => session.clientId === "from-history")?.resumeTarget)
+      .toEqual({ agentKind: "claude", sessionId: conversation, source: "external-session-index" });
   });
 
   it("normalizes invalid privacy settings to defaults", async () => {

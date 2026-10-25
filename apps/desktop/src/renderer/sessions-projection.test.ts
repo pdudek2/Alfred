@@ -94,6 +94,30 @@ describe("sessionsPrimaryAction", () => {
 });
 
 describe("buildSessionsProjection", () => {
+  it("shows a Claude session Alfred started and its Claude Code transcript as one row", () => {
+    const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+    const page = buildSessionsProjection({
+      sessions: [managedSession({
+        id: "managed-claude",
+        agentKind: "claude",
+        command: "claude",
+        resumeTarget: { agentKind: "claude", sessionId: conversation, source: "agent-hook" },
+      })],
+      workspaces,
+      externalSessions: [externalSession(conversation, {
+        sessionKey: `external-claude:opaque-${conversation}`,
+        lineageKey: `external-claude:${conversation}`,
+        contentSessionKey: `external-claude:${conversation}`,
+        source: "external-claude",
+        kind: "claude",
+        title: "Fix the flaky test",
+      })],
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ source: "managed", kind: "claude", title: "Fix the flaky test" });
+  });
+
   it("shows a Codex session Alfred started and its Codex CLI transcript as one row once its hooks named the conversation", () => {
     const conversation = "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b";
     const page = buildSessionsProjection({

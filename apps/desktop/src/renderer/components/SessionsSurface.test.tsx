@@ -239,11 +239,21 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const view = renderSurface({
       sessions: [managedSession(0)],
-      externalSessions: [externalSession(0)],
+      externalSessions: [
+        externalSession(0),
+        externalSession(1, {
+          sessionKey: "external-claude:summary-1",
+          lineageKey: "external-claude:lineage-1",
+          contentSessionKey: "external-claude:content-1",
+          source: "external-claude",
+          kind: "claude",
+          title: "Claude Code conversation",
+        }),
+      ],
     });
 
     const tabs = screen.getByRole("tablist", { name: "Source" });
-    expect(within(tabs).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["All", "From Alfred", "Codex CLI"]);
+    expect(within(tabs).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["All", "From Alfred", "Codex CLI", "Claude Code"]);
     expect(within(tabs).getByRole("tab", { name: "All" })).toHaveAttribute("aria-selected", "true");
     // The source tabs filter the one results list, so each of them controls it.
     const resultsId = screen.getByRole("listbox", { name: "Session results" }).id;
@@ -252,7 +262,14 @@ describe("SessionsSurface", () => {
     // Day groups replace the time filter, and the source choice is no longer a select.
     expect(screen.queryByRole("combobox", { name: "Session source" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Session time range" })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(2);
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(3);
+
+    // Each tool's tab lists only its own transcripts.
+    await user.click(within(tabs).getByRole("tab", { name: "Claude Code" }));
+    expect(view.getState().source).toBe("external-claude");
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option").map((option) => option.textContent))
+      .toEqual([expect.stringContaining("Claude Code conversation")]);
+    expect(screen.getByRole("option", { name: /Claude Code conversation/ })).toHaveTextContent("Claude Code");
 
     await user.click(within(tabs).getByRole("tab", { name: "Codex CLI" }));
     expect(view.getState().source).toBe("external-codex");
@@ -260,6 +277,7 @@ describe("SessionsSurface", () => {
     expect(within(tabs).getByRole("tab", { name: "Codex CLI" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("option", { name: /External session 0/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /Atlas navigator/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Claude Code conversation/ })).not.toBeInTheDocument();
 
     await user.click(within(tabs).getByRole("tab", { name: "From Alfred" }));
     expect(view.getState().source).toBe("managed");
@@ -826,25 +844,25 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const view = renderSurface({ sessions: [managedSession(0)] });
     const tabs = within(screen.getByRole("tablist", { name: "Source" })).getAllByRole("tab");
-    const [all, fromAlfred, codexCli] = tabs;
+    const [all, fromAlfred, , claudeCode] = tabs;
     // The row is one Tab stop: the selected tab.
-    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1]);
 
     await user.tab();
     expect(all).toHaveFocus();
     await user.keyboard("{ArrowLeft}");
-    expect(codexCli).toHaveFocus();
+    expect(claudeCode).toHaveFocus();
     await user.keyboard("{ArrowRight}");
     expect(all).toHaveFocus();
     await user.keyboard("{End}");
-    expect(codexCli).toHaveFocus();
+    expect(claudeCode).toHaveFocus();
     await user.keyboard("{Home}{ArrowRight}");
     expect(fromAlfred).toHaveFocus();
     expect(view.getState().source).toBe("all");
 
     await user.keyboard("{Enter}");
     expect(view.getState().source).toBe("managed");
-    expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1, -1]);
   });
 
   it("supports Cmd/Ctrl+F, list navigation, Enter, Escape, and an untrapped Tab path", async () => {
