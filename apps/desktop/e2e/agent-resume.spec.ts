@@ -45,3 +45,28 @@ test("resumes the Claude conversation its hooks named, after a restart", async (
   const resumed = await launchedAgent(paths.root, "claude", (args) => args.includes("--resume"));
   expect(resumed.args.slice(-2)).toEqual(["--resume", conversation]);
 });
+
+test("resumes an ended Claude in the conversation its hooks named, without sending its first prompt again", async ({ harness }) => {
+  const { app, page, paths } = harness;
+  await setWindowSize(app, page, 1440, 900);
+
+  await openNewTerminalSheet(page);
+  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await sheet.getByRole("radio", { name: /^Claude/ }).click();
+  await sheet.locator("textarea").fill("fix the login bug");
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
+  const tile = page.locator('[data-testid="terminal-tile"]:visible');
+  await expect(tile).toContainText("> fix the login bug");
+
+  const launched = await launchedAgent(paths.root, "claude", (args) => args.includes("fix the login bug"));
+  await sendHook(launched, "Stop", { session_id: conversation, last_assistant_message: "Done." });
+  const stateFile = resolveDesktopStateFilePath({ userDataPath: paths.userData });
+  await expect.poll(async () => (await readFile(stateFile, "utf8")).includes(conversation)).toBe(true);
+
+  await tile.getByRole("textbox", { name: "Terminal input" }).press("Control+C");
+  await tile.getByTitle("Resume this session").click();
+
+  const resumed = await launchedAgent(paths.root, "claude", (args) => args.includes("--resume"));
+  expect(resumed.args.slice(-2)).toEqual(["--resume", conversation]);
+  expect(resumed.args).not.toContain("fix the login bug");
+});
