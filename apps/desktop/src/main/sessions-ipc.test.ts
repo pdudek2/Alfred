@@ -1,12 +1,10 @@
-import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { mkdtempSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { describe, expect, it, vi } from "vitest";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
 import { createCodexSessionsReader } from "./codex-sessions.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
-import { sessionsChannels, type ExternalSessionSummary, type ListExternalSessionsResult } from "../shared/sessions-ipc.js";
+import { sessionsChannels } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
 const handlers = new Map<string, (event: unknown, request: unknown) => unknown>();
@@ -43,29 +41,12 @@ function readerDefaults(): Pick<SessionsReader, "releaseListSnapshot" | "readTra
   };
 }
 
-function listedSession(sessionKey: string): ListExternalSessionsResult {
-  const session: ExternalSessionSummary = {
-    sessionKey,
-    lineageKey: sessionKey,
-    contentSessionKey: sessionKey,
-    source: "external-codex",
-    kind: "codex",
-    title: sessionKey,
-    project: { id: "A", label: "Repo" },
-    locationLabel: "/repo",
-    updatedAt: 0,
-    lifecycle: "read-only",
-  };
-  return { sessions: [session], nextCursor: null, total: 1 };
-}
-
 describe("sessions IPC", () => {
   it("replaces renderer project roots with authoritative workspace roots before discovery", async () => {
     const reader = {
       ...readerDefaults(),
       listExternalSessions: vi.fn(async () => ({ sessions: [], nextCursor: null, total: 0 })),
       resolveExternalSession: vi.fn(),
-      clearCaches: vi.fn(),
     };
     registerSessionsIpc({
       reader,
@@ -91,7 +72,6 @@ describe("sessions IPC", () => {
       listExternalSessions: vi.fn(),
       releaseListSnapshot: vi.fn(),
       resolveExternalSession: vi.fn(),
-      clearCaches: vi.fn(),
     };
     registerSessionsIpc({ reader });
     const releaseHandler = handlers.get("alfred:sessions:release-list-snapshot");
@@ -100,7 +80,6 @@ describe("sessions IPC", () => {
     await releaseHandler?.({}, { cursor: "opaque-list-cursor" });
 
     expect(reader.releaseListSnapshot).toHaveBeenCalledWith({ cursor: "opaque-list-cursor" });
-    expect(reader.clearCaches).not.toHaveBeenCalled();
   });
 
   it("rejects a resumable result when the authoritative workspace roots no longer match", async () => {
@@ -108,7 +87,6 @@ describe("sessions IPC", () => {
       ...readerDefaults(),
       listExternalSessions: vi.fn(),
       resolveExternalSession: vi.fn(async () => ({ kind: "resume" as const, projectId: "A", cwd: "/authoritative/root/.alfred-worktrees/feature", sessionId: "stale" })),
-      clearCaches: vi.fn(),
     };
     registerSessionsIpc({
       reader,
@@ -131,7 +109,6 @@ describe("sessions IPC", () => {
         cwd: managedCwd,
         sessionId: "managed-session",
       })),
-      clearCaches: vi.fn(),
     };
     registerSessionsIpc({
       managedWorktreeRootPath,
@@ -159,7 +136,6 @@ describe("sessions IPC", () => {
         cwd: `${root}/../outside`,
         sessionId: "escaped",
       })),
-      clearCaches: vi.fn(),
     };
     registerSessionsIpc({
       reader,
@@ -170,125 +146,7 @@ describe("sessions IPC", () => {
       .resolves.toEqual({ kind: "add-project" });
   });
 
-  it("returns an empty page and clears cached sources when indexing is disabled", async () => {
-    const reader = {
-      ...readerDefaults(),
-      listExternalSessions: vi.fn(),
-      resolveExternalSession: vi.fn(),
-      clearCaches: vi.fn(),
-    };
-    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => false });
-
-    await expect(handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] })).resolves.toEqual({
-      sessions: [],
-      nextCursor: null,
-      total: 0,
-    });
-    expect(reader.clearCaches).toHaveBeenCalledOnce();
-  });
-
-  it("returns an empty page when indexing is disabled while a refresh is in flight", async () => {
-    let enabled = true;
-    const listing = deferred<ListExternalSessionsResult>();
-    const reader = {
-      ...readerDefaults(),
-      listExternalSessions: vi.fn((_request: Parameters<SessionsReader["listExternalSessions"]>[0]) => listing.promise),
-      resolveExternalSession: vi.fn(),
-      clearCaches: vi.fn(),
-    };
-    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => enabled });
-
-    const response = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
-    enabled = false;
-    listing.resolve(listedSession("stale"));
-
-    await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
-    expect(reader.clearCaches).toHaveBeenCalledOnce();
-  });
-
-  it("clears populated reader sources when the privacy transition requests cache clearing", async () => {
-    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
-    onTestFinished(() => rm(codexHome, { recursive: true, force: true }));
-    const cwd = "/repo";
-    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
-    await mkdir(sessionDir, { recursive: true });
-    await writeFile(path.join(sessionDir, "stale.jsonl"), JSON.stringify({ type: "session_meta", payload: { id: "stale", cwd } }));
-    const reader = createCodexSessionsReader({ codexHome });
-    let indexingEnabled = true;
-    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => indexingEnabled });
-
-    const populated = await handlers.get(sessionsChannels.listExternal)?.({}, { projects: [{ id: "A", label: "Alfred", rootPath: cwd }] }) as {
-      sessions: Array<{ sessionKey: string }>;
-    };
-    indexingEnabled = false;
-    await handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
-
-    await expect(reader.resolveExternalSession({ sessionKey: populated.sessions[0]!.sessionKey })).resolves.toEqual({ kind: "none" });
-  });
-
-  it("discards a list that repopulates reader sources after clearCaches while indexing remains enabled", async () => {
-    let populated = false;
-    const listing = deferred<ListExternalSessionsResult>();
-    const reader = {
-      ...readerDefaults(),
-      listExternalSessions: vi.fn((_request: Parameters<SessionsReader["listExternalSessions"]>[0]) => listing.promise.then((result) => {
-        populated = true;
-        return result;
-      })),
-      resolveExternalSession: vi.fn((_request: { sessionKey: string }) => Promise.resolve(populated ? { kind: "resume" as const, projectId: "A", cwd: "/repo", sessionId: "stale" } : { kind: "none" as const })),
-      clearCaches: vi.fn(() => { populated = false; }),
-    };
-    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => true });
-
-    const response = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
-    await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledOnce());
-    const clearPromise = handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
-    listing.resolve(listedSession("stale"));
-
-    await clearPromise;
-    await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
-    await expect(reader.resolveExternalSession({ sessionKey: "stale" })).resolves.toEqual({ kind: "none" });
-    expect(reader.clearCaches).toHaveBeenCalledOnce();
-  });
-
-  it("keeps a newer list source resolvable after an older generation completes", async () => {
-    const older = deferred<ListExternalSessionsResult>();
-    const newer = deferred<ListExternalSessionsResult>();
-    const sources = new Set<string>();
-    const reader = {
-      ...readerDefaults(),
-      listExternalSessions: vi
-        .fn()
-        .mockImplementationOnce(() => older.promise.then((result) => { result.sessions.forEach((session) => sources.add(session.sessionKey)); return result; }))
-        .mockImplementationOnce(() => newer.promise.then((result) => { result.sessions.forEach((session) => sources.add(session.sessionKey)); return result; })),
-      resolveExternalSession: vi.fn(({ sessionKey }: { sessionKey: string }) => Promise.resolve(
-        sources.has(sessionKey)
-          ? { kind: "resume" as const, projectId: "A", cwd: "/repo", sessionId: sessionKey }
-          : { kind: "none" as const },
-      )),
-      clearCaches: vi.fn(() => { sources.clear(); }),
-    };
-    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => true });
-
-    const olderResponse = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
-    await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledOnce());
-    const clearPromise = handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
-    const newerResponse = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
-
-    await Promise.resolve();
-    expect(reader.listExternalSessions).toHaveBeenCalledOnce();
-    older.resolve(listedSession("older"));
-    await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledTimes(2));
-    newer.resolve(listedSession("newer"));
-
-    await expect(olderResponse).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
-    await expect(newerResponse).resolves.toEqual(listedSession("newer"));
-    await clearPromise;
-    await expect(reader.resolveExternalSession({ sessionKey: "newer" })).resolves.toMatchObject({ kind: "resume", sessionId: "newer" });
-  });
-
-  it("validates transcript page requests and clears all reader caches when indexing becomes disabled", async () => {
-    let enabled = true;
+  it("validates transcript page requests", async () => {
     const reader = {
       ...readerDefaults(),
       listExternalSessions: vi.fn(),
@@ -302,15 +160,12 @@ describe("sessions IPC", () => {
         resumeAliasCount: 0,
         contentAliasCount: 0,
       })),
-      clearCaches: vi.fn(),
     };
-    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => enabled });
+    registerSessionsIpc({ reader });
 
     await expect(handlers.get(sessionsChannels.readTranscriptPage)?.({}, { sessionKey: "known", cursor: 12 })).rejects.toThrow("Invalid transcript page request.");
     await expect(handlers.get(sessionsChannels.getDiagnostics)?.({}, undefined)).resolves.toMatchObject({ cachedSessionCount: 0 });
-    enabled = false;
-    await expect(handlers.get(sessionsChannels.readTranscriptPage)?.({}, { sessionKey: "known" })).resolves.toEqual({ sessionKey: "known", blocks: [], nextCursor: null, revision: "", partial: false });
-    expect(reader.clearCaches).toHaveBeenCalledOnce();
+    await expect(handlers.get(sessionsChannels.readTranscriptPage)?.({}, { sessionKey: "known" })).resolves.toMatchObject({ sessionKey: "known", revision: "1" });
   });
 });
 
@@ -323,8 +178,3 @@ function fakeWorkspaceStore(workspaces: Array<{ id: string; label: string; short
   };
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
-  return { promise, resolve };
-}

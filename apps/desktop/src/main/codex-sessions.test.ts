@@ -167,13 +167,9 @@ describe("Codex sessions reader", () => {
     expect(second.sessions).toHaveLength(40);
     expect(onSummaryDiscovery).toHaveBeenCalledTimes(1);
 
-    const refreshed = await reader.listExternalSessions(request);
+    await reader.listExternalSessions(request);
     expect(onSummaryDiscovery).toHaveBeenCalledTimes(2);
     await expect(reader.listExternalSessions({ ...request, cursor: first.nextCursor! }))
-      .rejects.toThrow("Invalid external sessions cursor.");
-
-    reader.clearCaches();
-    await expect(reader.listExternalSessions({ ...request, cursor: refreshed.nextCursor! }))
       .rejects.toThrow("Invalid external sessions cursor.");
   });
 
@@ -221,23 +217,6 @@ describe("Codex sessions reader", () => {
       cwd: "/repo",
       sessionId: "content-alias",
     });
-  });
-
-  it("removes content session aliases when caches are cleared", async () => {
-    const { codexHome } = await transcriptFixture("cleared-alias", [
-      { type: "session_meta", payload: { id: "cleared-alias", cwd: "/repo" } },
-      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Private transcript" }] } },
-    ]);
-    const reader = createCodexSessionsReader({ codexHome });
-    const listed = await reader.listExternalSessions({ projects: [] });
-    const contentSessionKey = listed.sessions[0]!.contentSessionKey;
-    await expect(reader.readTranscriptPage({ sessionKey: contentSessionKey })).resolves.toMatchObject({
-      blocks: [expect.objectContaining({ text: "Private transcript" })],
-    });
-
-    reader.clearCaches();
-
-    await expect(reader.readTranscriptPage({ sessionKey: contentSessionKey })).rejects.toThrow("Unknown external session.");
   });
 
   it("rejects unknown content-shaped transcript keys without exposing local paths", async () => {

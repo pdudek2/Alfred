@@ -219,8 +219,6 @@ if (!hasSingleInstanceLock) {
       defaultRootPath: defaultWorkspaceRootPath,
     });
     registerSessionsIpc({
-      isExternalSessionIndexingEnabled: async () =>
-        (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
       managedWorktreeRootPath,
       workspaceStore,
     });

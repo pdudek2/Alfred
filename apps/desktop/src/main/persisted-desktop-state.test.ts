@@ -433,9 +433,8 @@ describe("persisted-desktop-state", () => {
     );
     const store = createPersistedDesktopStateStore({ filePath });
 
-    await expect(store.getState()).resolves.toMatchObject({
-      privacySettings: DEFAULT_PRIVACY_SETTINGS,
-    });
+    // A file from before History read every session still loads; its indexing flag is dropped.
+    expect((await store.getState()).privacySettings).toEqual(DEFAULT_PRIVACY_SETTINGS);
   });
 
   it("redacts and limits legacy restored terminal data on load", async () => {
@@ -593,7 +592,6 @@ describe("persisted-desktop-state", () => {
 
     const sanitized = sanitizePersistedTerminalSession(isolated, {
       terminalScrollbackRetention: "off",
-      externalSessionIndexingEnabled: false,
     });
 
     expect(sanitized).toMatchObject({
@@ -620,7 +618,6 @@ describe("persisted-desktop-state", () => {
       { ...isolated, isolation: "shared" },
       {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
     )).toBeNull();
   });
@@ -636,7 +633,6 @@ describe("persisted-desktop-state", () => {
     };
     const privacySettings = {
       terminalScrollbackRetention: "off" as const,
-      externalSessionIndexingEnabled: false,
     };
 
     expect(sanitizePersistedTerminalSession({
@@ -659,7 +655,6 @@ describe("persisted-desktop-state", () => {
       ...DEFAULT_DESKTOP_STATE,
       privacySettings: {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
       restoredTerminalSessions: [
         {
@@ -700,7 +695,6 @@ describe("persisted-desktop-state", () => {
         activeWorkspaceId: "A",
         privacySettings: {
           terminalScrollbackRetention: "off",
-          externalSessionIndexingEnabled: false,
         },
         restoredTerminalSessions: [
           {
@@ -730,7 +724,6 @@ describe("persisted-desktop-state", () => {
     await expect(store.getState()).resolves.toMatchObject({
       privacySettings: {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
       restoredTerminalSessions: [],
     });
@@ -768,7 +761,6 @@ describe("persisted-desktop-state", () => {
         activeWorkspaceId: "A",
         privacySettings: {
           terminalScrollbackRetention: "off",
-          externalSessionIndexingEnabled: false,
         },
         restoredTerminalSessions: [
           isolated,
@@ -823,7 +815,6 @@ describe("persisted-desktop-state", () => {
         activeWorkspaceId: "A",
         privacySettings: {
           terminalScrollbackRetention: "off",
-          externalSessionIndexingEnabled: false,
         },
         restoredTerminalSessions: [{
           clientId: "codex-concurrent",
@@ -998,7 +989,7 @@ describe("persisted-desktop-state", () => {
 
     try {
       await expect(store.getState()).resolves.toMatchObject({
-        privacySettings: { externalSessionIndexingEnabled: false },
+        privacySettings: { terminalScrollbackRetention: "off" },
         restoredTerminalSessions: [],
       });
       expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed" });
@@ -1017,7 +1008,7 @@ describe("persisted-desktop-state", () => {
     await store.getState();
     const unsaved = {
       ...DEFAULT_DESKTOP_STATE,
-      privacySettings: { ...DEFAULT_PRIVACY_SETTINGS, externalSessionIndexingEnabled: false },
+      privacySettings: { ...DEFAULT_PRIVACY_SETTINGS, terminalScrollbackRetention: "off" as const },
     };
 
     await chmod(path.dirname(filePath), 0o500);
@@ -1025,23 +1016,23 @@ describe("persisted-desktop-state", () => {
       await expect(store.setState(unsaved)).rejects.toThrow("Failed to persist desktop state.");
 
       await expect(store.getState()).resolves.toMatchObject({
-        privacySettings: { externalSessionIndexingEnabled: false },
+        privacySettings: { terminalScrollbackRetention: "off" },
       });
-      let seenByMutation: boolean | undefined;
+      let seenByMutation: string | undefined;
       await expect(
         store.updateState((current) => {
-          seenByMutation = current.privacySettings.externalSessionIndexingEnabled;
+          seenByMutation = current.privacySettings.terminalScrollbackRetention;
           return current;
         }),
       ).rejects.toThrow("Failed to persist desktop state.");
-      expect(seenByMutation).toBe(false);
+      expect(seenByMutation).toBe("off");
       expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed" });
     } finally {
       await chmod(path.dirname(filePath), 0o700);
     }
 
     await expect(store.retrySave()).resolves.toMatchObject({
-      privacySettings: { externalSessionIndexingEnabled: false },
+      privacySettings: { terminalScrollbackRetention: "off" },
     });
     expect(store.getSaveStatus()).toEqual({ status: "saved" });
   });

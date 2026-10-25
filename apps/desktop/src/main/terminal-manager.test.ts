@@ -695,7 +695,6 @@ describe("terminal-manager IPC", () => {
       ...state,
       privacySettings: {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
     };
     const cleared = applyTerminalPrivacyPolicyInMemory(state.privacySettings);
@@ -712,7 +711,6 @@ describe("terminal-manager IPC", () => {
       ...state,
       privacySettings: {
         terminalScrollbackRetention: "redactedTail",
-        externalSessionIndexingEnabled: false,
       },
     };
     applyTerminalPrivacyPolicyInMemory(state.privacySettings);
@@ -771,7 +769,6 @@ describe("terminal-manager IPC", () => {
       ...DEFAULT_DESKTOP_STATE,
       privacySettings: {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
       restoredTerminalSessions: [],
     };
@@ -889,7 +886,6 @@ describe("terminal-manager IPC", () => {
     const pendingList = invoke<TerminalListResult>(terminalChannels.list);
     applyTerminalPrivacyPolicyInMemory({
       terminalScrollbackRetention: "off",
-      externalSessionIndexingEnabled: false,
     });
     hydration.resolve(stateWithRestoredSessions([
       {
@@ -962,7 +958,6 @@ describe("terminal-manager IPC", () => {
     });
     applyTerminalPrivacyPolicyInMemory({
       terminalScrollbackRetention: "off",
-      externalSessionIndexingEnabled: false,
     });
 
     const pendingList = invoke<TerminalListResult>(terminalChannels.list);
@@ -1026,7 +1021,6 @@ describe("terminal-manager IPC", () => {
       ...stateWithRestoredSessions([]),
       privacySettings: {
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       },
     };
     const store: PersistedDesktopStateStore = {

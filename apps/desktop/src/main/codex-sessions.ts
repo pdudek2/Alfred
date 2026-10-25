@@ -122,20 +122,6 @@ export function createCodexSessionsReader(options: {
       evictSession(oldest);
     }
   };
-  const clearCaches = (): void => {
-    sourceBySessionKey.clear();
-    sourceByContentSessionKey.clear();
-    sourceSessionAliasOrder.splice(0);
-    sourceContentAliasOrder.splice(0);
-    summaryCache.clear();
-    summaryOrder.splice(0);
-    summaryBytes = 0;
-    pageCache.clear();
-    pageKeysBySession.clear();
-    sessionOrder.splice(0);
-    decodedTranscriptBytes = 0;
-    listSnapshot = null;
-  };
   const touchAlias = <T>(map: Map<string, T>, order: string[], key: string, value: T): void => {
     map.set(key, value);
     const index = order.indexOf(key);
@@ -239,7 +225,6 @@ export function createCodexSessionsReader(options: {
         contentAliasCount: sourceByContentSessionKey.size,
       };
     },
-    clearCaches,
   };
 }
 

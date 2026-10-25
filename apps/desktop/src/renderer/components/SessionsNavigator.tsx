@@ -24,7 +24,6 @@ const SOURCE_TABS: ReadonlyArray<{ id: SessionsViewState["source"]; label: strin
 
 type SessionsNavigatorProps = {
   activeSessionKey: string | null;
-  externalSessionIndexingEnabled: boolean;
   externalSessionsError: string | null;
   loadingExternalSessions: boolean;
   navigatorRef: RefObject<HTMLDivElement | null>;
@@ -37,7 +36,6 @@ type SessionsNavigatorProps = {
   statusByKey: ReadonlyMap<string, SessionDisplayStatus>;
   workspaces: SessionsProjectInput[];
   onActiveSessionKeyChange: (sessionKey: string | null) => void;
-  onOpenPrivacySettings: (() => void) | undefined;
   onRefreshExternalSessions: () => void;
   onSelectSession: (session: SessionSummary) => void;
   onSelectProject: (projectId: string) => void;
@@ -48,7 +46,6 @@ type SessionsNavigatorProps = {
 /** The History list from the v4 canvas: search, source tabs, then one line per session, grouped by day. */
 export function SessionsNavigator({
   activeSessionKey,
-  externalSessionIndexingEnabled,
   externalSessionsError,
   loadingExternalSessions,
   navigatorRef,
@@ -61,7 +58,6 @@ export function SessionsNavigator({
   statusByKey,
   workspaces,
   onActiveSessionKeyChange,
-  onOpenPrivacySettings,
   onRefreshExternalSessions,
   onSelectSession,
   onSelectProject,
@@ -165,29 +161,21 @@ export function SessionsNavigator({
                 </select>
                 <ChevronDown aria-hidden="true" size={11} />
               </label>
-              {externalSessionIndexingEnabled && (
-                <button
-                  type="button"
-                  aria-label="Refresh external sessions"
-                  title="Refresh Codex CLI sessions"
-                  disabled={loadingExternalSessions}
-                  onClick={onRefreshExternalSessions}
-                >
-                  <RefreshCcw aria-hidden="true" size={12} />
-                </button>
-              )}
+              <button
+                type="button"
+                aria-label="Refresh external sessions"
+                title="Refresh Codex CLI sessions"
+                disabled={loadingExternalSessions}
+                onClick={onRefreshExternalSessions}
+              >
+                <RefreshCcw aria-hidden="true" size={12} />
+              </button>
             </div>
           </div>
         </>
       )}
 
-      {!externalSessionIndexingEnabled && projection.items.length > 0 && (
-        <p className="sessions-navigator__notice">
-          <span>External Codex indexing is off.</span>
-          {onOpenPrivacySettings && <button type="button" onClick={onOpenPrivacySettings}>Open Local Data &amp; Privacy</button>}
-        </p>
-      )}
-      {externalSessionIndexingEnabled && externalSessionsError && projection.items.length > 0 && (
+      {externalSessionsError && projection.items.length > 0 && (
         <p className="sessions-navigator__notice"><span>External sessions may be incomplete.</span><span>{externalSessionsError}</span></p>
       )}
       <div

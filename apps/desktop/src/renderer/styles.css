@@ -2222,57 +2222,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   gap: 8px;
 }
 
-.privacy-toggle {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font: 400 13px/18px var(--sans);
-}
-
-.privacy-toggle input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.privacy-toggle-track {
-  position: relative;
-  width: 34px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--text-faint);
-}
-
-.privacy-toggle-track::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--text-primary);
-  transition: transform 140ms ease-out;
-}
-
-/* On is a light track, not a colour. */
-.privacy-toggle input:checked + .privacy-toggle-track {
-  background: var(--text-primary);
-}
-
-.privacy-toggle input:checked + .privacy-toggle-track::after {
-  background: var(--surface-panel);
-  transform: translateX(14px);
-}
-
-.privacy-toggle input:focus-visible + .privacy-toggle-track {
-  outline: 2px solid var(--focus-border);
-  outline-offset: 2px;
-}
-
 .privacy-panel-status {
   margin-top: 12px;
   border-radius: 10px;
