@@ -62,6 +62,7 @@ import {
   type AgentSignalBridge,
   type AgentSignalUpdate,
 } from "./agent-signals.js";
+import type { AgentEventLog } from "./agent-events.js";
 import { checkSafety } from "./alfred-safety.js";
 import {
   applyAgentWorktreePatch as defaultApplyAgentWorktreePatch,
@@ -106,6 +107,8 @@ type WorktreeOperationSession = {
   workspaceRootFingerprint?: string | undefined;
 };
 type TerminalIpcOptions = {
+  /** Where Claude and Codex send the events Alfred keeps on record. */
+  agentEvents?: AgentEventLog | null;
   /** Hooks and notifications that let Claude and Codex report their own state. */
   agentSignals?: AgentSignalBridge | null;
   allowedCwdRoots?: () => Promise<string[]>;
@@ -546,12 +549,15 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const resolved = resolveCommand(safeRequest);
         const id = randomUUID();
         const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
-        const launchArgs = options.agentSignals
-          ? options.agentSignals.launchArgs(safeRequest.command, {
-            id,
-            worker: parentClientId(safeRequest.parentClientId) !== undefined,
-          })
-          : safeRequest.command === "codex" ? [...CODEX_NOTIFICATION_ARGS] : [];
+        const launchArgs = [
+          ...(options.agentSignals
+            ? options.agentSignals.launchArgs(safeRequest.command, {
+              id,
+              worker: parentClientId(safeRequest.parentClientId) !== undefined,
+            })
+            : safeRequest.command === "codex" ? CODEX_NOTIFICATION_ARGS : []),
+          ...(options.agentEvents?.launchArgs(id, safeRequest.command) ?? []),
+        ];
         const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {
           name: "xterm-256color",
           cols: normalizeDimension(request.cols, 80),
@@ -566,6 +572,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             // xterm.js renders OSC 8 links. Claude Code links a sent [Image #N] to its file only when told so.
             FORCE_HYPERLINK: "1",
             ...options.agentSignals?.env(id, safeRequest.command),
+            ...options.agentEvents?.env(id, safeRequest.command),
           },
         });
         session = {
@@ -910,6 +917,11 @@ export async function flushTerminalPersistence(): Promise<void> {
 
 export function getTerminalSessionCount(): number {
   return sessions.size;
+}
+
+/** Whether Alfred writes terminal data to disk now; the agent event log follows the same setting. */
+export function savesTerminalData(): boolean {
+  return effectivePrivacySettings.terminalScrollbackRetention !== "off";
 }
 
 export function applyTerminalPrivacyPolicyInMemory(

@@ -96,6 +96,9 @@ vi.mock("electron", () => ({
 vi.mock("./agent-signals.js", () => ({
   createAgentSignalBridge: vi.fn(async () => ({ bridge: "agent-signals", close: vi.fn(async () => {}) })),
 }));
+vi.mock("./agent-events.js", () => ({
+  createAgentEventLog: vi.fn(async () => ({ log: "agent-events", clear: vi.fn(async () => {}), close: vi.fn(async () => {}) })),
+}));
 vi.mock("./alfred-orchestrator.js", () => ({
   registerAlfredIpc: mocks.registerAlfredIpc,
 }));
@@ -142,6 +145,7 @@ vi.mock("./terminal-manager.js", () => ({
   getTerminalSessionCount: mocks.getTerminalSessionCount,
   killAllTerminalSessions: mocks.killAllTerminalSessions,
   registerTerminalIpc: mocks.registerTerminalIpc,
+  savesTerminalData: vi.fn(() => true),
   waitForTerminalExits: mocks.waitForTerminalExits,
 }));
 
@@ -497,9 +501,11 @@ describe("main quit persistence", () => {
     await flushMicrotasks();
 
     expect(mocks.registerTerminalIpc).toHaveBeenCalledWith(expect.objectContaining({
+      agentEvents: expect.objectContaining({ log: "agent-events" }),
       agentSignals: expect.objectContaining({ bridge: "agent-signals" }),
       resolveWorkspaceRoot: expect.any(Function),
     }));
+    expect(mocks.registerDesktopStateIpc).toHaveBeenCalledWith(expect.anything(), { clearAgentEvents: expect.any(Function) });
     const options = mocks.registerTerminalIpc.mock.calls[0]?.[0] as
       | { resolveWorkspaceRoot?: (workspaceId: string) => Promise<string | undefined> }
       | undefined;

@@ -16,7 +16,10 @@ import {
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
 
-export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void {
+export function registerDesktopStateIpc(
+  store: PersistedDesktopStateStore,
+  options: { clearAgentEvents?: () => Promise<void> | undefined } = {},
+): void {
   store.onSaveStatus((status) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed() && isTrustedIpcRecipient(window.webContents)) {
@@ -67,6 +70,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
             return sanitized ? [sanitized] : [];
           }),
         }));
+        await options.clearAgentEvents?.();
         return {
           ok: true,
           clearedSessions,
