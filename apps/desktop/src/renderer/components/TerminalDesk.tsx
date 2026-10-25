@@ -567,7 +567,7 @@ function restoredSessionButtonTitle(session: RestoredSessionButtonSession): stri
 }
 
 function codexResumeModeForLabel(session: RestoredSessionButtonSession): "exact" | "latest" {
-  return session.resumeMode ?? (session.resumeTarget?.agentKind === "codex" ? "exact" : "latest");
+  return session.resumeMode ?? (session.resumeTarget ? "exact" : "latest");
 }
 
 function terminalHostHasStableGeometry(container: HTMLElement): boolean {

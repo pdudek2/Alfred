@@ -38,6 +38,7 @@ import {
   type TerminalReconcileRequest,
   type TerminalReconcileResult,
   type TerminalRenameRequest,
+  type TerminalResumeTarget,
   type TerminalResizeRequest,
   type TerminalSessionSnapshot,
   type TerminalSessionId,
@@ -287,13 +288,16 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   const codexImages = createCodexImageIndex();
 
-  options.agentSignals?.setListener((sessionId, update, transcriptPath) => {
+  options.agentSignals?.setListener((sessionId, update, transcriptPath, conversationId) => {
     const session = sessions.get(sessionId);
     if (!session) return;
     if (transcriptPath) session.transcriptPath = transcriptPath;
     session.hooksLive = true;
+    const resumeTarget = newConversation(session, conversationId);
+    if (resumeTarget) session.resumeTarget = resumeTarget;
     const applied = applyAgentSignal(session, update, "hook", Date.now());
-    sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal });
+    sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal, ...(resumeTarget ? { resumeTarget } : {}) });
+    if (resumeTarget) rememberSessionSnapshot(session);
   });
 
   const workerReplies = new Map<string, (reply: TerminalWorkerReply) => void>();
@@ -1752,6 +1756,14 @@ function typeIntoAgent(session: TerminalSession, message: string): void {
   notifyWorkers();
 }
 
+/** The conversation an agent's hook names, when it is not the one this session already resumes. */
+function newConversation(session: TerminalSession, conversationId: string | undefined): TerminalResumeTarget | undefined {
+  const agentKind = session.command === "claude" || session.command === "codex" ? session.command : undefined;
+  if (!conversationId || !agentKind) return undefined;
+  if (session.resumeTarget?.agentKind === agentKind && session.resumeTarget.sessionId === conversationId) return undefined;
+  return { agentKind, sessionId: conversationId, source: "agent-hook" };
+}
+
 function isCodexSession(session: TerminalSession): boolean {
   return session.command === "codex" || session.agentKind === "codex" || session.foregroundAgentKind === "codex";
 }
@@ -1814,7 +1826,13 @@ function answerApproval(session: TerminalSession): SessionActivityEvent | null {
 
 function sendSignalUpdate(
   session: TerminalSession,
-  update: { activities?: SessionActivityEvent[]; agentSignal?: TerminalAgentSignal | null; shellBusy?: boolean; promptSubmitted?: true },
+  update: {
+    activities?: SessionActivityEvent[];
+    agentSignal?: TerminalAgentSignal | null;
+    shellBusy?: boolean;
+    promptSubmitted?: true;
+    resumeTarget?: TerminalResumeTarget;
+  },
 ): void {
   sendToSessionWindow(session, terminalChannels.data, {
     id: session.id,
@@ -1826,6 +1844,7 @@ function sendSignalUpdate(
     ...(update.agentSignal === undefined ? {} : { agentSignal: update.agentSignal }),
     ...(update.shellBusy === undefined ? {} : { shellBusy: update.shellBusy }),
     ...(update.promptSubmitted ? { promptSubmitted: true } : {}),
+    ...(update.resumeTarget ? { resumeTarget: update.resumeTarget } : {}),
   });
 }
 
@@ -2022,11 +2041,15 @@ async function isExactPersistedRestoredCwd(request: TerminalCreateRequest): Prom
     return requestedArgs.length === 2 && requestedArgs[0] === "resume" && requestedArgs[1] === "--last";
   }
 
-  return snapshot.agentKind === "claude"
-    && request.agentKind === "claude"
-    && request.command === "claude"
-    && requestedArgs.length === 1
-    && requestedArgs[0] === "--continue";
+  if (snapshot.agentKind !== "claude" || request.agentKind !== "claude" || request.command !== "claude") return false;
+  if (snapshot.resumeTarget?.agentKind === "claude") {
+    return request.resumeTarget?.agentKind === "claude"
+      && request.resumeTarget.sessionId === snapshot.resumeTarget.sessionId
+      && requestedArgs.length === 2
+      && requestedArgs[0] === "--resume"
+      && requestedArgs[1] === snapshot.resumeTarget.sessionId;
+  }
+  return requestedArgs.length === 1 && requestedArgs[0] === "--continue";
 }
 
 function isTrustedAgentLaunch(request: TerminalCreateRequest): boolean {

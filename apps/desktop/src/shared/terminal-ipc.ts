@@ -5,10 +5,16 @@ export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
 export type TerminalSessionIsolation = "shared" | "worktree";
 export type TerminalForegroundAgentKind = Extract<AgentKind, "codex" | "claude">;
+/** Claude and Codex name a conversation by UUID; only such an id goes back to them as a Resume argument. */
+export function isAgentConversationId(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/** The agent conversation a session resumes; agent-hook ids come from the agent's own hooks while it runs. */
 export type TerminalResumeTarget = {
-  agentKind: "codex";
+  agentKind: TerminalForegroundAgentKind;
   sessionId: string;
-  source: "codex-session-index" | "external-session-index";
+  source: "codex-session-index" | "external-session-index" | "agent-hook";
 };
 
 export type TerminalCreateRequest = {
@@ -197,6 +203,8 @@ export type TerminalDataEvent = {
   shellBusy?: boolean;
   /** Sent once, when you first send the session a message. */
   promptSubmitted?: true;
+  /** Sent when the agent's hooks name a conversation other than the one known. */
+  resumeTarget?: TerminalResumeTarget;
 };
 
 /** An orchestrator agent asked for a worker; the renderer adds it under its parent and answers with the new session. */

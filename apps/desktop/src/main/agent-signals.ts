@@ -4,7 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import type { SessionActivityInput } from "../shared/session-activity.js";
-import type { TerminalAgentSignal } from "../shared/terminal-ipc.js";
+import { isAgentConversationId, type TerminalAgentSignal } from "../shared/terminal-ipc.js";
 import { typedPromptSource, WORKER_TOOL_DEFINITIONS } from "./worker-tools.js";
 
 /** Session model contract §3: how Alfred senses agent and shell state. */
@@ -340,7 +340,23 @@ function transcriptPathFrom(payload: unknown): string | undefined {
   return typeof transcript === "string" && path.isAbsolute(transcript) && transcript.endsWith(".jsonl") ? transcript : undefined;
 }
 
-export type AgentSignalListener = (sessionId: string, update: AgentSignalUpdate, transcriptPath?: string) => void;
+/**
+ * The agent's own conversation id: the session_id Claude and Codex put in every hook, else the UUID their transcript
+ * file is named after. Only a UUID is taken, since Resume passes it to the agent as an argument.
+ */
+export function conversationIdFrom(payload: unknown): string | undefined {
+  const sessionId = typeof payload === "object" && payload !== null ? (payload as { session_id?: unknown }).session_id : undefined;
+  if (isAgentConversationId(sessionId)) return sessionId;
+  const fromFile = transcriptPathFrom(payload)?.match(/([0-9a-f-]{36})\.jsonl$/i)?.[1];
+  return isAgentConversationId(fromFile) ? fromFile : undefined;
+}
+
+export type AgentSignalListener = (
+  sessionId: string,
+  update: AgentSignalUpdate,
+  transcriptPath?: string,
+  conversationId?: string,
+) => void;
 /** Answers one call from a session's worker tools; a thrown error's message is what the agent reads. */
 export type AgentToolHandler = (sessionId: string, tool: string, args: unknown) => Promise<unknown>;
 
@@ -496,7 +512,7 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
         payload = undefined;
       }
       const update = signalFromHook(message.event, payload);
-      if (update) listener?.(message.sessionId, update, transcriptPathFrom(payload));
+      if (update) listener?.(message.sessionId, update, transcriptPathFrom(payload), conversationIdFrom(payload));
     } catch {
       // A malformed hook message must never disturb a session.
     }
