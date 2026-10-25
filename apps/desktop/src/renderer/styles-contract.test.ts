@@ -366,8 +366,10 @@ describe("renderer CSS contracts", () => {
     );
     const liveSelectors = liveRules.flatMap(({ selectors }) => selectors);
     const legacyColorUses = liveRules.filter(({ body }) =>
-      /var\(--(?:signal-focus-strong|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?)\)/.test(body),
+      /var\(--(?:signal-focus-strong|signal-agent(?:-soft)?|signal-success|role-[^)]+)\)/.test(body),
     );
+    // Red is for destructive actions only.
+    const dangerUses = liveRules.filter(({ body }) => body.includes("var(--signal-danger"));
     const focusSignalUses = liveRules.filter(({ body }) => body.includes("var(--signal-focus)"));
     const literalColorUses = liveRules.filter(({ body }) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(body));
 
@@ -375,6 +377,8 @@ describe("renderer CSS contracts", () => {
       ".desktop-save-banner",
     ]));
     expect(legacyColorUses.map(({ selectors }) => selectors)).toEqual([]);
+    expect(dangerUses.length).toBeGreaterThan(0);
+    expect(dangerUses.every(({ selectors }) => selectors.every((selector) => selector.includes(".danger")))).toBe(true);
     expect(focusSignalUses.every(({ selectors }) =>
       selectors.every((selector) =>
         selector.includes("selected")
@@ -417,8 +421,12 @@ describe("renderer CSS contracts", () => {
       [".session-rename-form input:focus-visible"],
       // The hairline of the drop overlay over a dragged-on terminal (v4 Drop board).
       [".terminal-drop-overlay"],
+      // The project menu is drawn as the Needs you panel, its fields as the New sheet's.
+      [".workspace-popover"],
+      [".workspace-rename-form input", ".workspace-mission-form textarea"],
+      [".workspace-rename-form input:focus-visible", ".workspace-mission-form textarea:focus-visible"],
     ]));
-    expect(materialShadows).toHaveLength(9);
+    expect(materialShadows).toHaveLength(12);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -1022,10 +1030,10 @@ describe("renderer CSS contracts", () => {
   it("keeps support-surface operations on the product type and control floors", () => {
     const expectedFonts = [
       [".renderer-crash-kicker", "font: 500 12px/16px var(--sans)"],
-      [".workspace-popover button strong", "font: 600 13px/1.2 var(--sans)"],
-      [".workspace-popover button small", "font: 500 12px/1.35 var(--sans)"],
-      [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
-      [".workspace-mission-form label span", "font: 600 12px/1.2 var(--sans)"],
+      [".workspace-popover button strong", "font: 500 13px/18px var(--sans)"],
+      [".workspace-popover button small", "font: 400 12px/16px var(--sans)"],
+      [".workspace-rename-form label span", "font: 500 12px/16px var(--sans)"],
+      [".workspace-mission-form label span", "font: 500 12px/16px var(--sans)"],
       [".command-palette-group", "font: 500 12px/16px var(--sans)"],
       [".command-palette-list button small", "font: 400 12px/16px var(--sans)"],
       [".command-palette-empty", "font: 400 12px/16px var(--sans)"],
