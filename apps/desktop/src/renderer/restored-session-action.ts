@@ -18,12 +18,12 @@ export function restoredSessionActionLabel(
 
   if (!codingAgent) return relaunchActionLabel(unsafe, armed);
 
-  if (codexAgent && !hasExactCodexResumeTarget(session)) {
+  if (codexAgent && !hasExactResumeTarget(session)) {
     if (!unsafe) return "Resume latest";
     return armed ? "Confirm resume latest" : "Review resume latest";
   }
 
-  if (claudeAgent) {
+  if (claudeAgent && !hasExactResumeTarget(session)) {
     if (!unsafe) return "Resume latest";
     return armed ? "Confirm continue latest" : "Review continue latest";
   }
@@ -33,17 +33,18 @@ export function restoredSessionActionLabel(
 }
 
 export function restoredSessionActionTitle(session: RestoredActionSession): string {
-  if ((session.agentKind === "codex" || session.command === "codex") && !hasExactCodexResumeTarget(session)) {
+  if ((session.agentKind === "codex" || session.command === "codex") && !hasExactResumeTarget(session)) {
     return "Resume the latest Codex conversation for this project.";
   }
-  if (session.agentKind === "claude" || session.command === "claude") {
+  if ((session.agentKind === "claude" || session.command === "claude") && !hasExactResumeTarget(session)) {
     return "Resume the latest Claude conversation for this project.";
   }
   return "Resume this session";
 }
 
-export function hasExactCodexResumeTarget(session: Pick<RestoredActionSession, "args" | "resumeTarget">): boolean {
-  if (session.resumeTarget?.agentKind === "codex" && session.resumeTarget.sessionId) return true;
+/** Whether Resume reopens one known conversation rather than the project's latest. */
+export function hasExactResumeTarget(session: Pick<RestoredActionSession, "args" | "resumeTarget">): boolean {
+  if (session.resumeTarget?.sessionId) return true;
   return Boolean(session.args?.[0] === "resume" && session.args[1] && session.args[1] !== "--last");
 }
 
