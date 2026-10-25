@@ -244,9 +244,17 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
       lastOutputAt: _lastOutputAt,
       runtimeId: _runtimeId,
       createdAt: _createdAt,
+      // What the ended process reported; the new one reports its own.
+      agentSignal: _agentSignal,
+      detectedAgentKind: _detectedAgentKind,
+      promptSubmitted: _promptSubmitted,
+      shellBusy: _shellBusy,
       ...restartableSession
     } = session;
-    return { ...restartableSession, runtimeStatus: "starting" };
+    // An agent that named its conversation goes back to it; one that ended before that starts as it was launched.
+    const agentKind = restoredAgentKind(session);
+    const resume = agentKind && session.resumeTarget?.agentKind === agentKind ? resumeLaunchForRestoredAgent(session) : {};
+    return { ...restartableSession, ...resume, runtimeStatus: "starting" };
   });
 }
 
