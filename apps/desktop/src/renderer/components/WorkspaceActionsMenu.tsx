@@ -186,8 +186,8 @@ export function WorkspaceActionsMenu({
                 />
               </label>
               <div>
-                <button type="submit" disabled={!renameDraft.trim()}>Save</button>
                 <button type="button" onClick={onCancelRename}>Cancel</button>
+                <button type="submit" disabled={!renameDraft.trim()}>Save</button>
               </div>
             </form>
           ) : missionEditing ? (
@@ -230,19 +230,21 @@ export function WorkspaceActionsMenu({
                 />
               </label>
               <div className="workspace-mission-actions">
-                <button type="submit" disabled={!hasMissionDraft(missionDraft)}>Save</button>
+                {missionBrief && (
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => {
+                      onSaveMissionBrief(undefined);
+                      setMissionDraft(missionBriefToDraft(undefined));
+                      setMissionEditing(false);
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
                 <button type="button" onClick={handleMissionCancel}>Cancel</button>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={() => {
-                    onSaveMissionBrief(undefined);
-                    setMissionDraft(missionBriefToDraft(undefined));
-                    setMissionEditing(false);
-                  }}
-                >
-                  Clear
-                </button>
+                <button type="submit" disabled={!hasMissionDraft(missionDraft)}>Save</button>
               </div>
             </form>
           ) : (
