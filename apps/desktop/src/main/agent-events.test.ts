@@ -180,10 +180,15 @@ describe("createAgentEventLog", () => {
     expect(await recorded()).toEqual([]);
   });
 
-  it("deletes every recorded day on clear", async () => {
+  it("deletes every recorded day on clear, and sessions launched before it cannot write again", async () => {
     const log = await open();
-    await post(log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!, JSON.stringify(claudeBody));
+    const before = log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    await post(before, JSON.stringify(claudeBody));
     await log.clear();
+
+    expect((await post(before, JSON.stringify(claudeBody))).status).toBe(404);
+    const after = log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    expect(after).not.toBe(before);
     await log.close();
 
     expect(await recorded()).toEqual([]);
