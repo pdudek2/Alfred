@@ -224,7 +224,6 @@ function installDesktopBridge(
   externalCodexSessions: ExternalSessionSummary[] = [],
   desktopPrivacySettings: DesktopPrivacySettings = {
     terminalScrollbackRetention: "redactedTail",
-    externalSessionIndexingEnabled: true,
   },
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
@@ -260,7 +259,6 @@ function installDesktopBridge(
   resolveExternalSession: ReturnType<typeof vi.fn>;
   readTranscriptPage: ReturnType<typeof vi.fn>;
   getSessionsDiagnostics: ReturnType<typeof vi.fn>;
-  clearSessionsCaches: ReturnType<typeof vi.fn>;
   clearSavedTerminalData: ReturnType<typeof vi.fn>;
   getPrivacySettings: ReturnType<typeof vi.fn>;
   revealStateFile: ReturnType<typeof vi.fn>;
@@ -330,7 +328,6 @@ function installDesktopBridge(
   });
   const readTranscriptPage = vi.fn().mockResolvedValue({ sessionKey: "test", blocks: [], nextCursor: null, revision: "", partial: false });
   const getSessionsDiagnostics = vi.fn().mockResolvedValue({ cachedSessionCount: 0, decodedTranscriptBytes: 0, summaryCount: 0, summaryBytes: 0 });
-  const clearSessionsCaches = vi.fn().mockResolvedValue(undefined);
   const releaseListSnapshot = vi.fn().mockResolvedValue(undefined);
   const resolveExternalSession = vi.fn().mockImplementation(({ sessionKey }: { sessionKey: string }) => {
     const session = externalCodexSessions.find((candidate) => candidate.sessionKey === sessionKey);
@@ -472,7 +469,6 @@ function installDesktopBridge(
       resolveExternalSession,
       readTranscriptPage,
       getDiagnostics: getSessionsDiagnostics,
-      clearCaches: clearSessionsCaches,
     },
     terminal,
     workspace: {
@@ -524,7 +520,6 @@ function installDesktopBridge(
     resolveExternalSession,
     readTranscriptPage,
     getSessionsDiagnostics,
-    clearSessionsCaches,
     clearSavedTerminalData,
     getPrivacySettings,
     revealStateFile,
@@ -1541,12 +1536,9 @@ describe("App integration", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
     expect(within(dialog).queryByText("Local controls")).not.toBeInTheDocument();
-    expect(within(dialog).getByText(
-      "Choose what Alfred keeps on this Mac and which local Codex sessions History lists.",
-    )).toBeVisible();
-    expect(within(dialog).getByRole("switch", {
-      name: "External Codex indexing",
-    })).toBeChecked();
+    expect(within(dialog).getByText("Choose what Alfred keeps on this Mac.")).toBeVisible();
+    // History reads every local agent session; Settings has no switch for it.
+    expect(within(dialog).queryByRole("switch")).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", {
       name: "Done",
     })).toHaveFocus();
@@ -1555,15 +1547,6 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(updatePrivacySettings).toHaveBeenCalledWith({
         terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: true,
-      });
-    });
-
-    await user.click(within(dialog).getByRole("switch", { name: "External Codex indexing" }));
-    await waitFor(() => {
-      expect(updatePrivacySettings).toHaveBeenCalledWith({
-        terminalScrollbackRetention: "off",
-        externalSessionIndexingEnabled: false,
       });
     });
 
@@ -1664,122 +1647,6 @@ describe("App integration", () => {
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.queryByRole("listitem", { name: /Draft to clear/i })).not.toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
-  });
-
-  it("does not refresh external Codex sessions when indexing is disabled", async () => {
-    const user = userEvent.setup();
-    const { listExternalSessions } = installDesktopBridge(
-      undefined,
-      null,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      [],
-      [
-        {
-          sessionKey: "external-codex:019edc4b-0000-7000-9000-disabled:200",
-          lineageKey: "external-codex:019edc4b-0000-7000-9000-disabled",
-          contentSessionKey: "external-codex:019edc4b-0000-7000-9000-disabled",
-          source: "external-codex",
-          kind: "codex",
-          title: "Hidden external session",
-          project: { id: "A", label: "Alfred" },
-          locationLabel: "Alfred",
-          updatedAt: 200,
-          lifecycle: "resumable",
-        },
-      ],
-      {
-        terminalScrollbackRetention: "redactedTail",
-        externalSessionIndexingEnabled: false,
-      },
-    );
-
-    render(<App />);
-
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
-    await selectSurface(user, "History");
-
-    expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Refresh external sessions" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open Local Data & Privacy" }));
-    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
-    expect(listExternalSessions).not.toHaveBeenCalled();
-  });
-
-  it("clears main sessions caches when external indexing is disabled without a refresh in flight", async () => {
-    const user = userEvent.setup();
-    const { clearSessionsCaches } = installDesktopBridge();
-    render(<App />);
-
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
-    await user.click(screen.getByRole("switch", { name: "External Codex indexing" }));
-
-    await waitFor(() => expect(clearSessionsCaches).toHaveBeenCalledOnce());
-  });
-
-  it("discards a late external sessions page after indexing is disabled", async () => {
-    const user = userEvent.setup();
-    const pending = deferred<{ sessions: ExternalSessionSummary[]; nextCursor: null; total: number }>();
-    const { listExternalSessions } = installDesktopBridge();
-    listExternalSessions
-      .mockResolvedValueOnce({
-        sessions: [{
-          sessionKey: "external-codex:first-page",
-          lineageKey: "external-codex:first-page",
-          contentSessionKey: "external-codex:first-page",
-          source: "external-codex",
-          kind: "codex",
-          title: "First external page",
-          project: { id: "A", label: "Alfred" },
-          locationLabel: "Alfred",
-          updatedAt: 300,
-          lifecycle: "resumable",
-        }],
-        nextCursor: "opaque-next-page",
-        total: 2,
-      })
-      .mockImplementationOnce(() => pending.promise);
-
-    render(<App />);
-    await selectSurface(user, "History");
-    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
-    expect(listExternalSessions).toHaveBeenLastCalledWith({
-      projects: expect.any(Array),
-      limit: 80,
-      cursor: "opaque-next-page",
-    });
-    expect(await screen.findByRole("option", { name: /First external page/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
-    await user.click(screen.getByRole("switch", { name: "External Codex indexing" }));
-
-    await act(async () => {
-      pending.resolve({
-        sessions: [{
-          sessionKey: "external-codex:stale",
-          lineageKey: "external-codex:stale",
-          contentSessionKey: "external-codex:stale",
-          source: "external-codex",
-          kind: "codex",
-          title: "Stale external session",
-          project: { id: "A", label: "Alfred" },
-          locationLabel: "Alfred",
-          updatedAt: 200,
-          lifecycle: "resumable",
-        }],
-        nextCursor: null,
-        total: 1,
-      });
-    });
-
-    expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /First external page/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Stale external session/i })).not.toBeInTheDocument();
-    expect(listExternalSessions).toHaveBeenCalledTimes(2);
   });
 
   it("shows a state-not-saved warning and retries the failed save", async () => {

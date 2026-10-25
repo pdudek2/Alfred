@@ -43,7 +43,6 @@ const SAVED_ACTION_RESULT_TITLES = new Set([
 const ENDED_STATUS: SessionDisplayStatus = { kind: "done", label: SESSION_STATE_LABELS.done };
 
 export type SessionsSurfaceProps = {
-  externalSessionIndexingEnabled: boolean;
   armedRecoverySessionIds: ReadonlySet<string>;
   externalSessions: ExternalSessionSummary[];
   externalSessionsError: string | null;
@@ -58,7 +57,6 @@ export type SessionsSurfaceProps = {
   onApplyWorktree?: (sessionId: string) => void;
   onBackToWork: () => void;
   onDiscardSavedSession?: (sessionId: string) => void;
-  onOpenPrivacySettings?: () => void;
   onPrimaryAction: ((request: SessionsPrimaryActionRequest) => void) | undefined;
   onRefreshExternalSessions: () => void;
   onReviewWorktree?: (sessionId: string) => void;
@@ -67,7 +65,6 @@ export type SessionsSurfaceProps = {
 };
 
 export function SessionsSurface({
-  externalSessionIndexingEnabled,
   armedRecoverySessionIds,
   externalSessions,
   externalSessionsError,
@@ -82,7 +79,6 @@ export function SessionsSurface({
   onApplyWorktree,
   onBackToWork,
   onDiscardSavedSession,
-  onOpenPrivacySettings,
   onPrimaryAction,
   onRefreshExternalSessions,
   onReviewWorktree,
@@ -246,15 +242,6 @@ export function SessionsSurface({
         detail: "Clear the project, source and search to see every session.",
         primaryAction: { label: "Clear filters", onClick: clearFilters },
       };
-    } else if (!externalSessionIndexingEnabled) {
-      emptyState = {
-        title: "No sessions yet",
-        detail: "Start a session in the deck, or turn on Codex history in Local Data & Privacy.",
-        primaryAction: { label: "Go to Deck", onClick: onBackToWork },
-        ...(onOpenPrivacySettings
-          ? { secondaryAction: { label: "Open Local Data & Privacy", onClick: onOpenPrivacySettings } }
-          : {}),
-      };
     } else if (externalSessionsError) {
       emptyState = {
         title: "Codex history couldn't be loaded",
@@ -317,20 +304,6 @@ export function SessionsSurface({
   useEffect(() => () => {
     requestSequenceRef.current += 1;
   }, []);
-
-  useEffect(() => {
-    const selectedExternalSession = state.selectedSessionKey?.startsWith("external-codex:") ?? false;
-    const hasExternalReaderPages = state.readerPages.some((page) => page.sessionKey.startsWith("external-codex:"));
-    if (externalSessionIndexingEnabled || (!selectedExternalSession && !hasExternalReaderPages)) return;
-    requestSequenceRef.current += 1;
-    onStateChange((current) => ({
-      ...current,
-      selectedSessionKey: selectedExternalSession ? null : current.selectedSessionKey,
-      readerPages: [],
-      readerScrollTop: 0,
-    }));
-    setReaderStatus(selectedExternalSession ? "idle" : "missing");
-  }, [externalSessionIndexingEnabled, onStateChange, state.readerPages, state.selectedSessionKey]);
 
   const selectSession = useCallback(async (
     summary: SessionSummary,
@@ -483,7 +456,6 @@ export function SessionsSurface({
     >
       <SessionsNavigator
         activeSessionKey={activeSessionKey}
-        externalSessionIndexingEnabled={externalSessionIndexingEnabled}
         externalSessionsError={externalSessionsError}
         loadingExternalSessions={loadingExternalSessions}
         navigatorRef={navigatorRef}
@@ -496,7 +468,6 @@ export function SessionsSurface({
         now={now}
         workspaces={workspaces}
         onActiveSessionKeyChange={setActiveSessionKey}
-        onOpenPrivacySettings={onOpenPrivacySettings}
         onRefreshExternalSessions={onRefreshExternalSessions}
         onSelectSession={(summary) => void selectSession(summary)}
         onSelectProject={(selectedProjectId) => {

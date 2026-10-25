@@ -2,7 +2,6 @@ export type TerminalScrollbackRetention = "off" | "redactedTail";
 
 export type DesktopPrivacySettings = {
   terminalScrollbackRetention: TerminalScrollbackRetention;
-  externalSessionIndexingEnabled: boolean;
 };
 
 export type DesktopSaveStatus =

@@ -226,9 +226,6 @@ export async function createDesktopFixture(
       restoredTerminalSessions,
       privacySettings: {
         terminalScrollbackRetention: "redactedTail",
-        externalSessionIndexingEnabled:
-          options.externalSessionFixture !== undefined
-          || options.externalSessionSummaryCount !== undefined,
       },
     };
 
