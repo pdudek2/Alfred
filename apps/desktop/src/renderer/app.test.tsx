@@ -336,7 +336,8 @@ function installDesktopBridge(
       kind: "resume" as const,
       projectId: session.project.id,
       cwd: session.project.id === "A" ? "/Users/sample/Desktop/Alfred" : "/Users/sample/Desktop/IronLog",
-      sessionId: session.contentSessionKey.replace("external-codex:", ""),
+      sessionId: session.contentSessionKey.replace(/^external-(?:codex|claude):/, ""),
+      agentKind: session.kind,
     });
   });
   let currentPrivacySettings = desktopPrivacySettings;
@@ -3249,12 +3250,14 @@ describe("App integration", () => {
         projectId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         sessionId: sharedSessionId,
+        agentKind: "codex" as const,
       });
       firstResolution.resolve({
         kind: "resume",
         projectId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         sessionId: sharedSessionId,
+        agentKind: "codex" as const,
       });
       await Promise.resolve();
     });

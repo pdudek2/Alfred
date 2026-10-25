@@ -1,9 +1,8 @@
-import net from "node:net";
-import path from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
+import { launchedAgent, sendHook } from "./support/fixture-agents";
 import { openNewTerminalSheet } from "./support/work-layout";
 
 const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
@@ -21,7 +20,7 @@ test("resumes the Claude conversation its hooks named, after a restart", async (
   await expect(tile).toContainText("claude fixture ready");
   const clientId = (await tile.getAttribute("data-session-id"))!;
 
-  const launched = await launchedClaude(paths.root, (args) => !args.includes("--resume"));
+  const launched = await launchedAgent(paths.root, "claude", (args) => !args.includes("--resume"));
   await sendHook(launched, "Stop", {
     session_id: conversation,
     transcript_path: `/Users/sample/.claude/projects/-repo/${conversation}.jsonl`,
@@ -43,37 +42,6 @@ test("resumes the Claude conversation its hooks named, after a restart", async (
   await expect(asleep.getByRole("button")).toHaveText("Resume");
   await asleep.getByRole("button").click();
 
-  const resumed = await launchedClaude(paths.root, (args) => args.includes("--resume"));
+  const resumed = await launchedAgent(paths.root, "claude", (args) => args.includes("--resume"));
   expect(resumed.args.slice(-2)).toEqual(["--resume", conversation]);
 });
-
-type LaunchedAgent = { args: string[]; sessionId: string; socketPath: string };
-
-/** The fixture agent writes what Alfred launched it with and where its hooks report. */
-async function launchedClaude(root: string, matches: (args: string[]) => boolean): Promise<LaunchedAgent> {
-  let found: LaunchedAgent | undefined;
-  await expect.poll(async () => {
-    for (const name of await readdir(root)) {
-      const [, pid] = /^alfred-claude-args-(\d+)$/.exec(name) ?? [];
-      if (!pid) continue;
-      const args = (await readFile(path.join(root, name), "utf8")).split("\n").slice(0, -1);
-      if (!matches(args)) continue;
-      const [socketPath, sessionId] = (await readFile(path.join(root, `alfred-claude-hook-${pid}`), "utf8").catch(() => ""))
-        .trim()
-        .split("\n");
-      if (socketPath && sessionId) found = { args, sessionId, socketPath };
-    }
-    return found !== undefined;
-  }).toBe(true);
-  return found!;
-}
-
-/** Sends one hook the way the relay does. */
-function sendHook(agent: LaunchedAgent, event: string, payload: Record<string, unknown>): Promise<void> {
-  const message = JSON.stringify({ sessionId: agent.sessionId, event, payload: JSON.stringify({ hook_event_name: event, ...payload }) });
-  return new Promise((resolve, reject) => {
-    const socket = net.connect(agent.socketPath, () => socket.end(`${message}\n`));
-    socket.on("error", reject);
-    socket.on("close", () => resolve());
-  });
-}

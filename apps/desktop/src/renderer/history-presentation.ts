@@ -1,10 +1,16 @@
-import type { SessionSummary } from "../shared/sessions-ipc";
+import type { ExternalSessionSource, SessionSummary } from "../shared/sessions-ipc";
 import type { SessionDisplayStatus, SessionStateKind } from "./session-status";
 import { sessionAgeWords } from "./session-time";
 
-/** Contract vocabulary for a session's kind. A transcript Alfred did not run is "Codex CLI". */
+/** A transcript Alfred did not run, named after the tool that ran it. */
+export const EXTERNAL_SOURCE_LABELS: Record<ExternalSessionSource, string> = {
+  "external-codex": "Codex CLI",
+  "external-claude": "Claude Code",
+};
+
+/** Contract vocabulary for a session's kind. */
 export function historyKindLabel(summary: Pick<SessionSummary, "kind" | "source">): string {
-  if (summary.source === "external-codex") return "Codex CLI";
+  if (summary.source !== "managed") return EXTERNAL_SOURCE_LABELS[summary.source];
   return summary.kind === "codex" ? "Codex" : summary.kind === "claude" ? "Claude" : "Terminal";
 }
 
@@ -24,9 +30,9 @@ export function historySummarySentence(
 ): HistorySummarySentence {
   const age = sessionAgeWords(summary.updatedAt, now);
   const ago = age ? `${age} ago` : "just now";
-  if (summary.source === "external-codex") {
+  if (summary.source !== "managed") {
     return {
-      before: "Codex CLI session in ",
+      before: `${EXTERNAL_SOURCE_LABELS[summary.source]} session in `,
       where: summary.project.id ? summary.project.label : summary.locationLabel,
       after: `. Last active ${ago}.`,
     };

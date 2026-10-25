@@ -1,10 +1,10 @@
-import type { TranscriptPage } from "../shared/sessions-ipc";
+import type { ExternalSessionSource, TranscriptPage } from "../shared/sessions-ipc";
 
 export type SessionsViewState = {
   query: string;
   selectedProjectId: string;
-  /** The canvas tabs: All, From Alfred, Codex CLI. */
-  source: "all" | "managed" | "external-codex";
+  /** The canvas tabs: All, From Alfred, then one per tool whose transcripts History reads. */
+  source: "all" | "managed" | ExternalSessionSource;
   pageIndex: number;
   selectedSessionKey: string | null;
   navigatorScrollTop: number;

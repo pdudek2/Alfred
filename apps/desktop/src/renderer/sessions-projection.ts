@@ -37,10 +37,10 @@ export function sessionsPrimaryAction(summary: SessionSummary): SessionsPrimaryA
   if (summary.source === "managed" && summary.lifecycle === "recoverable") {
     return { kind: "recover", label: "Resume" };
   }
-  if (summary.source === "external-codex" && summary.lifecycle === "resumable" && summary.project.id) {
+  if (summary.source !== "managed" && summary.lifecycle === "resumable" && summary.project.id) {
     return { kind: "resume-external", label: "Resume" };
   }
-  if (summary.source === "external-codex" && !summary.project.id) {
+  if (summary.source !== "managed" && !summary.project.id) {
     return { kind: "add-project", label: "Add Project…" };
   }
   if (summary.lifecycle === "read-only" && summary.project.id) {
@@ -181,13 +181,13 @@ export function buildSessionsProjection({
 
 function normalizeExternalSession(session: ExternalSessionSummary): SessionSummary {
   const snippet = session.snippet ? sessionPresentationText(session.snippet) : "";
-  const title = sessionPresentationTitle(session.title, "Codex session");
+  const title = sessionPresentationTitle(session.title, session.kind === "claude" ? "Claude session" : "Codex session");
   const { snippet: _sourceSnippet, ...rest } = session;
   return {
     ...rest,
     title,
     ...(snippet && snippet.toLowerCase() !== title.toLowerCase() ? { snippet } : {}),
-    lineageKey: codexLineageKey(session.lineageKey) ?? session.lineageKey,
+    lineageKey: agentLineageKey(session.lineageKey) ?? session.lineageKey,
     delegatedRunCount: session.delegatedRunCount ?? 0,
     lifecycle: session.project.id ? session.lifecycle : "read-only",
   };
@@ -236,16 +236,16 @@ function managedLineageKey(
   session: SessionTile,
   externalLineageByContentKey: ReadonlyMap<string, string>,
 ): string {
-  if (session.resumeTarget?.agentKind !== "codex") return `managed:${session.id}`;
-  const contentKey = `external-codex:${session.resumeTarget.sessionId}`;
-  return externalLineageByContentKey.get(contentKey) ?? `codex:${session.resumeTarget.sessionId}`;
+  const target = session.resumeTarget;
+  if (!target) return `managed:${session.id}`;
+  const contentKey = `external-${target.agentKind}:${target.sessionId}`;
+  return externalLineageByContentKey.get(contentKey) ?? `${target.agentKind}:${target.sessionId}`;
 }
 
-function codexLineageKey(contentSessionKey: string | null): string | null {
-  const prefix = "external-codex:";
-  if (!contentSessionKey?.startsWith(prefix)) return null;
-  const id = contentSessionKey.slice(prefix.length);
-  return id ? `codex:${id}` : null;
+/** An agent conversation's lineage, the same for its transcript and an Alfred session that resumes it. */
+function agentLineageKey(contentSessionKey: string | null): string | null {
+  const match = /^external-(codex|claude):(.+)$/.exec(contentSessionKey ?? "");
+  return match ? `${match[1]}:${match[2]}` : null;
 }
 
 function managedKind(session: SessionTile): SessionSummary["kind"] {
