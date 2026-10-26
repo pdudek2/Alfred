@@ -129,10 +129,13 @@ type ShellActionResult = {
 };
 
 type PendingDiscardConfirmation = {
+  branchName?: string | undefined;
   files: Array<{ path: string; status: string }>;
   sessionId: string;
   summary: string;
   title: string;
+  /** Why Alfred cannot list the checkout's changes, such as a missing folder or the agent's commits. */
+  unlisted?: string;
 };
 
 const ACCESSIBLE_DISMISSAL_OWNER_SELECTOR =
@@ -1083,18 +1086,17 @@ export function App() {
       const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
       if (!currentSession || sessionInstanceKey(currentSession) !== discardSessionInstanceKey) return;
 
+      // A checkout whose folder is gone or whose agent committed has no diff to list; it can still go once you confirm.
       if (!result.ok) {
-        setTerminalSessions((sessions) =>
-          sessions.some(
-            (item) => item.id === sessionId && sessionInstanceKey(item) === discardSessionInstanceKey,
-          )
-            ? appendSessionActivity(sessions, sessionId, {
-                kind: "warning",
-                title: "Discard checkout blocked",
-                detail: result.error,
-              })
-            : sessions,
-        );
+        discardReturnFocusRef.current = returnFocus;
+        setPendingDiscardConfirmation({
+          sessionId,
+          title: session.title,
+          summary: "",
+          files: [],
+          branchName: session.branchName,
+          unlisted: result.error,
+        });
         return;
       }
 
@@ -3078,24 +3080,41 @@ function DiscardCheckoutDialog({
       >
         <header className="discard-checkout-header">
           <strong>Discard isolated checkout</strong>
-          <small>{confirmation.title} has {changedFileLabel}.</small>
+          <small>
+            {confirmation.unlisted === undefined
+              ? `${confirmation.title} has ${changedFileLabel}.`
+              : `Alfred cannot list the changes of ${confirmation.title}.`}
+          </small>
         </header>
-        <div className="discard-checkout-body">
-          <p>This checkout has local changes. Review them before you delete the isolated worktree, or discard them for good.</p>
-          <ol aria-label="Changed files">
-            {previewFiles.map((file) => (
-              <li key={`${file.status}:${file.path}`}>
-                <span>{file.status}</span>
-                <code>{file.path}</code>
-              </li>
-            ))}
-            {remaining > 0 && <li className="discard-checkout-more">+{remaining} more</li>}
-          </ol>
-        </div>
+        {confirmation.unlisted === undefined ? (
+          <div className="discard-checkout-body">
+            <p>This checkout has local changes. Review them before you delete the isolated worktree, or discard them for good.</p>
+            <ol aria-label="Changed files">
+              {previewFiles.map((file) => (
+                <li key={`${file.status}:${file.path}`}>
+                  <span>{file.status}</span>
+                  <code>{file.path}</code>
+                </li>
+              ))}
+              {remaining > 0 && <li className="discard-checkout-more">+{remaining} more</li>}
+            </ol>
+          </div>
+        ) : (
+          <div className="discard-checkout-body">
+            <p>{confirmation.unlisted}</p>
+            <p>
+              Discarding deletes the checkout folder and its branch
+              {confirmation.branchName ? <> <code>{confirmation.branchName}</code></> : null}, with any commits that are only on
+              that branch.
+            </p>
+          </div>
+        )}
         <footer className="discard-checkout-actions">
-          <button type="button" className="discard-checkout-primary" onClick={onReviewChanges}>
-            Review changes
-          </button>
+          {confirmation.unlisted === undefined && (
+            <button type="button" className="discard-checkout-primary" onClick={onReviewChanges}>
+              Review changes
+            </button>
+          )}
           <button type="button" className="discard-checkout-cancel" onClick={onCancel} autoFocus>
             Cancel
           </button>
