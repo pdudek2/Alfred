@@ -203,17 +203,22 @@ export async function applyAgentWorktreePatch(
   );
 
   if (trackedFiles.length > 0) {
+    // `apply --check --3way` passes a patch that conflicts, and the apply then leaves conflict markers in the project.
+    // So the merge is tried in memory first: the checkout's tracked changes as a commit, merged into the project's HEAD.
+    const changes = await gitOutput(
+      run,
+      ["-C", cleanupTarget.worktreePath, "stash", "create"],
+      "Unable to read isolated checkout changes.",
+    );
+    if (!await mergesCleanly(run, request.baseCwd, changes)) {
+      throw new Error("The project changed the same lines since this checkout started. Review its diff and merge it by hand.");
+    }
     const patchPath = path.join(os.tmpdir(), `${cleanupTarget.branchName}-${randomUUID()}.alfred-apply.patch`);
     try {
       await gitOutput(
         run,
         ["-C", cleanupTarget.worktreePath, "diff", "--binary", "HEAD", `--output=${patchPath}`],
         "Unable to create isolated checkout patch.",
-      );
-      await gitOutput(
-        run,
-        ["-C", request.baseCwd, "apply", "--check", "--3way", "--whitespace=nowarn", patchPath],
-        "Unable to verify isolated checkout patch.",
       );
       await gitOutput(
         run,
@@ -641,6 +646,18 @@ async function gitOutput(run: ExecFile, args: string[], fallbackMessage: string)
   return (await gitOutputRaw(run, args, fallbackMessage)).trim();
 }
 
+/** Whether a commit merges into the project's HEAD without conflicts; `merge-tree` exits 1 for a conflict. */
+async function mergesCleanly(run: ExecFile, baseCwd: string, commit: string): Promise<boolean> {
+  const args = ["-C", baseCwd, "merge-tree", "--write-tree", "--quiet", "HEAD", commit];
+  try {
+    await run("git", args, { cwd: os.homedir(), ...gitLimits(args) });
+    return true;
+  } catch (error: unknown) {
+    if ((error as { code?: unknown }).code === 1) return false;
+    throw new Error(`Unable to check the isolated checkout against the project. ${errorMessage(error)}`, { cause: error });
+  }
+}
+
 // Limits follow the cost of the git subcommand. Measured on a 20k-file repo: `worktree add`
 // took 2.4 s (the old shared limit was 2.5 s) and `status` output grows with untracked files.
 const GIT_QUICK_TIMEOUT_MS = 2_500;
@@ -655,6 +672,8 @@ function gitLimits(args: string[]): { maxBuffer?: number; timeout: number } {
   if (subcommand === "status" || subcommand === "diff" || subcommand === "ls-files") {
     return { maxBuffer: GIT_LISTING_MAX_BUFFER, timeout: GIT_LISTING_TIMEOUT_MS };
   }
+  // `stash create` scans the checkout as `status` does; `merge-tree` walks both trees.
+  if (subcommand === "stash" || subcommand === "merge-tree") return { timeout: GIT_LISTING_TIMEOUT_MS };
   return { timeout: GIT_QUICK_TIMEOUT_MS };
 }
 

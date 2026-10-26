@@ -619,6 +619,81 @@ describe("git worktree preparation", () => {
     }
   });
 
+  /** A real repository with a 20-line file and an isolated checkout of it; the agent changed line 2. */
+  async function realCheckout() {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-worktree-apply-"));
+    const baseCwd = path.join(temporaryRoot, "repo");
+    const worktreeStoreRoot = path.join(temporaryRoot, "worktrees");
+    const lines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);
+    await mkdir(baseCwd);
+    await git(baseCwd, "init", "-q");
+    await git(baseCwd, "config", "user.name", "Fixture");
+    await git(baseCwd, "config", "user.email", "fixture@example.test");
+    await writeFile(path.join(baseCwd, "notes.txt"), `${lines.join("\n")}\n`);
+    await git(baseCwd, "add", "notes.txt");
+    await git(baseCwd, "commit", "-qm", "baseline");
+    const request = await prepareAgentWorktree({ cwd: baseCwd, branchName: "alfred-codex-review" }, { worktreeStoreRoot });
+    const edit = async (cwd: string, line: number, text: string) => {
+      const next = [...lines];
+      next[line - 1] = text;
+      await writeFile(path.join(cwd, "notes.txt"), `${next.join("\n")}\n`);
+    };
+    await edit(request.cwd, 2, "line 2 by the agent");
+    return { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit };
+  }
+
+  it("refuses to apply over a project change to the same lines and leaves the project as it was", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit } = await realCheckout();
+    try {
+      await edit(baseCwd, 2, "line 2 by you");
+      await git(baseCwd, "commit", "-qam", "your change");
+      const before = [await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")];
+      const fileBefore = await readFile(path.join(baseCwd, "notes.txt"), "utf8");
+
+      const refusal = await applyAgentWorktreePatch(request, { worktreeStoreRoot }).then(() => undefined, (error: unknown) => error);
+
+      expect([await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")]).toEqual(before);
+      expect(await readFile(path.join(baseCwd, "notes.txt"), "utf8")).toBe(fileBefore);
+      expect(String(refusal)).toMatch(/same lines/);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("applies over a project change elsewhere in the same file", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit } = await realCheckout();
+    try {
+      await edit(baseCwd, 19, "line 19 by you");
+      await git(baseCwd, "commit", "-qam", "your change");
+
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot })).resolves.toEqual({ appliedFiles: 1 });
+
+      const applied = await readFile(path.join(baseCwd, "notes.txt"), "utf8");
+      expect(applied).toContain("line 2 by the agent");
+      expect(applied).toContain("line 19 by you");
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["whose folder is gone", "missing"],
+    ["whose agent made a commit", "commit"],
+  ] as const)("discards a checkout %s", async (_name, scenario) => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request } = await realCheckout();
+    try {
+      if (scenario === "missing") await rm(request.cwd, { recursive: true, force: true });
+      if (scenario === "commit") await git(request.cwd, "commit", "-qam", "agent work");
+
+      await cleanupAgentWorktree({ ...request, force: true }, { worktreeStoreRoot });
+
+      expect(await git(baseCwd, "worktree", "list")).not.toContain(request.cwd);
+      expect(await git(baseCwd, "branch", "--list", request.branchName)).toBe("");
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
   it("inspects isolated worktree tracked and untracked changes from the managed root", async () => {
     const patch = [
       "diff --git a/src/app.tsx b/src/app.tsx",
@@ -694,6 +769,8 @@ describe("git worktree preparation", () => {
         return { stdout: " M src/app.tsx\0?? notes/review.md\0", stderr: "" };
       }
       if (args.includes("diff")) return { stdout: "", stderr: "" };
+      if (args.includes("stash")) return { stdout: "checkout-changes\n", stderr: "" };
+      if (args.includes("merge-tree")) return { stdout: "", stderr: "" };
       if (args.includes("apply")) return { stdout: "", stderr: "" };
       if (args.includes("ls-files")) return { stdout: "notes/review.md\0", stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
@@ -710,6 +787,11 @@ describe("git worktree preparation", () => {
     expect(result).toEqual({ appliedFiles: 2 });
     expect(execFile).toHaveBeenCalledWith(
       "git",
+      ["-C", "/repo", "merge-tree", "--write-tree", "--quiet", "HEAD", "checkout-changes"],
+      expect.any(Object),
+    );
+    expect(execFile).toHaveBeenCalledWith(
+      "git",
       [
         "-C",
         "/.alfred-worktrees/repo/alfred-codex-review",
@@ -717,19 +799,6 @@ describe("git worktree preparation", () => {
         "--binary",
         "HEAD",
         expect.stringMatching(/^--output=/),
-      ],
-      expect.any(Object),
-    );
-    expect(execFile).toHaveBeenCalledWith(
-      "git",
-      [
-        "-C",
-        "/repo",
-        "apply",
-        "--check",
-        "--3way",
-        "--whitespace=nowarn",
-        expect.stringContaining("alfred-codex-review"),
       ],
       expect.any(Object),
     );
@@ -801,6 +870,8 @@ describe("git worktree preparation", () => {
         return { stdout: " D notes\0?? notes/review.md\0", stderr: "" };
       }
       if (args.includes("diff")) return { stdout: "", stderr: "" };
+      if (args.includes("stash")) return { stdout: "checkout-changes\n", stderr: "" };
+      if (args.includes("merge-tree")) return { stdout: "", stderr: "" };
       if (args.includes("apply")) return { stdout: "", stderr: "" };
       if (args.includes("ls-files")) return { stdout: "notes/review.md\0", stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
