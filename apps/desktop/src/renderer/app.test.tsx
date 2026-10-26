@@ -8694,6 +8694,51 @@ describe("App integration", () => {
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
+  it("still lets you discard a checkout whose changes Alfred cannot list, once you confirm", async () => {
+    const user = userEvent.setup();
+    const { forgetTerminal, worktreeDiff } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "codex-recovery",
+          title: "Codex · committed recovery",
+          cwd: "/repo/.alfred-worktrees/codex-recovery",
+          baseCwd: "/repo",
+          branchName: "alfred-codex-recovery",
+          source: "alfred",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
+          shell: "codex",
+          buffer: "asleep output\n",
+        },
+      ],
+    );
+    // The agent committed, so the checkout's changes are not a diff Alfred can list.
+    worktreeDiff.mockResolvedValueOnce({
+      ok: false,
+      error: "Isolated checkout has commits not present in the base workspace. Merge them manually before applying.",
+    });
+
+    render(<App />);
+    const history = await openHistorySession(user, "Codex · committed recovery");
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+    expect(dialog).toHaveTextContent("Isolated checkout has commits not present in the base workspace.");
+    expect(dialog).toHaveTextContent("alfred-codex-recovery");
+    expect(within(dialog).queryByRole("button", { name: "Review changes" })).not.toBeInTheDocument();
+    expect(forgetTerminal).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Discard checkout permanently" }));
+    await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-recovery", cleanupWorktree: true }));
+  });
+
   it("traps discard confirmation focus and restores its trigger without changing armed Recovery", async () => {
     const user = userEvent.setup();
     const { createTerminal, forgetTerminal } = installDesktopBridge(
