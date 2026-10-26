@@ -15,10 +15,13 @@ export type AgentEventLog = {
   clear(): Promise<void>;
   close(): Promise<void>;
   /** Environment that makes a `claude` session send its events here. */
-  env(sessionId: string, command?: string): Record<string, string>;
+  env(session: AgentEventSession, command?: string): Record<string, string>;
   /** Leading arguments that make a `codex` session send its events here. */
-  launchArgs(sessionId: string, command?: string): string[];
+  launchArgs(session: AgentEventSession, command?: string): string[];
 };
+
+/** A terminal session: its process id, and the Alfred session id it keeps when resumed. */
+export type AgentEventSession = { id: string; clientId?: string | undefined };
 
 type AgentEventLogOptions = {
   /** Directory for the day files; Alfred owns it. */
@@ -40,8 +43,11 @@ const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_STRING_LENGTH = 2000;
 /** Who sent an event, not what was done; never written. */
 const IDENTITY_KEY = /^user\.|^organization\.id$/;
-/** /<secret>/<agent>/<Alfred session id, a UUID>/v1/logs */
-const ENDPOINT_PATH = /^\/([0-9a-f]{32})\/(claude|codex)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/v1\/logs$/;
+/** An id that may stand as one segment of the endpoint's path, such as claude-9 or a process UUID. */
+const SESSION_ID = "[A-Za-z0-9][A-Za-z0-9._-]{0,127}";
+const SESSION_SEGMENT = new RegExp(`^${SESSION_ID}$`);
+/** /<secret>/<agent>/<session>/v1/logs */
+const ENDPOINT_PATH = new RegExp(`^/([0-9a-f]{32})/(claude|codex)/(${SESSION_ID})/v1/logs$`);
 
 export async function createAgentEventLog(options: AgentEventLogOptions): Promise<AgentEventLog> {
   let secret = randomBytes(16).toString("hex");
@@ -99,8 +105,11 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
     server.listen(0, "127.0.0.1", () => resolve());
   });
   const { port } = server.address() as AddressInfo;
-  const endpoint = (agent: string, sessionId: string): string =>
-    `http://127.0.0.1:${port}/${secret}/${agent}/${sessionId}/v1/logs`;
+  // The Alfred session id stays the same across resumes; the process id is new each time.
+  const endpoint = (agent: string, session: AgentEventSession): string => {
+    const id = session.clientId !== undefined && SESSION_SEGMENT.test(session.clientId) ? session.clientId : session.id;
+    return `http://127.0.0.1:${port}/${secret}/${agent}/${id}/v1/logs`;
+  };
 
   return {
     clear: () => {
@@ -113,24 +122,24 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
         server.close(() => resolve());
         server.closeIdleConnections();
       }).then(() => queue),
-    env: (sessionId, command) =>
+    env: (session, command) =>
       command === "claude" && options.isRecording()
         ? {
             CLAUDE_CODE_ENABLE_TELEMETRY: "1",
             OTEL_LOGS_EXPORTER: "otlp",
             OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/json",
-            OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: endpoint("claude", sessionId),
+            OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: endpoint("claude", session),
             // Commands and file paths, but never the text of prompts or replies, even if the shell turned it on.
             OTEL_LOG_TOOL_DETAILS: "1",
             OTEL_LOG_USER_PROMPTS: "0",
             OTEL_LOG_ASSISTANT_RESPONSES: "0",
           }
         : {},
-    launchArgs: (sessionId, command) =>
+    launchArgs: (session, command) =>
       command === "codex" && options.isRecording()
         ? [
             "-c",
-            `otel.exporter={otlp-http={endpoint=${JSON.stringify(endpoint("codex", sessionId))},protocol="json"}}`,
+            `otel.exporter={otlp-http={endpoint=${JSON.stringify(endpoint("codex", session))},protocol="json"}}`,
             "-c",
             "otel.log_user_prompt=false",
           ]
