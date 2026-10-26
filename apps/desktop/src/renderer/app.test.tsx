@@ -6024,9 +6024,16 @@ describe("App integration", () => {
     fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to Alfred" }));
     await waitFor(() => expect(within(oldActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "close focused session");
-    await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
+    // A closing session holds its id for five seconds; after that a new session takes it again.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await user.click(screen.getByRole("button", { name: "Open command palette" }));
+      await submitCommandPalette(user, "close focused session");
+      await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
+      act(() => { vi.advanceTimersByTime(5_000); });
+    } finally {
+      vi.useRealTimers();
+    }
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "codex isolated");

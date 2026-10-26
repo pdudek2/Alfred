@@ -4574,7 +4574,7 @@ describe("terminal-manager IPC", () => {
       const { bridge, fire, callTool } = fakeBridge();
       const leadPty = new FakePty();
       const workerPtys = Array.from({ length: count }, () => new FakePty());
-      const spawn = vi.fn().mockReturnValueOnce(leadPty);
+      const spawn = vi.fn(() => new FakePty()).mockReturnValueOnce(leadPty);
       for (const pty of workerPtys) spawn.mockReturnValueOnce(pty);
       registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn }) as never });
       const lead = await invoke<{ id: string }>(terminalChannels.create, {
@@ -4595,8 +4595,92 @@ describe("terminal-manager IPC", () => {
       // The orchestrator handed the work out and ended its turn: it waits for the user.
       fire(lead.id, { state: "working" });
       fire(lead.id, { state: "your-turn", detail: "Started two workers." });
-      return { bridge, fire, callTool, lead, leadPty, workers, workerPtys };
+      return { bridge, fire, callTool, lead, leadPty, spawn, workers, workerPtys };
     }
+
+    it("sends nothing to a worker whose terminal you started typing in", async () => {
+      const { fire, callTool, lead, workers, workerPtys } = await orchestratorWithWorkers(1);
+      fire(workers[0]!.id, { state: "working" });
+      fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
+      emit(terminalChannels.write, { id: workers[0]!.id, data: "half a sent" });
+
+      // Pasted after your half sentence, its message would go to the worker as one with yours.
+      await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now run the lint" }))
+        .rejects.toThrow(/typing in this worker's terminal/);
+      expect(workerPtys[0]!.writes).toEqual(["half a sent"]);
+
+      // You sent yours and the worker answered it: the orchestrator's message can go.
+      emit(terminalChannels.write, { id: workers[0]!.id, data: "ence\r" });
+      fire(workers[0]!.id, { state: "working" });
+      fire(workers[0]!.id, { state: "your-turn", detail: "Answered." });
+      await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now run the lint" }))
+        .resolves.toMatchObject({ sent: true });
+    });
+
+    it("releases an orchestrator's workers when you close it, so a new session under its id does not get them", async () => {
+      vi.useFakeTimers();
+      try {
+        const store = storeWithRestoredSessions([]);
+        configureTerminalPersistence(store, { debounceMs: 0 });
+        const { fire, callTool, lead, spawn, workers, workerPtys } = await orchestratorWithWorkers(2);
+        // One worker ended while its orchestrator ran; the other still runs and has news waiting.
+        workerPtys[1]!.onExitHandler?.({ exitCode: 0 });
+        fire(workers[0]!.id, { state: "working" });
+        emit(terminalChannels.write, { id: lead.id, data: "draft" });
+        fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
+
+        emit(terminalChannels.kill, { id: lead.id });
+        const next = await invoke<{ id: string }>(terminalChannels.create, {
+          agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24, title: "New",
+        });
+        const nextPty = spawn.mock.results.at(-1)!.value as FakePty;
+        fire(next.id, { state: "your-turn", detail: "Ready." });
+
+        await expect(callTool(next.id, "list_workers", {})).resolves.toEqual({ workers: [] });
+        fire(workers[0]!.id, { state: "working" });
+        fire(workers[0]!.id, { state: "your-turn", detail: "Again." });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(nextPty.writes).toEqual([]);
+        // The worker that still runs is a session of its own now.
+        await expect(callTool(workers[0]!.id, "list_workers", {})).resolves.toEqual({ workers: [] });
+        await flushTerminalPersistence();
+        expect((await store.getState()).restoredTerminalSessions.find((session) => session.clientId === "codex-1"))
+          .not.toHaveProperty("parentClientId");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps an orchestrator's workers when Alfred quits, for after the restart", async () => {
+      const store = storeWithRestoredSessions([]);
+      configureTerminalPersistence(store, { debounceMs: 0 });
+      await orchestratorWithWorkers(1);
+
+      killAllTerminalSessions();
+      await flushTerminalPersistence();
+
+      expect((await store.getState()).restoredTerminalSessions.find((session) => session.clientId === "codex-1"))
+        .toMatchObject({ parentClientId: "claude-1" });
+    });
+
+    it("releases the asleep workers of an asleep orchestrator you close", async () => {
+      const asleep = (clientId: string, extra: Partial<PersistedTerminalSessionSnapshot> = {}): PersistedTerminalSessionSnapshot => ({
+        clientId, title: clientId, source: "manual", cwd: "/repo", shell: "codex", buffer: "", ...extra,
+      });
+      const store = storeWithRestoredSessions([
+        asleep("claude-1", { agentKind: "claude", command: "claude" }),
+        asleep("codex-1", { agentKind: "codex", command: "codex", parentClientId: "claude-1" }),
+      ]);
+      configureTerminalPersistence(store, { debounceMs: 0 });
+      registerTerminalIpc();
+
+      await expect(invoke(terminalChannels.forget, { clientId: "claude-1" })).resolves.toEqual({ ok: true });
+      await flushTerminalPersistence();
+
+      const sessions = (await store.getState()).restoredTerminalSessions;
+      expect(sessions.map((session) => session.clientId)).toEqual(["codex-1"]);
+      expect(sessions[0]).not.toHaveProperty("parentClientId");
+    });
 
     it("wakes an orchestrator that waits for the user once its workers finish, in one message", async () => {
       vi.useFakeTimers();
