@@ -107,6 +107,49 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   worker.close();
 });
 
+test("closing an orchestrator leaves its workers to themselves, and a new one under its id starts without them", async ({ harness }) => {
+  const { app, page, paths } = harness;
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1440, height: 900 }));
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440);
+
+  const startClaude = async () => {
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+    await sheet.getByRole("radio", { name: /^Claude/ }).click();
+    await sheet.getByRole("button", { name: "Start", exact: true }).click();
+    const tile = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]');
+    await expect(tile).toContainText("claude fixture ready");
+    return tile;
+  };
+  const leadTile = await startClaude();
+  const lead = await launchedAgent(paths.root, "claude", () => true);
+  const leadServerArgs = mcpServerConfig(lead.args).args.join(" ");
+  const orchestrator = mcpClient(mcpServerConfig(lead.args));
+  await orchestrator.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } });
+  expect(parse(await orchestrator.call("start_worker", { agent: "codex", prompt: "Run the typecheck", title: "Typecheck" })))
+    .toMatchObject({ worker_id: "codex-1" });
+  await expect(sessionTree(page).getByRole("list", { name: /^Workers of / }).locator(".session-tree-row")).toHaveCount(1);
+  orchestrator.close();
+
+  await leadTile.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByRole("menuitem", { name: "Close" }).click();
+  await expect(leadTile).toHaveCount(0);
+  // Its worker keeps running, as a session of its own.
+  await expect(sessionTree(page).getByRole("list", { name: /^Workers of / })).toHaveCount(0);
+  await expect(treeRow(page, "codex-1")).toBeVisible();
+
+  // Once the close is through, a new Claude takes its id again.
+  await page.waitForTimeout(5_500);
+  await startClaude();
+  const next = await launchedAgent(paths.root, "claude", (args) =>
+    args.includes("--mcp-config") && mcpServerConfig(args).args.join(" ") !== leadServerArgs);
+  const nextOrchestrator = mcpClient(mcpServerConfig(next.args));
+  await nextOrchestrator.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } });
+  expect(parse(await nextOrchestrator.call("list_workers", {}))).toEqual({ workers: [] });
+  await expect(sessionTree(page).getByRole("list", { name: /^Workers of / })).toHaveCount(0);
+  nextOrchestrator.close();
+});
+
 
 function mcpServerConfig(args: string[]): McpServerConfig {
   const json = args[args.indexOf("--mcp-config") + 1]!;

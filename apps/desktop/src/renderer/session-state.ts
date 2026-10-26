@@ -98,8 +98,14 @@ export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTi
   return [createManualSession(1, cwd, workspaceId, SHELL_TITLE)];
 }
 
-export function addManualSession(sessions: SessionTile[], cwd: string, workspaceId = "A", parentSessionId?: string): SessionTile[] {
-  const nextIndex = nextManualSessionIndex(sessions);
+export function addManualSession(
+  sessions: SessionTile[],
+  cwd: string,
+  workspaceId = "A",
+  parentSessionId?: string,
+  reservedIds: Iterable<string> = [],
+): SessionTile[] {
+  const nextIndex = nextManualSessionIndex(sessions, reservedIds);
   const session = createManualSession(nextIndex, cwd, workspaceId, nextGeneratedTitle(sessions, workspaceId, SHELL_TITLE));
   return [...sessions, parentSessionId ? { ...session, parentSessionId } : session];
 }
@@ -112,8 +118,9 @@ export function addAgentSession(
   isolation: TerminalSessionIsolation = "shared",
   prompt = "",
   parentSessionId?: string,
+  reservedIds: Iterable<string> = [],
 ): SessionTile[] {
-  const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
+  const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`, reservedIds);
   const title = nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : "Claude");
   return [
     ...sessions,
@@ -135,7 +142,13 @@ export function addAgentSession(
 }
 
 export function closeSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
-  return sessions.filter((session) => session.id !== sessionId);
+  // Its workers run on as sessions of their own, so a later session under its id does not get them.
+  return sessions.flatMap((session) => {
+    if (session.id === sessionId) return [];
+    if (session.parentSessionId !== sessionId) return [session];
+    const { parentSessionId: _parentSessionId, ...released } = session;
+    return [released];
+  });
 }
 
 export function sessionInstanceKey(
@@ -459,14 +472,15 @@ function createManualSession(index: number, cwd: string, workspaceId: string, ti
   };
 }
 
-function nextManualSessionIndex(sessions: SessionTile[]): number {
-  return nextPrefixedSessionIndex(sessions, MANUAL_SESSION_PREFIX);
+function nextManualSessionIndex(sessions: SessionTile[], reservedIds: Iterable<string> = []): number {
+  return nextPrefixedSessionIndex(sessions, MANUAL_SESSION_PREFIX, reservedIds);
 }
 
-function nextPrefixedSessionIndex(sessions: SessionTile[], prefix: string): number {
-  const usedIndexes = sessions.map((session) => {
-    if (!session.id.startsWith(prefix)) return 0;
-    const index = Number.parseInt(session.id.slice(prefix.length), 10);
+/** Reserved ids belong to sessions still closing: the close would also end a new session under the same id. */
+function nextPrefixedSessionIndex(sessions: SessionTile[], prefix: string, reservedIds: Iterable<string> = []): number {
+  const usedIndexes = [...sessions.map((session) => session.id), ...reservedIds].map((id) => {
+    if (!id.startsWith(prefix)) return 0;
+    const index = Number.parseInt(id.slice(prefix.length), 10);
     return Number.isInteger(index) ? index : 0;
   });
 
