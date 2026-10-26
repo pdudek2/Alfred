@@ -124,7 +124,7 @@ describe("createAgentEventLog", () => {
 
   it("points each agent at its own session's endpoint and appends what arrives there", async () => {
     const log = await open();
-    const env = log.env(SESSION, "claude");
+    const env = log.env({ id: SESSION }, "claude");
     expect(env).toMatchObject({
       CLAUDE_CODE_ENABLE_TELEMETRY: "1",
       OTEL_LOGS_EXPORTER: "otlp",
@@ -132,13 +132,13 @@ describe("createAgentEventLog", () => {
       OTEL_LOG_TOOL_DETAILS: "1",
       OTEL_LOG_USER_PROMPTS: "0",
     });
-    const codexArgs = log.launchArgs(SESSION, "codex");
+    const codexArgs = log.launchArgs({ id: SESSION }, "codex");
     expect(codexArgs[0]).toBe("-c");
     const codexUrl = /endpoint="([^"]+)"/.exec(codexArgs[1]!)![1]!;
     expect(codexUrl).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:\\d+/[0-9a-f]{32}/codex/${SESSION}/v1/logs$`));
-    expect(log.env(SESSION, "codex")).toEqual({});
-    expect(log.launchArgs(SESSION, "claude")).toEqual([]);
-    expect(log.env(SESSION, undefined)).toEqual({});
+    expect(log.env({ id: SESSION }, "codex")).toEqual({});
+    expect(log.launchArgs({ id: SESSION }, "claude")).toEqual([]);
+    expect(log.env({ id: SESSION }, undefined)).toEqual({});
 
     expect((await post(env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!, JSON.stringify(claudeBody))).status).toBe(200);
     expect((await post(codexUrl, JSON.stringify(codexBody))).status).toBe(200);
@@ -153,13 +153,31 @@ describe("createAgentEventLog", () => {
     ]);
   });
 
+  it("records under the Alfred session's own id, which a resumed process keeps", async () => {
+    const log = await open();
+    const first = log.env({ id: SESSION, clientId: "claude-9" }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    const resumed = log.env({ id: "0e776fc8-3e7a-4735-8edc-fe9394830346", clientId: "claude-9" }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    expect(first).toMatch(/\/claude\/claude-9\/v1\/logs$/);
+    expect(resumed).toBe(first);
+    expect(log.launchArgs({ id: SESSION, clientId: "external-codex-019a2b3c-1792" }, "codex")[1]).toContain("/codex/external-codex-019a2b3c-1792/");
+    // An id that does not fit an address segment falls back to the process's own.
+    for (const clientId of ["../x", "a b", "", "x".repeat(129)]) {
+      expect(log.env({ id: SESSION, clientId }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT).toContain(`/claude/${SESSION}/`);
+    }
+
+    await post(first, JSON.stringify(claudeBody));
+    await log.close();
+
+    expect((await recorded()).map((line) => line.session)).toEqual(["claude-9", "claude-9"]);
+  });
+
   it("writes nothing for a wrong secret, an oversized body or broken JSON", async () => {
     const log = await open();
-    const url = log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    const url = log.env({ id: SESSION }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
     const wrongSecret = url.replace(/\/[0-9a-f]{32}\//, `/${"0".repeat(32)}/`);
 
     expect((await post(wrongSecret, JSON.stringify(claudeBody))).status).toBe(404);
-    expect((await post(url.replace(SESSION, "not-a-session"), JSON.stringify(claudeBody))).status).toBe(404);
+    expect((await post(url.replace(SESSION, "bad%20id"), JSON.stringify(claudeBody))).status).toBe(404);
     expect((await post(url, "{")).status).toBe(400);
     expect((await post(url, JSON.stringify({ pad: "x".repeat(1024 * 1024) })).catch(() => ({ status: 413 }))).status).toBe(413);
     await log.close();
@@ -169,11 +187,11 @@ describe("createAgentEventLog", () => {
 
   it("neither launches with export settings nor writes while terminal data is not saved", async () => {
     const log = await open();
-    const url = log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    const url = log.env({ id: SESSION }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
     recording = false;
 
-    expect(log.env(SESSION, "claude")).toEqual({});
-    expect(log.launchArgs(SESSION, "codex")).toEqual([]);
+    expect(log.env({ id: SESSION }, "claude")).toEqual({});
+    expect(log.launchArgs({ id: SESSION }, "codex")).toEqual([]);
     expect((await post(url, JSON.stringify(claudeBody))).status).toBe(200);
     await log.close();
 
@@ -182,12 +200,12 @@ describe("createAgentEventLog", () => {
 
   it("deletes every recorded day on clear, and sessions launched before it cannot write again", async () => {
     const log = await open();
-    const before = log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    const before = log.env({ id: SESSION }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
     await post(before, JSON.stringify(claudeBody));
     await log.clear();
 
     expect((await post(before, JSON.stringify(claudeBody))).status).toBe(404);
-    const after = log.env(SESSION, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    const after = log.env({ id: SESSION }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
     expect(after).not.toBe(before);
     await log.close();
 

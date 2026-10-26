@@ -562,7 +562,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
               worker: parentClientId(safeRequest.parentClientId) !== undefined,
             })
             : safeRequest.command === "codex" ? CODEX_NOTIFICATION_ARGS : []),
-          ...(options.agentEvents?.launchArgs(id, safeRequest.command) ?? []),
+          ...(options.agentEvents?.launchArgs({ id, clientId: safeRequest.clientId }, safeRequest.command) ?? []),
         ];
         const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {
           name: "xterm-256color",
@@ -578,7 +578,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             // xterm.js renders OSC 8 links. Claude Code links a sent [Image #N] to its file only when told so.
             FORCE_HYPERLINK: "1",
             ...options.agentSignals?.env(id, safeRequest.command),
-            ...options.agentEvents?.env(id, safeRequest.command),
+            ...options.agentEvents?.env({ id, clientId: safeRequest.clientId }, safeRequest.command),
           },
         });
         session = {

@@ -1590,18 +1590,19 @@ describe("terminal-manager IPC", () => {
       agentEvents: {
         clear: async () => {},
         close: async () => {},
-        env: (id, command) => (command === "claude" ? { OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: id } : {}),
-        launchArgs: (id, command) => (command === "codex" ? ["-c", `otel.session=${id}`] : []),
+        env: (session, command) => (command === "claude" ? { OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `${session.clientId}/${session.id}` } : {}),
+        launchArgs: (session, command) => (command === "codex" ? ["-c", `otel.session=${session.clientId}/${session.id}`] : []),
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
 
-    const claude = await invoke<{ id: string }>(terminalChannels.create, { command: "claude", cols: 80, cwd: "/repo", rows: 24 });
-    const codex = await invoke<{ id: string }>(terminalChannels.create, { command: "codex", cols: 80, cwd: "/repo", rows: 24 });
+    const claude = await invoke<{ id: string }>(terminalChannels.create, { clientId: "claude-1", command: "claude", cols: 80, cwd: "/repo", rows: 24 });
+    const codex = await invoke<{ id: string }>(terminalChannels.create, { clientId: "codex-1", command: "codex", cols: 80, cwd: "/repo", rows: 24 });
 
+    // The log gets the Alfred session id, which a resumed process keeps, as well as the process's own.
     const [claudeCall, codexCall] = spawn.mock.calls as unknown as Array<[string, string[], { env: Record<string, string> }]>;
-    expect(claudeCall![2].env).toMatchObject({ OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: claude.id });
-    expect(codexCall![1]).toEqual([...CODEX_NOTIFICATION_ARGS, "-c", `otel.session=${codex.id}`]);
+    expect(claudeCall![2].env).toMatchObject({ OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `claude-1/${claude.id}` });
+    expect(codexCall![1]).toEqual([...CODEX_NOTIFICATION_ARGS, "-c", `otel.session=codex-1/${codex.id}`]);
     expect(codexCall![2].env).not.toHaveProperty("OTEL_LOGS_EXPORTER");
   });
 
