@@ -5027,6 +5027,7 @@ describe("terminal-manager IPC", () => {
       ["an installed script", "node", "node /opt/homebrew/bin/pnpm dev", "pnpm dev"],
       ["a program by its path", "tail", "/usr/bin/tail -f staging.log", "tail -f staging.log"],
       ["a script you named", "node", "node serve.js", "node serve.js"],
+      ["a password left out", "psql", "/opt/homebrew/bin/psql postgres://admin:s3cretpw@db.internal/app", "psql postgres://[redacted]@db.internal/app"],
     ])("names a plain terminal after %s while it holds the foreground", async (_what, program, args, title) => {
       const pty = new FakePty();
       registerTerminalIpc({
