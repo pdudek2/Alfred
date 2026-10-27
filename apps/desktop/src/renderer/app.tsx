@@ -979,7 +979,8 @@ export function App() {
     });
   }, [activeSelectedSessionId, activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
 
-  const closeSessionNow = useCallback(async (sessionId: string) => {
+  /** Closes a session; `discardCheckout` also removes a running session's checkout, after main stops its agent. */
+  const closeSessionNow = useCallback(async (sessionId: string, discardCheckout = false) => {
     const terminalApi = getDesktopTerminalApi();
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     if (!session || closingSessionIdsRef.current.has(sessionId)) return;
@@ -993,8 +994,8 @@ export function App() {
       }
     };
     closingSessionIdsRef.current.set(sessionId, closingOperation);
-    const destructiveWorktreeCleanup =
-      session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
+    const destructiveWorktreeCleanup = discardCheckout
+      || session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
     const pendingStart = startingSessionIdsRef.current.get(sessionId);
     if (pendingStart) {
       pendingStart.cancelled = true;
@@ -1039,6 +1040,7 @@ export function App() {
       return next;
     });
     setPreviewCandidates((candidates) => removePreviewSessionCandidates(candidates, sessionId));
+    setWorktreeDiffView((current) => (current?.sessionId === sessionId ? null : current));
 
     if (destructiveWorktreeCleanup) {
       finishClosing();
@@ -1057,15 +1059,16 @@ export function App() {
     );
   }, []);
 
+  // Closing a checkout, running or ended, settles it: one with nothing outside the project goes with its session,
+  // one with unapplied changes asks first. None is left on disk without a session.
   const handleCloseSession = useCallback((sessionId: string) => {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     const terminalApi = getDesktopTerminalApi();
     const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
-    const destructiveWorktreeCleanup =
-      session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error";
-
-    if (!session || !destructiveWorktreeCleanup || !isReviewableWorktreeSession(session)) {
+    const settlesCheckout = session?.runtimeStatus === "live" || session?.runtimeStatus === "restored"
+      || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error";
+    if (!session || !settlesCheckout || !isReviewableWorktreeSession(session)) {
       void closeSessionNow(sessionId);
       return;
     }
@@ -1100,8 +1103,8 @@ export function App() {
         return;
       }
 
-      if (result.files.length === 0) {
-        void closeSessionNow(sessionId);
+      if (result.files.length === 0 || result.applied) {
+        void closeSessionNow(sessionId, true);
         return;
       }
 
@@ -1342,11 +1345,17 @@ export function App() {
               sessions,
               sessionId,
               result.ok
-                ? {
-                    kind: "lifecycle",
-                    title: "Applied to project",
-                    detail: `${changedFileCountLabel(result.appliedFiles)} applied to the base project. Review and commit normally.`,
-                  }
+                ? result.alreadyApplied
+                  ? {
+                      kind: "lifecycle",
+                      title: "Already in the project",
+                      detail: "This checkout's changes are already in the project's files. Nothing was applied again.",
+                    }
+                  : {
+                      kind: "lifecycle",
+                      title: "Applied to project",
+                      detail: `${changedFileCountLabel(result.appliedFiles)} applied to the base project. Review and commit normally.`,
+                    }
                 : {
                     kind: result.needsManualReview ? "warning" : "error",
                     title: result.needsManualReview ? "Apply needs review" : "Apply failed",
@@ -1414,7 +1423,7 @@ export function App() {
 
     discardReturnFocusRef.current = null;
     setPendingDiscardConfirmation(null);
-    void closeSessionNow(confirmation.sessionId);
+    void closeSessionNow(confirmation.sessionId, true);
   }, [closeSessionNow, pendingDiscardConfirmation]);
 
   const handleRuntimeSessionStarting = useCallback((tileId: string, attempt: TerminalStartAttempt): boolean => {
@@ -1462,10 +1471,17 @@ export function App() {
       if (session?.activityEvents?.some((event) => event.at >= attachmentAt)) {
         return attached;
       }
-      return appendSessionActivity(attached, tileId, {
+      const withAttachment = appendSessionActivity(attached, tileId, {
         kind: "lifecycle",
         title: "Session attached",
         detail: `${runtime.shell} is running in ${runtime.cwd ? shortenPath(runtime.cwd) : "the project"}.`,
+      }, attachmentAt);
+      const uncommitted = runtime.uncommittedFiles ?? 0;
+      return uncommitted === 0 ? withAttachment : appendSessionActivity(withAttachment, tileId, {
+        kind: "lifecycle",
+        title: "Started from the last commit",
+        // Details shows the first sentence of a detail, so this stays one.
+        detail: `Started from the last commit, without the project's ${uncommitted} uncommitted ${uncommitted === 1 ? "file" : "files"}.`,
       }, attachmentAt);
     });
     if (runtime.source === "alfred") {

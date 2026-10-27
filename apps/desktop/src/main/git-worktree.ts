@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { cp, lstat, mkdir, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readlink, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -35,7 +35,8 @@ export type AgentWorktreeResult = {
   baseCwd: string;
   branchName: string;
   cwd: string;
-  snapshot?: AgentWorktreeSnapshot;
+  /** Files the project had uncommitted when the checkout was planned; the checkout starts from HEAD without them. */
+  uncommittedFiles?: number;
 };
 
 export type AgentWorktreeCleanupRequest = {
@@ -45,20 +46,19 @@ export type AgentWorktreeCleanupRequest = {
   force?: boolean;
 };
 
-export type AgentWorktreeSnapshot = {
-  trackedChanges: boolean;
-  untrackedFiles: number;
-};
-
 export type AgentWorktreeChangeFile = {
   path: string;
   status: string;
+  /** The old path of a rename or copy. */
+  from?: string;
 };
 
 export type AgentWorktreeInspection = {
   summary: string;
   files: AgentWorktreeChangeFile[];
   patch: string;
+  /** Every change is already in the project's files, as after an Apply. */
+  applied: boolean;
 };
 
 const execFile = promisify(execFileCallback) as ExecFile;
@@ -93,16 +93,6 @@ export async function prepareAgentWorktree(
     ["-C", result.baseCwd, "worktree", "add", "-b", result.branchName, worktreePath, "HEAD"],
     "Unable to create isolated Git worktree.",
   );
-  try {
-    await applyDirtySnapshot(result, options);
-  } catch (error) {
-    // `worktree add -b` succeeded, so this attempt owns the checkout and nothing has run in it yet.
-    await cleanupAgentWorktree(
-      { baseCwd: result.baseCwd, branchName: result.branchName, cwd: result.cwd, force: true },
-      options,
-    ).catch(() => undefined);
-    throw error;
-  }
 
   return result;
 }
@@ -166,28 +156,35 @@ export async function inspectAgentWorktree(
     summary: changedFilesSummary(files.length),
     files,
     patch,
+    applied: files.length > 0 && await changesAreInProject(cleanupTarget.worktreePath, request.baseCwd, files),
   };
 }
 
 export async function applyAgentWorktreePatch(
   request: AgentWorktreeCleanupRequest,
   options: Pick<PrepareAgentWorktreeOptions, "cp" | "execFile" | "lstat" | "mkdir" | "rm" | "worktreeStoreRoot"> = {},
-): Promise<{ appliedFiles: number }> {
+): Promise<{ appliedFiles: number; alreadyApplied?: true }> {
   const run = options.execFile ?? execFile;
   const rmImpl = options.rm ?? rm;
   const cleanupTarget = resolveAgentWorktreeCleanupTarget(request, options);
+  const inspected = await inspectAgentWorktree(request, options);
+  if (inspected.files.length === 0) {
+    return { appliedFiles: 0 };
+  }
+  if (inspected.applied) {
+    return { appliedFiles: 0, alreadyApplied: true };
+  }
+
   const baseStatus = await gitOutputRaw(
     run,
     ["-C", request.baseCwd, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
     "Unable to inspect base workspace before apply.",
   );
-  if (statusFilesFromPorcelainZ(baseStatus).length > 0) {
-    throw new Error("Base workspace has local changes. Commit, stash, or discard them before applying an isolated checkout.");
-  }
-
-  const inspected = await inspectAgentWorktree(request, options);
-  if (inspected.files.length === 0) {
-    return { appliedFiles: 0 };
+  const uncommitted = statusFilesFromPorcelainZ(baseStatus).length;
+  if (uncommitted > 0) {
+    throw new Error(
+      `The project has uncommitted changes in ${uncommitted} file${uncommitted === 1 ? "" : "s"}. Commit or stash them before applying this checkout.`,
+    );
   }
   if (inspected.files.some((file) => isUnmergedStatusCode(file.status))) {
     throw new Error("Isolated checkout has unresolved merge conflicts. Resolve them before applying.");
@@ -286,7 +283,7 @@ export async function preflightAgentWorktree(
     ["-C", gitRoot, "status", "--porcelain", "--untracked-files=all"],
     "Unable to inspect Git workspace status.",
   );
-  const snapshot = dirtySnapshotFromStatus(status);
+  const uncommittedFiles = status.split(/\r?\n/).filter(Boolean).length;
 
   const branchName = request.branchName ? sanitizeBranchName(request.branchName) : createAgentBranchName(request, options);
   const worktreePath = worktreeRootPath({ baseCwd: gitRoot, branchName }, options);
@@ -296,77 +293,8 @@ export async function preflightAgentWorktree(
     baseCwd: gitRoot,
     branchName,
     cwd: launchCwd,
-    ...(snapshot === null ? {} : { snapshot }),
+    ...(uncommittedFiles === 0 ? {} : { uncommittedFiles }),
   };
-}
-
-async function applyDirtySnapshot(
-  result: AgentWorktreeResult,
-  options: Pick<PrepareAgentWorktreeOptions, "cp" | "execFile" | "mkdir" | "rm" | "worktreeStoreRoot">,
-): Promise<void> {
-  if (!result.snapshot) return;
-
-  const run = options.execFile ?? execFile;
-  const mkdirImpl = options.mkdir ?? mkdir;
-  const cpImpl = options.cp ?? cp;
-  const rmImpl = options.rm ?? rm;
-  const worktreePath = worktreeRootPath(result, options);
-
-  if (result.snapshot.trackedChanges) {
-    const patchPath = path.join(os.tmpdir(), `${result.branchName}.patch`);
-    try {
-      await gitOutput(
-        run,
-        ["-C", result.baseCwd, "diff", "--binary", "HEAD", `--output=${patchPath}`],
-        "Unable to snapshot tracked workspace changes.",
-      );
-      await gitOutput(
-        run,
-        ["-C", worktreePath, "apply", "--whitespace=nowarn", patchPath],
-        "Unable to apply tracked workspace snapshot.",
-      );
-    } finally {
-      await rmImpl(patchPath, { force: true }).catch(() => undefined);
-    }
-  }
-
-  if (result.snapshot.untrackedFiles === 0) return;
-
-  const rawUntrackedPaths = await gitOutputRaw(
-    run,
-    ["-C", result.baseCwd, "ls-files", "--others", "--exclude-standard", "-z"],
-    "Unable to snapshot untracked workspace files.",
-  );
-  for (const relativePath of splitNulOutput(rawUntrackedPaths)) {
-    if (!safeSnapshotRelativePath(relativePath)) {
-      throw new Error(`Unable to snapshot unsafe untracked path: ${relativePath}`);
-    }
-
-    const sourcePath = path.join(result.baseCwd, relativePath);
-    const destinationPath = path.join(worktreePath, relativePath);
-    await mkdirImpl(path.dirname(destinationPath), { recursive: true });
-    await copyEntry(sourcePath, destinationPath, cpImpl);
-  }
-}
-
-function dirtySnapshotFromStatus(status: string): AgentWorktreeSnapshot | null {
-  if (!status.trim()) return null;
-
-  const lines = status.split(/\r?\n/).filter(Boolean);
-  const unmerged = lines.find(isUnmergedStatusLine);
-  if (unmerged) {
-    throw new Error("Workspace has unresolved merge conflicts. Resolve them before launching isolated agent sessions.");
-  }
-
-  const untrackedFiles = lines.filter((line) => line.startsWith("?? ")).length;
-  const trackedChanges = lines.some((line) => !line.startsWith("?? "));
-
-  return { trackedChanges, untrackedFiles };
-}
-
-function isUnmergedStatusLine(line: string): boolean {
-  const code = line.slice(0, 2);
-  return code.includes("U") || code === "AA" || code === "DD";
 }
 
 function splitNulOutput(value: string): string[] {
@@ -387,17 +315,51 @@ function statusFilesFromPorcelainZ(status: string): AgentWorktreeChangeFile[] {
       throw new Error(`Unsafe isolated Git worktree path: ${relativePath}`);
     }
 
+    // With -z a rename or copy is "XY new\0old".
+    const from = statusCode.includes("R") || statusCode.includes("C") ? entries[index + 1] : undefined;
+    if (from !== undefined && !safeSnapshotRelativePath(from)) {
+      throw new Error(`Unsafe isolated Git worktree path: ${from}`);
+    }
     files.push({
       path: relativePath,
       status: statusCode.trim() || "modified",
+      ...(from === undefined ? {} : { from }),
     });
-
-    if (statusCode.includes("R") || statusCode.includes("C")) {
-      index += 1;
-    }
+    if (from !== undefined) index += 1;
   }
 
   return files;
+}
+
+/** Each changed path reads the same in the project as in the checkout, and a renamed file's old path is gone there too. */
+async function changesAreInProject(worktreePath: string, baseCwd: string, files: AgentWorktreeChangeFile[]): Promise<boolean> {
+  for (const file of files) {
+    const [inCheckout, inProject] = await Promise.all([
+      entryContent(path.join(worktreePath, file.path)),
+      entryContent(path.join(baseCwd, file.path)),
+    ]);
+    if (inCheckout === undefined || inProject === undefined) return false;
+    // Only a deletion may leave the path empty in the checkout.
+    if (inCheckout === null ? !file.status.includes("D") || inProject !== null : inProject === null || !inCheckout.equals(inProject)) {
+      return false;
+    }
+    if (file.from !== undefined && file.status.includes("R") && await entryContent(path.join(baseCwd, file.from)) !== null) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** A file's bytes, a symlink's target, null when nothing is there, undefined for anything else (a directory). */
+async function entryContent(filePath: string): Promise<Buffer | null | undefined> {
+  try {
+    const stats = await lstat(filePath);
+    if (stats.isSymbolicLink()) return Buffer.from(`symlink:${await readlink(filePath)}`);
+    return stats.isFile() ? await readFile(filePath) : undefined;
+  } catch (error: unknown) {
+    if (isFsErrorCode(error, "ENOENT") || isFsErrorCode(error, "ENOTDIR")) return null;
+    throw error;
+  }
 }
 
 function changedFilesSummary(count: number): string {

@@ -151,12 +151,12 @@ function isCodingAgentKind(kind: AlfredPlanSession["kind"]): boolean {
 }
 
 function readyWorktreePreflight(worktree: AgentWorktreeResult): AlfredLaunchPreflight {
-  const dirtySnapshot = worktree.snapshot !== undefined;
+  const uncommitted = worktree.uncommittedFiles ?? 0;
   return {
     status: "ready",
-    label: dirtySnapshot ? "Snapshot worktree ready" : "Worktree ready",
-    detail: dirtySnapshot
-      ? "Will create an isolated Git worktree and copy current workspace changes into it."
+    label: "Worktree ready",
+    detail: uncommitted > 0
+      ? `Will create an isolated Git worktree from the last commit; ${uncommitted} uncommitted ${uncommitted === 1 ? "file stays" : "files stay"} in the project.`
       : "Will create an isolated Git worktree on launch.",
     isolation: "worktree",
     branchName: worktree.branchName,

@@ -60,6 +60,8 @@ export type TerminalCreateResult = {
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
   parentClientId?: string;
+  /** Files the project had uncommitted when this new checkout was made from its last commit. */
+  uncommittedFiles?: number;
 };
 
 export type TerminalSessionSnapshot = TerminalCreateResult & {
@@ -163,7 +165,14 @@ export type TerminalWorktreeDiffRequest = {
 };
 
 export type TerminalWorktreeDiffResult =
-  | { ok: true; summary: string; files: Array<{ path: string; status: string }>; patch: string }
+  | {
+      ok: true;
+      summary: string;
+      files: Array<{ path: string; status: string; from?: string }>;
+      patch: string;
+      /** Every change is already in the project's files, as after an Apply. */
+      applied: boolean;
+    }
   | { ok: false; error: string };
 
 export type TerminalWorktreeApplyRequest = {
@@ -171,7 +180,7 @@ export type TerminalWorktreeApplyRequest = {
 };
 
 export type TerminalWorktreeApplyResult =
-  | { ok: true; appliedFiles: number }
+  | { ok: true; appliedFiles: number; alreadyApplied?: true }
   | { ok: false; error: string; needsManualReview?: boolean };
 
 export type TerminalExitEvent = {

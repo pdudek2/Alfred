@@ -383,6 +383,7 @@ function installDesktopBridge(
       { path: "notes/review.md", status: "??" },
     ],
     patch: "",
+    applied: false,
   });
   let terminalSnapshots = [...terminalSessions];
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
@@ -5884,6 +5885,7 @@ describe("App integration", () => {
       ok: true,
       summary: "1 stale file",
       files: [{ path: "src/stale.ts", status: "M" }],
+      applied: false,
       patch: "@@ -1 +1 @@\n-old\n+stale",
     }));
 
@@ -6029,6 +6031,8 @@ describe("App integration", () => {
     try {
       await user.click(screen.getByRole("button", { name: "Open command palette" }));
       await submitCommandPalette(user, "close focused session");
+      // Its checkout still holds changes, so closing asks first.
+      await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
       await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
       act(() => { vi.advanceTimersByTime(5_000); });
     } finally {
@@ -6056,6 +6060,96 @@ describe("App integration", () => {
     expect(worktreeApply).toHaveBeenCalledTimes(1);
     expect(newTile).not.toHaveTextContent("Applied to project");
     expect(screen.queryByText("Applied to project")).not.toBeInTheDocument();
+  });
+
+  describe("closing a running checkout", () => {
+    const runningCheckout = {
+      id: "runtime-codex",
+      clientId: "codex-1",
+      title: "Codex · running checkout",
+      source: "manual" as const,
+      agentKind: "codex" as const,
+      workspaceId: "A",
+      cwd: "/Users/sample/Library/Application Support/Alfred/worktrees/alfred-cd97628a/alfred-codex-review",
+      branchName: "alfred-codex-review",
+      baseCwd: "/Users/sample/Desktop/Alfred",
+      shell: "codex",
+      command: "codex",
+      args: [],
+      buffer: "",
+    };
+
+    async function closeFocused(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: "Open command palette" }));
+      await submitCommandPalette(user, "close focused session");
+    }
+
+    it("asks first when it holds changes, and its Discard goes through main, which stops the agent", async () => {
+      const user = userEvent.setup();
+      const { forgetTerminal, killTerminal } = installDesktopBridge(undefined, null, [runningCheckout]);
+      render(<App />);
+      await screen.findByRole("article", { name: /Codex · running checkout/i });
+
+      await closeFocused(user);
+      const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+      expect(dialog).toHaveTextContent("src/app.tsx");
+      expect(forgetTerminal).not.toHaveBeenCalled();
+
+      await user.click(within(dialog).getByRole("button", { name: "Discard checkout permanently" }));
+      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-1", cleanupWorktree: true }));
+      await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · running checkout/i })).not.toBeInTheDocument());
+      expect(killTerminal).not.toHaveBeenCalled();
+    });
+
+    it("removes it without asking once its changes are in the project", async () => {
+      const user = userEvent.setup();
+      const { forgetTerminal, worktreeDiff } = installDesktopBridge(undefined, null, [runningCheckout]);
+      worktreeDiff.mockResolvedValue({
+        ok: true,
+        summary: "1 changed file",
+        files: [{ path: "src/app.tsx", status: "M" }],
+        patch: "",
+        applied: true,
+      });
+      render(<App />);
+      await screen.findByRole("article", { name: /Codex · running checkout/i });
+
+      await closeFocused(user);
+      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-1", cleanupWorktree: true }));
+      expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    });
+
+    it("shows Applied in Details instead of Apply once its changes are in the project", async () => {
+      const user = userEvent.setup();
+      const { worktreeDiff } = installDesktopBridge(undefined, null, [runningCheckout]);
+      worktreeDiff.mockResolvedValue({
+        ok: true,
+        summary: "1 changed file",
+        files: [{ path: "src/app.tsx", status: "M" }],
+        patch: "",
+        applied: true,
+      });
+      render(<App />);
+      await screen.findByRole("article", { name: /Codex · running checkout/i });
+
+      const changes = await checkoutActions(user);
+      expect(within(changes).getByRole("status")).toHaveTextContent("Applied to Alfred");
+      expect(within(changes).queryByRole("button", { name: "Apply to Alfred" })).not.toBeInTheDocument();
+    });
+
+    it("closes its open diff with it", async () => {
+      const user = userEvent.setup();
+      installDesktopBridge(undefined, null, [runningCheckout]);
+      render(<App />);
+      await screen.findByRole("article", { name: /Codex · running checkout/i });
+      await user.click(within(await checkoutActions(user)).getByRole("button", { name: "Review diff" }));
+      await screen.findByRole("region", { name: "Worktree diff" });
+
+      await closeFocused(user);
+      await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+
+      await waitFor(() => expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument());
+    });
   });
 
   it("keeps explicit shared sessions visually quiet even if stale checkout metadata exists", async () => {
@@ -9417,6 +9511,7 @@ describe("App integration", () => {
         ok: true,
         summary: "No changes",
         files: [],
+        applied: false,
         patch: "",
       } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
     },

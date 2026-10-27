@@ -12,6 +12,7 @@ const readyView: WorktreeDiffView = {
     ok: true,
     summary: "1 changed file",
     files: [{ path: "src/app.tsx", status: "M" }],
+    applied: false,
     patch: [
       "diff --git a/src/app.tsx b/src/app.tsx",
       "@@ -4,2 +4,2 @@",
@@ -95,6 +96,7 @@ describe("WorktreeDiffPanel", () => {
             ok: true,
             summary: "1 untracked file",
             files: [{ path: "notes/new.md", status: "??" }],
+            applied: false,
             patch: "",
           },
         }}
