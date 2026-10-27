@@ -117,7 +117,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+  await page.getByRole("radio", { name: /^Claude/ }).click();
   const prepare = page.getByRole("dialog", { name: "New session" });
   await expect(prepare).toBeVisible();
   await expectSans(prepare.getByRole("button").first());

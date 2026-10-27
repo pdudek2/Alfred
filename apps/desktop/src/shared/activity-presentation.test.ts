@@ -33,6 +33,8 @@ describe("activity sentences", () => {
     ["Plan mode prompt: Implement this plan?", "Implement this plan?", "Asked: Implement this plan?"],
     // A question the terminal printed, even one with a colon.
     ["Proceed: overwrite the file?", "Proceed: overwrite the file?", "Asked: Proceed: overwrite the file?"],
+    // A Claude AskUserQuestion: Alfred records the question itself.
+    ["Should I run npm test in ux-sandbox? (+1 more)", "Should I run npm test in ux-sandbox? (+1 more)", "Asked: Should I run npm test in ux-sandbox? (+1 more)"],
   ])("reads %j as a plain sentence", (prompt, waiting, asked) => {
     expect(waitingSentence(approval(prompt))).toBe(waiting);
     expect(activitySentence(approval(prompt))).toBe(asked);

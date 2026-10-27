@@ -73,7 +73,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
 
   const launchTrigger = page.getByRole("button", { name: "New", exact: true });
   await launchTrigger.click();
-  await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+  await page.getByRole("radio", { name: /^Claude/ }).click();
   const prepareWork = page.getByRole("dialog", { name: "New session" });
   await expect(prepareWork).toBeVisible();
   await expectSansFont(prepareWork.getByRole("button").first(), "15px");
