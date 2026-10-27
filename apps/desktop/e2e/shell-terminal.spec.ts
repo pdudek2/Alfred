@@ -102,9 +102,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const launchTrigger = page.getByRole("button", { name: "New", exact: true });
   await launchTrigger.focus();
   await page.keyboard.press("Enter");
-  const prepareWorkItem = page.getByRole("radio", { name: /^Plan with Alfred/ });
+  const prepareWorkItem = page.getByRole("radio", { name: /^Claude/ });
   await prepareWorkItem.click();
-  const dispatchInput = page.getByRole("textbox", { name: "Goal" });
+  const dispatchInput = page.getByRole("textbox", { name: "First prompt" });
   await dispatchInput.focus();
   await expect(dispatchInput).toBeFocused();
   await page.keyboard.press("Escape");

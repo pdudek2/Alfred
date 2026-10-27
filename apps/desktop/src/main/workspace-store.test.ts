@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DESKTOP_STATE, DEFAULT_WORKSPACE, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { shortLabelForWorkspace } from "../shared/workspace-label.js";
 import { createWorkspaceStore as createWorkspaceStoreBase } from "./workspace-store.js";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
@@ -71,7 +72,7 @@ describe("workspace-store", () => {
     );
   });
 
-  it("binds the default workspace even when no git branch can be resolved", async () => {
+  it("binds the default workspace even when no git branch can be resolved, and names it after the folder", async () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({
       filePath,
@@ -83,10 +84,26 @@ describe("workspace-store", () => {
       workspaces: [
         {
           ...DEFAULT_WORKSPACE,
+          label: "PlainFolder",
+          shortLabel: shortLabelForWorkspace("PlainFolder"),
           rootPath: "/Users/sample/Desktop/PlainFolder",
         },
       ],
       activeWorkspaceId: DEFAULT_WORKSPACE.id,
+    });
+  });
+
+  it("keeps a renamed first project's name when it gets the default folder", async () => {
+    const filePath = await temporaryStateFile();
+    await createPersistedDesktopStateStore({ filePath }).setState({
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ ...DEFAULT_WORKSPACE, label: "My lab", shortLabel: "ML" }],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
+    });
+    const store = createWorkspaceStore({ filePath, defaultRootPath: "/Users/sample/Desktop/PlainFolder", resolveGitBranch: async () => undefined });
+
+    await expect(store.getWorkspaceState()).resolves.toMatchObject({
+      workspaces: [{ label: "My lab", shortLabel: "ML", rootPath: "/Users/sample/Desktop/PlainFolder" }],
     });
   });
 
