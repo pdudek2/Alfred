@@ -168,6 +168,14 @@ describe("sessionPreviewLine", () => {
     expect(sessionPreviewLine({}, working)).toBeNull();
   });
 
+  it("says where a running shell serves, over its latest activity", () => {
+    const running = { kind: "running", label: "running" } as const;
+    expect(sessionPreviewLine({ activityEvents: [command], servingUrl: "http://localhost:4310/" }, running))
+      .toBe("Serving on port 4310");
+    expect(sessionPreviewLine({ servingUrl: "http://localhost/" }, running)).toBe("Serving on localhost");
+    expect(sessionPreviewLine({ activityEvents: [command], servingUrl: "http://localhost:4310/" }, working)).toBe("Ran pnpm test");
+  });
+
   it("says what a waiting session asks as Needs you does, whatever came after it", () => {
     const prompt = "Approval requested: /bin/zsh -lc 'pnpm test --filter desktop'";
     const approval: SessionActivityEvent = {

@@ -16,6 +16,7 @@ import type {
   TerminalResumeTarget,
 } from "../shared/terminal-ipc";
 import { normalizeSessionTitle, titleFromPrompt } from "../shared/session-title";
+import { extractLocalPreviewUrls } from "./preview-state";
 
 export type SessionTile = {
   id: string;
@@ -48,6 +49,10 @@ export type SessionTile = {
   agentSignal?: TerminalAgentSignal;
   /** True while a program other than the shell holds the foreground (plain terminals only). */
   shellBusy?: boolean;
+  /** The shell's own title ("zsh 2") while it goes by the program in its foreground. */
+  shellTitle?: string;
+  /** The local address the program in a plain shell's foreground printed, until the shell is back at its prompt. */
+  servingUrl?: string;
   /** You have sent this session a message (the main process saw Enter). */
   promptSubmitted?: boolean;
   /** Started as a worker of this session ("New worker" on its rail row). */
@@ -70,13 +75,31 @@ export function isGeneratedSessionTitle(title: string): boolean {
 
 export function generatedTitleForDetectedAgent(
   sessions: SessionTile[],
-  session: Pick<SessionTile, "id" | "title" | "workspaceId">,
+  session: Pick<SessionTile, "id" | "title" | "workspaceId" | "shellTitle">,
   kind: TerminalDataEvent["foregroundAgentKind"],
 ): string {
-  if (!kind || !GENERATED_TERMINAL_TITLE.test(session.title)) return session.title;
+  // A shell going by its program ("pnpm dev") is judged by its own title.
+  const title = session.shellTitle ?? session.title;
+  if (!kind || !GENERATED_TERMINAL_TITLE.test(title)) return session.title;
   const base = kind === "codex" ? "Codex" : "Claude";
-  if (new RegExp(`^${base}(?: \\d+)?$`).test(session.title)) return session.title;
+  if (new RegExp(`^${base}(?: \\d+)?$`).test(title)) return title;
   return nextGeneratedTitle(sessions.filter((other) => other.id !== session.id), session.workspaceId, base);
+}
+
+/**
+ * A plain shell goes by the program holding its foreground ("pnpm dev"), and by its own title again at the prompt or
+ * when an agent takes over. Only a title Alfred gave gives way; a session you named keeps its name.
+ */
+export function titleForForegroundCommand(
+  session: Pick<SessionTile, "title" | "shellTitle">,
+  update: Pick<TerminalDataEvent, "foregroundAgentKind" | "foregroundCommand" | "shellBusy">,
+): Pick<SessionTile, "title" | "shellTitle"> {
+  const shellTitle = session.shellTitle ?? session.title;
+  if (update.foregroundAgentKind || update.shellBusy === false) return { title: shellTitle };
+  if (update.foregroundCommand && isGeneratedSessionTitle(shellTitle)) {
+    return { title: normalizeSessionTitle(update.foregroundCommand) || shellTitle, shellTitle };
+  }
+  return session.shellTitle === undefined ? { title: session.title } : { title: session.title, shellTitle };
 }
 
 type SessionTitleFallbackInput = {
@@ -171,7 +194,12 @@ export function renameSession(sessions: SessionTile[], sessionId: string, title:
   const normalizedTitle = normalizeSessionTitle(title);
   if (!normalizedTitle) return sessions;
 
-  return sessions.map((session) => session.id === sessionId ? { ...session, title: normalizedTitle } : session);
+  return sessions.map((session) => {
+    if (session.id !== sessionId) return session;
+    // Your name outlasts the program it was renamed under.
+    const { shellTitle: _shellTitle, ...renamed } = session;
+    return { ...renamed, title: normalizedTitle };
+  });
 }
 
 export function attachRuntimeSession(
@@ -263,12 +291,14 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
       detectedAgentKind: _detectedAgentKind,
       promptSubmitted: _promptSubmitted,
       shellBusy: _shellBusy,
+      shellTitle,
+      servingUrl: _servingUrl,
       ...restartableSession
     } = session;
     // An agent that named its conversation goes back to it; one that ended before that starts as it was launched.
     const agentKind = restoredAgentKind(session);
     const resume = agentKind && session.resumeTarget?.agentKind === agentKind ? resumeLaunchForRestoredAgent(session) : {};
-    return { ...restartableSession, ...resume, runtimeStatus: "starting" };
+    return { ...restartableSession, title: shellTitle ?? session.title, ...resume, runtimeStatus: "starting" };
   });
 }
 
@@ -297,11 +327,18 @@ export function relaunchRestoredSession(sessions: SessionTile[], sessionId: stri
   });
 }
 
+// shortcut: the last address on screen stands for what a busy shell serves; after a reload it cannot be told apart
+// from one an earlier program printed.
+function servingUrlOnScreen(snapshot: TerminalSessionSnapshot): Pick<SessionTile, "servingUrl"> {
+  const url = snapshot.shellBusy ? extractLocalPreviewUrls(snapshot.buffer).at(-1) : undefined;
+  return url === undefined ? {} : { servingUrl: url };
+}
+
 export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,
     runtimeId: snapshot.id,
-    title: normalizedSessionTitleWithFallback(snapshot.title, snapshot),
+    ...titleForForegroundCommand({ title: normalizedSessionTitleWithFallback(snapshot.title, snapshot) }, snapshot),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
     ...(snapshot.workspaceRootFingerprint === undefined
@@ -321,6 +358,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.foregroundAgentKind === undefined ? {} : { detectedAgentKind: snapshot.foregroundAgentKind }),
     ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
     ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
+    ...servingUrlOnScreen(snapshot),
     ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
@@ -474,7 +512,7 @@ function nextGeneratedTitle(sessions: SessionTile[], workspaceId: string, base: 
   let highest = 0;
   for (const session of sessions) {
     if (session.workspaceId !== workspaceId || session.runtimeStatus === "restored") continue;
-    const match = new RegExp(`^${base}(?: (\\d+))?$`).exec(session.title);
+    const match = new RegExp(`^${base}(?: (\\d+))?$`).exec(session.shellTitle ?? session.title);
     if (match) highest = Math.max(highest, match[1] ? Number(match[1]) : 1);
   }
   return highest === 0 ? base : `${base} ${highest + 1}`;
@@ -606,12 +644,16 @@ export function recordSessionOutputActivity(
       ? item.lastActivityAt
       : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
     const outputAt = event.at ?? acceptedLastActivityAt ?? now;
-    const { agentSignal: _previousSignal, ...withoutSignal } = item;
+    const { agentSignal: _previousSignal, shellTitle: _shellTitle, servingUrl: _servingUrl, ...withoutSignal } = item;
     const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
+    const named = titleForForegroundCommand(item, event);
+    // An address a shell echoes as you type it is not served; only one printed while a program runs is.
+    const servingUrl = (event.shellBusy ?? item.shellBusy) ? extractLocalPreviewUrls(event.data)[0] ?? item.servingUrl : undefined;
 
     return {
       ...withoutSignal,
-      title: generatedTitleForDetectedAgent(sessions, item, event.foregroundAgentKind),
+      ...named,
+      title: generatedTitleForDetectedAgent(sessions, { ...withoutSignal, ...named }, event.foregroundAgentKind),
       detectedAgentKind: event.foregroundAgentKind,
       // Signal-only events (empty data) are not terminal output.
       ...(event.data === "" ? {} : { lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt) }),
@@ -621,6 +663,7 @@ export function recordSessionOutputActivity(
       ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
+      ...(servingUrl === undefined ? {} : { servingUrl }),
     };
   });
 }

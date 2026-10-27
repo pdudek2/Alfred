@@ -1,4 +1,5 @@
 import { isTrustedIpcRecipient, trustedIpc } from "./trusted-ipc.js";
+import { redactText } from "@alfred/schema";
 import { BrowserWindow } from "electron";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -120,6 +121,7 @@ type TerminalIpcOptions = {
   inspectAgentWorktree?: InspectAgentWorktree;
   /** The command line of the process in the foreground of a shell's terminal, from the shell's pid. */
   inspectForegroundCommand?: (shellPid: number) => Promise<string | undefined>;
+  foregroundCommandDelayMs?: number;
   isStagedCommandAllowed?: (request: Pick<TerminalCreateRequest, "args" | "clientId" | "command">) => Promise<boolean>;
   launchTicketTtlMs?: number;
   loadNodePty?: () => Promise<NodePtyModule>;
@@ -163,6 +165,10 @@ type TerminalSession = {
   transcriptPath?: string;
   oscCarry: string;
   shellBusy?: boolean | undefined;
+  /** The program holding a plain shell's foreground as a title ("pnpm dev"), once it has held it a while. */
+  foregroundCommand?: string | undefined;
+  /** The foreground process whose command line is being read, so each one is read once. */
+  commandProbeProcess?: string | undefined;
   /** You have sent this session a message: input that ended with Enter. */
   promptSubmitted?: boolean | undefined;
   /** A hook has reported from this session, so its history comes from hooks rather than from its screen. */
@@ -243,6 +249,9 @@ const pendingWakes = new Map<string, Map<string, WorkerNews>>();
 const wakeTimers = new Map<string, NodeJS.Timeout>();
 /** Workers that finish close together reach their orchestrator in one message. */
 const WAKE_BATCH_MS = 2_000;
+/** A program that holds a shell's foreground this long names it; `ls` or `git status` names nothing. */
+let foregroundCommandDelayMs = 1_000;
+let inspectShellForeground: (shellPid: number) => Promise<string | undefined> = inspectForegroundCommand;
 
 export function configureTerminalPersistence(
   store: PersistedDesktopStateStore,
@@ -288,6 +297,8 @@ export function resetTerminalPersistenceForTests(): void {
 }
 
 export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
+  foregroundCommandDelayMs = options.foregroundCommandDelayMs ?? 1_000;
+  inspectShellForeground = options.inspectForegroundCommand ?? inspectForegroundCommand;
   const launchTickets = new Map<string, LaunchTicket>();
   const restoredLaunchReservations = new Map<string, string>();
   const clientIdsInFlight = new Set<string>();
@@ -1064,6 +1075,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
     ...(session.agentSignal === undefined ? {} : { agentSignal: session.agentSignal }),
     ...(session.shellBusy === undefined ? {} : { shellBusy: session.shellBusy }),
+    ...(session.foregroundCommand === undefined ? {} : { foregroundCommand: session.foregroundCommand }),
     ...(session.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
@@ -1145,6 +1157,33 @@ function agentKindFromCommand(command: string | undefined): TerminalForegroundAg
     if (/^claude(?:$|[-_.])/.test(name)) return "claude";
   }
   return undefined;
+}
+
+/** "pnpm dev" for "node /opt/homebrew/bin/pnpm dev": the program by its name, or the installed script an interpreter runs. */
+function commandTitle(command: string): string {
+  const [program = "", ...rest] = command.trim().split(/\s+/);
+  const programName = path.basename(program);
+  const script = rest[0] ?? "";
+  // A script you named yourself ("node serve.js") stays as you typed it.
+  return SCRIPT_INTERPRETER.test(programName.toLowerCase()) && path.isAbsolute(script)
+    ? [path.basename(script), ...rest.slice(1)].join(" ")
+    : [programName, ...rest].join(" ");
+}
+
+/** Names a shell after the program in its foreground once that program has held it for a while. */
+function probeForegroundCommand(session: TerminalSession, foreground: string): void {
+  session.commandProbeProcess = foreground;
+  const current = () => sessions.get(session.id) === session && session.commandProbeProcess === foreground
+    && !session.foregroundAgentKind;
+  setTimeout(() => {
+    if (!current()) return;
+    void inspectShellForeground(session.pty.pid).then((command) => {
+      if (!command || !current() || agentKindFromCommand(command)) return;
+      // A title reaches more places than the terminal does (the planner's prompt among them), so secrets stay out.
+      session.foregroundCommand = redactText(commandTitle(command));
+      sendSignalUpdate(session, { foregroundCommand: session.foregroundCommand });
+    }, () => {});
+  }, foregroundCommandDelayMs).unref();
 }
 
 function consumeAgentCommandInput(buffer: string, data: string): {
@@ -1901,6 +1940,7 @@ function sendSignalUpdate(
     activities?: SessionActivityEvent[];
     agentSignal?: TerminalAgentSignal | null;
     shellBusy?: boolean;
+    foregroundCommand?: string;
     promptSubmitted?: true;
     resumeTarget?: TerminalResumeTarget;
   },
@@ -1914,6 +1954,7 @@ function sendSignalUpdate(
     activities: update.activities ?? [],
     ...(update.agentSignal === undefined ? {} : { agentSignal: update.agentSignal }),
     ...(update.shellBusy === undefined ? {} : { shellBusy: update.shellBusy }),
+    ...(update.foregroundCommand === undefined ? {} : { foregroundCommand: update.foregroundCommand }),
     ...(update.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(update.resumeTarget ? { resumeTarget: update.resumeTarget } : {}),
   });
@@ -1923,7 +1964,14 @@ function sendSignalUpdate(
 function updateShellBusy(session: TerminalSession): boolean | undefined {
   if (session.command !== undefined || process.platform === "win32") return undefined;
   try {
-    const busy = !isShellProcess(session.pty.process);
+    const foreground = session.pty.process;
+    const busy = !isShellProcess(foreground);
+    if (busy && foreground !== session.commandProbeProcess) probeForegroundCommand(session, foreground);
+    // Back at the prompt the shell goes by its own name; the renderer reads that from shellBusy false.
+    if (!busy) {
+      session.foregroundCommand = undefined;
+      session.commandProbeProcess = undefined;
+    }
     if (busy === session.shellBusy) return undefined;
     session.shellBusy = busy;
     return busy;
