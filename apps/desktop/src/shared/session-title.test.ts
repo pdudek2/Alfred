@@ -5,6 +5,7 @@ import {
   stripTerminalControlSequences,
   stripTerminalControlSequencesWithRemainder,
   terminalOutputLines,
+  titleFromPrompt,
 } from "./session-title";
 
 describe("session title normalization", () => {
@@ -83,5 +84,18 @@ describe("terminal output lines", () => {
       "ok",
       "sample@mac workspace-a %",
     ]);
+  });
+});
+
+describe("titles from a first prompt", () => {
+  it.each([
+    ["the first line of a prompt", "Fix the login bug\nthen run tests", "Fix the login bug"],
+    ["nothing for a slash command", "/exit", ""],
+    ["nothing for a shell command", "!ls", ""],
+    ["nothing for a menu choice", "3", ""],
+    ["nothing for a short answer", "y", ""],
+    ["nothing for digits", "1234", ""],
+  ])("gives %s", (_name, prompt, title) => {
+    expect(titleFromPrompt(prompt)).toBe(title);
   });
 });

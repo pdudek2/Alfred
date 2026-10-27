@@ -38,7 +38,7 @@ import { restoredSessionActionLabel, restoredSessionActionTitle } from "../resto
 import { sessionPresentationTitle } from "../../shared/session-presentation";
 import { deckFocusSession, deckSessions, isWorkSession } from "../session-scope";
 import { pathsReferToSameLocation } from "../workspace-path-matching";
-import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
+import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder, titleFromPrompt } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
@@ -64,7 +64,7 @@ function captureAgentTitleInput(state: AgentTitleInputCapture, data: string): Ag
 
   for (const character of visibleData) {
     if (character === "\r" || character === "\n") {
-      const title = normalizeSessionTitle(nextBuffer);
+      const title = titleFromPrompt(nextBuffer);
       return title ? { buffer: "", title } : { buffer: "" };
     }
     if (character === "\x7f" || character === "\b") {
