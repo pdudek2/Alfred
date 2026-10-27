@@ -321,6 +321,8 @@ export function App() {
     attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
   );
   const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
+  // Plan with Alfred plans through OpenRouter; without a key it is not offered anywhere.
+  const planAvailable = runtimeStatus?.openRouterConfigured === true;
   const composerBlockedReason =
     terminalSessions.some((session) => session.workspaceId === newSessionProjectId && session.stage === "staged")
       ? "Resolve the current Alfred plan before asking for another."
@@ -493,7 +495,8 @@ export function App() {
   const handleBindWorkspaceFromFolder = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (workspaceApi) {
-      if (activeWorkspace.rootStatus === "missing") {
+      // A project whose folder is gone, or a sandbox without one, takes the folder you pick.
+      if (activeWorkspace.rootStatus === "missing" || !activeWorkspace.rootPath) {
         const snapshot = await workspaceApi.bindFolderToWorkspace({ workspaceId: activeWorkspace.id });
         const workspace = snapshot.workspaces.find((item) => item.id === snapshot.activeWorkspaceId);
         setWorkspaces(snapshot.workspaces);
@@ -524,28 +527,24 @@ export function App() {
         return;
       }
 
-      const previousWorkspaceIds = new Set(workspaces.map((workspace) => workspace.id));
-      const snapshot = await workspaceApi.createWorkspaceFromFolder();
-      const workspace = snapshot.workspaces.find((item) => item.id === snapshot.activeWorkspaceId);
-
-      setWorkspaces(snapshot.workspaces);
-      setActiveWorkspaceId(snapshot.activeWorkspaceId);
-      if (workspace && !previousWorkspaceIds.has(workspace.id)) {
-        setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id, undefined, seenSessionIdsRef.current));
-      }
       return;
     }
+  }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus]);
 
-    const index = workspaces.length + 1;
-    const workspace: Workspace = {
-      id: `W${index}`,
-      label: `Project ${index}`,
-      shortLabel: `W${index}`,
-    };
-    setWorkspaces([...workspaces, workspace]);
-    setActiveWorkspaceId(workspace.id);
-    setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id, undefined, seenSessionIdsRef.current));
-  }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus, workspaces]);
+  // The rail's + and the palette's Add project: a folder you pick becomes a project; cancelling adds nothing.
+  const handleAddProjectFromFolder = useCallback(async () => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (!workspaceApi) return;
+    const previousWorkspaceIds = new Set(workspaces.map((workspace) => workspace.id));
+    const snapshot = await workspaceApi.createWorkspaceFromFolder();
+    const workspace = snapshot.workspaces.find((item) => item.id === snapshot.activeWorkspaceId);
+
+    setWorkspaces(snapshot.workspaces);
+    setActiveWorkspaceId(snapshot.activeWorkspaceId);
+    if (workspace && !previousWorkspaceIds.has(workspace.id)) {
+      setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id, undefined, seenSessionIdsRef.current));
+    }
+  }, [workspaces]);
 
   const handleCloseActiveWorkspace = useCallback(() => {
     if (!canCloseActiveWorkspace) return;
@@ -2563,7 +2562,7 @@ export function App() {
               }}
             />
           )}
-          onAddWorkspace={handleAddWorkspace}
+          onAddWorkspace={handleAddProjectFromFolder}
           onFocusSession={handleFocusSession}
           onNewWorker={openNewWorker}
           onOpenAsleep={handleOpenSavedSessions}
@@ -2683,7 +2682,7 @@ export function App() {
                   workspaceRootStatus={activeWorkspace.rootStatus}
                   onBindWorkspace={handleBindWorkspaceFromFolder}
                   onAddAgentSession={(kind) => openNewSession(kind)}
-                  onOpenPlan={() => openNewSession("plan")}
+                  onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
                   onAddManualSession={() => openNewSession("terminal")}
                   onCloseSession={handleCloseSession}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
@@ -2790,7 +2789,8 @@ export function App() {
             triggerRef={newSessionTriggerRef}
             projects={workspaces}
             projectId={newSessionProjectId}
-            kind={newSessionKind}
+            kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
+            planAvailable={planAvailable}
             initialIsolation={newSessionIsolation}
             parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
             draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
@@ -2839,8 +2839,9 @@ export function App() {
             hasSavedSessions={activeSavedSessionCount > 0}
             onAddAgentSession={(kind, isolation) => openNewSession(kind, isolation)}
             onAddManualSession={() => openNewSession("terminal")}
-            onOpenPlan={() => openNewSession("plan")}
+            onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
             onAddWorkspace={handleAddWorkspace}
+            onAddProject={handleAddProjectFromFolder}
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
             onCloseSession={handleCloseSession}

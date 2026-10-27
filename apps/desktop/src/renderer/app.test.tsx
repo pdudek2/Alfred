@@ -778,6 +778,12 @@ async function openNewTerminal(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
 }
 
+/** A project without a folder, from the palette; the rail's + asks for a folder. */
+async function addScratchProject(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Open command palette" }));
+  await submitCommandPalette(user, "New scratch project");
+}
+
 async function submitCommandPalette(user: ReturnType<typeof userEvent.setup>, query: string) {
   const search = screen.getByRole("textbox", { name: "Search commands" });
   await user.type(search, query);
@@ -903,7 +909,7 @@ describe("App integration", () => {
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
     await sessionMenuAction(user, "zsh", /^Close/);
-    await user.click(screen.getByRole("button", { name: "Add project" }));
+    await addScratchProject(user);
     await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
@@ -3599,6 +3605,49 @@ describe("App integration", () => {
     expect(writeTerminal).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["the rail's +", async (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole("button", { name: "Add project" }))],
+    ["the palette's Add project…", async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole("button", { name: "Open command palette" }));
+      await submitCommandPalette(user, "Add project");
+    }],
+  ] as const)("adds a project from a picked folder with %s, and nothing when the picker is cancelled", async (_name, add) => {
+    const user = userEvent.setup();
+    const { createWorkspaceFromFolder } = installDesktopBridge();
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Alfred project" })).toBeInTheDocument();
+
+    await add(user);
+    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("button", { name: "ClientApp project" })).toHaveAttribute("aria-current", "location");
+    expect(screen.queryByRole("button", { name: /^Project \d project$/ })).not.toBeInTheDocument();
+
+    // Cancelling the picker hands back the projects as they were.
+    createWorkspaceFromFolder.mockImplementationOnce(async () => ({
+      workspaces: [{ id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+        { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/sample/Desktop/ClientApp" }],
+      activeWorkspaceId: "CLIENTAPP",
+    }));
+    await add(user);
+    expect(createWorkspaceFromFolder).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: /^Project \d+ project$/ })).not.toBeInTheDocument();
+  });
+
+  it("binds a picked folder to an empty scratch project instead of adding another", async () => {
+    const user = userEvent.setup();
+    const { bindFolderToWorkspace, createWorkspaceFromFolder } = installDesktopBridge();
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Alfred project" })).toBeInTheDocument();
+    await addScratchProject(user);
+    expect(await screen.findByRole("button", { name: "Project 2 project" })).toHaveAttribute("aria-current", "location");
+
+    const emptyState = screen.getByRole("status", { name: "Empty project" });
+    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
+
+    expect(bindFolderToWorkspace).toHaveBeenCalledWith({ workspaceId: "W2" });
+    expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
+  });
+
   it("adds an unknown external Codex project through the folder picker and refreshes summaries", async () => {
     const user = userEvent.setup();
     const externalSessionId = "019edc4b-0000-7000-9000-untrusted";
@@ -4468,7 +4517,7 @@ describe("App integration", () => {
     });
   });
 
-  it("creates a fallback workspace and manual session exactly once in StrictMode", async () => {
+  it("creates a scratch project exactly once in StrictMode", async () => {
     const user = userEvent.setup();
 
     render(
@@ -4477,15 +4526,15 @@ describe("App integration", () => {
       </StrictMode>,
     );
 
-    const emptyState = await screen.findByRole("status", { name: "Empty project" });
-    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
+    await screen.findByRole("status", { name: "Empty project" });
+    await addScratchProject(user);
 
     expect(await screen.findByRole("button", { name: "Project 2 project" })).toHaveAttribute(
       "aria-current",
       "location",
     );
-    expect(screen.getAllByRole("article", { name: /(?<!\/)zsh(?! ·)/i })).toHaveLength(1);
-    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Project 3 project" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Empty project" })).toBeInTheDocument();
   });
 
   it("creates scratch workspaces and scopes terminals to the active workspace", async () => {
@@ -4498,7 +4547,7 @@ describe("App integration", () => {
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Alfred")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Add project" }));
+    await addScratchProject(user);
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Project 2 project" })).toHaveAttribute(
@@ -4785,7 +4834,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Add project" }));
+    await addScratchProject(user);
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     expect(await screen.findByRole("button", { name: "Project 2 project" })).toHaveAttribute(
@@ -4814,7 +4863,7 @@ describe("App integration", () => {
       });
     });
 
-    await user.click(screen.getByRole("button", { name: "Add project" }));
+    await addScratchProject(user);
     expect(await screen.findByRole("button", { name: "Project 2 project" })).toHaveAttribute(
       "aria-current",
       "location",
@@ -5010,7 +5059,7 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
 
-    await user.click(screen.getByRole("button", { name: "Add project" }));
+    await addScratchProject(user);
 
     expect(await screen.findByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
     expect(createTerminal).toHaveBeenCalledTimes(1);
@@ -7901,45 +7950,23 @@ describe("App integration", () => {
     });
   });
 
-  it("blocks Alfred prompts when OpenRouter is not configured", async () => {
+  it.each([
+    ["without an OpenRouter key", { model: "anthropic/claude-sonnet-4-6", openRouterConfigured: false }],
+    ["while the runtime status is unknown", null],
+  ] as const)("does not offer Plan with Alfred %s", async (_name, runtimeStatus) => {
     const user = userEvent.setup();
-    const { requestPlan } = installDesktopBridge(undefined, null, [], {
-      model: "anthropic/claude-sonnet-4-6",
-      openRouterConfigured: false,
-    });
+    installDesktopBridge(undefined, null, [], runtimeStatus);
 
     render(<App />);
 
-    await openNewPlan(user);
-    await screen.findByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.");
-    await user.type(screen.getByLabelText("Goal"), "prepare agents");
-
-    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
-    expect(requestPlan).not.toHaveBeenCalled();
-  });
-
-  it("keeps Alfred prompts available while runtime status is unknown", async () => {
-    const user = userEvent.setup();
-    const { requestPlan } = installDesktopBridge(undefined, null, [], null);
-
-    render(<App />);
-
-    await openNewPlan(user);
-    await user.type(screen.getByLabelText("Goal"), "prepare agents");
-    await user.click(screen.getByRole("button", { name: "Start" }));
-
-    await openPlan(user);
-    await screen.findByRole("listitem", { name: /Draft Task A/i });
-    expect(requestPlan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: "prepare agents",
-        workspace: expect.objectContaining({
-          id: "A",
-          label: "Alfred",
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "zsh" })]),
-        }),
-      }),
-    );
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
+    await user.click(screen.getByRole("button", { name: "New" }));
+    expect(screen.queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "Plan with Alfred");
+    expect(screen.queryByRole("option", { name: /Plan with Alfred/ })).not.toBeInTheDocument();
   });
 
   it("turns the first Alfred prompt into plan line drafts outside the terminal grid", async () => {

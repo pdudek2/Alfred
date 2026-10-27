@@ -122,8 +122,14 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       ...current,
       workspaces: current.workspaces.map((workspace) => {
         if (workspace.id !== DEFAULT_WORKSPACE.id || workspace.rootPath) return workspace;
+        // The first project is named after its folder, unless you have already renamed it.
+        const label = workspace.label === DEFAULT_WORKSPACE.label
+          ? path.basename(normalizedRootPath) || workspace.label
+          : workspace.label;
         return {
           ...workspace,
+          label,
+          shortLabel: label === workspace.label ? workspace.shortLabel : shortLabelForWorkspace(label),
           rootPath: normalizedRootPath,
           ...(gitBranch === undefined ? {} : { gitBranch }),
         };

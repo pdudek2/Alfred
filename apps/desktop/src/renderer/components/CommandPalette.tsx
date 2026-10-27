@@ -46,8 +46,10 @@ type CommandPaletteProps = {
   hasSavedSessions: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
   onAddManualSession: () => void;
-  onOpenPlan?: () => void;
+  onOpenPlan?: (() => void) | undefined;
   onAddWorkspace: () => void;
+  /** Adds a project from a folder you pick. */
+  onAddProject: () => void;
   onChangeQuery: (query: string) => void;
   onClose: () => void;
   onCloseSession: (sessionId: string) => void;
@@ -86,6 +88,7 @@ export function CommandPalette({
   onAddManualSession,
   onOpenPlan,
   onAddWorkspace,
+  onAddProject,
   onChangeQuery,
   onClose,
   onCloseSession,
@@ -204,6 +207,12 @@ export function CommandPalette({
         run: () => onAddAgentSession("claude", "worktree"),
       },
       ...(onOpenPlan ? [{ id: "new-plan", label: "Plan with Alfred", detail: "Describe a goal and get drafts to launch", run: onOpenPlan }] : []),
+      {
+        id: "add-project",
+        label: "Add project…",
+        detail: "Choose a folder to work in",
+        run: onAddProject,
+      },
       {
         id: "new-workspace",
         label: "New scratch project",
@@ -386,6 +395,7 @@ export function CommandPalette({
       onAddManualSession,
       onOpenPlan,
       onAddWorkspace,
+      onAddProject,
       onCloseSession,
       onCloseWorkspace,
       onCopySessionCwd,

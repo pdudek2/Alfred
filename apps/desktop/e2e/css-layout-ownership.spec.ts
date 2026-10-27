@@ -262,9 +262,9 @@ test.describe("New session sheet layout", () => {
   test("keeps three prompt rows and scrolls beyond them", async ({ harness }, testInfo) => {
     const { page } = harness;
     await page.getByRole("button", { name: "New", exact: true }).click();
-    await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+    await page.getByRole("radio", { name: /^Claude/ }).click();
     const prepareWork = page.getByRole("dialog", { name: "New session" });
-    const input = prepareWork.getByRole("textbox", { name: "Goal" });
+    const input = prepareWork.getByRole("textbox", { name: "First prompt" });
     const readControlHeights = () => prepareWork.evaluate((node) => ({
       prepare: node.querySelector<HTMLElement>(".new-session-start")?.getBoundingClientRect().height,
       target: node.querySelector<HTMLElement>(".chrome-menu-trigger")?.getBoundingClientRect().height,
@@ -445,7 +445,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await capture("work-deck", [...frameProbes, ...terminalProbes]);
 
   await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+  await page.getByRole("radio", { name: /^Claude/ }).click();
   await expect(page.getByRole("dialog", { name: "New session" })).toBeVisible();
   await capture("new-session", [...frameProbes, ...terminalProbes, ...newSessionProbes]);
   await page.keyboard.press("Escape");
