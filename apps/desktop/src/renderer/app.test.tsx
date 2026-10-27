@@ -819,7 +819,7 @@ describe("App integration", () => {
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
   });
 
-  it("releases a rejected pending start after close so the client ID can be reused", async () => {
+  it("releases a rejected pending start after close, and the next terminal takes a new client ID", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
     const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
@@ -836,7 +836,7 @@ describe("App integration", () => {
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
-    expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-1" }));
+    expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-2" }));
     expect(await screen.findByTestId("terminal-tile")).toBeInTheDocument();
     expect(bridge.killTerminal).not.toHaveBeenCalled();
   });
@@ -894,7 +894,7 @@ describe("App integration", () => {
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
   });
 
-  it("does not attach an old pending start to a reused client ID in another workspace", async () => {
+  it("does not attach an old pending start to a new session in another workspace", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
     const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
@@ -907,7 +907,7 @@ describe("App integration", () => {
     await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
-    expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-1", workspaceId: "W2" }));
+    expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-2", workspaceId: "W2" }));
     await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
 
     await act(async () => {
@@ -1063,6 +1063,31 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: "Fix ingest retry" })).toBeInTheDocument();
     expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Fix ingest retry" });
+  });
+
+  it("does not name a session after a menu choice or a slash command, only after a real prompt", async () => {
+    const { renameTerminal } = installDesktopBridge(undefined, null, [
+      liveSnapshot("codex-1", { title: "Codex" }),
+    ]);
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: "Codex" })).toBeInTheDocument();
+    await waitFor(() => expect(terminalInputHandlers).toHaveLength(1));
+    act(() => {
+      terminalInputHandlers[0]?.("3\r");
+      terminalInputHandlers[0]?.("/model\r");
+    });
+    expect(screen.getByRole("article", { name: "Codex" })).toBeInTheDocument();
+    expect(renameTerminal).not.toHaveBeenCalled();
+
+    act(() => {
+      terminalInputHandlers[0]?.("Run the test suite\r");
+    });
+    expect(await screen.findByRole("article", { name: "Run the test suite" })).toBeInTheDocument();
+    act(() => {
+      terminalInputHandlers[0]?.("/exit\r");
+    });
+    expect(screen.getByRole("article", { name: "Run the test suite" })).toBeInTheDocument();
   });
 
   it("backfills only generated Codex titles from the indexed conversation", async () => {
@@ -5990,7 +6015,7 @@ describe("App integration", () => {
     });
   });
 
-  it("ignores a pending checkout action result after the session id is reused", async () => {
+  it("ignores a pending checkout action result after its session closes and a new one starts", async () => {
     const user = userEvent.setup();
     let resolveApply!: (value: { ok: true; appliedFiles: number }) => void;
     let applyPromiseSettled = false;
@@ -6026,18 +6051,11 @@ describe("App integration", () => {
     fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to Alfred" }));
     await waitFor(() => expect(within(oldActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    // A closing session holds its id for five seconds; after that a new session takes it again.
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      await user.click(screen.getByRole("button", { name: "Open command palette" }));
-      await submitCommandPalette(user, "close focused session");
-      // Its checkout still holds changes, so closing asks first.
-      await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
-      await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
-      act(() => { vi.advanceTimersByTime(5_000); });
-    } finally {
-      vi.useRealTimers();
-    }
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await submitCommandPalette(user, "close focused session");
+    // Its checkout still holds changes, so closing asks first.
+    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "codex isolated");
@@ -6046,7 +6064,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
-          clientId: "codex-1",
+          clientId: "codex-2",
           isolation: "worktree",
         }),
       );
@@ -8927,7 +8945,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
   });
 
-  it("clears armed Recovery state after confirmed worktree Discard before reusing the session ID", async () => {
+  it("clears armed Recovery state after confirmed worktree Discard, and a new session does not inherit it", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(
       undefined,
@@ -8961,7 +8979,7 @@ describe("App integration", () => {
 
     bridge.createTerminal.mockResolvedValueOnce({
       id: "runtime-reused-recovery",
-      clientId: "manual-1",
+      clientId: "manual-2",
       title: "Reused risky recovery",
       source: "manual",
       workspaceId: "A",
