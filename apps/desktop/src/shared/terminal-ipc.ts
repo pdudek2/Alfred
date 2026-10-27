@@ -69,6 +69,8 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   foregroundAgentKind?: TerminalForegroundAgentKind;
   agentSignal?: TerminalAgentSignal;
   shellBusy?: boolean;
+  /** The program holding a plain shell's foreground, as a title ("pnpm dev"). */
+  foregroundCommand?: string;
   /** You have sent this session a message. */
   promptSubmitted?: boolean;
   activityEvents?: SessionActivityEvent[];
@@ -210,6 +212,8 @@ export type TerminalDataEvent = {
   agentSignal?: TerminalAgentSignal | null;
   /** Whether a program other than the shell holds the foreground. Absent means unchanged. */
   shellBusy?: boolean;
+  /** Sent once the program in a plain shell's foreground has held it a while; shellBusy false ends it. */
+  foregroundCommand?: string;
   /** Sent once, when you first send the session a message. */
   promptSubmitted?: true;
   /** Sent when the agent's hooks name a conversation other than the one known. */
