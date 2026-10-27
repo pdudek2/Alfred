@@ -1,4 +1,5 @@
 import { isTrustedIpcRecipient, trustedIpc } from "./trusted-ipc.js";
+import { redactText } from "@alfred/schema";
 import { BrowserWindow } from "electron";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -1178,7 +1179,8 @@ function probeForegroundCommand(session: TerminalSession, foreground: string): v
     if (!current()) return;
     void inspectShellForeground(session.pty.pid).then((command) => {
       if (!command || !current() || agentKindFromCommand(command)) return;
-      session.foregroundCommand = commandTitle(command);
+      // A title reaches more places than the terminal does (the planner's prompt among them), so secrets stay out.
+      session.foregroundCommand = redactText(commandTitle(command));
       sendSignalUpdate(session, { foregroundCommand: session.foregroundCommand });
     }, () => {});
   }, foregroundCommandDelayMs).unref();
