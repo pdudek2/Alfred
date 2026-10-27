@@ -3067,7 +3067,7 @@ describe("terminal-manager IPC", () => {
   });
 
   it("resolves sanitized isolated checkout operations through the authoritative workspace root", async () => {
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "" }));
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
     const resolveWorkspaceRoot = vi.fn(async (workspaceId: string) => workspaceId === "A" ? "/repo" : undefined);
     configureTerminalPersistence(storeWithRestoredSessions([{
       clientId: "sanitized",
@@ -3088,6 +3088,7 @@ describe("terminal-manager IPC", () => {
       ok: true,
       summary: "1 changed file",
       files: [],
+      applied: false,
       patch: "",
     });
     expect(resolveWorkspaceRoot).toHaveBeenCalledWith("A");
@@ -3110,7 +3111,7 @@ describe("terminal-manager IPC", () => {
       // Checkouts are made from the repository's root, and the session starts in the project's folder inside one.
       const worktree = path.join(managedProjectWorktreeRoot(worktreeStoreRoot, repository), branchName);
       await fs.mkdir(path.join(worktree, "packages", "app"), { recursive: true });
-      const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "" }));
+      const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
       configureTerminalPersistence(storeWithRestoredSessions([{
         clientId: "subfolder",
         title: "Codex",
@@ -3133,6 +3134,7 @@ describe("terminal-manager IPC", () => {
         ok: true,
         summary: "1 changed file",
         files: [],
+        applied: false,
         patch: "",
       });
       expect(inspectAgentWorktree).toHaveBeenCalledWith(expect.objectContaining({ baseCwd: repository, branchName }), {
@@ -3162,7 +3164,7 @@ describe("terminal-manager IPC", () => {
       );
       await fs.mkdir(canonicalWorktree, { recursive: true });
 
-      const inspectAgentWorktree = vi.fn(async () => ({ summary: "2 changed files", files: [], patch: "" }));
+      const inspectAgentWorktree = vi.fn(async () => ({ summary: "2 changed files", files: [], patch: "", applied: false }));
       configureTerminalPersistence(storeWithRestoredSessions([{
         clientId: "s4-fresh-apply",
         title: "S4 fresh Apply fixture",
@@ -3189,6 +3191,7 @@ describe("terminal-manager IPC", () => {
         ok: true,
         summary: "2 changed files",
         files: [],
+        applied: false,
         patch: "",
       });
       expect(inspectAgentWorktree).toHaveBeenCalledWith({
@@ -3217,7 +3220,7 @@ describe("terminal-manager IPC", () => {
       error: "This workspace points to a different project. Reattach the original project first.",
     },
   ])("rejects sanitized operations for $name before worktree access", async ({ error, fingerprint, resolvedRoot }) => {
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "unexpected", files: [], patch: "" }));
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "unexpected", files: [], patch: "", applied: false }));
     const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
     const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
     configureTerminalPersistence(storeWithRestoredSessions([{
@@ -3411,7 +3414,71 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
-  it("rejects Discard for a live session without cleanup or metadata loss", async () => {
+  it("stops a running checkout's agent before Discard removes its checkout", async () => {
+    const pty = new FakePty();
+    const order: string[] = [];
+    pty.kill = () => {
+      pty.killed = true;
+      order.push("kill");
+      queueMicrotask(() => pty.onExitHandler?.({ exitCode: 0 }));
+    };
+    const cleanupAgentWorktree = vi.fn(async (request: { branchName: string; force?: boolean }): Promise<void> => {
+      order.push(`cleanup ${request.branchName} force=${request.force}`);
+    });
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-live",
+        cwd: path.join(managedProjectWorktreeRoot("/alfred/userData/worktrees", "/repo"), "alfred-codex-live"),
+      }),
+    });
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-live",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+    });
+
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "codex-live",
+      cleanupWorktree: true,
+    })).resolves.toEqual({ ok: true });
+
+    expect(order).toEqual(["kill", "cleanup alfred-codex-live force=true"]);
+    expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions).toHaveLength(0);
+    expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([]);
+  });
+
+  it("reports the project's uncommitted files when it makes a checkout from the last commit", async () => {
+    registerTerminalIpc({
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-dirty",
+        cwd: "/alfred/userData/worktrees/dirty",
+        uncommittedFiles: 2,
+      }),
+    });
+
+    await expect(invoke(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-dirty",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+    })).resolves.toMatchObject({ clientId: "codex-dirty", uncommittedFiles: 2 });
+  });
+
+  it("rejects Discard for a live session that is not a checkout, without cleanup or metadata loss", async () => {
     const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
     registerTerminalIpc({
       cleanupAgentWorktree,
@@ -3754,6 +3821,7 @@ describe("terminal-manager IPC", () => {
         { path: "src/app.tsx", status: "M" },
         { path: "notes/review.md", status: "??" },
       ],
+      applied: false,
       patch: "diff --git a/src/app.tsx b/src/app.tsx\n--- a/src/app.tsx\n+++ b/src/app.tsx",
     }));
     const prepareAgentWorktree = vi.fn(async () => ({
@@ -3789,6 +3857,7 @@ describe("terminal-manager IPC", () => {
         { path: "src/app.tsx", status: "M" },
         { path: "notes/review.md", status: "??" },
       ],
+      applied: false,
       patch: "diff --git a/src/app.tsx b/src/app.tsx\n--- a/src/app.tsx\n+++ b/src/app.tsx",
     });
     expect(inspectAgentWorktree).toHaveBeenCalledWith({
@@ -4246,7 +4315,7 @@ describe("terminal-manager IPC", () => {
     const ownerSender = senderFor(ownerWindow);
     const otherSender = senderFor(otherWindow);
     const pty = new FakePty();
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "" }));
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
     const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
     registerTerminalIpc({
       applyAgentWorktreePatch,

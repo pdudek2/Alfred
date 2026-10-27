@@ -2583,6 +2583,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .details-actions button { height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-control); color: var(--text-primary); font: 400 13px/18px var(--sans); }
 .details-actions button:hover { background: var(--surface-control-hover); }
 .details-actions button:disabled { opacity: .5; cursor: default; }
+.details-applied { display: inline-flex; align-items: center; height: 30px; color: var(--text-secondary); font: 400 13px/18px var(--sans); }
 /* One column as wide as Details, so a long step is cut instead of widening the list. */
 .context-drawer .agent-activity-list { grid-template-columns: minmax(0, 1fr); padding: 0; margin: 0; gap: 0; }
 .context-drawer .agent-activity-list li { display: flex; align-items: flex-start; gap: 9px; padding: 5px 10px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

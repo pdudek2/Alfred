@@ -258,7 +258,7 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
-  it("marks dirty worktree snapshots ready for coding agents", async () => {
+  it("says a checkout starts from the last commit when the project has uncommitted files", async () => {
     const result = await preflightAlfredPlan(
       {
         sessions: [{
@@ -277,15 +277,15 @@ describe("preflightAlfredPlan", () => {
           baseCwd: "/repo",
           branchName: "alfred-codex-review",
           cwd: "/.alfred-worktrees/repo/alfred-codex-review",
-          snapshot: { trackedChanges: true, untrackedFiles: 2 },
+          uncommittedFiles: 3,
         }),
       },
     );
 
     expect(result.sessions[0]?.launchPreflight).toMatchObject({
       status: "ready",
-      label: "Snapshot worktree ready",
-      detail: "Will create an isolated Git worktree and copy current workspace changes into it.",
+      label: "Worktree ready",
+      detail: "Will create an isolated Git worktree from the last commit; 3 uncommitted files stay in the project.",
       isolation: "worktree",
       branchName: "alfred-codex-review",
     });

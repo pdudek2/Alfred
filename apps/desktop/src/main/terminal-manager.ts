@@ -106,6 +106,7 @@ type WorktreeOperationSession = {
   workspaceId?: string | undefined;
   workspaceRootFingerprint?: string | undefined;
 };
+type WorktreeOperation = Extract<Awaited<ReturnType<typeof worktreeOperationRequest>>, { ok: true }>;
 type TerminalIpcOptions = {
   /** Where Claude and Codex send the events Alfred keeps on record. */
   agentEvents?: AgentEventLog | null;
@@ -182,6 +183,8 @@ type TerminalSession = {
   lastOutputAt?: number;
   persistLaunchData: boolean;
   pty: PtyProcess;
+  /** Settles when the process has exited. */
+  ptyExited?: Promise<void>;
   // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
   window?: BrowserWindow;
   ownerWindowId: number;
@@ -207,6 +210,8 @@ const MAX_BUFFER_LENGTH = 200_000;
 // What saving gets: the tail it keeps and the margin redaction reads before it.
 const MAX_PERSISTED_BUFFER_LENGTH = MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN;
 const MAX_RECENT_TERMINAL_EXITS = 64;
+/** How long discarding a running checkout waits for its agent to exit before the folder goes anyway. */
+const LIVE_CHECKOUT_STOP_WAIT_MS = 5_000;
 /** More sent messages than a terminal's scrollback can show. */
 const MAX_CODEX_VISIBLE_MESSAGES = 1_000;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
@@ -668,6 +673,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         reportPtyExit = resolve;
       });
       pendingPtyExits.add(ptyExit);
+      session.ptyExited = ptyExit;
       session.pty.onExit(({ exitCode, signal }) => {
         pendingPtyExits.delete(ptyExit);
         reportPtyExit();
@@ -702,7 +708,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         sendToSessionWindow(session, terminalChannels.exit, payload);
       });
 
-      return toCreateResult(session);
+      return {
+        ...toCreateResult(session),
+        ...(createdWorktree?.uncommittedFiles ? { uncommittedFiles: createdWorktree.uncommittedFiles } : {}),
+      };
     },
   );
 
@@ -776,27 +785,39 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     try {
       await hydratePersistedTerminalSessions();
       const liveSession = findLiveSessionByClientId(request.clientId);
+      let stoppedCheckout: WorktreeOperation | null = null;
       if (liveSession) {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window || !canAttachToWindow(liveSession, window)) {
           return { ok: false, error: "Session not found." };
         }
-        return { ok: false, error: "Close the live session before discarding its checkout." };
+        if (request.cleanupWorktree !== true || !isIsolatedWorktreeSession(liveSession)) {
+          return { ok: false, error: "Close the live session before discarding its checkout." };
+        }
+        // A running checkout is resolved while its session is live; then its agent stops before the folder goes.
+        const operation = await worktreeOperationRequest(event.sender, request.clientId, options);
+        if (!operation.ok) {
+          return operation;
+        }
+        stoppedCheckout = operation;
+        const exited = liveSession.ptyExited;
+        killSession(liveSession.id, "close");
+        await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, LIVE_CHECKOUT_STOP_WAIT_MS))]);
       }
 
       session = restoredSessionSnapshots.get(request.clientId);
       const window = BrowserWindow.fromWebContents(event.sender);
       const recentExit = [...recentTerminalExits.values()].find((exit) => exit.event.clientId === request.clientId);
-      if (!session && (!recentExit || !window || !canAttachOwnerToWindow(recentExit.ownerWindowId, window))) {
+      if (!stoppedCheckout && !session && (!recentExit || !window || !canAttachOwnerToWindow(recentExit.ownerWindowId, window))) {
         return { ok: false, error: "Session not found." };
       }
 
-      const isolatedWorktree = session && isIsolatedWorktreeSession(session);
+      const isolatedWorktree = stoppedCheckout !== null || (session && isIsolatedWorktreeSession(session));
       if (isolatedWorktree && request.cleanupWorktree !== true) {
         return { ok: false, error: "Discarding an isolated checkout requires worktree cleanup." };
       }
       if (isolatedWorktree) {
-        const operation = await worktreeOperationRequest(event.sender, request.clientId, options);
+        const operation = stoppedCheckout ?? await worktreeOperationRequest(event.sender, request.clientId, options);
         if (!operation.ok) {
           return operation;
         }
@@ -886,7 +907,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           operation.request,
           operation.options,
         );
-        return { ok: true, appliedFiles: result.appliedFiles };
+        return { ok: true, appliedFiles: result.appliedFiles, ...(result.alreadyApplied ? { alreadyApplied: true } : {}) };
       } catch (error: unknown) {
         return { ok: false, error: terminalErrorMessage(error), needsManualReview: true };
       }
