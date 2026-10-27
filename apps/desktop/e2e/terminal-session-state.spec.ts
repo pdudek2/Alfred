@@ -45,6 +45,8 @@ test("a plain terminal goes by the program it runs and says where it serves, the
   await expect(row).toContainText(/Serving on port \d+/);
   await page.getByRole("tab", { name: "Preview" }).click();
   await expect(page.locator(".workspace-preview-source")).toHaveText("from node serve.js");
+  // Leaving Preview removes its frame; a frame removed while its process starts makes Chromium log an error.
+  await expect(page.frameLocator('iframe[title^="Preview of "]').getByText("served")).toBeVisible();
   await page.getByRole("tab", { name: "Terminal" }).click();
 
   await input.press("Control+C");
