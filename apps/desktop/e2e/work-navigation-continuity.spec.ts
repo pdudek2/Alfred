@@ -12,13 +12,13 @@ test("keeps New session and global session actions continuous across surfaces", 
   await expect(page.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeVisible();
 
   await openLaunchItem(page, "New session");
-  const draft = page.getByRole("textbox", { name: "Goal" });
+  const draft = page.getByRole("textbox", { name: "First prompt" });
   await draft.fill("preserve this project draft");
   await page.keyboard.press("Escape");
   await selectSurface(page, "History");
   await selectSurface(page, "Work");
   await openLaunchItem(page, "New session");
-  await expect(page.getByRole("textbox", { name: "Goal" }))
+  await expect(page.getByRole("textbox", { name: "First prompt" }))
     .toHaveValue("preserve this project draft");
   await page.keyboard.press("Escape");
 
@@ -70,7 +70,7 @@ test("reads final scrollback after a managed terminal exits", async ({ harness }
 
 async function openLaunchItem(page: Page, label: string): Promise<void> {
   await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: label === "New session" ? /^Plan with Alfred/ : /^Terminal/ }).click();
+  await page.getByRole("radio", { name: label === "New session" ? /^Claude/ : /^Terminal/ }).click();
   if (label !== "New session") await page.getByRole("button", { name: "Start" }).click();
 }
 

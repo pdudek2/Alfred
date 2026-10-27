@@ -13,6 +13,8 @@ export type NewSessionSheetProps = {
   initialIsolation?: boolean;
   /** Set when the session starts as a worker of another ("New worker" on its rail row). */
   parentTitle?: string | undefined;
+  /** Plan with Alfred needs an OpenRouter key; without one it is not offered. */
+  planAvailable?: boolean;
   triggerRef?: RefObject<HTMLButtonElement | null>;
   blockedReason?: string | undefined;
   requestError?: string | undefined;
@@ -30,7 +32,7 @@ const kinds = [
   ["plan", "Plan with Alfred", "Describe a goal and get drafts to launch"],
 ] as const;
 
-export function NewSessionSheet({ projects, projectId, kind, draft, initialIsolation = false, parentTitle, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
+export function NewSessionSheet({ projects, projectId, kind, draft, initialIsolation = false, parentTitle, planAvailable = true, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const [isolated, setIsolated] = useState(initialIsolation);
@@ -114,7 +116,7 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialIsola
           </ChromeMenu></header>
           {parentTitle !== undefined && <p className="new-session-parent">Worker of <strong>{parentTitle}</strong></p>}
           <fieldset disabled={busy || disabled} className="new-session-kinds"><legend className="visually-hidden">Kind</legend>
-            {kinds.filter(([value]) => parentTitle === undefined || value !== "plan").map(([value, title, description]) => <label key={value} className={kind === value ? "selected" : undefined}>
+            {kinds.filter(([value]) => value !== "plan" || (parentTitle === undefined && planAvailable)).map(([value, title, description]) => <label key={value} className={kind === value ? "selected" : undefined}>
               <input type="radio" name="new-session-kind" value={value} checked={kind === value} onChange={() => onKindChange(value)} />
               <span><strong>{title}</strong><small>{description}</small></span>
             </label>)}

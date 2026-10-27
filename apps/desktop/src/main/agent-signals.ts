@@ -233,6 +233,9 @@ function describeTurnEnd(payload: unknown): string | undefined {
 function describePermissionRequest(payload: unknown): string {
   if (typeof payload !== "object" || payload === null) return "Waiting for approval";
   const { name, fields } = toolCall(payload);
+  // AskUserQuestion waits for an answer, not a permission: what Alfred shows is the question itself.
+  const question = name === "AskUserQuestion" ? askedQuestion(fields) : undefined;
+  if (question) return question.slice(0, MAX_DETAIL);
   const target = toolTarget(fields);
   const toolName = name || "a tool";
   const patchedFile = toolName === "apply_patch" ? firstPatchedFile(target) : undefined;
@@ -252,6 +255,17 @@ function toolCall(payload: unknown): { name: string; fields: Record<string, unkn
     name: typeof tool === "string" ? tool : "",
     fields: typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {},
   };
+}
+
+/** The first question an AskUserQuestion call asks, and how many follow it. */
+function askedQuestion(fields: Record<string, unknown>): string | undefined {
+  const questions = Array.isArray(fields.questions) ? fields.questions : [];
+  const first = questions
+    .map((item) => typeof item === "object" && item !== null ? (item as { question?: unknown }).question : undefined)
+    .find((text): text is string => typeof text === "string" && text.trim() !== "");
+  if (!first) return undefined;
+  const line = first.trim().split("\n")[0]!.trim();
+  return questions.length > 1 ? `${line} (+${questions.length - 1} more)` : line;
 }
 
 function toolTarget(fields: Record<string, unknown>): string {

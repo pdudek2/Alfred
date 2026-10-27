@@ -139,6 +139,15 @@ describe("signals", () => {
     expect(signalFromHook("PermissionRequest", undefined)).toEqual({ state: "needs-you", detail: "Waiting for approval" });
   });
 
+  it("shows the question an AskUserQuestion call asks, and how many more follow", () => {
+    const ask = (questions: unknown) => signalFromHook("PermissionRequest", { tool_name: "AskUserQuestion", tool_input: { questions } });
+    expect(ask([{ question: "Should I run npm test in ux-sandbox?", header: "Tests", options: [{ label: "Yes" }, { label: "No" }] }]))
+      .toEqual({ state: "needs-you", detail: "Should I run npm test in ux-sandbox?" });
+    expect(ask([{ question: "Which database?\nPick one." }, { question: "Which port?" }]))
+      .toEqual({ state: "needs-you", detail: "Which database? (+1 more)" });
+    expect(ask([])).toEqual({ state: "needs-you", detail: "AskUserQuestion: waiting for approval" });
+  });
+
   it("says what a turn ended with: the first line of the agent's last answer", () => {
     expect(signalFromHook("Stop", {
       last_assistant_message: "## Done\n\nUtworzyłem plik `hello world.txt` na **pulpicie**.",
