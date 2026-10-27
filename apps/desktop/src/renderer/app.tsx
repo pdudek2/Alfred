@@ -238,6 +238,9 @@ export function App() {
   const restoreWorkFocusPendingRef = useRef(false);
   const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef(new Map<string, { instanceKey: string; attempt?: TerminalStartAttempt }>());
+  // Every id a session had in this run. A new session never takes one, so it cannot inherit a closed session's saved
+  // screen or share its id in the agent event log; after a restart, the sessions Alfred keeps come back with theirs.
+  const seenSessionIdsRef = useRef(new Set<string>());
   const startingSessionIdsRef = useRef(new Map<string, { attempt: TerminalStartAttempt; cancelled: boolean }>());
   const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
   const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
@@ -329,6 +332,7 @@ export function App() {
 
   useLayoutEffect(() => {
     terminalSessionsRef.current = terminalSessions;
+    for (const session of terminalSessions) seenSessionIdsRef.current.add(session.id);
   }, [terminalSessions]);
 
   useEffect(() => {
@@ -422,7 +426,7 @@ export function App() {
         isolation,
         prompt,
         parentSessionId,
-        closingSessionIdsRef.current.keys(),
+        seenSessionIdsRef.current,
       ),
     );
   }, [
@@ -452,7 +456,7 @@ export function App() {
         request.isolated ? "worktree" : "shared",
         request.prompt,
         parent.id,
-        closingSessionIdsRef.current.keys(),
+        seenSessionIdsRef.current,
       );
       const generated = added.at(-1)!;
       // The orchestrator's model and effort, as each CLI takes them; main has checked the values.
@@ -498,7 +502,7 @@ export function App() {
         if (workspace && rootPath && workspace.rootStatus !== "missing") {
           setTerminalSessions((sessions) => {
             const workspaceSessions = sessions.filter((session) => session.workspaceId === workspace.id);
-            if (workspaceSessions.length === 0) return addManualSession(sessions, rootPath, workspace.id, undefined, closingSessionIdsRef.current.keys());
+            if (workspaceSessions.length === 0) return addManualSession(sessions, rootPath, workspace.id, undefined, seenSessionIdsRef.current);
 
             return sessions.map((session) => {
               if (
@@ -527,7 +531,7 @@ export function App() {
       setWorkspaces(snapshot.workspaces);
       setActiveWorkspaceId(snapshot.activeWorkspaceId);
       if (workspace && !previousWorkspaceIds.has(workspace.id)) {
-        setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id, undefined, closingSessionIdsRef.current.keys()));
+        setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id, undefined, seenSessionIdsRef.current));
       }
       return;
     }
@@ -540,7 +544,7 @@ export function App() {
     };
     setWorkspaces([...workspaces, workspace]);
     setActiveWorkspaceId(workspace.id);
-    setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id, undefined, closingSessionIdsRef.current.keys()));
+    setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id, undefined, seenSessionIdsRef.current));
   }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus, workspaces]);
 
   const handleCloseActiveWorkspace = useCallback(() => {
@@ -811,7 +815,7 @@ export function App() {
         workspace.rootPath ?? "",
         workspace.id,
         parentSessionId,
-        closingSessionIdsRef.current.keys(),
+        seenSessionIdsRef.current,
       ),
     );
   }, [
@@ -1633,6 +1637,7 @@ export function App() {
       response.plan.sessions,
       workspace.rootPath ?? "",
       workspace.id,
+      seenSessionIdsRef.current,
     );
     const stagedSessions = after.slice(before.length);
     const stagedPlan = createStagedPlanSnapshot({

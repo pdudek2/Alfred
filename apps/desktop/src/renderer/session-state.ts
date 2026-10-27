@@ -15,7 +15,7 @@ import type {
   TerminalSessionIsolation,
   TerminalResumeTarget,
 } from "../shared/terminal-ipc";
-import { normalizeSessionTitle } from "../shared/session-title";
+import { normalizeSessionTitle, titleFromPrompt } from "../shared/session-title";
 
 export type SessionTile = {
   id: string;
@@ -121,7 +121,8 @@ export function addAgentSession(
   reservedIds: Iterable<string> = [],
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`, reservedIds);
-  const title = nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : "Claude");
+  // A first prompt names the session; without one it keeps a generated title until you type one.
+  const title = titleFromPrompt(prompt) || nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : "Claude");
   return [
     ...sessions,
     {
@@ -388,20 +389,39 @@ function resumeLaunchForRestoredAgent(
   const agentKind = restoredAgentKind(session);
 
   if (agentKind === "codex") {
+    const flags = modelAndEffortArgs("codex", session.args);
     if (session.resumeTarget?.agentKind === "codex") {
-      return { command: "codex", args: ["resume", session.resumeTarget.sessionId], resumeMode: "exact" };
+      return { command: "codex", args: ["resume", ...flags, session.resumeTarget.sessionId], resumeMode: "exact" };
     }
-    return { command: "codex", args: ["resume", "--last"], resumeMode: "latest" };
+    return { command: "codex", args: ["resume", ...flags, "--last"], resumeMode: "latest" };
   }
 
   if (agentKind === "claude") {
+    const flags = modelAndEffortArgs("claude", session.args);
     if (session.resumeTarget?.agentKind === "claude") {
-      return { command: "claude", args: ["--resume", session.resumeTarget.sessionId], resumeMode: "exact" };
+      return { command: "claude", args: [...flags, "--resume", session.resumeTarget.sessionId], resumeMode: "exact" };
     }
-    return { command: "claude", args: ["--continue"], resumeMode: "latest" };
+    return { command: "claude", args: [...flags, "--continue"], resumeMode: "latest" };
   }
 
   return {};
+}
+
+/** The model and effort a session was launched with (a worker's, say), so its resume runs on the same ones. */
+function modelAndEffortArgs(agentKind: "claude" | "codex", args: string[] = []): string[] {
+  const flags: string[] = [];
+  for (let index = 0; index < args.length - 1; index += 1) {
+    const [flag, value] = [args[index]!, args[index + 1]!];
+    if (flag === "--") break;
+    const kept = agentKind === "claude"
+      ? flag === "--model" || flag === "--effort"
+      : flag === "-m" || flag === "--model" || (flag === "-c" && value.startsWith("model_reasoning_effort="));
+    if (kept) {
+      flags.push(flag, value);
+      index += 1;
+    }
+  }
+  return flags;
 }
 
 function resumeModeForRestoredAgent(
@@ -492,8 +512,9 @@ export function addStagedSessions(
   planSessions: AlfredPlanSession[],
   defaultCwd: string,
   workspaceId = "A",
+  reservedIds: Iterable<string> = [],
 ): SessionTile[] {
-  let nextIndex = nextAlfredSessionIndex(sessions);
+  let nextIndex = nextPrefixedSessionIndex(sessions, ALFRED_SESSION_PREFIX, reservedIds);
   const staged: SessionTile[] = planSessions.map((session) => {
     const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     const tile: SessionTile = {
@@ -613,13 +634,3 @@ export function terminalEventMatchesSession(
     : event.clientId !== undefined && session.id === event.clientId;
 }
 
-function nextAlfredSessionIndex(sessions: SessionTile[]): number {
-  const usedIndexes = sessions
-    .filter((session) => session.id.startsWith(ALFRED_SESSION_PREFIX))
-    .map((session) => {
-      const index = Number.parseInt(session.id.slice(ALFRED_SESSION_PREFIX.length), 10);
-      return Number.isInteger(index) ? index : 0;
-    });
-
-  return Math.max(0, ...usedIndexes) + 1;
-}

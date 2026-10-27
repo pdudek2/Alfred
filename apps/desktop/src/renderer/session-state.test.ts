@@ -118,7 +118,13 @@ describe("desktop session state", () => {
     expect(closed[0]).not.toHaveProperty("parentSessionId");
   });
 
-  it("does not give a new session the id of one still closing", () => {
+  it("names an agent session after its first prompt, but not after a command or a short answer", () => {
+    expect(addAgentSession([], "claude", "/repo", "A", "shared", "Fix the login bug\nand add a test").at(-1)!.title).toBe("Fix the login bug");
+    expect(addAgentSession([], "codex", "/repo", "A", "shared", "/review").at(-1)!.title).toBe("Codex");
+    expect(addAgentSession([], "claude", "/repo", "A", "shared", "").at(-1)!.title).toBe("Claude");
+  });
+
+  it("does not give a new session the id of one seen earlier in the run", () => {
     expect(addAgentSession([], "claude", "/repo", "A", "shared", "", undefined, ["claude-1"]).at(-1)!.id).toBe("claude-2");
     expect(addManualSession([], "/repo", "A", undefined, ["manual-1", "claude-3"]).at(-1)!.id).toBe("manual-2");
   });
@@ -712,6 +718,40 @@ describe("desktop session state", () => {
       args: ["--continue"],
       resumeMode: "latest",
     });
+  });
+
+  it("resumes a worker on the model and effort it was launched with", () => {
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "claude-2",
+        title: "Worker",
+        cwd: "/repo",
+        source: "manual",
+        agentKind: "claude",
+        command: "claude",
+        args: ["--model", "opus", "--effort", "high", "--", "Run the tests"],
+        resumeTarget: { agentKind: "claude", sessionId: "conv-1", source: "agent-hook" },
+        shell: "claude",
+        buffer: "",
+      },
+      {
+        clientId: "codex-2",
+        title: "Codex worker",
+        cwd: "/repo",
+        source: "manual",
+        agentKind: "codex",
+        command: "codex",
+        args: ["-m", "gpt-6.1-sol", "-c", "model_reasoning_effort=\"xhigh\"", "--", "-m is part of the prompt"],
+        shell: "codex",
+        buffer: "",
+      },
+    ]);
+
+    const claude = relaunchRestoredSession(restored, "claude-2")[0]!;
+    expect(claude.args).toEqual(["--model", "opus", "--effort", "high", "--resume", "conv-1"]);
+    expect(relaunchRestoredSession([claude], "claude-2")[0]!.args).toEqual(claude.args);
+    expect(relaunchRestoredSession(restored, "codex-2")[1]!.args)
+      .toEqual(["resume", "-m", "gpt-6.1-sol", "-c", "model_reasoning_effort=\"xhigh\"", "--last"]);
   });
 
   it("resumes exact Codex target when resumeTarget is present", () => {

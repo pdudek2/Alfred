@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state";
 import { expect, test } from "./support/electron-app";
 import { launchedAgent, sendHook } from "./support/fixture-agents";
 import { sessionTree, treeRow } from "./support/work-layout";
@@ -85,7 +87,8 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   await sendHook(readme, "UserPromptSubmit", { prompt: "Read the README" });
   await sendHook(readme, "Stop", { last_assistant_message: "The README describes the desktop app." });
   await expect(leadTile.getByTestId("xterm-host")).toContainText("Message from Alfred (not from the user)", { timeout: 10_000 });
-  await expect(leadTile.getByTestId("xterm-host")).toContainText('your worker "Codex" (codex-2) finished its turn.');
+  // A worker without a title is named after its prompt.
+  await expect(leadTile.getByTestId("xterm-host")).toContainText('your worker "Read the README" (codex-2) finished its turn.');
   await expect(leadTile.getByTestId("xterm-host")).not.toContainText("The README describes the desktop app.");
 
   // Stopped by the orchestrator, the worker ends and the orchestrator is not told what it did itself.
@@ -107,21 +110,21 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   worker.close();
 });
 
-test("closing an orchestrator leaves its workers to themselves, and a new one under its id starts without them", async ({ harness }) => {
+test("closing an orchestrator leaves its workers to themselves, and a new one starts under a new id without them", async ({ harness }) => {
   const { app, page, paths } = harness;
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1440, height: 900 }));
   await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440);
 
-  const startClaude = async () => {
+  const startClaude = async (clientId: string) => {
     await page.getByRole("button", { name: "New", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "New session", exact: true });
     await sheet.getByRole("radio", { name: /^Claude/ }).click();
     await sheet.getByRole("button", { name: "Start", exact: true }).click();
-    const tile = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]');
+    const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${clientId}"]`);
     await expect(tile).toContainText("claude fixture ready");
     return tile;
   };
-  const leadTile = await startClaude();
+  const leadTile = await startClaude("claude-1");
   const lead = await launchedAgent(paths.root, "claude", () => true);
   const leadServerArgs = mcpServerConfig(lead.args).args.join(" ");
   const orchestrator = mcpClient(mcpServerConfig(lead.args));
@@ -138,9 +141,8 @@ test("closing an orchestrator leaves its workers to themselves, and a new one un
   await expect(sessionTree(page).getByRole("list", { name: /^Workers of / })).toHaveCount(0);
   await expect(treeRow(page, "codex-1")).toBeVisible();
 
-  // Once the close is through, a new Claude takes its id again.
-  await page.waitForTimeout(5_500);
-  await startClaude();
+  // A new Claude never takes a closed session's id, so it cannot inherit its screen or its workers.
+  await startClaude("claude-2");
   const next = await launchedAgent(paths.root, "claude", (args) =>
     args.includes("--mcp-config") && mcpServerConfig(args).args.join(" ") !== leadServerArgs);
   const nextOrchestrator = mcpClient(mcpServerConfig(next.args));
@@ -150,6 +152,36 @@ test("closing an orchestrator leaves its workers to themselves, and a new one un
   nextOrchestrator.close();
 });
 
+
+test("a resumed worker runs on the model and effort its orchestrator gave it", async ({ harness }) => {
+  const { app, page, paths } = harness;
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1440, height: 900 }));
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await sheet.getByRole("radio", { name: /^Claude/ }).click();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
+  const lead = await launchedAgent(paths.root, "claude", () => true);
+  const orchestrator = mcpClient(mcpServerConfig(lead.args));
+  await orchestrator.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } });
+  expect(parse(await orchestrator.call("start_worker", { agent: "codex", prompt: "Write the notes", model: "gpt-6.1-sol", effort: "medium" })))
+    .toMatchObject({ worker_id: "codex-1" });
+  orchestrator.close();
+  const worker = await launchedAgent(paths.root, "codex", (args) => args.includes("Write the notes"));
+  // Its hooks name its conversation, which Resume continues.
+  await sendHook(worker, "Stop", { session_id: "019fe61b-bfb3-7790-9cf6-c5b4ae97df0a", last_assistant_message: "Done." });
+  const stateFile = resolveDesktopStateFilePath({ userDataPath: paths.userData });
+  await expect.poll(async () => (await readFile(stateFile, "utf8")).includes("019fe61b-bfb3-7790-9cf6-c5b4ae97df0a")).toBe(true);
+
+  await treeRow(page, "codex-1").click();
+  const workerTile = page.locator('[data-testid="terminal-tile"][data-session-id="codex-1"]');
+  await expect(workerTile).toContainText("codex fixture ready");
+  await workerTile.getByRole("textbox", { name: "Terminal input" }).press("Control+C");
+  await workerTile.getByTitle("Resume this session").click();
+
+  const resumed = await launchedAgent(paths.root, "codex", (args) => args.includes("resume"));
+  expect(resumed.args.slice(resumed.args.indexOf("resume")))
+    .toEqual(["resume", "-m", "gpt-6.1-sol", "-c", 'model_reasoning_effort="medium"', "019fe61b-bfb3-7790-9cf6-c5b4ae97df0a"]);
+});
 
 function mcpServerConfig(args: string[]): McpServerConfig {
   const json = args[args.indexOf("--mcp-config") + 1]!;

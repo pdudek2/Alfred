@@ -77,3 +77,12 @@ export function stripTitleControlCharacters(value: string): string {
 export function normalizeSessionTitle(title: string): string {
   return stripTitleControlCharacters(stripTerminalControlSequences(title)).trim().replace(/\s+/g, " ").slice(0, MAX_SESSION_TITLE_LENGTH);
 }
+
+/**
+ * The title a first prompt gives a session: its first line. A slash or shell command (`/exit`, `!ls`) and a short answer
+ * such as a menu choice (`3`, `y`) name nothing.
+ */
+export function titleFromPrompt(prompt: string): string {
+  const firstLine = normalizeSessionTitle(prompt.split(/\r?\n/)[0] ?? "");
+  return firstLine.length < 3 || /^[/!]/.test(firstLine) || /^\d+$/.test(firstLine) ? "" : firstLine;
+}
