@@ -171,6 +171,58 @@ describe("desktop session state", () => {
     expect(generatedTitleForDetectedAgent([named], named, "codex")).toBe("Release reviewer");
   });
 
+  it("names a shell after the program in its foreground and gives its own title back at the prompt", () => {
+    const shell: SessionTile = {
+      id: "manual-2", runtimeId: "pty-b", title: "zsh 2", workspaceId: "A", cwd: "/repo", source: "manual", stage: "live",
+      runtimeStatus: "live", shellBusy: true,
+    };
+    const other: SessionTile = { ...shell, id: "manual-1", runtimeId: "pty-a", title: "zsh" };
+    const event = (update: Partial<TerminalDataEvent>): TerminalDataEvent => ({ id: "pty-b", data: "", activities: [], ...update });
+
+    const [, running] = recordSessionOutputActivity([other, shell], event({ foregroundCommand: "pnpm dev" }));
+    expect(running).toMatchObject({ title: "pnpm dev", shellTitle: "zsh 2" });
+    // Its output keeps the name, and a new shell does not take the number it is away from.
+    const [, still] = recordSessionOutputActivity([other, running!], event({ data: "ready in 412 ms\n" }));
+    expect(still).toMatchObject({ title: "pnpm dev", shellTitle: "zsh 2" });
+    expect(addManualSession([other, still!], "/repo", "A").at(-1)?.title).toBe("zsh 3");
+
+    const [, prompt] = recordSessionOutputActivity([other, still!], event({ data: "% ", shellBusy: false }));
+    expect(prompt?.title).toBe("zsh 2");
+    expect(prompt).not.toHaveProperty("shellTitle");
+
+    // An agent takes the agent title, judged by the shell's own name; a name you gave stays through either.
+    const [, agent] = recordSessionOutputActivity([other, running!], event({ data: "Codex\n", foregroundAgentKind: "codex" }));
+    expect(agent?.title).toBe("Codex");
+    expect(agent).not.toHaveProperty("shellTitle");
+    const [, renamed] = renameSession([other, running!], "manual-2", "Dev server");
+    expect(renamed).not.toHaveProperty("shellTitle");
+    const [, kept] = recordSessionOutputActivity([other, renamed!], event({ foregroundCommand: "vitest --watch" }));
+    expect(kept?.title).toBe("Dev server");
+    expect(recordSessionOutputActivity([other, kept!], event({ shellBusy: false }))[1]?.title).toBe("Dev server");
+  });
+
+  it("keeps the address a busy shell printed until it is back at the prompt, and only then", () => {
+    const shell: SessionTile = {
+      id: "manual-1", runtimeId: "pty-a", title: "zsh", workspaceId: "A", cwd: "/repo", source: "manual", stage: "live",
+      runtimeStatus: "live",
+    };
+    const event = (update: Partial<TerminalDataEvent>): TerminalDataEvent => ({ id: "pty-a", data: "", activities: [], ...update });
+    const [typed] = recordSessionOutputActivity([shell], event({ data: "curl http://localhost:4310/", shellBusy: false }));
+    expect(typed).not.toHaveProperty("servingUrl");
+    const [serving] = recordSessionOutputActivity([typed!], event({ data: "  ➜  Local:   http://localhost:4310/\n", shellBusy: true }));
+    expect(serving?.servingUrl).toBe("http://localhost:4310/");
+    const [later] = recordSessionOutputActivity([serving!], event({ data: "hmr update /src/app.tsx\n" }));
+    expect(later?.servingUrl).toBe("http://localhost:4310/");
+    const [stopped] = recordSessionOutputActivity([later!], event({ data: "% ", shellBusy: false }));
+    expect(stopped).not.toHaveProperty("servingUrl");
+
+    const [reloaded] = hydrateLiveTerminalSessions([{
+      id: "pty-a", clientId: "manual-1", title: "zsh", cwd: "/repo", source: "manual", shell: "/bin/zsh", createdAt: 1,
+      buffer: "% pnpm dev\nLocal: http://localhost:4310/\n", shellBusy: true, foregroundCommand: "pnpm dev",
+    }]);
+    expect(reloaded).toMatchObject({ title: "pnpm dev", shellTitle: "zsh", servingUrl: "http://localhost:4310/" });
+  });
+
   it("renames a session with normalized display text", () => {
     const initial = createInitialSessions("/Users/sample/Desktop/Alfred");
     const renamed = renameSession(initial, "manual-1", "  Spec   reviewer  ");
