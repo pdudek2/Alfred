@@ -75,9 +75,11 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
             <button type="button" disabled={pending} onClick={() => sessionId && onReview(sessionId)}>
               {pendingAction === "review" ? "Reviewing..." : "Review diff"}
             </button>
-            <button type="button" disabled={pending} onClick={() => sessionId && onApply(sessionId)}>
-              {pendingAction === "apply" ? "Applying..." : `Apply to ${projectName}`}
-            </button>
+            {result.applied
+              ? <span className="details-applied" role="status">Applied to {projectName}</span>
+              : <button type="button" disabled={pending} onClick={() => sessionId && onApply(sessionId)}>
+                {pendingAction === "apply" ? "Applying..." : `Apply to ${projectName}`}
+              </button>}
           </div>
         </>}
     </section>

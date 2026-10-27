@@ -98,7 +98,7 @@ describe("activity sentences", () => {
 });
 
 describe("activity presentation", () => {
-  it.each(["Resuming session", "Relaunching session", "Session asleep"])(
+  it.each(["Resuming session", "Relaunching session", "Session asleep", "Started from the last commit", "Already in the project"])(
     "keeps the %s lifecycle event visible, including titles saved before the vocabulary change",
     (title) => {
       const event: SessionActivityEvent = { ...baseEvent, kind: "lifecycle", title, detail: "Alfred is starting a fresh process." };
