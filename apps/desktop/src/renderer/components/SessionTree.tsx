@@ -221,7 +221,14 @@ function WorkerCounts({ workers }: { workers: readonly TreeNode[] }) {
  * input box, so the latest classified activity stands in. It uses the sentences of the other surfaces: what a
  * waiting session asks as Needs you says it, the rest as Details.
  */
-export function sessionPreviewLine(session: Pick<SessionTile, "activityEvents">, status: SessionDisplayStatus): string | null {
+export function sessionPreviewLine(
+  session: Pick<SessionTile, "activityEvents" | "servingUrl">,
+  status: SessionDisplayStatus,
+): string | null {
+  if (status.kind === "running" && session.servingUrl) {
+    const { host, port } = new URL(session.servingUrl);
+    return port ? `Serving on port ${port}` : `Serving on ${host}`;
+  }
   const approval = status.kind === "needs-you" && status.reason === "approval" ? pendingApproval(session.activityEvents) : undefined;
   if (approval) return waitingSentence(approval);
   const events = session.activityEvents ?? [];

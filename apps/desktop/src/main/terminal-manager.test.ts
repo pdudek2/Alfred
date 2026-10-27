@@ -5022,5 +5022,58 @@ describe("terminal-manager IPC", () => {
       pty.onDataHandler?.("done\nprompt % ");
       expect(lastDataEvent()).toMatchObject({ shellBusy: false });
     });
+
+    it.each([
+      ["an installed script", "node", "node /opt/homebrew/bin/pnpm dev", "pnpm dev"],
+      ["a program by its path", "tail", "/usr/bin/tail -f staging.log", "tail -f staging.log"],
+      ["a script you named", "node", "node serve.js", "node serve.js"],
+    ])("names a plain terminal after %s while it holds the foreground", async (_what, program, args, title) => {
+      const pty = new FakePty();
+      registerTerminalIpc({
+        foregroundCommandDelayMs: 20,
+        inspectForegroundCommand: async () => args,
+        loadNodePty: async () => fakeNodePty(pty) as never,
+      });
+      const created = await invoke<{ id: string }>(terminalChannels.create, { clientId: "manual-1", cols: 80, cwd: "/repo", rows: 24 });
+
+      pty.process = program;
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[A\r" });
+      await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ data: "", foregroundCommand: title }));
+      expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions[0]).toMatchObject({ foregroundCommand: title });
+
+      pty.process = "zsh";
+      pty.onDataHandler?.("^C\nprompt % ");
+      expect(lastDataEvent()).toMatchObject({ shellBusy: false });
+      expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions[0]).not.toHaveProperty("foregroundCommand");
+    });
+
+    it("does not name a plain terminal after a program that ends at once, or after an agent", async () => {
+      const pty = new FakePty();
+      let command = "ls";
+      registerTerminalIpc({
+        foregroundCommandDelayMs: 40,
+        inspectForegroundCommand: async () => command,
+        loadNodePty: async () => fakeNodePty(pty) as never,
+      });
+      const created = await invoke<{ id: string }>(terminalChannels.create, { clientId: "manual-1", cols: 80, cwd: "/repo", rows: 24 });
+      const named = () => sentEvents.some((event) => (event.payload as { foregroundCommand?: string }).foregroundCommand);
+
+      pty.process = "ls";
+      pty.onDataHandler?.("README.md\n");
+      pty.process = "zsh";
+      pty.onDataHandler?.("prompt % ");
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(named()).toBe(false);
+
+      command = "node /opt/homebrew/bin/codex";
+      pty.process = "node";
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[A\r" });
+      pty.onDataHandler?.("Starting\n");
+      await vi.waitFor(async () => {
+        expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions[0]).toMatchObject({ foregroundAgentKind: "codex" });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(named()).toBe(false);
+    });
   });
 });

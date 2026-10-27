@@ -61,6 +61,7 @@ import {
   restartSession,
   sessionInstanceKey,
   terminalEventMatchesSession,
+  titleForForegroundCommand,
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
@@ -265,10 +266,12 @@ export function App() {
     workspaces,
     externalSessions: [],
   }).total;
-  const activeWorkSessionIds = new Set(activeWorkSessions.map((session) => session.id));
-  const activePreviewCandidates = previewCandidates.filter(
-    (candidate) => candidate.workspaceId === activeWorkspace.id && activeWorkSessionIds.has(candidate.sessionId),
-  );
+  const activeWorkSessionsById = new Map(activeWorkSessions.map((session) => [session.id, session]));
+  const activePreviewCandidates = previewCandidates.flatMap((candidate) => {
+    const source = candidate.workspaceId === activeWorkspace.id ? activeWorkSessionsById.get(candidate.sessionId) : undefined;
+    // Named as the session is now: a shell takes its program's name after that program has printed its address.
+    return source ? [{ ...candidate, sessionTitle: source.title }] : [];
+  });
   const needsGeneratedCodexTitleBackfill = terminalSessions.some((session) => (
     isGeneratedSessionTitle(session.title)
     && (session.agentKind === "codex" || session.detectedAgentKind === "codex" || session.command === "codex")
@@ -1572,9 +1575,11 @@ export function App() {
           mergedActivityEvents?.at(-1)?.at,
         );
         const mergedLastOutputAt = maxDefinedTimestamp(session.lastOutputAt, snapshot.lastOutputAt);
+        const { shellTitle: _shellTitle, ...withoutShellTitle } = session;
 
         return {
-          ...session,
+          ...withoutShellTitle,
+          ...titleForForegroundCommand(session, snapshot),
           detectedAgentKind: snapshot.foregroundAgentKind,
           initialBuffer: snapshot.buffer,
           ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
