@@ -348,173 +348,46 @@ describe("git worktree preparation", () => {
     expect(execFile).not.toHaveBeenCalled();
   });
 
-  it("applies tracked dirty workspace changes into the isolated worktree", async () => {
-    const execFile = vi.fn(async (_file: string, args: string[]) => {
-      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
-      if (args.includes("status")) return { stdout: " M apps/desktop/src/renderer/app.tsx\n", stderr: "" };
-      if (args.includes("worktree")) return { stdout: "prepared\n", stderr: "" };
-      if (args.includes("diff")) return { stdout: "", stderr: "" };
-      if (args.includes("apply")) return { stdout: "", stderr: "" };
-      return { stdout: "", stderr: "" };
-    });
-    const rm = vi.fn(async () => undefined);
-
-    const result = await prepareAgentWorktree(
-      { agentKind: "claude", clientId: "claude-1", cwd: "/repo" },
-      {
-        execFile,
-        mkdir: vi.fn(async () => undefined),
-        now: () => new Date("2026-05-09T19:15:30.000Z"),
-        randomSuffix: () => "abc123",
-        rm,
-      },
-    );
-
-    const patchPath = `${os.tmpdir()}/alfred-claude-claude-1-20260509191530-abc123.patch`;
-    expect(result.snapshot).toEqual({ trackedChanges: true, untrackedFiles: 0 });
-    expect(execFile).toHaveBeenCalledWith(
-      "git",
-      [
-        "-C",
-        "/repo",
-        "diff",
-        "--binary",
-        "HEAD",
-        `--output=${patchPath}`,
-      ],
-      expect.any(Object),
-    );
-    expect(execFile).toHaveBeenCalledWith(
-      "git",
-      [
-        "-C",
-        "/.alfred-worktrees/repo/alfred-claude-claude-1-20260509191530-abc123",
-        "apply",
-        "--whitespace=nowarn",
-        patchPath,
-      ],
-      expect.any(Object),
-    );
-    expect(rm).toHaveBeenCalledWith(patchPath, { force: true });
-  });
-
-  it("copies untracked workspace files into the isolated worktree snapshot", async () => {
-    const execFile = vi.fn(async (_file: string, args: string[]) => {
-      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
-      if (args.includes("status")) return { stdout: "?? scratch.md\n?? notes/todo.md\n", stderr: "" };
-      if (args.includes("worktree")) return { stdout: "prepared\n", stderr: "" };
-      if (args.includes("ls-files")) return { stdout: "scratch.md\0notes/todo.md\0", stderr: "" };
-      return { stdout: "", stderr: "" };
-    });
-    const mkdir = vi.fn(async () => undefined);
-    const cp = vi.fn(async () => undefined);
-
-    const result = await prepareAgentWorktree(
-      { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
-      {
-        cp,
-        execFile,
-        mkdir,
-        now: () => new Date("2026-05-09T19:15:30.000Z"),
-        randomSuffix: () => "abc123",
-      },
-    );
-
-    expect(result.snapshot).toEqual({ trackedChanges: false, untrackedFiles: 2 });
-    expect(cp).toHaveBeenCalledWith(
-      "/repo/scratch.md",
-      "/.alfred-worktrees/repo/alfred-codex-codex-1-20260509191530-abc123/scratch.md",
-      expect.objectContaining({ dereference: false, errorOnExist: true, force: false }),
-    );
-    expect(cp).toHaveBeenCalledWith(
-      "/repo/notes/todo.md",
-      "/.alfred-worktrees/repo/alfred-codex-codex-1-20260509191530-abc123/notes/todo.md",
-      expect.objectContaining({ dereference: false, errorOnExist: true, force: false }),
-    );
-    expect(mkdir).toHaveBeenCalledWith(
-      "/.alfred-worktrees/repo/alfred-codex-codex-1-20260509191530-abc123/notes",
-      { recursive: true },
-    );
-  });
-
-  it("preserves untracked symlinks in the isolated worktree snapshot", async () => {
-    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-snapshot-symlink-"));
+  it("starts a checkout from the last commit and reports the project's uncommitted files", async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-worktree-start-"));
     const baseCwd = path.join(temporaryRoot, "repo");
     const worktreeStoreRoot = path.join(temporaryRoot, "worktrees");
-
     try {
-      await mkdir(baseCwd, { recursive: true });
-      await writeFile(path.join(baseCwd, "target.txt"), "target");
-      await symlink("target.txt", path.join(baseCwd, "link.txt"));
+      await mkdir(baseCwd);
+      await git(baseCwd, "init", "-q");
+      await git(baseCwd, "config", "user.name", "Fixture");
+      await git(baseCwd, "config", "user.email", "fixture@example.test");
+      await writeFile(path.join(baseCwd, "feature.txt"), "committed\n");
+      await git(baseCwd, "add", "feature.txt");
+      await git(baseCwd, "commit", "-qm", "baseline");
+      await writeFile(path.join(baseCwd, "feature.txt"), "your uncommitted edit\n");
+      await writeFile(path.join(baseCwd, "scratch.md"), "untracked\n");
 
-      const execFile = vi.fn(async (_file: string, args: string[]) => {
-        if (args.includes("rev-parse")) return { stdout: `${baseCwd}\n`, stderr: "" };
-        if (args.includes("status")) return { stdout: "?? link.txt\n", stderr: "" };
-        if (args.includes("ls-files")) return { stdout: "link.txt\0", stderr: "" };
-        if (args.includes("worktree")) {
-          await mkdir(args.at(-2)!, { recursive: true });
-          return { stdout: "prepared\n", stderr: "" };
-        }
-        throw new Error(`unexpected git call: ${args.join(" ")}`);
-      });
+      const request = await prepareAgentWorktree({ cwd: baseCwd, branchName: "alfred-codex-start" }, { worktreeStoreRoot });
 
-      const result = await prepareAgentWorktree(
-        { agentKind: "codex", branchName: "alfred-codex-symlink", cwd: baseCwd },
-        { execFile, worktreeStoreRoot },
-      );
-
-      const copiedLink = path.join(result.cwd, "link.txt");
-      expect((await lstat(copiedLink)).isSymbolicLink()).toBe(true);
-      expect(await readlink(copiedLink)).toBe("target.txt");
+      expect(request.uncommittedFiles).toBe(2);
+      expect(await readFile(path.join(request.cwd, "feature.txt"), "utf8")).toBe("committed\n");
+      await expect(lstat(path.join(request.cwd, "scratch.md"))).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).files).toEqual([]);
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
   });
 
-  it("propagates unsupported untracked entry copy errors", async () => {
-    const copyError = Object.assign(new Error("unsupported file type"), {
-      code: "ERR_FS_CP_FIFO_PIPE",
-    });
+  it("starts a checkout while the project has unresolved conflicts", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
-      if (args.includes("status")) return { stdout: "?? fixture.pipe\n", stderr: "" };
-      if (args.includes("worktree")) return { stdout: "prepared\n", stderr: "" };
-      if (args.includes("ls-files")) return { stdout: "fixture.pipe\0", stderr: "" };
-      throw new Error(`unexpected git call: ${args.join(" ")}`);
+      if (args.includes("status")) return { stdout: "UU apps/desktop/src/renderer/app.tsx\n", stderr: "" };
+      return { stdout: "", stderr: "" };
     });
 
-    await expect(prepareAgentWorktree(
+    const result = await prepareAgentWorktree(
       { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
-      {
-        cp: vi.fn(async () => { throw copyError; }),
-        execFile,
-        mkdir: vi.fn(async () => undefined),
-      },
-    )).rejects.toMatchObject({ code: "ERR_FS_CP_FIFO_PIPE" });
-  });
+      { execFile, mkdir: vi.fn(async () => undefined) },
+    );
 
-  it("removes the new worktree and branch when the dirty snapshot cannot be applied", async () => {
-    const calls: string[][] = [];
-    const execFile = vi.fn(async (_file: string, args: string[]) => {
-      calls.push(args);
-      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
-      if (args.includes("status")) return { stdout: "?? fixture.txt\n", stderr: "" };
-      if (args.includes("worktree") || args.includes("branch")) return { stdout: "ok\n", stderr: "" };
-      if (args.includes("ls-files")) return { stdout: "fixture.txt\0", stderr: "" };
-      throw new Error(`unexpected git call: ${args.join(" ")}`);
-    });
-
-    await expect(prepareAgentWorktree(
-      { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
-      {
-        cp: vi.fn(async () => { throw new Error("copy failed"); }),
-        execFile,
-        mkdir: vi.fn(async () => undefined),
-      },
-    )).rejects.toThrow("copy failed");
-
-    expect(calls.some((args) => args.includes("worktree") && args.includes("remove") && args.includes("--force"))).toBe(true);
-    expect(calls.some((args) => args.includes("branch") && args.includes("-D"))).toBe(true);
+    expect(result.uncommittedFiles).toBe(1);
+    expect(execFile).not.toHaveBeenCalledWith("git", expect.arrayContaining(["apply"]), expect.any(Object));
   });
 
   it("gives slow and output-heavy git operations their own limits", async () => {
@@ -535,17 +408,6 @@ describe("git worktree preparation", () => {
     expect(seen.get("status")?.timeout).toBeGreaterThan(2_500);
     expect(seen.get("status")?.maxBuffer).toBeGreaterThan(1024 * 1024);
     expect(seen.get("worktree")?.timeout).toBeGreaterThanOrEqual(60_000);
-  });
-
-  it("still blocks isolated launch for unresolved merge conflicts", async () => {
-    const execFile = vi.fn(async (_file: string, args: string[]) => {
-      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
-      if (args.includes("status")) return { stdout: "UU apps/desktop/src/renderer/app.tsx\n", stderr: "" };
-      return { stdout: "", stderr: "" };
-    });
-
-    await expect(prepareAgentWorktree({ agentKind: "codex", clientId: "codex-1", cwd: "/repo" }, { execFile }))
-      .rejects.toThrow("Workspace has unresolved merge conflicts.");
   });
 
   it.each([
@@ -676,6 +538,43 @@ describe("git worktree preparation", () => {
     }
   });
 
+  it("marks a checkout applied once its changes are in the project, and a second Apply changes nothing", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request } = await realCheckout();
+    try {
+      await git(request.cwd, "mv", "notes.txt", "renamed.txt");
+      await writeFile(path.join(request.cwd, "new.txt"), "agent file\n");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
+
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot })).resolves.toEqual({ appliedFiles: 2 });
+      const projectAfterApply = await git(baseCwd, "status", "--porcelain");
+
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot }))
+        .resolves.toEqual({ appliedFiles: 0, alreadyApplied: true });
+      expect(await git(baseCwd, "status", "--porcelain")).toBe(projectAfterApply);
+
+      await git(baseCwd, "commit", "-qm", "your commit of the applied work");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("is no longer applied once the agent changes the checkout again", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit } = await realCheckout();
+    try {
+      await applyAgentWorktreePatch(request, { worktreeStoreRoot });
+      await edit(request.cwd, 5, "line 5 by the agent");
+
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot }))
+        .rejects.toThrow("The project has uncommitted changes in 1 file. Commit or stash them before applying this checkout.");
+      expect(await readFile(path.join(baseCwd, "notes.txt"), "utf8")).not.toContain("line 5 by the agent");
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ["whose folder is gone", "missing"],
     ["whose agent made a commit", "commit"],
@@ -730,6 +629,7 @@ describe("git worktree preparation", () => {
         { path: "notes/review.md", status: "??" },
       ],
       patch,
+      applied: false,
     });
     expect(execFile).toHaveBeenCalledWith(
       "git",
@@ -929,9 +829,13 @@ describe("git worktree preparation", () => {
 
   it("blocks applying an isolated worktree when the base workspace is dirty", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
+      if (args.includes("rev-parse")) return { stdout: "base-head\n", stderr: "" };
+      if (args.includes("rev-list")) return { stdout: "0\n", stderr: "" };
       if (args[1] === "/repo" && args.includes("status")) {
-        return { stdout: " M README.md\0", stderr: "" };
+        return { stdout: " M README.md\0?? scratch.md\0", stderr: "" };
       }
+      if (args.includes("status")) return { stdout: " M src/app.tsx\0", stderr: "" };
+      if (args.includes("diff")) return { stdout: "", stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
     });
 
@@ -940,9 +844,9 @@ describe("git worktree preparation", () => {
         { baseCwd: "/repo", branchName: "alfred-codex-review" },
         { execFile },
       ),
-    ).rejects.toThrow("Base workspace has local changes.");
+    ).rejects.toThrow("The project has uncommitted changes in 2 files. Commit or stash them before applying this checkout.");
 
-    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(execFile).not.toHaveBeenCalledWith("git", expect.arrayContaining(["apply"]), expect.any(Object));
   });
 
   it("rejects unsafe apply metadata before running git", async () => {

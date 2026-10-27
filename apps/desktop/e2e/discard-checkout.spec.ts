@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
+import { launchedAgent } from "./support/fixture-agents";
 import { surfaceButton } from "./support/work-layout";
 
 const git = async (cwd: string, ...args: string[]) => (await promisify(execFile)("git", ["-C", cwd, ...args])).stdout.trim();
@@ -31,4 +32,27 @@ test("discards an isolated checkout whose agent committed, once you confirm", as
   await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
   await expect.poll(() => git(paths.workspaceA, "worktree", "list")).not.toContain(BRANCH);
   expect(await git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
+});
+
+test("asks before closing a running checkout with changes, then stops its agent and removes the checkout", async ({ harness }, testInfo) => {
+  const { app, page, paths } = harness;
+  await setWindowSize(app, page, 1440, 900);
+  const asleep = page.getByRole("region", { name: "Asleep sessions" }).locator('li[data-session-id="fixture-handoff-diff"]');
+  await asleep.getByRole("button").click();
+  await launchedAgent(paths.root, "codex", () => true);
+  await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Open command palette" }).click();
+  await page.getByRole("dialog", { name: "Command palette" }).getByRole("textbox", { name: "Search commands" }).fill("close focused session");
+  await page.keyboard.press("Enter");
+
+  const dialog = page.getByRole("dialog", { name: "Discard isolated checkout" });
+  await expect(dialog).toContainText("handoff-status.txt");
+  await page.screenshot({ path: testInfo.outputPath("discard-running-1440x900.png") });
+  expect(await git(paths.workspaceA, "worktree", "list")).toContain(BRANCH);
+
+  await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
+  await expect.poll(() => git(paths.workspaceA, "worktree", "list")).not.toContain(BRANCH);
+  expect(await git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
+  await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(0);
 });

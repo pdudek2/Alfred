@@ -91,6 +91,8 @@ function isUsefulLifecycle(event: SessionActivityEvent): boolean {
     text.includes("process exited") ||
     text.includes("transcript restored") ||
     text.includes("applied to project") ||
+    text.includes("already in the project") ||
+    text.includes("started from the last commit") ||
     text.includes("checkout diff reviewed") ||
     text.includes("relaunching session") ||
     text.includes("resuming session") ||
