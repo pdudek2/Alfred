@@ -31,7 +31,8 @@ test("discards an isolated checkout whose agent committed, once you confirm", as
 
   await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
   await expect.poll(() => git(paths.workspaceA, "worktree", "list")).not.toContain(BRANCH);
-  expect(await git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
+  // Cleanup removes the worktree first and the branch after it.
+  await expect.poll(() => git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
 });
 
 test("asks before closing a running checkout with changes, then stops its agent and removes the checkout", async ({ harness }, testInfo) => {
@@ -53,6 +54,7 @@ test("asks before closing a running checkout with changes, then stops its agent 
 
   await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
   await expect.poll(() => git(paths.workspaceA, "worktree", "list")).not.toContain(BRANCH);
-  expect(await git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
+  // Cleanup removes the worktree first and the branch after it.
+  await expect.poll(() => git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(0);
 });
