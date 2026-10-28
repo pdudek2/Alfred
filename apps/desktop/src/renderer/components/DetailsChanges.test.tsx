@@ -50,24 +50,24 @@ describe("Details Changes", () => {
     }
   });
 
-  it("shows the neutral empty state for a clean worktree and shared sessions", async () => {
+  it("says a clean checkout has no changes, and shows nothing for a session working in the project", async () => {
     worktreeDiff.mockResolvedValue({ ...changes, files: [], patch: "" });
-    const { rerender } = render(<DetailsChanges {...props} />);
+    const { container, rerender } = render(<DetailsChanges {...props} />);
     expect(await screen.findByText("No worktree changes.")).toBeVisible();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     rerender(<DetailsChanges {...props} session={{ ...session, isolation: "shared" }} />);
-    expect(screen.getByText("No worktree changes.")).toBeVisible();
+    expect(container).toBeEmptyDOMElement();
     expect(worktreeDiff).toHaveBeenCalledTimes(1);
   });
 
   it("does not display a late response from the previously focused session", async () => {
     let resolve!: (value: typeof changes) => void;
     worktreeDiff.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
-    const { rerender } = render(<DetailsChanges {...props} />);
+    const { container, rerender } = render(<DetailsChanges {...props} />);
     rerender(<DetailsChanges {...props} session={{ ...session, id: "b", isolation: "shared" }} />);
     await act(async () => resolve(changes));
     expect(screen.queryByText("a.ts")).not.toBeInTheDocument();
-    expect(screen.getByText("No worktree changes.")).toBeVisible();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows inspection failures rather than claiming a clean worktree", async () => {

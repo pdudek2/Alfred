@@ -295,8 +295,9 @@ export function App() {
     activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
   // Details holds the column the session stack had, so it starts open; ⌘I hides it.
   const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? true;
-  // Details describes the deck's focused session. History has its own reader and no side column.
-  const detailsVisible = activeContextDrawerOpen && activeSurface === "work";
+  // Details describes the deck's focused session. History has its own reader and no side column, and a project with
+  // nothing running has nothing to describe (v4 Fresh board), so the empty deck takes the whole width.
+  const detailsVisible = activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
   const unavailableWorkspaceIds = new Set(

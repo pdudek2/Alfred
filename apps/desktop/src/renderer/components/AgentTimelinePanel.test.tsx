@@ -10,11 +10,9 @@ afterEach(() => {
 });
 
 describe("AgentTimelinePanel", () => {
-  it("renders an empty state when no session is focused", () => {
-    render(<AgentTimelinePanel now={Date.now()} session={null} />);
-    expect(screen.getByLabelText("Agent activity")).toBeInTheDocument();
-    expect(screen.getByText("no selected session")).toBeInTheDocument();
-    expect(screen.getByText(/select a session to see its location/i)).toBeInTheDocument();
+  it("renders nothing when no session is focused", () => {
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={null} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows the focused session location without repeating its title and state", async () => {
@@ -192,7 +190,7 @@ describe("AgentTimelinePanel", () => {
     const handoff = screen.getByRole("group", { name: "Session actions for codex — feature" });
 
     await user.click(within(handoff).getByRole("button", { name: "Show in Finder for codex — feature" }));
-    await user.click(within(handoff).getByRole("button", { name: "Open in terminal for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Open in external terminal for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Copy path for codex — feature" }));
 
     expect(onRevealActivityFile).toHaveBeenCalledWith(".", "/repo/alfred");
