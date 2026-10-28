@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type Ref } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { deckFocusSession, deckSessions, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
@@ -95,6 +95,11 @@ export function railOrder<T extends ProjectNavigatorWorkspace>(workspaces: reado
   return [...projects, ...sandboxes];
 }
 
+function RowChevron({ open }: { open: boolean }) {
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return <Chevron className="project-row-chevron" aria-hidden="true" size={10} strokeWidth={2.6} />;
+}
+
 export function ProjectNavigator({
   activeSessionId,
   asleepCount,
@@ -156,6 +161,8 @@ export function ProjectNavigator({
     const rowIndex = visibleRows.indexOf(workspace);
     // The active project lists its sessions under its row; the focused session, not the project, carries the fill.
     const tree = active && (activeDeckSessions.length > 0 || asleepCount > 0);
+    // v5: a project heading its tree names its branch; its sessions below carry their own states.
+    const branch = tree ? workspace.gitBranch : undefined;
     return (
       <section className="project-item" key={workspace.id} role="listitem">
         <div className={`project-row${active ? " is-active" : ""}${tree ? " has-tree" : ""}`}>
@@ -174,8 +181,11 @@ export function ProjectNavigator({
             }}
             title={workspace.label}
           >
+            <RowChevron open={tree} />
             <span className="project-row-label">{workspace.label}</span>
-            {state && <SessionStatusGlyph kind={state} label={SESSION_STATE_LABELS[state]} className="project-row-state" size={12} />}
+            {branch
+              ? <span className="project-row-branch">{branch}</span>
+              : state && <SessionStatusGlyph kind={state} label={SESSION_STATE_LABELS[state]} className="project-row-state" size={12} />}
             {state && <span className="visually-hidden" id={statusId}>{SESSION_STATE_LABELS[state]}</span>}
           </button>
           {active && <div className="project-workspace-actions">{workspaceActions}</div>}
@@ -279,6 +289,7 @@ export function ProjectNavigator({
                   onClick={() => setSandboxesOpen((open) => !open)}
                   title="Projects without a folder"
                 >
+                  <RowChevron open={sandboxesOpen} />
                   <span className="project-row-label">Sandboxes</span>
                   <span className="project-sandbox-count" aria-hidden="true">{sandboxes.length}</span>
                   {sandboxState && <SessionStatusGlyph kind={sandboxState} label={SESSION_STATE_LABELS[sandboxState]} className="project-row-state" size={12} />}

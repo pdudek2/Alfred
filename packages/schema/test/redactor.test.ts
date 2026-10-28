@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { redactPayload, redactText } from "../src/redactor.js";
+import { redactArgs, redactPayload, redactText } from "../src/redactor.js";
+
+describe("redactArgs", () => {
+  it.each([
+    { args: ["python", "-u", "script.py"], expected: ["python", "-u", "script.py"] },
+    { args: ["ssh", "-p", "22", "host"], expected: ["ssh", "-p", "22", "host"] },
+    { args: ["mkdir", "-p", "/x/y"], expected: ["mkdir", "-p", "/x/y"] },
+    { args: ["docker", "run", "-p", "8080:80"], expected: ["docker", "run", "-p", "8080:80"] },
+    { args: ["claude", "-p", "Build the app"], expected: ["claude", "-p", "Build the app"] },
+    { args: ["curl", "-u", "user:pass", "https://x"], expected: ["curl", "-u", "[redacted]", "https://x"] },
+    { args: ["curl", "-u", "user", "https://x"], expected: ["curl", "-u", "user", "https://x"] },
+  ])("preserves short flag values except user:password credentials: $args", ({ args, expected }) => {
+    expect(redactArgs(args)).toEqual(expected);
+  });
+
+  it("preserves path arguments while redacting inline and separate secrets", () => {
+    const args = ["--add-dir", "/Users/x/repo", "--token=hunter2", "--password", "/tmp/secret", "ghp_1234567890abcdef"];
+    expect(redactArgs(args)).toEqual([
+      "--add-dir", "/Users/x/repo", "--token=[redacted]", "--password", "[redacted]", "[redacted]",
+    ]);
+    expect(args[4]).toBe("/tmp/secret");
+    expect(redactText("/Users/x/repo")).toMatch(/^\[redacted-path:[a-f0-9]{8}\]$/);
+  });
+
+  it("preserves argument boundaries and does not consume a value after an inline secret", () => {
+    expect(redactArgs(["--password=hunter2", "keep me", "two words", "--tokenizer", "ordinary"]))
+      .toEqual(["--password=[redacted]", "keep me", "two words", "--tokenizer", "ordinary"]);
+  });
+});
 
 describe("redactPayload", () => {
   it("redacts secret keys in standard mode", () => {

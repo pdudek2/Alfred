@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +12,7 @@ import {
   setStagedPlanSnapshot,
   updateStagedPlanSession,
 } from "./staged-plan-store.js";
-import { createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { createPersistedDesktopStateStore, DEFAULT_DESKTOP_STATE } from "./persisted-desktop-state.js";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc.js";
 
 const createPlan = (): AlfredStagedPlanSnapshot => ({
@@ -180,6 +180,43 @@ describe("staged-plan-store", () => {
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
       expect.objectContaining({ stagedPlans: { A: plan } }),
     );
+  });
+
+  it.each(["off", "redactedTail"] as const)("keeps full staged plans in memory with %s retention and applies privacy only to disk", async (retention) => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+    await store.setState({ ...DEFAULT_DESKTOP_STATE, privacySettings: { terminalScrollbackRetention: retention } });
+    configureStagedPlanPersistence(store);
+    const plan: AlfredStagedPlanSnapshot = {
+      ...createPlan(),
+      prompt: "Work in /Users/x/repo with password=hunter2",
+      sessions: [{
+        ...createPlan().sessions[0]!,
+        command: "/Users/x/bin/cli --token=hunter2",
+        args: ["--add-dir", "/Users/x/repo", "--password", "hunter2"],
+        safetyNote: "Authorization: Bearer abc.def.ghi",
+      }],
+    };
+
+    await expect(setStagedPlanSnapshot(plan)).resolves.toEqual({ plans: [plan] });
+    await expect(getStagedPlansSnapshot()).resolves.toEqual({ plans: [plan] });
+    await store.updateState((current) => ({ ...current, windowState: { ...current.windowState, maximized: true } }));
+    await expect(getStagedPlansSnapshot()).resolves.toEqual({ plans: [plan] });
+    const saved = JSON.parse(await readFile(filePath, "utf8"));
+    if (retention === "off") {
+      expect(saved.stagedPlans).toEqual({});
+    } else {
+      expect(saved.stagedPlans.A).toMatchObject({
+        prompt: expect.stringMatching(/^Work in \[redacted-path:[a-f0-9]{8}\] with password=\[redacted\]$/),
+        sessions: [{
+          command: "/Users/x/bin/cli --token=[redacted]",
+          args: ["--add-dir", "/Users/x/repo", "--password", "[redacted]"],
+          safetyNote: "Authorization: [redacted]",
+        }],
+      });
+    }
+    expect(await readFile(filePath, "utf8")).not.toContain("hunter2");
+    await expect(getStagedPlansSnapshot()).resolves.toEqual({ plans: [plan] });
   });
 
   it("lets other state writes finish while an edited draft is preflighted", async () => {

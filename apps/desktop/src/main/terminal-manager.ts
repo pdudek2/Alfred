@@ -55,7 +55,7 @@ import {
   type TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc.js";
 import {
-  CODEX_NOTIFICATION_ARGS,
+  CODEX_LAUNCH_ARGS,
   isTerminalReport,
   isShellProcess,
   parseOsc9,
@@ -577,7 +577,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
               id,
               worker: parentClientId(safeRequest.parentClientId) !== undefined,
             })
-            : safeRequest.command === "codex" ? CODEX_NOTIFICATION_ARGS : []),
+            : safeRequest.command === "codex" ? CODEX_LAUNCH_ARGS : []),
           ...(options.agentEvents?.launchArgs({ id, clientId: safeRequest.clientId }, safeRequest.command) ?? []),
         ];
         const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {

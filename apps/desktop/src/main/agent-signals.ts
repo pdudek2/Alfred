@@ -26,11 +26,12 @@ const MAX_ANSWER = 20_000;
 const MCP_TOOL_TIMEOUT_SECONDS = 150;
 /**
  * Codex reports a turn end or a wait as an OSC 9 notification, the fallback for hooks you chose not to trust or a
- * bridge that did not start.
+ * bridge that did not start. Its update prompt is left out: a start screen waits for input that Alfred cannot see.
  * ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
  */
-export const CODEX_NOTIFICATION_ARGS: readonly string[] = [
+export const CODEX_LAUNCH_ARGS: readonly string[] = [
   "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
+  "-c", "check_for_update_on_startup=false",
 ];
 /** macOS limits unix socket paths to 104 bytes. */
 const MAX_SOCKET_PATH = 100;
@@ -434,8 +435,10 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
   const settingsPath = path.join(options.dir, "claude-hooks.json");
   await writeFile(relayPath, RELAY_SOURCE.replaceAll("__MAX_TEXT__", String(MAX_ANSWER)), { mode: 0o600 });
   await writeFile(mcpServerPath, MCP_SERVER_SOURCE.replace("__TOOLS__", JSON.stringify(WORKER_TOOL_DEFINITIONS)), { mode: 0o600 });
-  const relayCommand = (event: string) =>
-    `ELECTRON_RUN_AS_NODE=1 ${shellQuote(options.execPath)} ${shellQuote(relayPath)} ${event}`;
+  // Codex runs launch-override hooks only once you trust them in its own terminal, and keeps one trust per event
+  // for every launch override, by the definition's hash. The paths therefore come from the session's environment,
+  // so every Alfred (Preview, a worktree, another user-data dir) shares that trust instead of replacing it.
+  const relayCommand = (event: string) => `ELECTRON_RUN_AS_NODE=1 "$ALFRED_HOOK_NODE" "$ALFRED_HOOK_RELAY" ${event}`;
   await writeFile(
     settingsPath,
     JSON.stringify({
@@ -447,8 +450,7 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     }),
     { mode: 0o600 },
   );
-  // Codex reads the same hooks as launch overrides. It runs them only once you trust them in its own terminal,
-  // and remembers that by the definition's hash, so the command must not change between launches.
+  // Codex reads the same hooks as launch overrides.
   // ponytail: a Codex without hooks (before mid 2026) would need a version check here.
   const codexHookArgs = HOOK_EVENTS.flatMap((event) => [
     "-c",
@@ -549,6 +551,8 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
         void unlink(socketPath).catch(() => {});
       }),
     env: (sessionId, command) => ({
+      ALFRED_HOOK_NODE: options.execPath,
+      ALFRED_HOOK_RELAY: relayPath,
       ALFRED_HOOK_SOCKET: socketPath,
       ALFRED_SESSION_ID: sessionId,
       ...(command === "claude" ? { MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_SECONDS * 1000) } : {}),
@@ -563,7 +567,7 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
       }
       if (command === "codex") {
         return [
-          ...CODEX_NOTIFICATION_ARGS,
+          ...CODEX_LAUNCH_ARGS,
           ...codexHookArgs,
           ...(tools
             ? [
@@ -586,8 +590,4 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
       toolHandler = next;
     },
   };
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
