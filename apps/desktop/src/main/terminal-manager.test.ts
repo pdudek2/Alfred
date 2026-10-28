@@ -18,7 +18,7 @@ import {
   waitForTerminalExits,
 } from "./terminal-manager.js";
 import type { SessionActivityInput } from "../shared/session-activity.js";
-import { CODEX_NOTIFICATION_ARGS } from "./agent-signals.js";
+import { CODEX_LAUNCH_ARGS } from "./agent-signals.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type {
   PersistedTerminalSessionSnapshot,
@@ -1602,7 +1602,7 @@ describe("terminal-manager IPC", () => {
     // The log gets the Alfred session id, which a resumed process keeps, as well as the process's own.
     const [claudeCall, codexCall] = spawn.mock.calls as unknown as Array<[string, string[], { env: Record<string, string> }]>;
     expect(claudeCall![2].env).toMatchObject({ OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `claude-1/${claude.id}` });
-    expect(codexCall![1]).toEqual([...CODEX_NOTIFICATION_ARGS, "-c", `otel.session=codex-1/${codex.id}`]);
+    expect(codexCall![1]).toEqual([...CODEX_LAUNCH_ARGS, "-c", `otel.session=codex-1/${codex.id}`]);
     expect(codexCall![2].env).not.toHaveProperty("OTEL_LOGS_EXPORTER");
   });
 
@@ -2229,7 +2229,7 @@ describe("terminal-manager IPC", () => {
 
     expect(nodePty.spawn).toHaveBeenCalledWith(
       agentKind,
-      agentKind === "codex" ? [...CODEX_NOTIFICATION_ARGS, ...args] : args,
+      agentKind === "codex" ? [...CODEX_LAUNCH_ARGS, ...args] : args,
       expect.objectContaining({ cwd: snapshot.cwd }),
     );
   });
@@ -2280,7 +2280,10 @@ describe("terminal-manager IPC", () => {
 
     expect(nodePty.spawn).toHaveBeenCalledWith(
       "codex",
-      ["-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"'],
+      [
+        "-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"',
+        "-c", "check_for_update_on_startup=false",
+      ],
       expect.objectContaining({ cwd: "/repo" }),
     );
   });
@@ -2700,7 +2703,7 @@ describe("terminal-manager IPC", () => {
       expect(created.cwd).toBe(canonicalLink);
       expect(nodePty.spawn).toHaveBeenCalledWith(
         "codex",
-        [...CODEX_NOTIFICATION_ARGS],
+        [...CODEX_LAUNCH_ARGS],
         expect.objectContaining({ cwd: canonicalLink }),
       );
     } finally {
@@ -2816,7 +2819,7 @@ describe("terminal-manager IPC", () => {
 
       expect(nodePty.spawn).toHaveBeenCalledWith(
         "codex",
-        [...CODEX_NOTIFICATION_ARGS],
+        [...CODEX_LAUNCH_ARGS],
         expect.objectContaining({ cwd: expectedCanonicalCwd }),
       );
     } finally {
@@ -2865,7 +2868,7 @@ describe("terminal-manager IPC", () => {
     });
     expect(nodePty.spawn).toHaveBeenCalledWith(
       "codex",
-      [...CODEX_NOTIFICATION_ARGS],
+      [...CODEX_LAUNCH_ARGS],
       expect.objectContaining({
         cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
       }),
@@ -2912,7 +2915,7 @@ describe("terminal-manager IPC", () => {
     expect(prepareAgentWorktree).not.toHaveBeenCalled();
     expect(nodePty.spawn).toHaveBeenCalledWith(
       "codex",
-      [...CODEX_NOTIFICATION_ARGS],
+      [...CODEX_LAUNCH_ARGS],
       expect.objectContaining({ cwd: "/.alfred-worktrees/repo/alfred-codex-review/packages/app" }),
     );
     expect(created).toMatchObject({
@@ -4129,7 +4132,7 @@ describe("terminal-manager IPC", () => {
 
     expect(nodePty.spawn).toHaveBeenCalledWith(
       "codex",
-      [...CODEX_NOTIFICATION_ARGS, "Review the backend"],
+      [...CODEX_LAUNCH_ARGS, "Review the backend"],
       expect.objectContaining({ cwd: "/repo/.alfred-worktrees/alfred-codex-review" }),
     );
     expect(created.args).toEqual(["Review the backend"]);
