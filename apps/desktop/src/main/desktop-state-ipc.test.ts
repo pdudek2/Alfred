@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdir, mkdtemp, readdir, writeFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createPersistedDesktopStateStore,
   DEFAULT_DESKTOP_STATE,
   type DesktopSaveStatus,
 } from "./persisted-desktop-state.js";
@@ -50,6 +54,14 @@ vi.mock("./trusted-ipc.js", async () => {
 });
 
 describe("desktop-state IPC", () => {
+  let temporaryDirectory: string | undefined;
+  afterEach(async () => {
+    if (temporaryDirectory) {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+      temporaryDirectory = undefined;
+    }
+  });
+
   it("updates privacy settings through the persisted state store", async () => {
     mocks.handlers.clear();
     mocks.applyTerminalPrivacyPolicyInMemory.mockClear();
@@ -161,6 +173,40 @@ describe("desktop-state IPC", () => {
     await expect(mocks.handlers.get(desktopStateChannels.clearSavedTerminalData)?.()).resolves.toMatchObject({ ok: true });
 
     expect(clearAgentEvents).toHaveBeenCalledOnce();
+  });
+
+  it("clears quarantined state copies while preserving unrelated files", async () => {
+    mocks.handlers.clear();
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "alfred-clear-state-"));
+    const filePath = path.join(temporaryDirectory, "desktop-state.json");
+    await writeFile(filePath, '{"buffer":"PRIVATE_TRANSCRIPT');
+    const store = createPersistedDesktopStateStore({ filePath });
+    await store.getState();
+    expect(await readdir(temporaryDirectory)).toEqual([expect.stringMatching(/^desktop-state\.invalid-\d+\.json$/)]);
+    await writeFile(path.join(temporaryDirectory, "desktop-state.invalid-1760000000000.json"), "PRIVATE_COPY");
+    const unrelated = ["notes.tmp", "notes.invalid-123.json", "desktop-state.invalid-text.json", "desktop-state.invalid-123.json.bak"];
+    for (const name of unrelated) await writeFile(path.join(temporaryDirectory, name), "keep");
+    registerDesktopStateIpc(store);
+    const clear = mocks.handlers.get(desktopStateChannels.clearSavedTerminalData);
+
+    await expect(clear?.()).resolves.toMatchObject({ ok: true });
+    expect((await readdir(temporaryDirectory)).sort()).toEqual(["desktop-state.json", ...unrelated].sort());
+    await expect(clear?.()).resolves.toMatchObject({ ok: true });
+    expect((await readdir(temporaryDirectory)).sort()).toEqual(["desktop-state.json", ...unrelated].sort());
+  });
+
+  it("reports failure when a quarantined state copy cannot be removed", async () => {
+    mocks.handlers.clear();
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "alfred-clear-state-"));
+    const filePath = path.join(temporaryDirectory, "desktop-state.json");
+    const store = createPersistedDesktopStateStore({ filePath });
+    await store.getState();
+    await mkdir(path.join(temporaryDirectory, "desktop-state.invalid-123.json"));
+    registerDesktopStateIpc(store);
+
+    await expect(mocks.handlers.get(desktopStateChannels.clearSavedTerminalData)?.())
+      .resolves.toMatchObject({ ok: false, error: expect.any(String) });
+    expect(await readdir(temporaryDirectory)).toContain("desktop-state.invalid-123.json");
   });
 
   it("drops the draft plan when retention is turned off, but keeps it when turned on", async () => {

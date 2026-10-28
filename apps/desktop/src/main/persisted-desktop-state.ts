@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { redactText, redactUnknown } from "@alfred/schema";
+import { redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
@@ -160,9 +160,10 @@ export function createPersistedDesktopStateStore(
 
   const persistState = async (state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> => {
     const nextState = normalizeDesktopState(state);
+    const diskState = { ...nextState, stagedPlans: redactStagedPlansForDisk(nextState) };
 
     try {
-      await writeDesktopStateFile(filePath, nextState);
+      await writeDesktopStateFile(filePath, diskState);
     } catch (error) {
       failedState = nextState;
       setSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: Date.now() });
@@ -597,10 +598,10 @@ export function sanitizePersistedTerminalSession(
     ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
     ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
     ...(session.shell === undefined ? {} : { shell: session.shell }),
-    ...(session.command === undefined || redactText(session.command) !== session.command
+    ...(session.command === undefined || redactSecrets(session.command) !== session.command
       ? {}
       : { command: session.command }),
-    ...(session.args === undefined ? {} : { args: session.args.map(redactText) }),
+    ...(session.args === undefined ? {} : { args: redactArgs(session.args) }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.buffer === undefined
       ? {}
@@ -681,6 +682,20 @@ function normalizeWindowPosition(value: unknown): number | undefined {
   return Math.round(value);
 }
 
+function redactStagedPlansForDisk(state: DesktopStateSnapshot): Record<string, AlfredStagedPlanSnapshot> {
+  if (state.privacySettings.terminalScrollbackRetention === "off") return {};
+  return Object.fromEntries(Object.entries(state.stagedPlans).map(([workspaceId, plan]) => [workspaceId, {
+    ...plan,
+    prompt: redactText(plan.prompt),
+    sessions: plan.sessions.map((session) => ({
+      ...session,
+      command: redactSecrets(session.command),
+      args: redactArgs(session.args),
+      ...(session.safetyNote === undefined ? {} : { safetyNote: redactText(session.safetyNote) }),
+    })),
+  }]));
+}
+
 async function readDesktopStateFile(
   filePath: string,
   onWarning: PersistedDesktopStateStoreOptions["onWarning"],
@@ -722,7 +737,7 @@ async function readDesktopStateFile(
   }
 
   const normalized = normalizeDesktopState(parsed);
-  const normalizedFile = { version: DESKTOP_STATE_VERSION, ...normalized };
+  const normalizedFile = { version: DESKTOP_STATE_VERSION, ...normalized, stagedPlans: redactStagedPlansForDisk(normalized) };
   return {
     state: normalized,
     rewrite: JSON.stringify(parsed) !== JSON.stringify(normalizedFile),
@@ -749,6 +764,21 @@ async function quarantineDesktopStateFile(
   }
 
   onWarning?.(message, cause);
+}
+
+export async function removeQuarantinedDesktopStateFiles(filePath: string): Promise<void> {
+  const directory = path.dirname(filePath);
+  const extension = path.extname(filePath);
+  const prefix = `${path.basename(filePath, extension)}.invalid-`;
+  const names = await readdir(directory).catch((error: unknown) => {
+    if (isNodeError(error) && error.code === "ENOENT") return [];
+    throw error;
+  });
+  await Promise.all(names
+    .filter((name) => name.startsWith(prefix)
+      && name.endsWith(extension)
+      && /^\d+$/.test(name.slice(prefix.length, name.length - extension.length)))
+    .map((name) => rm(path.join(directory, name), { force: true })));
 }
 
 async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapshot): Promise<void> {
