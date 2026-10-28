@@ -309,7 +309,7 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     await expect(
       new Promise<void>((resolve, reject) => {
         const child = execFile("sh", ["-c", settings.hooks.Stop![0]!.hooks[0]!.command], {
-          env: { ...process.env, ALFRED_HOOK_SOCKET: path.join(dir, "missing"), ALFRED_SESSION_ID: "x" },
+          env: { ...process.env, ...bridge!.env("x"), ALFRED_HOOK_SOCKET: path.join(dir, "missing") },
         }, (error) => (error ? reject(error) : resolve()));
         child.stdin!.end("{}");
       }),
@@ -320,15 +320,17 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
     bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
     const codex = bridge!.launchArgs("codex");
-    expect(codex.slice(0, 6)).toEqual([
+    expect(codex.slice(0, 8)).toEqual([
       "-c",
       "tui.notifications=true",
       "-c",
       'tui.notification_method="osc9"',
       "-c",
       'tui.notification_condition="always"',
+      "-c",
+      "check_for_update_on_startup=false",
     ]);
-    expect(codex.slice(6).filter((_, index) => index % 2 === 1).map((override) => override.split("=", 1)[0])).toEqual([
+    expect(codex.slice(8).filter((_, index) => index % 2 === 1).map((override) => override.split("=", 1)[0])).toEqual([
       "hooks.UserPromptSubmit",
       "hooks.PermissionRequest",
       "hooks.PostToolUse",
@@ -338,6 +340,25 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
     expect(bridge!.launchArgs("codex")).toEqual(codex);
     expect(bridge!.launchArgs("npm")).toEqual([]);
     expect(bridge!.launchArgs(undefined)).toEqual([]);
+  });
+
+  it("gives every Alfred install the same hook definitions, so Codex's trust in them is shared", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
+    bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
+    const other = await createAgentSignalBridge({ dir: path.join(dir, "preview data"), execPath: "/Apps/Alfred Preview/Electron", socketPath: path.join(dir, "t") });
+    try {
+      const hooks = async (signals: AgentSignalBridge) => [
+        ...signals.launchArgs("codex").filter((arg) => arg.startsWith("hooks.")),
+        await readFile(signals.launchArgs("claude")[1]!, "utf8"),
+      ];
+      expect(await hooks(other!)).toEqual(await hooks(bridge!));
+      expect(other!.env("session-1")).toMatchObject({
+        ALFRED_HOOK_NODE: "/Apps/Alfred Preview/Electron",
+        ALFRED_HOOK_RELAY: path.join(dir, "preview data", "hook-relay.cjs"),
+      });
+    } finally {
+      await other!.close();
+    }
   });
 
   it("delivers a Codex hook event through the relay command in its launch override", async () => {
