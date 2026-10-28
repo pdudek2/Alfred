@@ -67,6 +67,70 @@ describe("persisted-desktop-state", () => {
     } }).stagedPlans).toEqual({ A: { ...plan, sessions: [{ ...draft, workspaceId: "A" }] } });
   });
 
+  it.each(["setState", "updateState", "load"] as const)("never saves staged plans with retention off through %s", async (operation) => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+    const plan = {
+      id: "private-plan", workspaceId: "A", prompt: "PRIVATE_PROMPT",
+      sessions: [{ id: "draft", workspaceId: "A", kind: "shell" as const, title: "Draft", command: "echo", args: ["PRIVATE_ARGUMENT"] }],
+    };
+    const state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      privacySettings: { terminalScrollbackRetention: "off" },
+      stagedPlans: { A: plan },
+    };
+
+    if (operation === "setState") {
+      await store.setState(state);
+    } else if (operation === "updateState") {
+      await store.setState({ ...state, stagedPlans: {} });
+      await store.updateState((current) => ({ ...current, stagedPlans: state.stagedPlans }));
+    } else {
+      await writeFile(filePath, JSON.stringify({ version: DESKTOP_STATE_VERSION, ...state, stagedPlan: plan }));
+      await store.getState();
+    }
+
+    expect((await store.getState()).stagedPlans).toEqual(state.stagedPlans);
+    const contents = await readFile(filePath, "utf8");
+    expect(JSON.parse(contents).stagedPlans).toEqual({});
+    expect(contents).not.toContain("PRIVATE_PROMPT");
+    expect(contents).not.toContain("PRIVATE_ARGUMENT");
+    await store.updateState((current) => ({ ...current, stagedPlans: state.stagedPlans }));
+    expect(JSON.parse(await readFile(filePath, "utf8")).stagedPlans).toEqual({});
+    expect((await store.getState()).stagedPlans).toEqual(state.stagedPlans);
+  });
+
+  it.each(["setState", "load"] as const)("redacts staged plan prompts, args and safety notes through %s", async (operation) => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+    const state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      stagedPlans: { A: {
+        id: "plan", workspaceId: "A", prompt: "deploy password=hunter2",
+        sessions: [{
+          id: "draft", workspaceId: "A", kind: "shell", title: "Draft", command: "deploy",
+          args: ["--password=hunter2", "sk-proj-1234567890abcdef"],
+          safetyNote: "Authorization: Bearer abc.def.ghi",
+        }],
+      } },
+    };
+    if (operation === "load") {
+      await writeFile(filePath, JSON.stringify({ version: DESKTOP_STATE_VERSION, ...state }));
+      await store.getState();
+    } else {
+      await store.setState(state);
+    }
+
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.stagedPlans.A).toMatchObject({
+      prompt: "deploy password=[redacted]",
+      sessions: [{ args: ["--password=[redacted]", "[redacted]"], safetyNote: "Authorization: [redacted]" }],
+    });
+    expect((await store.getState()).stagedPlans).toEqual(state.stagedPlans);
+    await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(await readFile(filePath, "utf8")).toBe(`${JSON.stringify(saved, null, 2)}\n`);
+  });
+
   it("writes and reads a versioned desktop state file", async () => {
     const filePath = await temporaryStateFile();
     const state: DesktopStateSnapshot = {
@@ -201,6 +265,90 @@ describe("persisted-desktop-state", () => {
 
     expect(raw).toEqual({ version: DESKTOP_STATE_VERSION, ...state });
     await expect(reader.getState()).resolves.toEqual(state);
+  });
+
+  it.each([
+    { args: ["--password", "hunter2"], expected: ["--password", "[redacted]"] },
+    { args: ["gh", "--token", "ghp_…"], expected: ["gh", "--token", "[redacted]"] },
+    { args: ["mysql", "-p", "x"], expected: ["mysql", "-p", "x"] },
+    { args: ["curl", "-u", "user:pass"], expected: ["curl", "-u", "[redacted]"] },
+    ...["--token", "--api-key", "--apikey", "--secret", "--client-secret", "--access-token", "--refresh-token", "--PASSWORD"].map((flag) => ({
+      args: [flag, "opaque value with spaces"], expected: [flag, "[redacted]"],
+    })),
+  ])("saves CLI args $args with only secret values redacted in sessions and plans", async ({ args, expected }) => {
+    const filePath = await temporaryStateFile();
+    await createPersistedDesktopStateStore({ filePath }).setState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", command: "cli", args }],
+      stagedPlans: { A: {
+        id: "plan", workspaceId: "A", prompt: "Run CLI",
+        sessions: [{ id: "draft", kind: "shell", title: "CLI", command: "cli", args }],
+      } },
+    });
+
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.restoredTerminalSessions[0]?.args).toEqual(expected);
+    expect(saved.stagedPlans.A?.sessions[0]?.args).toEqual(expected);
+  });
+
+  it("keeps ordinary args, case-sensitive short flags and secret flags without a value", async () => {
+    const filePath = await temporaryStateFile();
+    const args = ["--tokenizer", "ordinary", "-P", "3306", "--password"];
+    await createPersistedDesktopStateStore({ filePath }).setState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", args }],
+    });
+
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.restoredTerminalSessions[0]?.args).toEqual(args);
+  });
+
+  it.each(["setState", "load"] as const)("preserves launch paths in saved command, args and cwd through %s", async (operation) => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+    const command = "/Users/x/bin/codex";
+    const cwd = "/Users/x/repo";
+    const args = ["--add-dir", cwd, "--password=hunter2", "--token", "opaque-token"];
+    const state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{ clientId: "manual", title: "Codex", source: "manual", command, args, cwd }],
+      stagedPlans: { A: {
+        id: "plan", workspaceId: "A", prompt: "Run Codex",
+        sessions: [{ id: "draft", kind: "codex", title: "Codex", command, args, cwd }],
+      } },
+    };
+    if (operation === "load") {
+      await writeFile(filePath, JSON.stringify({ version: DESKTOP_STATE_VERSION, ...state }));
+      await store.getState();
+    } else {
+      await store.setState(state);
+    }
+
+    const launch = { command, cwd, args: ["--add-dir", cwd, "--password=[redacted]", "--token", "[redacted]"] };
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.restoredTerminalSessions[0]).toMatchObject(launch);
+    expect(saved.stagedPlans.A?.sessions[0]).toMatchObject(launch);
+    const reloaded = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(reloaded.restoredTerminalSessions[0]).toMatchObject(launch);
+    expect(reloaded.stagedPlans.A?.sessions[0]).toMatchObject(launch);
+  });
+
+  it("redacts secrets in staged commands and still drops secret-bearing restored commands", async () => {
+    const filePath = await temporaryStateFile();
+    const command = "/Users/x/bin/cli --token=hunter2";
+    await createPersistedDesktopStateStore({ filePath }).setState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", command }],
+      stagedPlans: { A: {
+        id: "plan", workspaceId: "A", prompt: "Run CLI",
+        sessions: [{ id: "draft", kind: "shell", title: "CLI", command, args: [] }],
+      } },
+    });
+
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.restoredTerminalSessions[0]).not.toHaveProperty("command");
+    expect(saved.stagedPlans.A?.sessions[0]?.command).toBe("/Users/x/bin/cli --token=[redacted]");
+    expect(await readFile(filePath, "utf8")).not.toContain("hunter2");
   });
 
   it("serializes state updates so concurrent writers do not drop fields", async () => {
