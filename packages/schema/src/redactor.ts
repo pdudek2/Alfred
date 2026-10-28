@@ -8,8 +8,12 @@ const SECRET_KEY_WORDS =
 const SECRET_KEY_PATTERN = new RegExp(`(${SECRET_KEY_WORDS})`, "i");
 const SECRET_ASSIGNMENT_PATTERN =
   /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API[_-]?KEY|AUTHORIZATION|CREDENTIAL|COOKIE|PRIVATE[_-]?KEY|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|CLIENT[_-]?SECRET|SESSION[_-]?ID|SIGNATURE)[A-Z0-9_]*)(\s*[:=]\s*)("[^"]+"|'[^']+'|(?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
-const CLI_SECRET_ARG_PATTERN =
-  /(\B--(?:token|api-key|apikey|password|secret|client-secret|access-token|refresh-token)(?:=|\s+))("[^"]+"|'[^']+'|[^\s"'`]+)/gi;
+const CLI_SECRET_ARG_NAMES = "token|api-key|apikey|password|secret|client-secret|access-token|refresh-token";
+const CLI_SECRET_ARG_PATTERN = new RegExp(
+  String.raw`(\B--(?:${CLI_SECRET_ARG_NAMES})(?:=|\s+))("[^"]+"|'[^']+'|[^\s"'\x60]+)`,
+  "gi",
+);
+const CLI_SECRET_FLAG_PATTERN = new RegExp(`^--(?:${CLI_SECRET_ARG_NAMES})$`, "i");
 const QUOTED_HEADER_SECRET_PATTERN =
   /(["'])([^"']*\b(?:authorization|x-api-key|api-key)\s*:\s*)([^"']+)\1/gi;
 const HEADER_SECRET_PATTERN =
@@ -80,6 +84,19 @@ export function redactPayload(payload: Record<string, unknown>, mode: PrivacyMod
 
 export function redactText(value: string): string {
   return redactSecretText(value);
+}
+
+export function redactSecrets(value: string): string {
+  return redactSecretText(value, FULL_REDACTION_OPTIONS);
+}
+
+export function redactArgs(args: string[]): string[] {
+  return args.map((arg, index) => {
+    const previous = args[index - 1];
+    return previous !== undefined && (CLI_SECRET_FLAG_PATTERN.test(previous) || (previous === "-u" && arg.includes(":")))
+      ? REDACTED
+      : redactSecrets(arg);
+  });
 }
 
 export function redactUnknown(value: unknown): unknown {
