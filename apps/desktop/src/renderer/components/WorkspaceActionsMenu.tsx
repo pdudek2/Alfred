@@ -4,6 +4,11 @@ import { createPortal } from "react-dom";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import { shortenPath } from "../path-display";
 
+/** The project menu and Details open the same terminal app, so they name it the same way. */
+export function externalTerminalLabel(): string {
+  return navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
+}
+
 export type WorkspaceActionsMenuProps = {
   canCloseWorkspace: boolean;
   detail: string;
@@ -53,7 +58,7 @@ export function WorkspaceActionsMenu({
   const [missionEditing, setMissionEditing] = useState(false);
   const [missionDraft, setMissionDraft] = useState<WorkspaceMissionDraft>(() => missionBriefToDraft(missionBrief));
   const revealLabel = navigator.platform.includes("Mac") ? "Reveal in Finder" : "Reveal folder";
-  const terminalLabel = navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
+  const terminalLabel = externalTerminalLabel();
   const popoverLabel = renameEditing
     ? "Rename project"
     : missionEditing

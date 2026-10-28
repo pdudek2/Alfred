@@ -158,7 +158,13 @@ test.describe("captures protective empty and missing project evidence", () => {
     const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
     await navigator.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
     await expect(page.getByRole("status", { name: "Empty project" })).toBeVisible();
+    // Nothing runs here, so Details has nothing to describe and the empty deck takes its width (Fresh board).
+    await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
     await captureAuditScreenshot(page, "empty-workspace-narrow");
+    // A session to describe brings it back.
+    await addTerminal(page);
+    await expect(page.getByTestId("context-column")).toHaveClass(/\bopen\b/);
+    await harness.closeActiveTerminals();
   });
 });
 
