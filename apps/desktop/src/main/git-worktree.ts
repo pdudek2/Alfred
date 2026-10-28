@@ -340,7 +340,8 @@ async function changesAreInProject(worktreePath: string, baseCwd: string, files:
     ]);
     if (inCheckout === undefined || inProject === undefined) return false;
     // Only a deletion may leave the path empty in the checkout.
-    if (inCheckout === null ? !file.status.includes("D") || inProject !== null : inProject === null || !inCheckout.equals(inProject)) {
+    if (inCheckout === null ? !file.status.includes("D") || inProject !== null
+      : inProject === null || inCheckout.executable !== inProject.executable || !inCheckout.bytes.equals(inProject.bytes)) {
       return false;
     }
     if (file.from !== undefined && file.status.includes("R") && await entryContent(path.join(baseCwd, file.from)) !== null) {
@@ -350,12 +351,12 @@ async function changesAreInProject(worktreePath: string, baseCwd: string, files:
   return true;
 }
 
-/** A file's bytes, a symlink's target, null when nothing is there, undefined for anything else (a directory). */
-async function entryContent(filePath: string): Promise<Buffer | null | undefined> {
+/** A file's bytes and executable bit, a symlink's target, null when absent, undefined for other entries (a directory). */
+async function entryContent(filePath: string): Promise<{ bytes: Buffer; executable: boolean } | null | undefined> {
   try {
     const stats = await lstat(filePath);
-    if (stats.isSymbolicLink()) return Buffer.from(`symlink:${await readlink(filePath)}`);
-    return stats.isFile() ? await readFile(filePath) : undefined;
+    if (stats.isSymbolicLink()) return { bytes: Buffer.from(`symlink:${await readlink(filePath)}`), executable: false };
+    return stats.isFile() ? { bytes: await readFile(filePath), executable: (stats.mode & 0o111) !== 0 } : undefined;
   } catch (error: unknown) {
     if (isFsErrorCode(error, "ENOENT") || isFsErrorCode(error, "ENOTDIR")) return null;
     throw error;

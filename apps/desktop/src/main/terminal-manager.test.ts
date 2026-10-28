@@ -19,6 +19,7 @@ import {
 } from "./terminal-manager.js";
 import type { SessionActivityInput } from "../shared/session-activity.js";
 import { CODEX_NOTIFICATION_ARGS } from "./agent-signals.js";
+import * as workerTools from "./worker-tools.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type {
   PersistedTerminalSessionSnapshot,
@@ -4718,6 +4719,49 @@ describe("terminal-manager IPC", () => {
           .not.toHaveProperty("parentClientId");
       } finally {
         vi.useRealTimers();
+      }
+    });
+
+    it("kills an orchestrator with a pending worker wait and settles the wait on close", async () => {
+      vi.useFakeTimers();
+      try {
+        const { fire, callTool, lead, leadPty, workers } = await orchestratorWithWorkers(1);
+        fire(workers[0]!.id, { state: "working" });
+        const waiting = callTool(lead.id, "wait_for_worker", { worker_id: "codex-1" })
+          .catch((error: unknown) => error);
+
+        expect(() => emit(terminalChannels.kill, { id: lead.id })).not.toThrow();
+
+        expect(leadPty.killed).toBe(true);
+        expect(await waiting).toBeInstanceOf(workerTools.WorkerToolError);
+        expect(() => fire(workers[0]!.id, { state: "your-turn", detail: "Done." })).not.toThrow();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("continues notifying workers and closes the PTY when a listener throws", async () => {
+      const createTools = workerTools.createWorkerTools;
+      let host!: workerTools.WorkerHost;
+      vi.spyOn(workerTools, "createWorkerTools").mockImplementation((workerHost) => {
+        host = workerHost;
+        return createTools(workerHost);
+      });
+      const { lead, leadPty } = await orchestratorWithWorkers(1);
+      const failure = new Error("Broken worker listener");
+      const stopBroken = host.onChange(() => { throw failure; });
+      const notified = vi.fn();
+      const stopNext = host.onChange(notified);
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        expect(() => emit(terminalChannels.kill, { id: lead.id })).not.toThrow();
+
+        expect(leadPty.killed).toBe(true);
+        expect(notified).toHaveBeenCalledOnce();
+        expect(warning).toHaveBeenCalledWith("Failed to notify worker listener.", failure);
+      } finally {
+        stopBroken();
+        stopNext();
       }
     });
 

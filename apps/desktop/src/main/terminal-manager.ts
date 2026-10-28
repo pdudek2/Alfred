@@ -1638,22 +1638,25 @@ function killSession(
   }
 
   sessions.delete(id);
-  rememberEndedWorker(session);
-  recordSessionActivity(session, reason === "close"
-    ? {
-        kind: "lifecycle",
-        title: "Closed by user",
-        detail: "This terminal was closed. Its recovery snapshot is still available.",
-      }
-    : {
-        kind: "lifecycle",
-        title: "Stopped on quit",
-        detail: "Alfred stopped this terminal while quitting.",
-      });
-  rememberSessionSnapshot(session);
-  // On quit its workers stay its own, for after the restart.
-  if (reason === "close") releaseWorkers(session.clientId);
-  session.pty.kill();
+  try {
+    rememberEndedWorker(session);
+    recordSessionActivity(session, reason === "close"
+      ? {
+          kind: "lifecycle",
+          title: "Closed by user",
+          detail: "This terminal was closed. Its recovery snapshot is still available.",
+        }
+      : {
+          kind: "lifecycle",
+          title: "Stopped on quit",
+          detail: "Alfred stopped this terminal while quitting.",
+        });
+    rememberSessionSnapshot(session);
+    // On quit its workers stay its own, for after the restart.
+    if (reason === "close") releaseWorkers(session.clientId);
+  } finally {
+    session.pty.kill();
+  }
 }
 
 /**
@@ -1686,7 +1689,13 @@ function releaseWorkers(parentClientId: string | undefined): void {
 }
 
 function notifyWorkers(): void {
-  for (const listener of [...workerListeners]) listener();
+  for (const listener of [...workerListeners]) {
+    try {
+      listener();
+    } catch (error) {
+      console.warn("Failed to notify worker listener.", error);
+    }
+  }
 }
 
 function isAgentSession(session: TerminalSession): boolean {
