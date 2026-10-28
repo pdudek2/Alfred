@@ -1,4 +1,6 @@
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { once } from "node:events";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -196,6 +198,33 @@ describe("createAgentEventLog", () => {
     await log.close();
 
     expect(await recorded()).toEqual([]);
+  });
+
+  it("does not recreate the log when a request finishes sending its body after clear", async () => {
+    const log = await open();
+    const url = log.env({ id: SESSION }, "claude").OTEL_EXPORTER_OTLP_LOGS_ENDPOINT!;
+    await post(url, JSON.stringify(claudeBody));
+    const body = JSON.stringify(claudeBody);
+    const request = http.request(url, { method: "POST", headers: { expect: "100-continue" } });
+    try {
+      request.flushHeaders();
+      // Continue confirms the server accepted the old secret before Clear.
+      await once(request, "continue");
+      await new Promise<void>((resolve) => request.write(body.slice(0, 20), () => resolve()));
+      await log.clear();
+      request.end(body.slice(20));
+      const [response] = await once(request, "response") as [http.IncomingMessage];
+      response.resume();
+      await once(response, "end");
+      await log.close();
+
+      expect(await recorded()).toEqual([]);
+      expect(await readdir(dir).catch(() => [])).toEqual([]);
+      expect(response.statusCode).toBe(404);
+    } finally {
+      request.destroy();
+      await log.close();
+    }
   });
 
   it("deletes every recorded day on clear, and sessions launched before it cannot write again", async () => {

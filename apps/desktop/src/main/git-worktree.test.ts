@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -554,6 +554,29 @@ describe("git worktree preparation", () => {
       expect(await git(baseCwd, "status", "--porcelain")).toBe(projectAfterApply);
 
       await git(baseCwd, "commit", "-qm", "your commit of the applied work");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("applies an executable-bit-only change before marking the checkout applied", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request } = await realCheckout();
+    try {
+      await git(baseCwd, "config", "core.fileMode", "true");
+      await git(request.cwd, "restore", "notes.txt");
+      const projectFile = path.join(baseCwd, "notes.txt");
+      const checkoutFile = path.join(request.cwd, "notes.txt");
+      await chmod(checkoutFile, 0o755);
+      expect(await readFile(checkoutFile, "utf8")).toBe(await readFile(projectFile, "utf8"));
+      expect((await lstat(projectFile)).mode & 0o111).toBe(0);
+
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot })).resolves.toEqual({ appliedFiles: 1 });
+
+      expect((await lstat(projectFile)).mode & 0o111).not.toBe(0);
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+      await chmod(projectFile, 0o700);
       expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });

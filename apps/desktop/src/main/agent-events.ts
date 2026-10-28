@@ -81,6 +81,10 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
     });
     request.on("end", () => {
       if (size > MAX_BODY_BYTES) return;
+      if (match[1] !== secret) {
+        response.writeHead(404).end();
+        return;
+      }
       let body: unknown;
       try {
         body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
