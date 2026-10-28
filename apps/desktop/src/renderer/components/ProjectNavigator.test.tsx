@@ -230,6 +230,22 @@ describe("ProjectNavigator", () => {
     expect(railRow("GothamTab")).not.toHaveAttribute("aria-describedby");
   });
 
+  it("opens the active project's row over its tree and names its branch there instead of a state", () => {
+    renderNavigator({
+      attentionCountsByWorkspace: new Map([["A", 1], ["CLIENT", 1]]),
+      sessions: [...sessions, agent("client-working", "CLIENT", "working")],
+    });
+
+    expect(railRow("Alfred").querySelector(".lucide-chevron-down")).not.toBeNull();
+    expect(railRow("Alfred").querySelector(".project-row-branch")).toHaveTextContent("main");
+    expect(railGlyph("Alfred")).toBeNull();
+    // The state still reaches a screen reader, and the tree below shows it per session.
+    expect(railRow("Alfred")).toHaveAccessibleDescription("needs you");
+    expect(railRow("ClientApp").querySelector(".lucide-chevron-right")).not.toBeNull();
+    expect(railRow("ClientApp").querySelector(".project-row-branch")).toBeNull();
+    expect(railGlyph("ClientApp")).toHaveClass("status-needs-you");
+  });
+
   it("groups rootless projects into one collapsed Sandboxes row with the group's highest state", async () => {
     const user = userEvent.setup();
     const onSelectWorkspace = vi.fn();

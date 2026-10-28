@@ -481,6 +481,33 @@ export function App() {
     });
   }, [workspaces]);
 
+  // The rail names the active project's branch, and a checkout in any terminal changes it while Alfred runs.
+  const workspacesReady = workspaceHydrationStatus.status === "ready";
+  useEffect(() => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (!workspaceApi || !workspacesReady) return;
+    let cancelled = false;
+    const refresh = () => {
+      if (!document.hasFocus()) return;
+      void workspaceApi.getWorkspaceState().then((state) => {
+        if (cancelled) return;
+        const branches = new Map(state.workspaces.map((workspace) => [workspace.id, workspace.gitBranch]));
+        setWorkspaces((current) =>
+          current.some((workspace) => branches.has(workspace.id) && branches.get(workspace.id) !== workspace.gitBranch)
+            ? current.map((workspace) => withGitBranch(workspace, branches))
+            : current);
+      }, () => {});
+    };
+    // shortcut: asks git every 15 s while the window has focus; a .git/HEAD watcher in main would push instead.
+    const timer = window.setInterval(refresh, 15_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [workspacesReady]);
+
   const handleAddWorkspace = useCallback(async () => {
     const snapshot = createScratchWorkspaceState(workspaces);
     const workspaceApi = getDesktopWorkspaceApi();
@@ -3439,6 +3466,13 @@ function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string):
   const next = { ...record };
   delete next[workspaceId];
   return next;
+}
+
+function withGitBranch(workspace: Workspace, branches: ReadonlyMap<string, string | undefined>): Workspace {
+  if (!branches.has(workspace.id)) return workspace;
+  const { gitBranch: _previous, ...rest } = workspace;
+  const gitBranch = branches.get(workspace.id);
+  return gitBranch === undefined ? rest : { ...rest, gitBranch };
 }
 
 function workspacePlanContext(
