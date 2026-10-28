@@ -806,6 +806,24 @@ async function waitForTerminalStartsToSettle() {
 }
 
 describe("App integration", () => {
+  it("names the branch a project switched to once the window has focus again", async () => {
+    const bridge = installDesktopBridge();
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    render(<App />);
+    const project = await screen.findByRole("button", { name: "Alfred project" });
+    await waitFor(() => expect(project.querySelector(".project-row-branch")).toHaveTextContent("main"));
+
+    bridge.getWorkspaceState.mockResolvedValue({
+      workspaces: [{ id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "history-redesign" }],
+      activeWorkspaceId: "A",
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    await waitFor(() => expect(project.querySelector(".project-row-branch")).toHaveTextContent("history-redesign"));
+  });
+
   it("kills a terminal created after its pending tile was closed", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
@@ -8679,8 +8697,8 @@ describe("App integration", () => {
     render(<App />);
     await screen.findByRole("article", { name: /Codex · decision/ });
     const project = screen.getByRole("button", { name: "Alfred project" });
-    if (freeChat) expect(project.querySelector(".status-needs-you")).toBeNull();
-    else expect(project.querySelector(".status-needs-you")).not.toBeNull();
+    if (freeChat) expect(project).not.toHaveAccessibleDescription("needs you");
+    else expect(project).toHaveAccessibleDescription("needs you");
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Proceed?");
   });

@@ -124,7 +124,7 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialIsola
           {kind !== "terminal" && <div className="new-session-prompt"><label htmlFor="new-session-prompt">{kind === "plan" ? "Goal" : "First prompt"}</label>
             <textarea id="new-session-prompt" rows={3} required={kind === "plan"} value={draft} disabled={busy || disabled} onChange={(event) => onDraftChange(event.target.value)} />
           </div>}
-          {agent && project?.rootPath && <label className="new-session-isolation"><input type="checkbox" checked={isolated} disabled={busy || disabled} onChange={(event) => setIsolated(event.target.checked)} /><span>Work in an isolated worktree<small>Changes reach the project only when you apply them</small></span></label>}
+          {agent && project?.rootPath && <label className="new-session-isolation"><input type="checkbox" checked={isolated} disabled={busy || disabled} onChange={(event) => setIsolated(event.target.checked)} /><span>Work in an isolated worktree<small>Changes reach {project.label} only when you apply them</small></span></label>}
           <div className="new-session-status" role="status">{busy ? "Thinking…" : error ?? (kind === "plan" ? requestError : undefined) ?? reason ?? (disabled ? "New session paused while another Alfred panel is active." : "")}</div>
           <footer><button type="button" disabled={disabled} onClick={close}>Cancel <kbd aria-hidden="true">esc</kbd></button><button type="submit" className="new-session-start" disabled={invalid}>Start <kbd aria-hidden="true">↩</kbd></button></footer>
         </form>
