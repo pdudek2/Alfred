@@ -994,7 +994,7 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".project-row-button", [
       "height: 30px",
       "border-radius: 8px",
-      "gap: 10px",
+      "gap: 8px",
     ]);
     expectCanonicalBase(".project-session", [
       "border-radius: 8px",
