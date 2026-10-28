@@ -12,6 +12,7 @@ import {
 } from "./terminal-manager.js";
 import {
   normalizeDesktopPrivacySettings,
+  removeQuarantinedDesktopStateFiles,
   sanitizePersistedTerminalSession,
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
@@ -70,6 +71,7 @@ export function registerDesktopStateIpc(
             return sanitized ? [sanitized] : [];
           }),
         }));
+        await removeQuarantinedDesktopStateFiles(store.getFilePath());
         await options.clearAgentEvents?.();
         return {
           ok: true,
