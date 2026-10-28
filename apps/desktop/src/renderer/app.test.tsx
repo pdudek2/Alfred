@@ -7777,6 +7777,11 @@ describe("App integration", () => {
     render(<App />);
 
     const focused = await screen.findByRole("article", { name: /Codex · one/i });
+    // The tile can appear before its effect subscribes to terminal events.
+    await waitFor(() => expect(bridge.reconcileTerminal).toHaveBeenCalledWith({
+      id: "runtime-three",
+      clientId: "three",
+    }));
     await bridge.emitData({
       id: "runtime-three",
       clientId: "three",
