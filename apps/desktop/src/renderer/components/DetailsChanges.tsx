@@ -50,6 +50,8 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
   }, [open, reviewable, sessionId, instanceKey, pending, reread]);
   const result = snapshot?.key === instanceKey ? snapshot.result : null;
   const diff = result?.ok ? parseUnifiedDiff(result.patch) : null;
+  // A session working in the project itself has no changes of its own to show.
+  if (!reviewable) return null;
   return (
     <section className="details-section" aria-label="Changes">
       <header className="details-section-heading">
@@ -57,7 +59,7 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
         {result?.ok && result.files.length > 0 && <span>{result.files.length} {result.files.length === 1 ? "file" : "files"}</span>}
         {diff && result?.ok && result.files.length > 0 && <span className="details-stats">+{diff.additions} −{diff.deletions}</span>}
       </header>
-      {!reviewable || (result?.ok && result.files.length === 0) ? <p className="details-empty">No worktree changes.</p>
+      {result?.ok && result.files.length === 0 ? <p className="details-empty">No worktree changes.</p>
         : !result ? <p className="details-empty" role="status">Loading changes…</p>
         : !result.ok ? <p className="details-empty" role="alert">{result.error}</p>
         : <>

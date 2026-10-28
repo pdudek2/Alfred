@@ -396,7 +396,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const { app, marker, page, paths } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
   const states: CssStateEvidence[] = [];
-  const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors];
+  // Details shows Changes only for an isolated checkout, which this fixture has none of; the evidence unit test
+  // checks that mask on a checkout's Details.
+  const checkoutOnlySelectors = new Set([".details-section[aria-label='Changes'] > :not(.details-section-heading)"]);
+  const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors]
+    .filter((selector) => !checkoutOnlySelectors.has(selector));
   const privacySelectorRuntimeMatches = new Map(privacySelectors.map((selector) => [selector, false]));
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
@@ -493,7 +497,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const wideContext = page.getByRole("complementary", { name: "Details" });
   // The heading row is 24px high on the canvas, as the tabs it replaced were.
   expect((await wideContext.locator(".side-column-header").boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
-  expect((await wideContext.getByRole("button", { name: /Open in terminal/ }).boundingBox())?.height ?? 0)
+  expect((await wideContext.getByRole("button", { name: /^Open in (Ghostty|external terminal) for / }).boundingBox())?.height ?? 0)
     .toBeGreaterThanOrEqual(32);
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: "[data-testid='context-column'].open button:not(:disabled)",
@@ -535,7 +539,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   for (const tab of await narrowContext.getByRole("tab").all()) {
     expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
   }
-  expect((await narrowContext.getByRole("button", { name: /Open in terminal/ }).boundingBox())?.height ?? 0)
+  expect((await narrowContext.getByRole("button", { name: /^Open in (Ghostty|external terminal) for / }).boundingBox())?.height ?? 0)
     .toBeGreaterThanOrEqual(32);
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: "[data-testid='context-column'].open button:not(:disabled)",

@@ -51,6 +51,14 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await expect(popover).not.toContainText("Fixture item 2");
   const edit = popover.getByRole("button", { name: /^Edit Fixture item 1 in / });
   await expect(edit).toBeFocused();
+  // The window dims under the queue (Needs board) and still lets a click outside land where it points.
+  const scrim = page.locator(".needs-you-scrim");
+  await expect(scrim).toBeVisible();
+  expect(await scrim.evaluate((node) => {
+    const { pointerEvents, backgroundColor } = getComputedStyle(node);
+    const box = node.getBoundingClientRect();
+    return { pointerEvents, backgroundColor, width: box.width, height: box.height };
+  })).toEqual({ pointerEvents: "none", backgroundColor: "color(srgb 0.0235294 0.0235294 0.027451 / 0.45)", width: 1440, height: 900 });
   expect(await elementGeometry(grid)).toEqual(gridBefore);
   expect(await popover.evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(1440);
   expect(await documentOverflow(page)).toBe(0);

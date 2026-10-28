@@ -112,56 +112,60 @@ export function NeedsYouPopover({
   };
 
   return (
-    <div
-      ref={dialogRef}
-      className="needs-you-popover"
-      style={anchor ? { top: anchor.top, right: anchor.right } : undefined}
-      role="dialog"
-      aria-label="Needs you"
-      tabIndex={-1}
-      onKeyDown={handleKeyDown}
-      onFocusCapture={(event) => {
-        const index = rowButtons(dialogRef.current).findIndex((button) => button === (event.target as EventTarget));
-        if (index >= 0) focusedIndexRef.current = index;
-      }}
-    >
-      <header className="needs-you-popover__header">
-        <h2>Needs you</h2>
-        <kbd>{shortcutLabel}</kbd>
-      </header>
-      {items.length === 0 ? (
-        <p className="needs-you-popover__empty" role="status">Nothing needs you right now.</p>
-      ) : (
-        <ul className="needs-you-popover__list" aria-label="Blocked on you">
-          {items.map((item, index) => (
-            <li className="needs-you-popover__row" key={item.id}>
-              <AlfredSignalGlyph className="needs-you-popover__glyph" />
-              <div className="needs-you-popover__copy">
-                <div className="needs-you-popover__title">
-                  <strong>{item.sessionTitle}</strong>
-                  <span>{item.workspaceLabel}</span>
+    <>
+      {/* The window dims under the queue, as on the Needs board; clicks pass through it. */}
+      <div className="needs-you-scrim" aria-hidden="true" />
+      <div
+        ref={dialogRef}
+        className="needs-you-popover"
+        style={anchor ? { top: anchor.top, right: anchor.right } : undefined}
+        role="dialog"
+        aria-label="Needs you"
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        onFocusCapture={(event) => {
+          const index = rowButtons(dialogRef.current).findIndex((button) => button === (event.target as EventTarget));
+          if (index >= 0) focusedIndexRef.current = index;
+        }}
+      >
+        <header className="needs-you-popover__header">
+          <h2>Needs you</h2>
+          <kbd>{shortcutLabel}</kbd>
+        </header>
+        {items.length === 0 ? (
+          <p className="needs-you-popover__empty" role="status">Nothing needs you right now.</p>
+        ) : (
+          <ul className="needs-you-popover__list" aria-label="Blocked on you">
+            {items.map((item, index) => (
+              <li className="needs-you-popover__row" key={item.id}>
+                <AlfredSignalGlyph className="needs-you-popover__glyph" />
+                <div className="needs-you-popover__copy">
+                  <div className="needs-you-popover__title">
+                    <strong>{item.sessionTitle}</strong>
+                    <span>{item.workspaceLabel}</span>
+                  </div>
+                  <p title={item.reason}>{item.reason}</p>
                 </div>
-                <p title={item.reason}>{item.reason}</p>
-              </div>
-              <button
-                type="button"
-                className={index === 0 ? "is-default" : undefined}
-                data-needs-you-row
-                aria-label={`${needsYouActionLabel(item)} ${item.sessionTitle} in ${item.workspaceLabel}`}
-                onClick={() => {
-                  restoreFocusOnCloseRef.current = false;
-                  onRunAction(item);
-                }}
-              >
-                {needsYouActionLabel(item)}
-                {/* Focus starts on the first row, so Enter runs this action. */}
-                {index === 0 && <kbd aria-hidden="true">↩</kbd>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+                <button
+                  type="button"
+                  className={index === 0 ? "is-default" : undefined}
+                  data-needs-you-row
+                  aria-label={`${needsYouActionLabel(item)} ${item.sessionTitle} in ${item.workspaceLabel}`}
+                  onClick={() => {
+                    restoreFocusOnCloseRef.current = false;
+                    onRunAction(item);
+                  }}
+                >
+                  {needsYouActionLabel(item)}
+                  {/* Focus starts on the first row, so Enter runs this action. */}
+                  {index === 0 && <kbd aria-hidden="true">↩</kbd>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   );
 }
 

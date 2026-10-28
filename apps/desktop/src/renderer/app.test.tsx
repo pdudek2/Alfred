@@ -2096,7 +2096,11 @@ describe("App integration", () => {
 
   it("keeps workspace navigation focus across a round trip to a workspace with open Details", async () => {
     const user = userEvent.setup();
-    installDesktopBridge(undefined, null, [], undefined, undefined, {
+    // Details describes a session, so ClientApp has one running.
+    installDesktopBridge(undefined, null, [{
+      id: "runtime-client", clientId: "manual-9", title: "zsh", source: "manual", workspaceId: "W2",
+      cwd: "/Users/sample/ClientApp", shell: "/bin/zsh", buffer: "",
+    }], undefined, undefined, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
         { id: "W2", label: "ClientApp", shortLabel: "CLI" },
@@ -6245,8 +6249,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Codex · shared review/i });
     await selectSurface(user, "Details");
 
-    const changes = within(screen.getByRole("complementary", { name: "Details" })).getByRole("region", { name: "Changes" });
-    expect(changes).toHaveTextContent("No worktree changes.");
+    expect(within(screen.getByRole("complementary", { name: "Details" })).queryByRole("region", { name: "Changes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Apply to / })).not.toBeInTheDocument();
     expect(worktreeDiff).not.toHaveBeenCalled();
@@ -7522,7 +7525,7 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
-    await user.click(screen.getByRole("button", { name: "Open in terminal for Codex" }));
+    await user.click(screen.getByRole("button", { name: "Open in external terminal for Codex" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
   });
@@ -7565,7 +7568,7 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     const terminalButton = screen.getByRole(
       "button",
-      { name: "Open in terminal for Codex · context-terminal" },
+      { name: "Open in external terminal for Codex · context-terminal" },
     );
     await user.click(terminalButton);
 

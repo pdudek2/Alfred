@@ -41,7 +41,16 @@ test("pastes the path of a file dropped on a live Claude terminal", async ({ har
   const overlay = page.locator('[data-session-id="claude-1"] .terminal-drop-overlay');
   await expect(overlay).toHaveText(/Drop to attach to Claude\s*The file path goes into the prompt/);
 
-  await host.dispatchEvent("drop", { dataTransfer });
+  // The whole session box takes the file, strip included, and the overlay dims it all (Drop board).
+  const strip = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"] .session-strip');
+  await strip.dispatchEvent("dragenter", { dataTransfer });
+  await host.dispatchEvent("dragleave", { dataTransfer });
+  await expect(overlay).toBeVisible();
+  const [overlayBox, stripBox] = [await overlay.boundingBox(), await strip.boundingBox()];
+  expect(overlayBox!.y + overlayBox!.height).toBeGreaterThanOrEqual(stripBox!.y + stripBox!.height);
+  expect(overlayBox!.x).toBeLessThanOrEqual(stripBox!.x);
+
+  await strip.dispatchEvent("drop", { dataTransfer });
   await expect(overlay).toBeHidden();
   await expect.poll(() => terminalBuffer(page)).toContain(`${dir}/Screenshot\\ 11.52.png `);
   harness.assertNoRuntimeErrors();

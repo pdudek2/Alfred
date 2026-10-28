@@ -1471,6 +1471,25 @@ function ManualTerminalTile({
       className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${pinned ? "pinned" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
+      onDragEnter={(event) => {
+        if (!acceptsFileDrag(event)) return;
+        event.preventDefault();
+        fileDragDepthRef.current += 1;
+        setFileDragOver(true);
+      }}
+      onDragOver={(event) => {
+        if (!acceptsFileDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        // The whole box takes a file, strip included. Enter and leave also fire for its inner layers, so only the last
+        // leave ends the drag.
+        fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+        if (fileDragDepthRef.current === 0) setFileDragOver(false);
+      }}
+      onDrop={dropFiles}
       aria-label={`${pinned ? "Pinned: " : ""}${latestActivity ? `${title}, ${activitySentence(latestActivity)}` : title}`}
       aria-hidden={workspaceHidden || layoutHidden ? "true" : undefined}
       inert={workspaceHidden || layoutHidden ? true : undefined}
@@ -1580,24 +1599,6 @@ function ManualTerminalTile({
         aria-hidden={preview ? "true" : undefined}
         inert={preview ? true : undefined}
         ref={containerRef}
-        onDragEnter={(event) => {
-          if (!acceptsFileDrag(event)) return;
-          event.preventDefault();
-          fileDragDepthRef.current += 1;
-          setFileDragOver(true);
-        }}
-        onDragOver={(event) => {
-          if (!acceptsFileDrag(event)) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
-        }}
-        onDragLeave={(event) => {
-          if (!event.dataTransfer.types.includes("Files")) return;
-          // Enter and leave also fire for xterm's own layers, so only the last leave ends the drag.
-          fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
-          if (fileDragDepthRef.current === 0) setFileDragOver(false);
-        }}
-        onDrop={dropFiles}
       />
     </article>
   );
