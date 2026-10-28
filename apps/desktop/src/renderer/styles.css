@@ -1669,12 +1669,13 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   outline-offset: -2px;
 }
 
-/* v4 Drop board: a dragged file dims the terminal and says where its path goes. The OS draws the file itself.
-   It lets the pointer through, so the terminal underneath keeps receiving the drag. */
+/* v4 Drop board: a dragged file dims the whole session box, strip included, and says where its path goes. The OS
+   draws the file itself. It lets the pointer through, so the box underneath keeps receiving the drag. Positioned
+   rather than placed in the grid, so the strip keeps its row; a pinned tile's grid-area keeps it to the terminal. */
 .terminal-drop-overlay {
-  grid-area: 1 / 1;
+  position: absolute;
+  inset: 10px;
   z-index: 2;
-  margin: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;

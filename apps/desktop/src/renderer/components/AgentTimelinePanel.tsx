@@ -5,6 +5,7 @@ import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
+import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 
 export type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
@@ -52,21 +53,8 @@ export function AgentTimelinePanel({
     commandInputRef.current?.focus();
   }, [editMode]);
 
-  if (!session) {
-    return (
-      <aside className="agent-timeline-panel" aria-label="Agent activity">
-        <header className="agent-timeline-header visually-hidden">
-          <strong>Activity</strong>
-          <span>no selected session</span>
-        </header>
-        <div className="agent-timeline-body">
-          {changes ?? <section className="details-section"><header className="details-section-heading"><h2>Changes</h2></header><p className="details-empty">No worktree changes.</p></section>}
-          <section className="details-section" aria-label="Activity"><header className="details-section-heading"><h2>Activity</h2></header><p className="details-empty">No activity yet.</p></section>
-          <section className="details-section" aria-label="Location"><header className="details-section-heading"><h2>Location</h2></header><p className="details-empty">Select a session to see its location.</p></section>
-        </div>
-      </aside>
-    );
-  }
+  // The column is not shown without a session to describe.
+  if (!session) return null;
 
   const displayStatus = sessionState(session, "ready", now);
   const activityEvents = session.activityEvents ?? [];
@@ -211,7 +199,7 @@ export function AgentTimelinePanel({
         <strong>{session.title}</strong>
       </header>
       <div className="agent-timeline-body">
-        {changes ?? <section className="details-section" aria-label="Changes"><header className="details-section-heading"><h2>Changes</h2></header><p className="details-empty">No worktree changes.</p></section>}
+        {changes}
         {session.stage === "staged" && blockReason && !canEditStagedSession && <p className="details-empty">{blockReason}</p>}
         {canEditStagedSession && !editMode && (
           <section className="agent-staged-editor" aria-label={`Edit draft command for ${session.title}`}>
@@ -421,8 +409,9 @@ function isIsolatedCheckoutSession(session: Pick<SessionTile, "isolation" | "bra
 
 function sessionHandoffActions(session: SessionTile): SessionHandoffAction[] {
   if (!session.cwd) return [];
+  const terminalLabel = externalTerminalLabel();
   return [
-    { id: "open-terminal", kind: "open-terminal", label: "Open in terminal", ariaLabel: `Open in terminal for ${session.title}`, cwd: session.cwd },
+    { id: "open-terminal", kind: "open-terminal", label: terminalLabel, ariaLabel: `${terminalLabel} for ${session.title}`, cwd: session.cwd },
     { id: "reveal-folder", kind: "reveal-folder", label: "Show in Finder", ariaLabel: `Show in Finder for ${session.title}`, cwd: session.cwd },
     { id: "copy-cwd", kind: "copy", label: "Copy path", ariaLabel: `Copy path for ${session.title}`, value: session.cwd },
   ];
