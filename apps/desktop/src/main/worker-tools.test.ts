@@ -168,6 +168,21 @@ describe("worker tools", () => {
       .resolves.toMatchObject({ state: "needs you" });
   });
 
+  it("settles a wait without throwing from the listener when the worker is released", async () => {
+    vi.useFakeTimers();
+    const { host, workers, changed, listeners } = fakeHost([worker("codex-1", { lastPrompt: 1 })]);
+    const waiting = createWorkerTools(host).call("lead-session", "wait_for_worker", { worker_id: "codex-1" })
+      .catch((error: unknown) => error);
+    expect(listeners.size).toBe(1);
+
+    workers.splice(0);
+    expect(changed).not.toThrow();
+
+    expect(await waiting).toBeInstanceOf(WorkerToolError);
+    expect(listeners.size).toBe(0);
+    expect(changed).not.toThrow();
+  });
+
   it("sends a message only on the worker's turn, and it then counts as working", async () => {
     const waiting = worker("codex-1", { lastPrompt: 1, lastTurnEnd: 2 });
     const { host, sent } = fakeHost([

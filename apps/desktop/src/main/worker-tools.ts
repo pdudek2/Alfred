@@ -239,7 +239,7 @@ export function createWorkerTools(host: WorkerHost) {
           const current = () => findWorker(workers(), id);
           host.markSeen(caller.clientId, [id]);
           if (isSettled(current())) return detail(current());
-          const settled = await new Promise<boolean>((resolve) => {
+          const settled = await new Promise<boolean>((resolve, reject) => {
             const finish = (value: boolean) => {
               clearTimeout(timer);
               stop();
@@ -247,7 +247,13 @@ export function createWorkerTools(host: WorkerHost) {
             };
             const timer = setTimeout(() => finish(false), seconds * 1000);
             const stop = host.onChange(() => {
-              if (isSettled(current())) finish(true);
+              try {
+                if (isSettled(current())) finish(true);
+              } catch (error) {
+                clearTimeout(timer);
+                stop();
+                reject(error);
+              }
             });
           });
           host.markSeen(caller.clientId, [id]);
