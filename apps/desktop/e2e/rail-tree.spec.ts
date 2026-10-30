@@ -76,10 +76,13 @@ test("starts workers from their parent's row and keeps them under the parent acr
   await setWindowSize(app, page, 1440, 900);
 
   // ⌘I hides and shows Details; the column is not a drawer, so Escape leaves it alone.
-  await page.keyboard.press("ControlOrMeta+i");
-  await expect(details).toHaveClass(/(^| )closed( |$)/);
-  await page.keyboard.press("ControlOrMeta+i");
-  await expect(details).toHaveClass(/(^| )open( |$)/);
+  // Elsewhere Control I in the focused terminal is Tab, which the terminal keeps for its shell.
+  if (process.platform === "darwin") {
+    await page.keyboard.press("ControlOrMeta+i");
+    await expect(details).toHaveClass(/(^| )closed( |$)/);
+    await page.keyboard.press("ControlOrMeta+i");
+    await expect(details).toHaveClass(/(^| )open( |$)/);
+  }
   await page.getByTestId("project-navigator").getByRole("button", { name: "Settings", exact: true }).focus();
   await page.keyboard.press("Escape");
   await expect(details).toHaveClass(/(^| )open( |$)/);
