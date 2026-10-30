@@ -94,6 +94,8 @@ export async function createDesktopFixture(
         )
       ),
     ]);
+    // Linux takes the documents folder from user-dirs.dirs, and without one takes HOME itself; macOS has ~/Documents.
+    await writeFile(path.join(paths.home, ".config", "user-dirs.dirs"), 'XDG_DOCUMENTS_DIR="$HOME/Documents"\n', "utf8");
     // With no startup file in ZDOTDIR, Debian's zsh opens its new-user menu instead of a prompt.
     await writeFile(path.join(paths.home, ".zshrc"), "", "utf8");
     if (options.missingWorkspaceId) {
