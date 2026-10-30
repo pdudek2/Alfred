@@ -31,6 +31,16 @@ export function isAllowedElectronMainOutput(source: string, text: string): boole
     (PLAYWRIGHT_INSPECTOR_SHUTDOWN.test(text) || MACOS_BACKUPD_XPC_OUTPUT.test(text) || CHROMIUM_SHARED_IMAGE_OUTPUT.test(text));
 }
 
+export function linuxElectronArguments(platform: NodeJS.Platform, uid: number | undefined): string[] {
+  if (platform !== "linux") return [];
+  return [
+    // Electron on Linux downloads spellcheck dictionaries from Google; the smoke stays offline.
+    "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND",
+    // Chromium refuses to start as root with its sandbox on, and Linux containers run the smoke as root.
+    ...(uid === 0 ? ["--no-sandbox"] : []),
+  ];
+}
+
 export function isPgrepNoChildren(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 1;
 }
