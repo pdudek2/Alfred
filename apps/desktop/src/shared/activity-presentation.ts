@@ -87,11 +87,11 @@ function isUsefulLifecycle(event: SessionActivityEvent): boolean {
   const text = `${event.title} ${event.detail}`.toLowerCase();
   return (
     text.includes("approved for launch") ||
-    text.includes("session attached") ||
     text.includes("process exited") ||
     text.includes("transcript restored") ||
     text.includes("applied to project") ||
     text.includes("already in the project") ||
+    text.includes("started in a new worktree") ||
     text.includes("started from the last commit") ||
     text.includes("checkout diff reviewed") ||
     text.includes("relaunching session") ||

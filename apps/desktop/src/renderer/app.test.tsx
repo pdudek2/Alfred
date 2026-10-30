@@ -5428,9 +5428,8 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
-    await waitFor(() => {
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("bash is running in …/Desktop/Alfred.");
-    });
+    // Starting a plain session is not work, so nothing is listed yet.
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("No activity yet.");
 
     screen.getByRole("heading", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
@@ -5795,6 +5794,7 @@ describe("App integration", () => {
         }),
       );
     });
+    expect(await screen.findByLabelText("Agent activity")).toHaveTextContent("Started in a new worktree");
   });
 
   it("reviews and applies a legacy isolated checkout from focus mode", async () => {
@@ -7282,7 +7282,7 @@ describe("App integration", () => {
     });
   });
 
-  it("uses one precomputed timestamp for the Session attached event in StrictMode", async () => {
+  it("uses one precomputed timestamp for the start event in StrictMode", async () => {
     const user = userEvent.setup();
     const runtimeReady = deferred<TerminalSessionSnapshot>();
     const bridge = installDesktopBridge(undefined, null, [{
@@ -7325,6 +7325,7 @@ describe("App integration", () => {
         cwd: "/repo",
         shell: "/bin/zsh",
         buffer: "",
+        uncommittedFiles: 2,
       });
     });
 
@@ -7332,11 +7333,10 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     const timeline = document.querySelector(".agent-activity-list");
     if (!(timeline instanceof HTMLOListElement)) throw new Error("Expected activity timeline");
-    // The attach step reads as its own sentence: "<shell> is running in <folder>."
-    const attachedEvents = within(timeline).getAllByText(/ is running in /);
+    const startEvents = within(timeline).getAllByText(/^Started from the last commit/);
 
-    expect(attachedEvents).toHaveLength(1);
-    expect(attachedEvents[0]?.closest("li")?.querySelector("time")).toHaveAttribute(
+    expect(startEvents).toHaveLength(1);
+    expect(startEvents[0]?.closest("li")?.querySelector("time")).toHaveAttribute(
       "dateTime",
       new Date(attachmentAt).toISOString(),
     );
@@ -9700,6 +9700,12 @@ describe("App integration", () => {
         }),
       );
     });
+    await act(async () => {
+      await createTerminal.mock.results.at(-1)?.value;
+    });
+    const activity = await screen.findByLabelText("Agent activity");
+    expect(activity).toHaveTextContent("Resumed");
+    expect(activity).not.toHaveTextContent("Started in a new worktree");
   });
 
   it("keeps explicitly shared restored sessions shared when stale checkout metadata exists", async () => {
