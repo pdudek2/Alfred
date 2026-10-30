@@ -34,6 +34,8 @@ export function isAllowedElectronMainOutput(source: string, text: string): boole
 export function linuxElectronArguments(platform: NodeJS.Platform, uid: number | undefined): string[] {
   if (platform !== "linux") return [];
   return [
+    // An unmapped X11 window gets about one frame a second, and the scenarios wait on frames.
+    "--disable-frame-rate-limit",
     // Electron on Linux downloads spellcheck dictionaries from Google; the smoke stays offline.
     "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND",
     // Chromium refuses to start as root with its sandbox on, and Linux containers run the smoke as root.
