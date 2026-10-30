@@ -25,7 +25,11 @@ describe("Electron harness pure guards", () => {
   });
 
   it("adds the Linux arguments only on Linux and turns the Chromium sandbox off only for root", () => {
-    const linux = ["--disable-frame-rate-limit", "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND"];
+    const linux = [
+      "--disable-frame-rate-limit",
+      "--disable-gpu",
+      "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND",
+    ];
     expect(linuxElectronArguments("linux", 0)).toEqual([...linux, "--no-sandbox"]);
     expect(linuxElectronArguments("linux", 1001)).toEqual(linux);
     expect(linuxElectronArguments("darwin", 0)).toEqual([]);
