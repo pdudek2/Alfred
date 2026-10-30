@@ -59,6 +59,9 @@ jobs:
   electron-smoke-linux:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # The scenarios type non-ASCII text into zsh, which reads it only in a UTF-8 locale.
+    env:
+      LANG: C.UTF-8
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
