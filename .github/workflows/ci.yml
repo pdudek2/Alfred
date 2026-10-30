@@ -68,7 +68,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb xauth dbus-daemon libgtk-3-0t64 libnss3 libasound2t64 libgbm1
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb xauth dbus-daemon libgtk-3-0t64 libnss3 libasound2t64 libgbm1 zsh xxd
       # Ubuntu 24.04 confines unprivileged user namespaces, and Chromium's sandbox needs them.
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm install --frozen-lockfile

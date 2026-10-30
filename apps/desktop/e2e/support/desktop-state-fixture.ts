@@ -94,6 +94,8 @@ export async function createDesktopFixture(
         )
       ),
     ]);
+    // With no startup file in ZDOTDIR, Debian's zsh opens its new-user menu instead of a prompt.
+    await writeFile(path.join(paths.home, ".zshrc"), "", "utf8");
     if (options.missingWorkspaceId) {
       await rm(options.missingWorkspaceId === "A" ? paths.workspaceA : paths.workspaceB, {
         recursive: true,

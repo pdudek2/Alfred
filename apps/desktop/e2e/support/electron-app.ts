@@ -337,7 +337,7 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
       : path.join(paths.home, "bin"),
     // The fixture shell is zsh (ZDOTDIR, product default). Inheriting the runner's SHELL gave CI bash,
     // whose long runner prompt redraws over earlier output when scenarios narrow a terminal to ~20 cols.
-    ...(process.platform === "darwin" ? { SHELL: "/bin/zsh" } : {}),
+    ...(process.platform === "win32" ? {} : { SHELL: "/bin/zsh" }),
     HOME: paths.home,
     TMPDIR: paths.root,
     ZDOTDIR: paths.home,
