@@ -58,7 +58,9 @@ test("starts workers from their parent's row and keeps them under the parent acr
 
   // Over the native window material too, the project row above its tree has no fill; the focused session has it.
   const projectRow = page.getByTestId("project-navigator").locator(".project-row.has-tree");
-  await expect(page.locator("html")).toHaveAttribute("data-alfred-window-material", "native");
+  if (process.platform === "darwin") {
+    await expect(page.locator("html")).toHaveAttribute("data-alfred-window-material", "native");
+  }
   await expect(projectRow).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   // The rail keeps its width at both window sizes; the right column is Details, with no Sessions tab left.
