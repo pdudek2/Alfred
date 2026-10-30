@@ -1188,7 +1188,7 @@ export function App() {
       appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Resuming session",
-        detail: "Alfred is starting a fresh process from this asleep session.",
+        detail: "Resumed",
       }),
     );
   }, [armedRecoverySessionIds]);
@@ -1215,7 +1215,7 @@ export function App() {
       appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Resuming session",
-        detail: "Alfred is starting a fresh process in this session.",
+        detail: "Resumed",
       }),
     );
   }, [armedRecoverySessionIds]);
@@ -1505,13 +1505,16 @@ export function App() {
       if (session?.activityEvents?.some((event) => event.at >= attachmentAt)) {
         return attached;
       }
-      const withAttachment = appendSessionActivity(attached, tileId, {
-        kind: "lifecycle",
-        title: "Session attached",
-        detail: `${runtime.shell} is running in ${runtime.cwd ? shortenPath(runtime.cwd) : "the project"}.`,
-      }, attachmentAt);
+      // A resumed checkout already has a history.
+      const started = session?.isolation === "worktree" && !session.activityEvents?.length
+        ? appendSessionActivity(attached, tileId, {
+            kind: "lifecycle",
+            title: "Started in a new worktree",
+            detail: "Started in a new worktree",
+          }, attachmentAt)
+        : attached;
       const uncommitted = runtime.uncommittedFiles ?? 0;
-      return uncommitted === 0 ? withAttachment : appendSessionActivity(withAttachment, tileId, {
+      return uncommitted === 0 ? started : appendSessionActivity(started, tileId, {
         kind: "lifecycle",
         title: "Started from the last commit",
         // Details shows the first sentence of a detail, so this stays one.
