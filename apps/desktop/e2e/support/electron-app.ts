@@ -24,6 +24,7 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  linuxElectronArguments,
 } from "./electron-harness-pure";
 
 const execFileAsync = promisify(execFile);
@@ -95,7 +96,11 @@ export const test = base.extend<Fixtures>({
     };
     const launchElectron = async (): Promise<ElectronApplication> => {
       const launched = await electron.launch({
-        args: [desktopRoot, `--user-data-dir=${paths.userData}`],
+        args: [
+          ...linuxElectronArguments(process.platform, process.getuid?.()),
+          desktopRoot,
+          `--user-data-dir=${paths.userData}`,
+        ],
         artifactsDir: paths.artifacts,
         cwd: desktopRoot,
         env: electronEnvironment(paths),

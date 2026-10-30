@@ -4,6 +4,7 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  linuxElectronArguments,
 } from "./electron-harness-pure";
 
 const canonicalCspWarning = `%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold;
@@ -20,6 +21,15 @@ describe("Electron harness pure guards", () => {
     expect(isAllowedElectronWarning(canonicalCspWarning)).toBe(true);
     expect(isAllowedElectronWarning(`${canonicalCspWarning} attacker-controlled suffix`)).toBe(false);
     expect(isAllowedElectronWarning("Electron Security Warning (Insecure Content-Security-Policy)")).toBe(false);
+  });
+
+  it("keeps Linux offline for spellcheck and turns the Chromium sandbox off only for root on Linux", () => {
+    const offline = "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND";
+    expect(linuxElectronArguments("linux", 0)).toEqual([offline, "--no-sandbox"]);
+    expect(linuxElectronArguments("linux", 1001)).toEqual([offline]);
+    expect(linuxElectronArguments("darwin", 0)).toEqual([]);
+    expect(linuxElectronArguments("darwin", 501)).toEqual([]);
+    expect(linuxElectronArguments("win32", undefined)).toEqual([]);
   });
 
   it("treats only pgrep exit code 1 as no descendants", () => {
