@@ -45,16 +45,20 @@ async function expectAlphaBelowOne(locator: Locator, label: string): Promise<voi
 
 async function expectAlphaOne(locator: Locator, label: string): Promise<void> {
   await expect(locator).toBeVisible();
-  expect(await backgroundAlpha(locator), `${label} must be opaque`).toBe(1);
+  // Without the native material Work paints no background of its own, and the opaque frame behind it shows.
+  expect(await backgroundAlpha(locator, true), `${label} must be opaque`).toBe(1);
 }
 
-async function backgroundAlpha(locator: Locator): Promise<number> {
-  return locator.evaluate((node) => {
-    const color = getComputedStyle(node).backgroundColor;
-    const values = color.match(/rgba?\(([^)]+)\)/)?.[1]?.split(",").map(Number);
-    if (!values || values.length < 3 || values.some(Number.isNaN)) {
-      throw new Error(`Unsupported computed background color: ${color}`);
+async function backgroundAlpha(locator: Locator, throughTransparent = false): Promise<number> {
+  return locator.evaluate((node, walkUp) => {
+    for (let element: Element = node; ; element = element.parentElement!) {
+      const color = getComputedStyle(element).backgroundColor;
+      const values = color.match(/rgba?\(([^)]+)\)/)?.[1]?.split(",").map(Number);
+      if (!values || values.length < 3 || values.some(Number.isNaN)) {
+        throw new Error(`Unsupported computed background color: ${color}`);
+      }
+      const alpha = values[3] ?? 1;
+      if (!walkUp || alpha > 0 || !element.parentElement) return alpha;
     }
-    return values[3] ?? 1;
-  });
+  }, throughTransparent);
 }
