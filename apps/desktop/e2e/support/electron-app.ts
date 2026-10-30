@@ -428,6 +428,8 @@ async function stopElectronApplication(
   }
   let closeResult = await withTimeout(closePromise, 5_000, "close-timeout");
   const trackedPids = [mainPid, ...descendants].filter((pid): pid is number => pid !== undefined);
+  // On Linux Chromium's helper processes exit only once they see the browser process gone, just after close returns.
+  if (process.platform === "linux") await waitUntilDead(trackedPids, 2_000);
   const aliveAfterClose = trackedPids.filter(isAlive);
   const requiredSignalFallback = aliveAfterClose.length > 0;
   let usedSigkill = false;
