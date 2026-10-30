@@ -128,6 +128,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     await page.keyboard.press("ControlOrMeta+i");
     await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
     await expect(focusedInput).toBeFocused();
+  } else {
+    await trigger.focus();
   }
   await openContext(page);
 
