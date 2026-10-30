@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -24,6 +25,7 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  isZombieProcessStat,
   linuxElectronArguments,
 } from "./electron-harness-pure";
 
@@ -458,9 +460,19 @@ function terminate(pids: number[], signal: NodeJS.Signals): void {
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
-    return true;
   } catch (error) {
     return typeof error === "object" && error !== null && "code" in error && error.code === "EPERM";
+  }
+  return !isLinuxZombie(pid);
+}
+
+// An exited Chromium zygote stays a zombie until init reaps it, which a container's init may do late.
+function isLinuxZombie(pid: number): boolean {
+  if (process.platform !== "linux") return false;
+  try {
+    return isZombieProcessStat(readFileSync(`/proc/${pid}/stat`, "utf8"));
+  } catch (error) {
+    return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
   }
 }
 
