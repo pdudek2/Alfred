@@ -31,6 +31,7 @@ test("previews the file behind a sent Codex [Image #1] from the rollout its hook
 });
 
 test("tells screenshots sent on their own apart and keeps their preview while Codex redraws", async ({ harness }) => {
+  test.skip(process.platform !== "darwin", "Command-click opens Quick Look, which Alfred has only on macOS.");
   const { app, page, paths } = harness;
   // Screenshots sent with no words are all "[Image #1]"; the message before them pins which is which.
   const { marker, tile } = await startCodexWithSentMessages(harness, [
