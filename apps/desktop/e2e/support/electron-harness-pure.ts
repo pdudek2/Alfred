@@ -45,6 +45,11 @@ export function isPgrepNoChildren(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 1;
 }
 
+/** Reads the state from a /proc/<pid>/stat line; the command name in parentheses may itself hold spaces and ")". */
+export function isZombieProcessStat(stat: string): boolean {
+  return stat.slice(stat.lastIndexOf(")") + 1).trimStart().startsWith("Z");
+}
+
 export function hasExpectedConnectionRefusedSources(sources: readonly string[]): boolean {
   return sources.filter((source) => source === "renderer").length === 1 &&
     sources.filter((source) => source === "main-stderr").length <= 1 &&
