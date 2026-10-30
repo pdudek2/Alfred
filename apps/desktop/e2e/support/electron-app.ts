@@ -129,6 +129,17 @@ export const test = base.extend<Fixtures>({
       expect(await launched.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]?.isVisible()
       )).toBe(false);
+      if (process.platform === "linux") {
+        // Linux keeps Electron's default menu bar inside the window; the scenarios size the window as its viewport.
+        const size = await launched.evaluate(({ BrowserWindow }) => {
+          const [browserWindow] = BrowserWindow.getAllWindows();
+          if (!browserWindow) throw new Error("Electron window is missing.");
+          browserWindow.setMenuBarVisibility(false);
+          const { width, height } = browserWindow.getBounds();
+          return { width, height };
+        });
+        await expect.poll(() => window.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual(size);
+      }
       return window;
     };
 
