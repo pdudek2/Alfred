@@ -36,6 +36,8 @@ export function linuxElectronArguments(platform: NodeJS.Platform, uid: number | 
   return [
     // An unmapped X11 window gets about one frame a second, and the scenarios wait on frames.
     "--disable-frame-rate-limit",
+    // Xvfb has no GPU; trying GL first sometimes logs a transient GPU error before the software fallback.
+    "--disable-gpu",
     // Electron on Linux downloads spellcheck dictionaries from Google; the smoke stays offline.
     "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND",
     // Chromium refuses to start as root with its sandbox on, and Linux containers run the smoke as root.
