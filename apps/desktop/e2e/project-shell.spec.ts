@@ -121,11 +121,16 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   // again, it returns the keyboard there.
   const focusedInput = page.locator('[data-testid="terminal-tile"]:visible').getByRole("textbox", { name: "Terminal input" });
   await expect(focusedInput).toBeFocused();
-  await page.keyboard.press("ControlOrMeta+i");
-  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
-  await page.keyboard.press("ControlOrMeta+i");
-  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
-  await expect(focusedInput).toBeFocused();
+  // Elsewhere Control I in a focused terminal is Tab, which the terminal keeps for its shell.
+  if (process.platform === "darwin") {
+    await page.keyboard.press("ControlOrMeta+i");
+    await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+    await page.keyboard.press("ControlOrMeta+i");
+    await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
+    await expect(focusedInput).toBeFocused();
+  } else {
+    await trigger.focus();
+  }
   await openContext(page);
 
   await switchProject(page, "Fixture Beta");

@@ -63,7 +63,7 @@ test("CI runs every gate on pull requests and main without softening failures", 
 
   const jobs = yamlBlock(workflow, "jobs");
   const job = (name) => yamlBlock(jobs, name, 2);
-  for (const name of ["quality", "electron-smoke", "windows-path-security"]) {
+  for (const name of ["quality", "electron-smoke", "electron-smoke-linux", "windows-path-security"]) {
     assert.match(job(name), /^ {6}- run: pnpm install --frozen-lockfile\s*$/m, name);
   }
   assert.match(job("quality"), /^ {6}- run: pnpm verify:quality\s*$/m);
@@ -71,6 +71,10 @@ test("CI runs every gate on pull requests and main without softening failures", 
   assert.match(
     job("electron-smoke"),
     /^ {6}- run: pnpm --filter @alfred\/desktop\.\.\. build\s*$[\s\S]*^ {6}- run: pnpm smoke:electron\s*$/m,
+  );
+  assert.match(
+    job("electron-smoke-linux"),
+    /^ {6}- run: pnpm --filter @alfred\/desktop\.\.\. build\s*$[\s\S]*^ {6}- run: dbus-run-session -- xvfb-run -a pnpm smoke:electron\s*$/m,
   );
   assert.match(
     job("windows-path-security"),

@@ -4,6 +4,8 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  isZombieProcessStat,
+  linuxElectronArguments,
 } from "./electron-harness-pure";
 
 const canonicalCspWarning = `%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold;
@@ -20,6 +22,26 @@ describe("Electron harness pure guards", () => {
     expect(isAllowedElectronWarning(canonicalCspWarning)).toBe(true);
     expect(isAllowedElectronWarning(`${canonicalCspWarning} attacker-controlled suffix`)).toBe(false);
     expect(isAllowedElectronWarning("Electron Security Warning (Insecure Content-Security-Policy)")).toBe(false);
+  });
+
+  it("adds the Linux arguments only on Linux and turns the Chromium sandbox off only for root", () => {
+    const linux = [
+      "--disable-frame-rate-limit",
+      "--disable-gpu",
+      "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND",
+    ];
+    expect(linuxElectronArguments("linux", 0)).toEqual([...linux, "--no-sandbox"]);
+    expect(linuxElectronArguments("linux", 1001)).toEqual(linux);
+    expect(linuxElectronArguments("darwin", 0)).toEqual([]);
+    expect(linuxElectronArguments("darwin", 501)).toEqual([]);
+    expect(linuxElectronArguments("win32", undefined)).toEqual([]);
+  });
+
+  it("reads a zombie from the state after the command name, whatever the name holds", () => {
+    expect(isZombieProcessStat("3372 (electron) Z 1 3370 3370 0 -1 4227084")).toBe(true);
+    expect(isZombieProcessStat("3372 (electron) S 3370 3370 3370 0 -1 4227084")).toBe(false);
+    expect(isZombieProcessStat("41 (a) Z (b)) R 1 41 41 0 -1")).toBe(false);
+    expect(isZombieProcessStat("41 (a) R (b)) Z 1 41 41 0 -1")).toBe(true);
   });
 
   it("treats only pgrep exit code 1 as no descendants", () => {

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -24,6 +25,8 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  isZombieProcessStat,
+  linuxElectronArguments,
 } from "./electron-harness-pure";
 
 const execFileAsync = promisify(execFile);
@@ -95,7 +98,11 @@ export const test = base.extend<Fixtures>({
     };
     const launchElectron = async (): Promise<ElectronApplication> => {
       const launched = await electron.launch({
-        args: [desktopRoot, `--user-data-dir=${paths.userData}`],
+        args: [
+          ...linuxElectronArguments(process.platform, process.getuid?.()),
+          desktopRoot,
+          `--user-data-dir=${paths.userData}`,
+        ],
         artifactsDir: paths.artifacts,
         cwd: desktopRoot,
         env: electronEnvironment(paths),
@@ -122,6 +129,17 @@ export const test = base.extend<Fixtures>({
       expect(await launched.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]?.isVisible()
       )).toBe(false);
+      if (process.platform === "linux") {
+        // Linux keeps Electron's default menu bar inside the window; the scenarios size the window as its viewport.
+        const size = await launched.evaluate(({ BrowserWindow }) => {
+          const [browserWindow] = BrowserWindow.getAllWindows();
+          if (!browserWindow) throw new Error("Electron window is missing.");
+          browserWindow.setMenuBarVisibility(false);
+          const { width, height } = browserWindow.getBounds();
+          return { width, height };
+        });
+        await expect.poll(() => window.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual(size);
+      }
       return window;
     };
 
@@ -319,7 +337,7 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
       : path.join(paths.home, "bin"),
     // The fixture shell is zsh (ZDOTDIR, product default). Inheriting the runner's SHELL gave CI bash,
     // whose long runner prompt redraws over earlier output when scenarios narrow a terminal to ~20 cols.
-    ...(process.platform === "darwin" ? { SHELL: "/bin/zsh" } : {}),
+    ...(process.platform === "win32" ? {} : { SHELL: "/bin/zsh" }),
     HOME: paths.home,
     TMPDIR: paths.root,
     ZDOTDIR: paths.home,
@@ -410,6 +428,8 @@ async function stopElectronApplication(
   }
   let closeResult = await withTimeout(closePromise, 5_000, "close-timeout");
   const trackedPids = [mainPid, ...descendants].filter((pid): pid is number => pid !== undefined);
+  // On Linux Chromium's helper processes exit only once they see the browser process gone, just after close returns.
+  if (process.platform === "linux") await waitUntilDead(trackedPids, 2_000);
   const aliveAfterClose = trackedPids.filter(isAlive);
   const requiredSignalFallback = aliveAfterClose.length > 0;
   let usedSigkill = false;
@@ -453,9 +473,19 @@ function terminate(pids: number[], signal: NodeJS.Signals): void {
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
-    return true;
   } catch (error) {
     return typeof error === "object" && error !== null && "code" in error && error.code === "EPERM";
+  }
+  return !isLinuxZombie(pid);
+}
+
+// An exited Chromium zygote stays a zombie until init reaps it, which a container's init may do late.
+function isLinuxZombie(pid: number): boolean {
+  if (process.platform !== "linux") return false;
+  try {
+    return isZombieProcessStat(readFileSync(`/proc/${pid}/stat`, "utf8"));
+  } catch (error) {
+    return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
   }
 }
 

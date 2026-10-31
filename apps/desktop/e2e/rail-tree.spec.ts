@@ -58,7 +58,9 @@ test("starts workers from their parent's row and keeps them under the parent acr
 
   // Over the native window material too, the project row above its tree has no fill; the focused session has it.
   const projectRow = page.getByTestId("project-navigator").locator(".project-row.has-tree");
-  await expect(page.locator("html")).toHaveAttribute("data-alfred-window-material", "native");
+  if (process.platform === "darwin") {
+    await expect(page.locator("html")).toHaveAttribute("data-alfred-window-material", "native");
+  }
   await expect(projectRow).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   // The rail keeps its width at both window sizes; the right column is Details, with no Sessions tab left.
@@ -74,10 +76,13 @@ test("starts workers from their parent's row and keeps them under the parent acr
   await setWindowSize(app, page, 1440, 900);
 
   // ⌘I hides and shows Details; the column is not a drawer, so Escape leaves it alone.
-  await page.keyboard.press("ControlOrMeta+i");
-  await expect(details).toHaveClass(/(^| )closed( |$)/);
-  await page.keyboard.press("ControlOrMeta+i");
-  await expect(details).toHaveClass(/(^| )open( |$)/);
+  // Elsewhere Control I in the focused terminal is Tab, which the terminal keeps for its shell.
+  if (process.platform === "darwin") {
+    await page.keyboard.press("ControlOrMeta+i");
+    await expect(details).toHaveClass(/(^| )closed( |$)/);
+    await page.keyboard.press("ControlOrMeta+i");
+    await expect(details).toHaveClass(/(^| )open( |$)/);
+  }
   await page.getByTestId("project-navigator").getByRole("button", { name: "Settings", exact: true }).focus();
   await page.keyboard.press("Escape");
   await expect(details).toHaveClass(/(^| )open( |$)/);
