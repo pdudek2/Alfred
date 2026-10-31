@@ -31,8 +31,27 @@ export function isAllowedElectronMainOutput(source: string, text: string): boole
     (PLAYWRIGHT_INSPECTOR_SHUTDOWN.test(text) || MACOS_BACKUPD_XPC_OUTPUT.test(text) || CHROMIUM_SHARED_IMAGE_OUTPUT.test(text));
 }
 
+export function linuxElectronArguments(platform: NodeJS.Platform, uid: number | undefined): string[] {
+  if (platform !== "linux") return [];
+  return [
+    // An unmapped X11 window gets about one frame a second, and the scenarios wait on frames.
+    "--disable-frame-rate-limit",
+    // Xvfb has no GPU; trying GL first sometimes logs a transient GPU error before the software fallback.
+    "--disable-gpu",
+    // Electron on Linux downloads spellcheck dictionaries from Google; the smoke stays offline.
+    "--host-resolver-rules=MAP redirector.gvt1.com ~NOTFOUND",
+    // Chromium refuses to start as root with its sandbox on, and Linux containers run the smoke as root.
+    ...(uid === 0 ? ["--no-sandbox"] : []),
+  ];
+}
+
 export function isPgrepNoChildren(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 1;
+}
+
+/** Reads the state from a /proc/<pid>/stat line; the command name in parentheses may itself hold spaces and ")". */
+export function isZombieProcessStat(stat: string): boolean {
+  return stat.slice(stat.lastIndexOf(")") + 1).trimStart().startsWith("Z");
 }
 
 export function hasExpectedConnectionRefusedSources(sources: readonly string[]): boolean {

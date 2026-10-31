@@ -91,9 +91,9 @@ Run the complete local release gate:
 
 It runs ESLint, typecheck, tests, build, and the Playwright Electron scenarios against a built app. Runtime assertions are the acceptance gate; privacy-safe screenshots, hashes, traces, and CSS captures are diagnostic evidence. The Electron smoke uses temporary HOME, user-data, agent-home, and workspace directories; it does not read the normal Codex or Claude state.
 
-For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron.
+For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron. On Linux it needs a display, a session bus and a UTF-8 locale: LANG=C.UTF-8 dbus-run-session -- xvfb-run -a pnpm smoke:electron.
 
-GitHub Actions runs the same quality gate on Linux, the Electron smoke and the script tests on macOS, and the path-security tests on Windows. Branch protection on `main` requires all three checks.
+GitHub Actions runs the same quality gate on Linux, the Electron smoke and the script tests on macOS, the path-security tests on Windows, and the Electron smoke on Linux under Xvfb. Branch protection on `main` requires the first three checks.
 
 ## Current boundaries
 
