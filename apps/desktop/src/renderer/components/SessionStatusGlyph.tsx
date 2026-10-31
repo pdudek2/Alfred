@@ -16,8 +16,7 @@ const ring = <circle className="glyph-ring" cx="8" cy="8" r="5.25" />;
 const failedMark = (
   <>
     {ring}
-    <path className="glyph-mark" d="M8 5.3v3.2" />
-    <circle className="glyph-dot" cx="8" cy="10.6" r=".85" />
+    <path className="glyph-mark" d="M6 6l4 4M10 6l-4 4" />
   </>
 );
 const progress = (
@@ -35,7 +34,7 @@ const statusShapes: Record<SessionStatusGlyphKind, ReactNode> = {
   running: progress,
   idle: ring,
   failed: failedMark,
-  done: <>{ring}<path className="glyph-mark" d="M5.7 8.1l1.6 1.6 3-3.2" /></>,
+  done: <>{ring}<path className="glyph-mark" d="M5.6 8.1l1.7 1.7 3.2-3.4" /></>,
   draft: <circle className="glyph-ring glyph-dashed" cx="8" cy="8" r="5.25" />,
   asleep: <>{ring}<path className="glyph-mark" d="M5.6 8h4.8" /></>,
   unavailable: failedMark,
