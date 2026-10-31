@@ -10,11 +10,13 @@
 
 .session-status-glyph:is(.status-needs-you, .status-your-turn) { color: var(--signal); }
 .session-status-glyph.status-failed { color: var(--signal-danger); }
-.session-status-glyph:is(.status-working, .status-running) { color: var(--text-primary); }
-.session-status-glyph.status-done .glyph-mark { stroke: var(--text-secondary); }
+.session-status-glyph.status-working { color: var(--text-primary); }
+.session-status-glyph.status-running { color: var(--signal-shell); }
+.session-status-glyph.status-done { color: var(--signal-success); }
+/* Green marks a finished session on the deck; a step in its history or a past session stays quiet. */
+:is(.details-activity-glyph, .sessions-navigator) .session-status-glyph.status-done { color: var(--text-faint); }
 .session-status-glyph .glyph-star-fill { fill: currentColor; stroke: none; }
 .session-status-glyph .glyph-star-outline { stroke-width: 1.2; }
-.session-status-glyph .glyph-dot { fill: currentColor; stroke: none; }
 .session-status-glyph .glyph-dashed { stroke-dasharray: 2 2.2; stroke-linecap: butt; }
 .session-status-glyph .glyph-track { stroke: color-mix(in oklab, var(--text-primary) 16%, transparent); }
 
