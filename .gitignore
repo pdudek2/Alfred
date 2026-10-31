@@ -9,6 +9,8 @@ coverage/
 .worktrees/
 .alfred-worktrees/
 output/
+test-results/
+playwright-report/
 
 # Local documentation and artifacts
 docs/
@@ -20,11 +22,18 @@ apps/desktop/PRODUCT.md
 
 # Local environment
 .env
-.env.local
+.env.*
+!.env.example
 
 # Local agent context
 AGENTS.md
+CLAUDE.md
 WORKING_CONTEXT.md
+.agent-memory/
+.claude/
+.codex/
+.mcp.json
+.playwright-mcp/
 
 # Logs
 *.log
@@ -39,4 +48,3 @@ WORKING_CONTEXT.md
 *.swp
 *.swo
 .secrets/
-.env*.local
