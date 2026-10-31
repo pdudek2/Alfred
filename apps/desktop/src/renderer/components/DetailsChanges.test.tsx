@@ -19,11 +19,27 @@ describe("Details Changes", () => {
     expect(screen.getByText("1 file")).toBeVisible();
     expect(screen.getByText("+1")).toBeVisible();
     expect(screen.getByText("−1")).toBeVisible();
-    expect(screen.getByText("+1 −1")).toBeVisible();
+    expect(screen.getByLabelText("Status M")).toHaveClass("change-m");
     fireEvent.click(screen.getByRole("button", { name: "Review diff" }));
     fireEvent.click(screen.getByRole("button", { name: "Apply to Alfred" }));
     expect(props.onReview).toHaveBeenCalledWith("a");
     expect(props.onApply).toHaveBeenCalledWith("a");
+  });
+
+  it("says each file's type and change, an untracked file as added", async () => {
+    worktreeDiff.mockResolvedValue({ ...changes, files: [
+      { path: "src/app.tsx", status: "M" },
+      { path: "styles.css", status: "M" },
+      { path: "package.json", status: "M" },
+      { path: "docs/README.md", status: "D" },
+      { path: "shot.PNG", status: "??" },
+      { path: "report.pdf", status: "A" },
+      { path: "notes.v2.txt", status: "R" },
+    ] });
+    render(<DetailsChanges {...props} />);
+    const rows = await screen.findAllByRole("listitem");
+    expect(rows.map((row) => [row.querySelector(".details-file-type")?.className.split(" ")[1], row.querySelector(".details-file-change")?.textContent]))
+      .toEqual([["type-ts", "M"], ["type-css", "M"], ["type-json", "M"], ["type-md", "D"], ["type-image", "A"], ["type-pdf", "A"], [undefined, "R"]]);
   });
 
   it("reads the changes on opening, then once more when a burst of activity has gone quiet", async () => {
