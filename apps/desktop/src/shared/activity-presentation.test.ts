@@ -100,13 +100,18 @@ describe("activity sentences", () => {
 });
 
 describe("activity presentation", () => {
-  it.each(["Resuming session", "Relaunching session", "Session asleep", "Started from the last commit", "Already in the project"])(
+  it.each(["Resuming session", "Relaunching session", "Session asleep", "Started in a new worktree", "Started from the last commit", "Already in the project"])(
     "keeps the %s lifecycle event visible, including titles saved before the vocabulary change",
     (title) => {
       const event: SessionActivityEvent = { ...baseEvent, kind: "lifecycle", title, detail: "Alfred is starting a fresh process." };
       expect(presentActivityEvents([event]).visibleEvents.map((item) => item.title)).toEqual([title]);
     },
   );
+
+  it("leaves the attach line saved by earlier versions out of Activity", () => {
+    const event: SessionActivityEvent = { ...baseEvent, kind: "lifecycle", title: "Session attached", detail: "zsh is running in the project." };
+    expect(presentActivityEvents([event]).visibleEvents).toEqual([]);
+  });
 
   it("moves hook and repeated git-check noise into raw while keeping real work visible", () => {
     const events: SessionActivityEvent[] = [
