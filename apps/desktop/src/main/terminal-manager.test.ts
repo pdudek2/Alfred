@@ -3459,6 +3459,56 @@ describe("terminal-manager IPC", () => {
     expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([]);
   });
 
+  it("keeps a running checkout that changed before its agent stopped", async () => {
+    const pty = new FakePty();
+    pty.kill = () => {
+      pty.killed = true;
+      queueMicrotask(() => pty.onExitHandler?.({ exitCode: 0 }));
+    };
+    const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
+    const files = [{ path: "written-late.ts", status: "M" }];
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 file changed", files, patch: "", applied: false }));
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      inspectAgentWorktree,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-late",
+        cwd: path.join(managedProjectWorktreeRoot("/alfred/userData/worktrees", "/repo"), "alfred-codex-late"),
+      }),
+    });
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-late",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+    });
+
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "codex-late",
+      cleanupWorktree: true,
+      onlyIfSettled: true,
+    })).resolves.toEqual({
+      ok: false,
+      error: "This checkout changed while it was closing.",
+      changes: { summary: "1 file changed", files },
+    });
+
+    expect(pty.killed).toBe(true);
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
+
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "codex-late",
+      cleanupWorktree: true,
+    })).resolves.toEqual({ ok: true });
+    expect(cleanupAgentWorktree).toHaveBeenCalledTimes(1);
+  });
+
   it("reports the project's uncommitted files when it makes a checkout from the last commit", async () => {
     registerTerminalIpc({
       loadNodePty: async () => fakeNodePty(new FakePty()) as never,
