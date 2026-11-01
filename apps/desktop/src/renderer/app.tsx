@@ -1013,8 +1013,15 @@ export function App() {
     });
   }, [activeSelectedSessionId, activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
 
-  /** Closes a session; `discardCheckout` also removes a running session's checkout, after main stops its agent. */
-  const closeSessionNow = useCallback(async (sessionId: string, discardCheckout = false) => {
+  /**
+   * Closes a session; `discardCheckout` also removes a running session's checkout, after main stops its agent.
+   * With `settled`, a checkout that changed by then is kept and the Discard dialog opens for it.
+   */
+  const closeSessionNow = useCallback(async (
+    sessionId: string,
+    discardCheckout = false,
+    settled?: { returnFocus: HTMLElement | null },
+  ) => {
     const terminalApi = getDesktopTerminalApi();
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     if (!session || closingSessionIdsRef.current.has(sessionId)) return;
@@ -1040,7 +1047,11 @@ export function App() {
       let result: TerminalForgetResult;
       try {
         result = terminalApi
-          ? await terminalApi.forget({ clientId: session.id, cleanupWorktree: true })
+          ? await terminalApi.forget({
+              clientId: session.id,
+              cleanupWorktree: true,
+              ...(settled ? { onlyIfSettled: true } : {}),
+            })
           : { ok: false, error: "Desktop terminal API is unavailable." };
       } catch {
         result = { ok: false, error: "Desktop terminal request failed. Try again." };
@@ -1052,6 +1063,16 @@ export function App() {
       }
       if (!result.ok) {
         finishClosing();
+        if (settled && result.changes) {
+          discardReturnFocusRef.current = settled.returnFocus;
+          setPendingDiscardConfirmation({
+            sessionId,
+            title: currentSession.title,
+            summary: result.changes.summary,
+            files: result.changes.files,
+          });
+          return;
+        }
         setTerminalSessions((current) =>
           current.some(
             (item) => item.id === sessionId && sessionInstanceKey(item) === closingOperation.instanceKey,
@@ -1138,7 +1159,7 @@ export function App() {
       }
 
       if (result.files.length === 0 || result.applied) {
-        void closeSessionNow(sessionId, true);
+        void closeSessionNow(sessionId, true, { returnFocus });
         return;
       }
 

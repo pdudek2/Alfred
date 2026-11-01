@@ -140,11 +140,13 @@ export type TerminalKillRequest = {
 export type TerminalForgetRequest = {
   clientId: string;
   cleanupWorktree?: boolean;
+  /** Keep the checkout if it holds unapplied changes once its agent has stopped. */
+  onlyIfSettled?: boolean;
 };
 
 export type TerminalForgetResult =
   | { ok: true }
-  | { ok: false; error: string };
+  | { ok: false; error: string; changes?: { summary: string; files: Array<{ path: string; status: string; from?: string }> } };
 
 export type TerminalRenameRequest = {
   clientId: string;

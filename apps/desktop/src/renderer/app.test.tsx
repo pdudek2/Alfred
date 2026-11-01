@@ -6204,8 +6204,30 @@ describe("App integration", () => {
       await screen.findByRole("article", { name: /Codex · running checkout/i });
 
       await closeFocused(user);
-      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-1", cleanupWorktree: true }));
+      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({
+        clientId: "codex-1",
+        cleanupWorktree: true,
+        onlyIfSettled: true,
+      }));
       expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    });
+
+    it("asks first when its agent wrote something while it was closing", async () => {
+      const user = userEvent.setup();
+      const { forgetTerminal, worktreeDiff } = installDesktopBridge(undefined, null, [runningCheckout]);
+      worktreeDiff.mockResolvedValue({ ok: true, summary: "", files: [], patch: "", applied: false });
+      forgetTerminal.mockResolvedValueOnce({
+        ok: false,
+        error: "This checkout changed while it was closing.",
+        changes: { summary: "1 changed file", files: [{ path: "src/written-late.ts", status: "M" }] },
+      } as never);
+      render(<App />);
+      await screen.findByRole("article", { name: /Codex · running checkout/i });
+
+      await closeFocused(user);
+      const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+      expect(dialog).toHaveTextContent("src/written-late.ts");
+      expect(screen.getByRole("article", { name: /Codex · running checkout/i })).toBeInTheDocument();
     });
 
     it("shows Applied in Details instead of Apply once its changes are in the project", async () => {

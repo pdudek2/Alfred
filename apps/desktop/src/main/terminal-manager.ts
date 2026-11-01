@@ -837,6 +837,16 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         if (!operation.ok) {
           return operation;
         }
+        if (request.onlyIfSettled === true) {
+          // The agent could write until it stopped, after the check that started this close.
+          const { summary, files, applied } = await (options.inspectAgentWorktree ?? defaultInspectAgentWorktree)(
+            operation.request,
+            operation.options,
+          );
+          if (files.length > 0 && !applied) {
+            return { ok: false, error: "This checkout changed while it was closing.", changes: { summary, files } };
+          }
+        }
         await (options.cleanupAgentWorktree ?? defaultCleanupAgentWorktree)(
           { ...operation.request, force: true },
           operation.options,
