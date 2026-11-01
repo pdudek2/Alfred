@@ -118,6 +118,41 @@ describe("buildSessionsProjection", () => {
     expect(page.items[0]).toMatchObject({ source: "managed", kind: "claude", title: "Fix the flaky test" });
   });
 
+  it("shows a conversation Alfred ran as the same row under All, From Alfred and its tool", () => {
+    const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+    const sessions = [
+      managedSession({
+        id: "managed-claude",
+        agentKind: "claude",
+        command: "claude",
+        title: "npm test sandbox",
+        resumeTarget: { agentKind: "claude", sessionId: conversation, source: "agent-hook" },
+      }),
+      managedSession({ id: "managed-shell", title: "zsh" }),
+    ];
+    const externalSessions = [
+      externalSession(conversation, {
+        sessionKey: `external-claude:opaque-${conversation}`,
+        lineageKey: `external-claude:${conversation}`,
+        contentSessionKey: `external-claude:${conversation}`,
+        source: "external-claude",
+        kind: "claude",
+        title: "Run npm test in the project folder",
+      }),
+      externalSession("019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b", { title: "Only in Codex" }),
+    ];
+    const rows = (source: "all" | "managed" | "external-claude" | "external-codex") =>
+      buildSessionsProjection({ sessions, workspaces, externalSessions, source }).items
+        .map((item) => [item.sessionKey, item.title]);
+    const conversationRow = ["managed:managed-claude", "Run npm test in the project folder"];
+
+    expect(rows("all")).toContainEqual(conversationRow);
+    expect(rows("managed")).toEqual(expect.arrayContaining([conversationRow, ["managed:managed-shell", "zsh"]]));
+    expect(rows("managed")).toHaveLength(2);
+    expect(rows("external-claude")).toEqual([conversationRow]);
+    expect(rows("external-codex").map(([, title]) => title)).toEqual(["Only in Codex"]);
+  });
+
   it("shows a Codex session Alfred started and its Codex CLI transcript as one row once its hooks named the conversation", () => {
     const conversation = "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b";
     const page = buildSessionsProjection({

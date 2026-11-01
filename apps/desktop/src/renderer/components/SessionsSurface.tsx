@@ -114,12 +114,13 @@ export function SessionsSurface({
       const managed = oneProject ? ranSessions.filter((session) => session.workspaceId === projectId) : ranSessions;
       const external = oneProject ? externalSessions.filter((session) => session.project.id === projectId) : externalSessions;
       return buildSessionsProjection({
-        sessions: state.source === "all" || state.source === "managed" ? managed : [],
+        sessions: managed,
         workspaces,
-        externalSessions: state.source === "managed" ? [] : external.filter((session) => state.source === "all" || session.source === state.source),
+        externalSessions: external,
         query: state.query,
         pageIndex: state.pageIndex,
         projectId: oneProject ? "all" : projectId,
+        source: state.source,
       });
     },
     [externalSessions, ranSessions, state.pageIndex, state.query, state.selectedProjectId, state.source, workspaces],
