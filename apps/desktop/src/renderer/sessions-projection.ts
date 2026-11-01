@@ -56,6 +56,7 @@ export type BuildSessionsProjectionInput = {
   query?: string;
   pageIndex?: number;
   projectId?: string;
+  source?: SessionSummary["source"] | "all";
 };
 
 type ProjectedSession = {
@@ -74,6 +75,7 @@ export function buildSessionsProjection({
   query = "",
   pageIndex = 0,
   projectId = "all",
+  source = "all",
 }: BuildSessionsProjectionInput): SessionsProjectionPage {
   const workspacesById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const byLineage = new Map<string, ProjectedSession>();
@@ -139,7 +141,9 @@ export function buildSessionsProjection({
 
   let technicalRunCount = 0;
   for (const [lineageKey, group] of externalGroups) {
-    if (!byLineage.has(lineageKey)) technicalRunCount += group.length;
+    if (!byLineage.has(lineageKey) && (source === "all" || group[0]?.summary.source === source)) {
+      technicalRunCount += group.length;
+    }
   }
 
   const allProjected = [...byLineage.values()];
@@ -156,6 +160,9 @@ export function buildSessionsProjection({
         ? item.group.id === "free-chats"
         : item.summary.project.id === projectId && item.group.id !== "free-chats"
     ))
+    // After merging, so a conversation reads the same under every source it belongs to.
+    .filter((item) => source === "all"
+      || (source === "managed" ? item.target !== undefined : item.externalContentSessionKey?.startsWith(`${source}:`)))
     .filter((item) => summaryMatchesQuery(item.summary, item.group.label, query))
     .sort(compareProjectedSessions);
   const normalizedPageIndex = Math.max(0, Math.floor(pageIndex));
