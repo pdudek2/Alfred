@@ -640,6 +640,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionExited: vi.fn(),
     onRuntimeSessionOutput: vi.fn(),
     onRuntimeSessionReplayBuffer: vi.fn(),
+    onRuntimeSessionStartScreen: vi.fn(),
     onRuntimeSessionSnapshot: vi.fn(),
     onRuntimeSessionReady: vi.fn(),
     onRuntimeSessionStarting: vi.fn(() => true),

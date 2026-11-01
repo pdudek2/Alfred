@@ -156,9 +156,7 @@ function projectAgentWaiting(
 ): AttentionProjection | null {
   if (status.kind !== "needs-you" || status.reason !== "approval") return null;
   const approval = pendingApproval(session.activityEvents);
-  if (!approval) return null;
-
-  const reason = waitingSentence(approval);
+  if (!approval && !session.startScreen) return null;
 
   return {
     ...projectionIdentity(session, workspace),
@@ -166,8 +164,8 @@ function projectAgentWaiting(
     section: "needs-you",
     blocksAgent: true,
     rank: 1,
-    attentionAt: approval.at,
-    reason,
+    attentionAt: approval?.at ?? fallbackAttentionAt(session),
+    reason: session.startScreen ?? waitingSentence(approval!),
     provenance: "inferred",
     ...projectionCommand(session),
     action: { kind: "open-in-work" },

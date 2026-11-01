@@ -105,6 +105,7 @@ export function sessionState(
     | "shellBusy"
     | "stage"
     | "stagedReviewStatus"
+    | "startScreen"
   >,
   localStatus: LocalTerminalStatus = "ready",
   now = Date.now(),
@@ -129,7 +130,7 @@ export function sessionState(
   if (localStatus === "connecting" || session.runtimeStatus === "starting") return busy;
 
   const signal = agent ? session.agentSignal : undefined;
-  if (signal?.state === "needs-you") return needsYou("approval");
+  if (signal?.state === "needs-you" || (agent && session.startScreen)) return needsYou("approval");
   if (signal?.state === "your-turn") return state("your-turn");
   if (signal?.state === "working" && now - Math.max(signal.at, session.lastOutputAt ?? 0) <= SIGNALLED_WORKING_STALE_MS) {
     return busy;

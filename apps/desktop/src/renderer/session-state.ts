@@ -47,6 +47,8 @@ export type SessionTile = {
   lastOutputAt?: number;
   /** Reported by the agent itself (hooks or terminal notifications). */
   agentSignal?: TerminalAgentSignal;
+  /** What a Codex start screen is asking, while the terminal shows it. */
+  startScreen?: string;
   /** True while a program other than the shell holds the foreground (plain terminals only). */
   shellBusy?: boolean;
   /** The shell's own title ("zsh 2") while it goes by the program in its foreground. */
@@ -288,6 +290,7 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
       createdAt: _createdAt,
       // What the ended process reported; the new one reports its own.
       agentSignal: _agentSignal,
+      startScreen: _startScreen,
       detectedAgentKind: _detectedAgentKind,
       promptSubmitted: _promptSubmitted,
       shellBusy: _shellBusy,
