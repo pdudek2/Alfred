@@ -109,7 +109,7 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
     server.listen(0, "127.0.0.1", () => resolve());
   });
   const { port } = server.address() as AddressInfo;
-  // The Alfred session id stays the same across resumes; the process id is new each time.
+  // The session's log key stays the same across resumes; the process id is new each time.
   const endpoint = (agent: string, session: AgentEventSession): string => {
     const id = session.clientId !== undefined && SESSION_SEGMENT.test(session.clientId) ? session.clientId : session.id;
     return `http://127.0.0.1:${port}/${secret}/${agent}/${id}/v1/logs`;

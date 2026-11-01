@@ -707,7 +707,7 @@ describe("persisted-desktop-state", () => {
     const state = normalizeDesktopState({
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [
-        { clientId: "codex-2", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: "claude-1" },
+        { clientId: "codex-2", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d" },
         { clientId: "codex-3", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: 7 },
         // Saved before workers existed.
         { clientId: "claude-1", title: "Claude", source: "manual", agentKind: "claude", cwd: "/repo" },
@@ -717,7 +717,7 @@ describe("persisted-desktop-state", () => {
     expect(state.restoredTerminalSessions.map((session) => [session.clientId, session.parentClientId]))
       .toEqual([["codex-2", "claude-1"], ["codex-3", undefined], ["claude-1", undefined]]);
     expect(sanitizePersistedTerminalSession(state.restoredTerminalSessions[0]!, DEFAULT_PRIVACY_SETTINGS))
-      .toMatchObject({ clientId: "codex-2", parentClientId: "claude-1" });
+      .toMatchObject({ clientId: "codex-2", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d" });
   });
 
   it("gives saved sessions the titles new ones get, once", async () => {

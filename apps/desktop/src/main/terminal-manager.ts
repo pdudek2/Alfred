@@ -151,6 +151,7 @@ type TerminalSession = {
   branchName?: string;
   baseCwd?: string;
   createdAt: number;
+  eventLogKey?: string;
   shell: string;
   command?: string;
   args?: string[];
@@ -571,6 +572,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const resolved = resolveCommand(safeRequest);
         const id = randomUUID();
         const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
+        const eventLogKey = restoredSnapshot
+          ? restoredSnapshot.eventLogKey ?? safeRequest.clientId
+          : safeRequest.clientId && `${safeRequest.clientId}.${randomUUID().slice(0, 8)}`;
         const launchArgs = [
           ...(options.agentSignals
             ? options.agentSignals.launchArgs(safeRequest.command, {
@@ -578,7 +582,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
               worker: parentClientId(safeRequest.parentClientId) !== undefined,
             })
             : safeRequest.command === "codex" ? CODEX_LAUNCH_ARGS : []),
-          ...(options.agentEvents?.launchArgs({ id, clientId: safeRequest.clientId }, safeRequest.command) ?? []),
+          ...(options.agentEvents?.launchArgs({ id, clientId: eventLogKey }, safeRequest.command) ?? []),
         ];
         const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {
           name: "xterm-256color",
@@ -594,11 +598,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             // xterm.js renders OSC 8 links. Claude Code links a sent [Image #N] to its file only when told so.
             FORCE_HYPERLINK: "1",
             ...options.agentSignals?.env(id, safeRequest.command),
-            ...options.agentEvents?.env({ id, clientId: safeRequest.clientId }, safeRequest.command),
+            ...options.agentEvents?.env({ id, clientId: eventLogKey }, safeRequest.command),
           },
         });
         session = {
           ...metadata,
+          ...(eventLogKey ? { eventLogKey } : {}),
           buffer: restoredSnapshot?.buffer ?? "",
           activityEvents: [],
           activityStream: { carry: "" },
@@ -1473,6 +1478,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
     ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
     createdAt: session.createdAt,
+    ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
     shell: session.shell,
     ...(command === undefined ? {} : { command }),
     ...(args === undefined ? {} : { args: [...args] }),

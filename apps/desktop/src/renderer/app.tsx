@@ -240,7 +240,7 @@ export function App() {
   const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef(new Map<string, { instanceKey: string; attempt?: TerminalStartAttempt }>());
   // Every id a session had in this run. A new session never takes one, so it cannot inherit a closed session's saved
-  // screen or share its id in the agent event log; after a restart, the sessions Alfred keeps come back with theirs.
+  // screen; after a restart, the sessions Alfred keeps come back with theirs.
   const seenSessionIdsRef = useRef(new Set<string>());
   const startingSessionIdsRef = useRef(new Map<string, { attempt: TerminalStartAttempt; cancelled: boolean }>());
   const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
