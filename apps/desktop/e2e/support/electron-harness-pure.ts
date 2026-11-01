@@ -1,4 +1,4 @@
-const ELECTRON_42_CSP_WARNING = [
+const ELECTRON_CSP_WARNING = [
   "Electron Security Warning (Insecure Content-Security-Policy)",
   "This renderer process has either no Content Security Policy set or a policy with \"unsafe-eval\" enabled.",
   "This exposes users of this app to unnecessary security risks.",
@@ -8,7 +8,7 @@ const ELECTRON_42_CSP_WARNING = [
 
 // Either line may come as its own stderr chunk.
 const PLAYWRIGHT_INSPECTOR_SHUTDOWN =
-  /^(?=.)(?:Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\n|$))?(?:For help, see: https:\/\/nodejs\.org\/en\/docs\/inspector\n?)?$/;
+  /^(?=.)(?:Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\n|$))?(?:For help, see: https:\/\/nodejs\.org\/learn\/getting-started\/debugging\n?)?$/;
 const MACOS_BACKUPD_XPC_LINE =
   String.raw`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} Electron Helper\[\d+:\d+\] XPC error for connection com\.apple\.backupd\.sandbox\.xpc: Connection invalid`;
 const MACOS_BACKUPD_XPC_OUTPUT = new RegExp(
@@ -23,7 +23,7 @@ const CHROMIUM_SHARED_IMAGE_OUTPUT = new RegExp(
 );
 
 export function isAllowedElectronWarning(text: string): boolean {
-  return normalizeElectronConsoleText(text) === ELECTRON_42_CSP_WARNING;
+  return normalizeElectronConsoleText(text) === ELECTRON_CSP_WARNING;
 }
 
 export function isAllowedElectronMainOutput(source: string, text: string): boolean {
