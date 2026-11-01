@@ -19,9 +19,17 @@ describe("session title normalization", () => {
 
   it("removes title-only controls, collapses whitespace, and caps the title", () => {
     expect(normalizeSessionTitle(" \u0000Review\u001f\t\nPR ")).toBe("Review PR");
-    expect(normalizeSessionTitle("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-      .toBe("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(normalizeSessionTitle("a".repeat(81))).toBe(`${"a".repeat(79)}…`);
+    expect(normalizeSessionTitle("a".repeat(80))).toBe("a".repeat(80));
     expect(MAX_SESSION_TITLE_LENGTH).toBe(80);
+  });
+
+  it("cuts a long title at a word and keeps it stable when normalized again", () => {
+    const title = normalizeSessionTitle(
+      "Przejrzyj cały cykl życia izolowanego checkoutu i napraw wyścig między sprawdzeniem zmian a zatrzymaniem agenta",
+    );
+    expect(title).toBe("Przejrzyj cały cykl życia izolowanego checkoutu i napraw wyścig między…");
+    expect(normalizeSessionTitle(title)).toBe(title);
   });
 
   it("leaves a clean title unchanged", () => {
