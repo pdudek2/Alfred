@@ -1002,9 +1002,16 @@ html[data-alfred-window-material="native"] .desktop-frame {
   background: transparent;
 }
 
+/* Controls on the material lift by opacity, because its tone follows what lies behind the window. */
+html[data-alfred-window-material="native"] {
+  --native-control: color-mix(in oklab, white 7%, transparent);
+  --native-control-hover: color-mix(in oklab, white 10%, transparent);
+}
+
+/* The tint keeps the material near the canvas's near-black chrome. */
 html[data-alfred-window-material="native"] .mission-bar {
   border-color: color-mix(in oklab, white 13%, transparent);
-  background: rgba(3, 5, 8, 0.3);
+  background: rgba(8, 8, 10, 0.78);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
   backdrop-filter: blur(24px) saturate(1.22);
   -webkit-backdrop-filter: blur(24px) saturate(1.22);
@@ -1012,13 +1019,17 @@ html[data-alfred-window-material="native"] .mission-bar {
 
 html[data-alfred-window-material="native"] .project-navigator {
   border-color: color-mix(in oklab, white 13%, transparent);
-  background: rgba(3, 5, 8, 0.36);
+  background: rgba(8, 8, 10, 0.78);
   backdrop-filter: blur(24px) saturate(1.22);
   -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
-html[data-alfred-window-material="native"] .project-row.is-active {
-  background: color-mix(in oklab, white 11%, transparent);
+html[data-alfred-window-material="native"] .project-navigator-surfaces button[aria-current="page"],
+html[data-alfred-window-material="native"] .project-row.is-active,
+html[data-alfred-window-material="native"] .workbench-view-tabs,
+html[data-alfred-window-material="native"] .workbench-view-tabs button[aria-selected="true"],
+html[data-alfred-window-material="native"] .workbench-actions .workbench-control {
+  background: var(--native-control);
 }
 
 /* Over the native material the focused tree row takes the active row's fill, and the project above it none. */
@@ -1028,20 +1039,24 @@ html[data-alfred-window-material="native"] .project-row.is-active.has-tree {
 
 html[data-alfred-window-material="native"] .session-tree-entry.is-focused,
 html[data-alfred-window-material="native"] .session-tree-entry:focus-within:not(:hover) {
-  --tree-row-bg: color-mix(in oklab, white 11%, transparent);
+  --tree-row-bg: var(--native-control);
 }
 
 html[data-alfred-window-material="native"] .session-tree-entry:hover {
-  --tree-row-bg: color-mix(in oklab, white 14%, transparent);
+  --tree-row-bg: var(--native-control-hover);
 }
 
 html[data-alfred-window-material="native"] .project-session.is-active {
-  background: color-mix(in oklab, white 11%, transparent);
+  background: var(--native-control);
 }
 
+html[data-alfred-window-material="native"] .project-navigator-surfaces button:hover,
+html[data-alfred-window-material="native"] .project-navigator-settings:hover,
 html[data-alfred-window-material="native"] .project-session:hover,
-html[data-alfred-window-material="native"] .project-recent-result:hover {
-  background: color-mix(in oklab, white 14%, transparent);
+html[data-alfred-window-material="native"] .project-recent-result:hover,
+html[data-alfred-window-material="native"] .workbench-actions button:hover:not(:disabled),
+html[data-alfred-window-material="native"] .workbench-actions button[aria-expanded="true"] {
+  background: var(--native-control-hover);
 }
 
 html[data-alfred-window-material="native"] .orchestrator-surface,
