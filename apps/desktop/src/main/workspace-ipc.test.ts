@@ -7,7 +7,7 @@ import { openExternalTerminal } from "./external-terminal.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
-import { allowedWorkspaceRoots } from "./workspace-ipc.js";
+import { allowedWorkspaceRoots, folderDialogOptions } from "./workspace-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
 // Importing the real module downloads Electron's binary when it is missing, as on CI's Linux runner.
@@ -29,6 +29,16 @@ function fakeWorkspaceStore(rootPaths: Array<string | undefined>): WorkspaceStor
     setWorkspaceState: vi.fn(),
   };
 }
+
+describe("folder dialog", () => {
+  it("opens beside the active project, or at Electron's default without one", async () => {
+    const state = await fakeWorkspaceStore(["/Users/sample/Desktop/Alfred", "/Users/sample/Code/Other"]).getWorkspaceState();
+
+    expect(folderDialogOptions(state).defaultPath).toBe("/Users/sample/Desktop");
+    expect(folderDialogOptions({ ...state, activeWorkspaceId: "workspace-2" }).defaultPath).toBe("/Users/sample/Code");
+    expect(folderDialogOptions({ ...state, activeWorkspaceId: "missing" })).toEqual({ properties: ["openDirectory"] });
+  });
+});
 
 describe("workspace IPC allowed roots", () => {
   it("allows workspace roots plus their managed and legacy project worktree roots only", async () => {

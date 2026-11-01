@@ -61,7 +61,7 @@ describe("Electron harness pure guards", () => {
 
   it("allows only Playwright's exact inspector shutdown message from Electron main", () => {
     const inspectorShutdown = `Debugger ending on ws://127.0.0.1:62487/b3c0e65a-f123-47df-9774-6c8a4d671ebd
-For help, see: https://nodejs.org/en/docs/inspector
+For help, see: https://nodejs.org/learn/getting-started/debugging
 `;
     expect(isAllowedElectronMainOutput("main-stderr", inspectorShutdown)).toBe(true);
     expect(isAllowedElectronMainOutput("main-stdout", inspectorShutdown)).toBe(false);

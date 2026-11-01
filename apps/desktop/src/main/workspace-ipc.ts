@@ -1,5 +1,5 @@
 import { trustedIpc } from "./trusted-ipc.js";
-import { BrowserWindow, dialog, nativeImage, shell } from "electron";
+import { BrowserWindow, dialog, nativeImage, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from "electron";
 import path from "node:path";
 import {
   workspaceChannels,
@@ -21,33 +21,34 @@ type WorkspaceIpcOptions = {
   scratchRootPath?: string;
 };
 
+export function folderDialogOptions({ workspaces, activeWorkspaceId }: WorkspaceStateSnapshot): OpenDialogOptions {
+  const rootPath = workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.rootPath;
+  // Without defaultPath Electron opens Downloads, and macOS no longer restores the last folder.
+  return { properties: ["openDirectory"], ...(rootPath ? { defaultPath: path.dirname(rootPath) } : {}) };
+}
+
 export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIpcOptions = {}): void {
+  const pickFolder = async (event: IpcMainInvokeEvent): Promise<string | undefined> => {
+    const dialogOptions = folderDialogOptions(await store.getWorkspaceState());
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = window
+      ? await dialog.showOpenDialog(window, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+    return result.canceled ? undefined : result.filePaths[0];
+  };
+
   trustedIpc.handle(
     workspaceChannels.bindFolder,
     async (event, request: WorkspaceBindFolderRequest): Promise<WorkspaceStateSnapshot> => {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      const result = window
-        ? await dialog.showOpenDialog(window, { properties: ["openDirectory"] })
-        : await dialog.showOpenDialog({ properties: ["openDirectory"] });
-
-      if (result.canceled || result.filePaths.length === 0) {
-        return store.getWorkspaceState();
-      }
-
-      return store.bindWorkspaceToPath({ workspaceId: request.workspaceId, rootPath: result.filePaths[0] ?? "" });
+      const rootPath = await pickFolder(event);
+      return rootPath
+        ? store.bindWorkspaceToPath({ workspaceId: request.workspaceId, rootPath })
+        : store.getWorkspaceState();
     },
   );
   trustedIpc.handle(workspaceChannels.createFromFolder, async (event): Promise<WorkspaceStateSnapshot> => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const result = window
-      ? await dialog.showOpenDialog(window, { properties: ["openDirectory"] })
-      : await dialog.showOpenDialog({ properties: ["openDirectory"] });
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return store.getWorkspaceState();
-    }
-
-    return store.createWorkspaceFromPath(result.filePaths[0] ?? "");
+    const rootPath = await pickFolder(event);
+    return rootPath ? store.createWorkspaceFromPath(rootPath) : store.getWorkspaceState();
   });
   trustedIpc.handle(workspaceChannels.get, (): Promise<WorkspaceStateSnapshot> => store.getWorkspaceState());
   trustedIpc.handle(workspaceChannels.openExternalUrl, (_event, request) => openExternalUrl(request));
