@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { cp, lstat, mkdir, readFile, readlink, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -156,7 +156,7 @@ export async function inspectAgentWorktree(
     summary: changedFilesSummary(files.length),
     files,
     patch,
-    applied: files.length > 0 && await changesAreInProject(cleanupTarget.worktreePath, request.baseCwd, files),
+    applied: files.length > 0 && await changesAreInProject(run, cleanupTarget.worktreePath, request.baseCwd, files),
   };
 }
 
@@ -332,7 +332,12 @@ function statusFilesFromPorcelainZ(status: string): AgentWorktreeChangeFile[] {
 }
 
 /** Each changed path reads the same in the project as in the checkout, and a renamed file's old path is gone there too. */
-async function changesAreInProject(worktreePath: string, baseCwd: string, files: AgentWorktreeChangeFile[]): Promise<boolean> {
+async function changesAreInProject(
+  run: ExecFile,
+  worktreePath: string,
+  baseCwd: string,
+  files: AgentWorktreeChangeFile[],
+): Promise<boolean> {
   for (const file of files) {
     const [inCheckout, inProject] = await Promise.all([
       entryContent(path.join(worktreePath, file.path)),
@@ -340,8 +345,14 @@ async function changesAreInProject(worktreePath: string, baseCwd: string, files:
     ]);
     if (inCheckout === undefined || inProject === undefined) return false;
     // Only a deletion may leave the path empty in the checkout.
-    if (inCheckout === null ? !file.status.includes("D") || inProject !== null
-      : inProject === null || inCheckout.executable !== inProject.executable || !inCheckout.bytes.equals(inProject.bytes)) {
+    if (inCheckout === null) {
+      if (!file.status.includes("D") || inProject !== null) return false;
+    } else if (inProject === null || inCheckout.executable !== inProject.executable) {
+      return false;
+    } else if (
+      !inCheckout.bytes.equals(inProject.bytes)
+      && !await mergeLeavesProjectFile(run, worktreePath, file.from ?? file.path, inCheckout.bytes, inProject.bytes)
+    ) {
       return false;
     }
     if (file.from !== undefined && file.status.includes("R") && await entryContent(path.join(baseCwd, file.from)) !== null) {
@@ -349,6 +360,34 @@ async function changesAreInProject(worktreePath: string, baseCwd: string, files:
     }
   }
   return true;
+}
+
+/**
+ * Whether merging the checkout's file into the project's changes nothing, which holds when the project has the
+ * checkout's changes beside its own. Anything that cannot be merged counts as not applied, since applied work can go
+ * without a prompt.
+ */
+async function mergeLeavesProjectFile(
+  run: ExecFile,
+  worktreePath: string,
+  basePath: string,
+  checkout: Buffer,
+  project: Buffer,
+): Promise<boolean> {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "alfred-applied-"));
+  const [merged, base, theirs] = ["merged", "base", "theirs"].map((name) => path.join(folder, name)) as [string, string, string];
+  try {
+    const showBase = ["-C", worktreePath, "show", `HEAD:${basePath}`];
+    const { stdout } = await run("git", showBase, { cwd: os.homedir(), ...gitLimits(showBase) });
+    await Promise.all([writeFile(merged, project), writeFile(base, stdout), writeFile(theirs, checkout)]);
+    const merge = ["-C", folder, "merge-file", "-q", merged, base, theirs];
+    await run("git", merge, { cwd: os.homedir(), ...gitLimits(merge) });
+    return (await readFile(merged)).equals(project);
+  } catch {
+    return false;
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 }
 
 /** A file's bytes and executable bit, a symlink's target, null when absent, undefined for other entries (a directory). */
@@ -632,7 +671,7 @@ function gitLimits(args: string[]): { maxBuffer?: number; timeout: number } {
   // Every call starts with `-C <dir>`, so the subcommand is the third argument.
   const subcommand = args[2];
   if (subcommand === "worktree" || subcommand === "apply") return { timeout: GIT_CHECKOUT_TIMEOUT_MS };
-  if (subcommand === "status" || subcommand === "diff" || subcommand === "ls-files") {
+  if (subcommand === "status" || subcommand === "diff" || subcommand === "ls-files" || subcommand === "show") {
     return { maxBuffer: GIT_LISTING_MAX_BUFFER, timeout: GIT_LISTING_TIMEOUT_MS };
   }
   // `stash create` scans the checkout as `status` does; `merge-tree` walks both trees.
