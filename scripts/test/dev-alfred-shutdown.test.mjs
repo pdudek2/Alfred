@@ -205,9 +205,21 @@ async function waitFor(predicate, timeoutMs) {
 function isProcessAlive(pid) {
   try {
     process.kill(pid, 0);
-    return true;
   } catch (error) {
     if (error?.code === "ESRCH") return false;
+    throw error;
+  }
+  return !isLinuxZombie(pid);
+}
+
+// A killed descendant stays a zombie until init reaps it, which a container's init may do late.
+function isLinuxZombie(pid) {
+  if (process.platform !== "linux") return false;
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    return stat.slice(stat.lastIndexOf(")") + 1).trimStart().startsWith("Z");
+  } catch (error) {
+    if (error?.code === "ENOENT") return true;
     throw error;
   }
 }
