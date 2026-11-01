@@ -34,7 +34,7 @@ describe("SessionStatusGlyph", () => {
       expect(node.querySelector(".glyph-arc")).not.toBeNull();
     }
     expect(glyph("draft").querySelector(".glyph-dashed")).not.toBeNull();
-    expect(glyph("failed").querySelector(".glyph-dot")).not.toBeNull();
+    expect(glyph("failed").querySelector(".glyph-mark")).toHaveAttribute("d", "M6 6l4 4M10 6l-4 4");
     expect(glyph("idle").querySelectorAll("svg > *")).toHaveLength(1);
   });
 });

@@ -57,7 +57,7 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
       <header className="details-section-heading">
         <h2>Changes</h2>
         {result?.ok && result.files.length > 0 && <span>{result.files.length} {result.files.length === 1 ? "file" : "files"}</span>}
-        {diff && result?.ok && result.files.length > 0 && <span className="details-stats">+{diff.additions} −{diff.deletions}</span>}
+        {diff && result?.ok && result.files.length > 0 && <span className="details-stats"><span className="details-additions">+{diff.additions}</span> <span className="details-deletions">−{diff.deletions}</span></span>}
       </header>
       {result?.ok && result.files.length === 0 ? <p className="details-empty">No worktree changes.</p>
         : !result ? <p className="details-empty" role="status">Loading changes…</p>
@@ -65,11 +65,11 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
         : <>
           <ul className="details-files" aria-label="Changed files">
             {result.files.map((file) => {
-              const stats = diff?.files[file.path];
+              const change = file.status === "??" ? "A" : file.status.trim().charAt(0).toUpperCase();
               return <li key={file.path}>
-                <span title={file.path}>{file.path}</span>
-                {stats ? <><span className="details-additions">+{stats.additions}</span><span className="details-deletions">−{stats.deletions}</span></>
-                  : <span aria-label={`Status ${file.status}`}>{file.status}</span>}
+                <FileTypeMark path={file.path} />
+                <span className="details-file-name" title={file.path}>{file.path}</span>
+                <span className={`details-file-change change-${change.toLowerCase()}`} aria-label={`Status ${change}`}>{change}</span>
               </li>;
             })}
           </ul>
@@ -86,4 +86,41 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
         </>}
     </section>
   );
+}
+
+const FILE_TYPE_LABELS: Readonly<Record<string, readonly [label: string, className: string]>> = {
+  ts: ["TS", "type-ts"],
+  tsx: ["TS", "type-ts"],
+  css: ["#", "type-css"],
+  json: ["{}", "type-json"],
+  md: ["MD", "type-md"],
+};
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+
+function FileTypeMark({ path }: { path: string }) {
+  const extension = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  const label = FILE_TYPE_LABELS[extension];
+  if (label) return <span className={`details-file-type ${label[1]}`} aria-hidden="true">{label[0]}</span>;
+  if (IMAGE_EXTENSIONS.has(extension)) {
+    return (
+      <span className="details-file-type type-image" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <rect x="2" y="3" width="12" height="10" rx="2" />
+          <circle cx="6" cy="6.5" r="1.2" />
+          <path d="M3 12l3.5-3.5 2.5 2.5 2-2 2 2" />
+        </svg>
+      </span>
+    );
+  }
+  if (extension === "pdf") {
+    return (
+      <span className="details-file-type type-pdf" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <path d="M4 1.8h5.5L13 5.3v8.4c0 .3-.3.5-.5.5h-8c-.3 0-.5-.2-.5-.5V2.3c0-.3.2-.5.5-.5z" />
+          <path d="M5.8 10.5h4.4" />
+        </svg>
+      </span>
+    );
+  }
+  return <span className="details-file-type" aria-hidden="true" />;
 }
