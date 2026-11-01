@@ -527,12 +527,38 @@ describe("git worktree preparation", () => {
     try {
       await edit(baseCwd, 19, "line 19 by you");
       await git(baseCwd, "commit", "-qam", "your change");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
 
       await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot })).resolves.toEqual({ appliedFiles: 1 });
 
       const applied = await readFile(path.join(baseCwd, "notes.txt"), "utf8");
       expect(applied).toContain("line 2 by the agent");
       expect(applied).toContain("line 19 by you");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot }))
+        .resolves.toEqual({ appliedFiles: 0, alreadyApplied: true });
+
+      await git(baseCwd, "commit", "-qam", "your commit of the applied work");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not count a deletion or an undone change as applied beside the project's own edits", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit } = await realCheckout();
+    try {
+      const withoutLine = (await readFile(path.join(request.cwd, "notes.txt"), "utf8")).replace("line 10\n", "");
+      await writeFile(path.join(request.cwd, "notes.txt"), withoutLine);
+      await edit(baseCwd, 19, "line 19 by you");
+      await git(baseCwd, "commit", "-qam", "your change");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
+
+      await applyAgentWorktreePatch(request, { worktreeStoreRoot });
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+
+      await edit(baseCwd, 19, "line 19 by you");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
