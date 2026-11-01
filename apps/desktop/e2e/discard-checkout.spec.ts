@@ -8,6 +8,12 @@ import { surfaceButton } from "./support/work-layout";
 const git = async (cwd: string, ...args: string[]) => (await promisify(execFile)("git", ["-C", cwd, ...args])).stdout.trim();
 const BRANCH = "alfred-codex-fixture-handoff";
 
+// The worktree goes first and the branch after it. Polling refs avoids `git worktree list`, which can fail while .git/worktrees disappears.
+const expectCheckoutRemoved = async (workspace: string) => {
+  await expect.poll(() => git(workspace, "for-each-ref", `refs/heads/${BRANCH}`)).toBe("");
+  expect(await git(workspace, "worktree", "list")).not.toContain(BRANCH);
+};
+
 test.use({ fixtureOptions: { handoffDiff: true } });
 
 test("discards an isolated checkout whose agent committed, once you confirm", async ({ harness }, testInfo) => {
@@ -30,9 +36,7 @@ test("discards an isolated checkout whose agent committed, once you confirm", as
   await page.screenshot({ path: testInfo.outputPath("discard-unlisted-1440x900.png") });
 
   await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
-  await expect.poll(() => git(paths.workspaceA, "worktree", "list")).not.toContain(BRANCH);
-  // Cleanup removes the worktree first and the branch after it.
-  await expect.poll(() => git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
+  await expectCheckoutRemoved(paths.workspaceA);
 });
 
 test("asks before closing a running checkout with changes, then stops its agent and removes the checkout", async ({ harness }, testInfo) => {
@@ -53,8 +57,6 @@ test("asks before closing a running checkout with changes, then stops its agent 
   expect(await git(paths.workspaceA, "worktree", "list")).toContain(BRANCH);
 
   await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
-  await expect.poll(() => git(paths.workspaceA, "worktree", "list")).not.toContain(BRANCH);
-  // Cleanup removes the worktree first and the branch after it.
-  await expect.poll(() => git(paths.workspaceA, "branch", "--list", BRANCH)).toBe("");
+  await expectCheckoutRemoved(paths.workspaceA);
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(0);
 });
