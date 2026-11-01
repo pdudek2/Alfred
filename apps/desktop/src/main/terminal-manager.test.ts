@@ -4228,6 +4228,24 @@ describe("terminal-manager IPC", () => {
     expect(getTerminalSessionCount()).toBe(0);
   });
 
+  it("ignores a resize that lands after the PTY closed and before it reports exit", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+    const resize = () => emit(terminalChannels.resize, { id: created.id, cols: 100, rows: 32 });
+
+    pty.resize = () => { throw new Error("ioctl(2) failed, EBADF"); };
+    expect(resize).not.toThrow();
+
+    pty.resize = () => { throw new Error("ioctl(2) failed, EINVAL"); };
+    expect(resize).toThrow("EINVAL");
+  });
+
   it("returns a fresh owned terminal snapshot for renderer reattach", async () => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });

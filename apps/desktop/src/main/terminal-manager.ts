@@ -761,7 +761,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   trustedIpc.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
     const session = getOwnedSession(event.sender, request.id);
-    session?.pty.resize(normalizeDimension(request.cols, 80), normalizeDimension(request.rows, 24));
+    try {
+      session?.pty.resize(normalizeDimension(request.cols, 80), normalizeDimension(request.rows, 24));
+    } catch (error) {
+      // node-pty closes the fd before it reports exit, so a resize can land on a PTY that is already gone.
+      if (!String(error).includes("EBADF")) throw error;
+    }
   });
 
   trustedIpc.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
