@@ -1645,6 +1645,16 @@ export function App() {
     );
   }, []);
 
+  const handleRuntimeSessionStartScreen = useCallback((sessionId: string, startScreen: string | null) => {
+    setTerminalSessions((sessions) =>
+      sessions.map((session) => {
+        if (session.id !== sessionId) return session;
+        const { startScreen: _previous, ...rest } = session;
+        return startScreen ? { ...rest, startScreen } : rest;
+      }),
+    );
+  }, []);
+
   const handleRuntimeSessionReplayBuffer = useCallback(
     (sessionId: string, runtimeId: TerminalCreateResult["id"], buffer: string) => {
       setTerminalSessions((sessions) =>
@@ -2751,6 +2761,7 @@ export function App() {
                   onRuntimeSessionExited={handleRuntimeSessionExited}
                   onRuntimeSessionOutput={handleRuntimeSessionOutput}
                   onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
+                  onRuntimeSessionStartScreen={handleRuntimeSessionStartScreen}
                   onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
                   onRuntimeSessionReady={handleRuntimeSessionReady}
                   onRuntimeSessionStarting={handleRuntimeSessionStarting}
