@@ -88,6 +88,8 @@ export type PersistedTerminalSessionSnapshot = {
   isolation?: TerminalSessionIsolation;
   branchName?: string;
   createdAt?: number;
+  /** Names this session in the agent event log, across resumes; its client id can return for a later session. */
+  eventLogKey?: string;
   cwd?: string;
   baseCwd?: string;
   shell?: string;

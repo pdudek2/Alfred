@@ -510,6 +510,7 @@ function normalizeRestoredTerminalSessions(
       ...(typeof item.branchName === "string" ? { branchName: item.branchName } : {}),
       ...(typeof item.baseCwd === "string" ? { baseCwd: item.baseCwd } : {}),
       ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
+      ...(typeof item.eventLogKey === "string" ? { eventLogKey: item.eventLogKey } : {}),
       ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
       ...(typeof item.shell === "string" ? { shell: item.shell } : {}),
       ...(typeof item.command === "string"
@@ -586,6 +587,7 @@ export function sanitizePersistedTerminalSession(
     ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
     ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
     ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
+    ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
     ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
   };
 

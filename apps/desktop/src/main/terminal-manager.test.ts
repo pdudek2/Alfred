@@ -1600,11 +1600,60 @@ describe("terminal-manager IPC", () => {
     const claude = await invoke<{ id: string }>(terminalChannels.create, { clientId: "claude-1", command: "claude", cols: 80, cwd: "/repo", rows: 24 });
     const codex = await invoke<{ id: string }>(terminalChannels.create, { clientId: "codex-1", command: "codex", cols: 80, cwd: "/repo", rows: 24 });
 
-    // The log gets the Alfred session id, which a resumed process keeps, as well as the process's own.
+    // The log gets the session's own key, which a resumed process keeps, as well as the process's id.
     const [claudeCall, codexCall] = spawn.mock.calls as unknown as Array<[string, string[], { env: Record<string, string> }]>;
-    expect(claudeCall![2].env).toMatchObject({ OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `claude-1/${claude.id}` });
-    expect(codexCall![1]).toEqual([...CODEX_LAUNCH_ARGS, "-c", `otel.session=codex-1/${codex.id}`]);
+    expect(claudeCall![2].env).toMatchObject({
+      OTEL_LOGS_EXPORTER: "otlp",
+      EVENT_SESSION: expect.stringMatching(new RegExp(`^claude-1\\.[0-9a-f]{8}/${claude.id}$`)),
+    });
+    expect(codexCall![1]).toEqual([
+      ...CODEX_LAUNCH_ARGS,
+      "-c",
+      expect.stringMatching(new RegExp(`^otel\\.session=codex-1\\.[0-9a-f]{8}/${codex.id}$`)),
+    ]);
     expect(codexCall![2].env).not.toHaveProperty("OTEL_LOGS_EXPORTER");
+  });
+
+  it("keeps a session's event log key across a resume, but not for a later session under its id", async () => {
+    const spawn = vi.fn(() => new FakePty());
+    const snapshot = (clientId: string, eventLogKey?: string): PersistedTerminalSessionSnapshot => ({
+      clientId,
+      title: "Claude",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      ...(eventLogKey ? { eventLogKey } : {}),
+    });
+    configureTerminalPersistence(
+      storeWithRestoredSessions([snapshot("claude-1", "claude-1.0a1b2c3d"), snapshot("claude-2")]),
+      { debounceMs: 0 },
+    );
+    registerTerminalIpc({
+      agentEvents: {
+        clear: async () => {},
+        close: async () => {},
+        env: (session) => ({ EVENT_SESSION: session.clientId ?? "" }),
+        launchArgs: () => [],
+      },
+      loadNodePty: async () => ({ spawn }) as never,
+    });
+    await invoke(terminalChannels.list);
+    const launch = async (clientId: string): Promise<string> => {
+      await invoke(terminalChannels.create, { clientId, cols: 80, cwd: "/repo", rows: 24, source: "manual" });
+      return (spawn.mock.lastCall as unknown as [string, string[], { env: Record<string, string> }])[2].env.EVENT_SESSION!;
+    };
+
+    const resumed = await launch("claude-1");
+    expect(resumed).toBe("claude-1.0a1b2c3d");
+    await expect(launch("claude-2")).resolves.toBe("claude-2");
+
+    const live = (await invoke<TerminalListResult>(terminalChannels.list)).sessions.find((item) => item.clientId === "claude-1");
+    emit(terminalChannels.kill, { id: live!.id });
+    await invoke(terminalChannels.forget, { clientId: "claude-1" });
+
+    const later = await launch("claude-1");
+    expect(later).toMatch(/^claude-1\.[0-9a-f]{8}$/);
+    expect(later).not.toBe(resumed);
   });
 
   it("reports whether terminal data is saved, which the agent event log follows", () => {
