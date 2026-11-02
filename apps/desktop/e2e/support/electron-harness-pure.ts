@@ -54,6 +54,11 @@ export function isZombieProcessStat(stat: string): boolean {
   return stat.slice(stat.lastIndexOf(")") + 1).trimStart().startsWith("Z");
 }
 
+/** A process that goes between kill(pid, 0) and reading its stat file fails the open with ENOENT or the read with ESRCH. */
+export function isProcessGoneReadError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error.code === "ENOENT" || error.code === "ESRCH");
+}
+
 export function hasExpectedConnectionRefusedSources(sources: readonly string[]): boolean {
   return sources.filter((source) => source === "renderer").length === 1 &&
     sources.filter((source) => source === "main-stderr").length <= 1 &&

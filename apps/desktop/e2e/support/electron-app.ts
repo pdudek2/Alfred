@@ -25,6 +25,7 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  isProcessGoneReadError,
   isZombieProcessStat,
   linuxElectronArguments,
 } from "./electron-harness-pure";
@@ -274,10 +275,6 @@ export const test = base.extend<Fixtures>({
     };
 
     const restart = async (): Promise<{ app: ElectronApplication; page: Page }> => {
-      // With terminals running Alfred asks before quitting; answer "Quit and stop sessions" as a person would.
-      await app.evaluate(({ dialog }) => {
-        dialog.showMessageBoxSync = () => 1;
-      });
       const processCleanup = await stopElectronApplication(app, mainProcess.pid);
       if (!processCleanup.clean) throw new Error(`Electron restart cleanup failed: ${JSON.stringify(processCleanup)}`);
       app = await launchElectron();
@@ -417,6 +414,14 @@ async function stopElectronApplication(
       descendantDiscoveryError = safeError(error);
     }
   }
+  // Alfred asks before quitting while a terminal runs, and one may still be starting; answer "Quit and stop sessions".
+  await withTimeout(
+    app.evaluate(({ dialog }) => {
+      dialog.showMessageBoxSync = () => 1;
+    }).catch(() => undefined),
+    2_000,
+    undefined,
+  );
   let closePromise: Promise<string>;
   try {
     closePromise = app.close().then(
@@ -485,7 +490,7 @@ function isLinuxZombie(pid: number): boolean {
   try {
     return isZombieProcessStat(readFileSync(`/proc/${pid}/stat`, "utf8"));
   } catch (error) {
-    return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+    return isProcessGoneReadError(error);
   }
 }
 
