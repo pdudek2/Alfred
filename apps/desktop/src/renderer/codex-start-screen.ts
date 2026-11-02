@@ -1,24 +1,42 @@
 import type { SessionTile } from "./session-state";
 
+export type CodexStartScreen = "hooks" | "folder" | "sign-in";
+
 /**
- * The screens Codex holds on before its first turn, as of 0.164. It sends no signal for them, so they are read off the
- * terminal, by marks that only stand together on that screen.
+ * The screens Codex holds on before it takes a message, as of 0.164. It sends no signal for them, so they are read off
+ * the terminal by their layout: every mark on a row of its own, in this order.
  */
-const START_SCREENS: ReadonlyArray<{ question: string; marks: readonly string[] }> = [
-  { question: "Hooks need review", marks: ["Hooks need review", "Review hooks", "Trust all and continue"] },
-  { question: "Hooks need review", marks: ["Lifecycle hooks from config", "need review before they can run"] },
-  { question: "Trust this folder?", marks: ["Folder access", "Trust this folder?", "Trust and continue"] },
-  { question: "Sign in to Codex", marks: ["Welcome to Codex", "Sign in with ChatGPT", "Press enter to continue"] },
-  { question: "Sign in to Codex", marks: ["Welcome to Codex", "Paste or type your API key", "Press enter to save"] },
+const START_SCREENS: ReadonlyArray<{ screen: CodexStartScreen; marks: readonly string[] }> = [
+  { screen: "hooks", marks: ["Hooks need review", "Trust all and continue", "enter confirm · esc skip"] },
+  { screen: "hooks", marks: ["hooks need review before they can run", "t trust all · enter review · esc close"] },
+  { screen: "folder", marks: ["Folder access", "Trust this folder?", "enter continue · esc quit"] },
+  { screen: "sign-in", marks: ["Welcome to Codex", "Sign in with ChatGPT", "Press enter to continue"] },
+  { screen: "sign-in", marks: ["Paste or type your API key", "Press enter to save"] },
 ];
 
-export function codexStartScreen(screen: string): string | null {
-  return START_SCREENS.find(({ marks }) => marks.every((mark) => screen.includes(mark)))?.question ?? null;
+const START_SCREEN_SENTENCES: Record<CodexStartScreen, string> = {
+  hooks: "Codex asks you to review its hooks",
+  folder: "Codex asks to trust this folder",
+  "sign-in": "Codex needs you to sign in",
+};
+
+export function codexStartScreen(rows: readonly string[]): CodexStartScreen | null {
+  return START_SCREENS.find(({ marks }) => marksOnOwnRows(rows, marks))?.screen ?? null;
 }
 
-/** Only until the session first reports or takes a message: later, the same words on screen are the agent's work. */
-export function mayShowCodexStartScreen(
-  session: Pick<SessionTile, "agentKind" | "agentSignal" | "command" | "promptSubmitted">,
-): boolean {
-  return (session.agentKind === "codex" || session.command === "codex") && !session.promptSubmitted && !session.agentSignal;
+export function codexStartScreenSentence(screen: CodexStartScreen): string {
+  return START_SCREEN_SENTENCES[screen];
+}
+
+export function watchesCodexStartScreen(session: Pick<SessionTile, "agentKind" | "command" | "detectedAgentKind">): boolean {
+  return session.agentKind === "codex" || session.command === "codex" || session.detectedAgentKind === "codex";
+}
+
+function marksOnOwnRows(rows: readonly string[], marks: readonly string[]): boolean {
+  let row = 0;
+  return marks.every((mark) => {
+    while (row < rows.length && !rows[row]!.includes(mark)) row += 1;
+    row += 1;
+    return row <= rows.length;
+  });
 }

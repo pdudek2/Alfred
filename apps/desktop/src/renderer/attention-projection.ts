@@ -1,4 +1,5 @@
 import { pendingApproval, waitingSentence } from "../shared/activity-presentation";
+import { codexStartScreenSentence } from "./codex-start-screen";
 import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { sessionState, type SessionDisplayStatus } from "./session-status";
@@ -63,6 +64,7 @@ export function buildAttentionProjection(
       projectRuntimeBlocker(session, workspace, status) ??
       projectBlockedSafety(session, workspace, status) ??
       projectAgentWaiting(session, workspace, status) ??
+      projectStartScreen(session, workspace, status) ??
       projectStagedLaunch(session, workspace, status) ??
       projectRecovery(session, workspace, status);
 
@@ -156,7 +158,7 @@ function projectAgentWaiting(
 ): AttentionProjection | null {
   if (status.kind !== "needs-you" || status.reason !== "approval") return null;
   const approval = pendingApproval(session.activityEvents);
-  if (!approval && !session.startScreen) return null;
+  if (!approval) return null;
 
   return {
     ...projectionIdentity(session, workspace),
@@ -164,8 +166,29 @@ function projectAgentWaiting(
     section: "needs-you",
     blocksAgent: true,
     rank: 1,
-    attentionAt: approval?.at ?? fallbackAttentionAt(session),
-    reason: session.startScreen ?? waitingSentence(approval!),
+    attentionAt: approval.at,
+    reason: waitingSentence(approval),
+    provenance: "inferred",
+    ...projectionCommand(session),
+    action: { kind: "open-in-work" },
+  };
+}
+
+function projectStartScreen(
+  session: SessionTile,
+  workspace: AttentionWorkspace,
+  status: SessionDisplayStatus,
+): AttentionProjection | null {
+  if (status.kind !== "needs-you" || status.reason !== "start-screen" || !session.startScreen) return null;
+
+  return {
+    ...projectionIdentity(session, workspace),
+    kind: "agent-waiting",
+    section: "needs-you",
+    blocksAgent: true,
+    rank: 1,
+    attentionAt: fallbackAttentionAt(session),
+    reason: codexStartScreenSentence(session.startScreen),
     provenance: "inferred",
     ...projectionCommand(session),
     action: { kind: "open-in-work" },

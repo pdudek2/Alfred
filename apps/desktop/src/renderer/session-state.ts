@@ -1,3 +1,4 @@
+import type { CodexStartScreen } from "./codex-start-screen";
 import type { AgentKind, AlfredLaunchPreflight, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import {
   appendActivityEvent,
@@ -47,8 +48,8 @@ export type SessionTile = {
   lastOutputAt?: number;
   /** Reported by the agent itself (hooks or terminal notifications). */
   agentSignal?: TerminalAgentSignal;
-  /** What a Codex start screen is asking, while the terminal shows it. */
-  startScreen?: string;
+  /** The Codex start screen the terminal shows, while it shows it. */
+  startScreen?: CodexStartScreen;
   /** True while a program other than the shell holds the foreground (plain terminals only). */
   shellBusy?: boolean;
   /** The shell's own title ("zsh 2") while it goes by the program in its foreground. */
