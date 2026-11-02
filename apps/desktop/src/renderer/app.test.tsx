@@ -6186,7 +6186,11 @@ describe("App integration", () => {
       expect(forgetTerminal).not.toHaveBeenCalled();
 
       await user.click(within(dialog).getByRole("button", { name: "Discard checkout permanently" }));
-      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-1", cleanupWorktree: true }));
+      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({
+        clientId: "codex-1",
+        cleanupWorktree: true,
+        discardConfirmed: true,
+      }));
       await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · running checkout/i })).not.toBeInTheDocument());
       expect(killTerminal).not.toHaveBeenCalled();
     });
@@ -6205,11 +6209,7 @@ describe("App integration", () => {
       await screen.findByRole("article", { name: /Codex · running checkout/i });
 
       await closeFocused(user);
-      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({
-        clientId: "codex-1",
-        cleanupWorktree: true,
-        onlyIfSettled: true,
-      }));
+      await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-1", cleanupWorktree: true }));
       expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
     });
 
@@ -8927,7 +8927,7 @@ describe("App integration", () => {
     expect(forgetTerminal).not.toHaveBeenCalled();
 
     await user.click(within(dialog).getByRole("button", { name: "Discard checkout permanently" }));
-    await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-recovery", cleanupWorktree: true }));
+    await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-recovery", cleanupWorktree: true, discardConfirmed: true }));
   });
 
   it("traps discard confirmation focus and restores its trigger without changing armed Recovery", async () => {
@@ -9054,7 +9054,7 @@ describe("App integration", () => {
     await user.click(within(history).getByRole("button", { name: "Review resume" }));
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
-    expect(bridge.forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-1", cleanupWorktree: true });
+    expect(bridge.forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-1", cleanupWorktree: true, discardConfirmed: true });
 
     bridge.createTerminal.mockResolvedValueOnce({
       id: "runtime-reused-recovery",
@@ -9127,7 +9127,7 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     await waitFor(() => expect(within(history).queryByText("Codex 9")).not.toBeInTheDocument());
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true, discardConfirmed: true });
   });
 
   it("retains a saved checkout in Sessions and explains when Discard is rejected", async () => {

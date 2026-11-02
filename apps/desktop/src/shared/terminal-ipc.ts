@@ -142,8 +142,8 @@ export type TerminalKillRequest = {
 export type TerminalForgetRequest = {
   clientId: string;
   cleanupWorktree?: boolean;
-  /** Keep the checkout if it holds unapplied changes once its agent has stopped. */
-  onlyIfSettled?: boolean;
+  /** The user agreed to lose the checkout's unapplied changes; without it a checkout that has them is kept. */
+  discardConfirmed?: boolean;
 };
 
 export type TerminalForgetResult =
