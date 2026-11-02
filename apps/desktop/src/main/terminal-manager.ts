@@ -84,6 +84,7 @@ import {
   type DesktopPrivacySettings,
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
+import { sessionExitSentence } from "../shared/activity-presentation.js";
 import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path.js";
 import {
   alfredNotice,
@@ -704,7 +705,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         recordSessionActivity(session, {
           kind: "lifecycle",
           title: "Process exited",
-          detail: `The terminal process exited with code ${exitCode}.`,
+          detail: sessionExitSentence(exitCode),
         });
         rememberSessionSnapshot(session);
         const recentExit = {

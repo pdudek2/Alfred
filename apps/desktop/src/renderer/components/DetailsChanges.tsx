@@ -65,11 +65,10 @@ export function DetailsChanges({ open, session, projectName, pendingAction, onRe
         : <>
           <ul className="details-files" aria-label="Changed files">
             {result.files.map((file) => {
-              const change = file.status === "??" ? "A" : file.status.trim().charAt(0).toUpperCase();
               return <li key={file.path}>
                 <FileTypeMark path={file.path} />
                 <span className="details-file-name" title={file.path}>{file.path}</span>
-                <span className={`details-file-change change-${change.toLowerCase()}`} aria-label={`Status ${change}`}>{change}</span>
+                <FileChangeLetter status={file.status} />
               </li>;
             })}
           </ul>
@@ -112,15 +111,18 @@ function FileTypeMark({ path }: { path: string }) {
       </span>
     );
   }
-  if (extension === "pdf") {
-    return (
-      <span className="details-file-type type-pdf" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path d="M4 1.8h5.5L13 5.3v8.4c0 .3-.3.5-.5.5h-8c-.3 0-.5-.2-.5-.5V2.3c0-.3.2-.5.5-.5z" />
-          <path d="M5.8 10.5h4.4" />
-        </svg>
-      </span>
-    );
-  }
-  return <span className="details-file-type" aria-hidden="true" />;
+  const pdf = extension === "pdf";
+  return (
+    <span className={`details-file-type ${pdf ? "type-pdf" : "type-file"}`} aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <path d="M4 1.8h5.5L13 5.3v8.4c0 .3-.3.5-.5.5h-8c-.3 0-.5-.2-.5-.5V2.3c0-.3.2-.5.5-.5z" />
+        {pdf && <path d="M5.8 10.5h4.4" />}
+      </svg>
+    </span>
+  );
+}
+
+export function FileChangeLetter({ status }: { status: string }) {
+  const change = status === "??" ? "A" : status.trim().charAt(0).toUpperCase();
+  return <span className={`file-change change-${change.toLowerCase()}`} aria-label={`Status ${change}`}>{change}</span>;
 }

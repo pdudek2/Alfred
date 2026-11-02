@@ -5,7 +5,7 @@ import {
   sessionAgeShort,
   sessionAgeWords,
   sessionDateTimeLabel,
-  sessionStartedLabel,
+  sessionStripLabel,
 } from "./session-time";
 
 describe("session time", () => {
@@ -24,14 +24,14 @@ describe("session time", () => {
     expect(sessionAgeLabel(now - 800 * 24 * 60 * 60_000, now)).toBe("2y");
   });
 
-  it("spells out when the focused session started", () => {
+  it("spells out when the focused session started or ended", () => {
     const now = new Date("2026-05-09T12:00:00Z").getTime();
 
-    expect(sessionStartedLabel(undefined, now)).toBeNull();
-    expect(sessionStartedLabel(now - 20_000, now)).toBe("Started just now");
-    expect(sessionStartedLabel(now - 18 * 60_000, now)).toBe("Started 18 min ago");
-    expect(sessionStartedLabel(now - 2 * 60 * 60_000 - 16 * 60_000, now)).toBe("Started 2h 16m ago");
-    expect(sessionStartedLabel(now - 15 * 24 * 60 * 60_000, now)).toBe("Started 2w ago");
+    expect(sessionStripLabel("Ended", undefined, now)).toBeNull();
+    expect(sessionStripLabel("Started", now - 20_000, now)).toBe("Started just now");
+    expect(sessionStripLabel("Ended", now - 18 * 60_000, now)).toBe("Ended 18 min ago");
+    expect(sessionStripLabel("Failed", now - 2 * 60 * 60_000 - 16 * 60_000, now)).toBe("Failed 2h 16m ago");
+    expect(sessionStripLabel("Started", now - 15 * 24 * 60 * 60_000, now)).toBe("Started 2w ago");
   });
 
   it("gives History rows one unit and sentences the same age in words", () => {

@@ -866,7 +866,7 @@ describe("renderer CSS contracts", () => {
     expect(rows).toContain("border-radius: 0");
     expect(rows).toContain("background: transparent");
     const controls = blockFor(
-      ".privacy-segmented button,\n.privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button,\n.privacy-panel-done",
+      ".privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button,\n.privacy-panel-done",
     );
     expect(controls).toContain("height: 30px");
     expect(controls).toContain("font: 400 13px/18px var(--sans)");

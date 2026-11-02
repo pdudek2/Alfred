@@ -128,6 +128,10 @@ const CLAUDE_TOOL_VERBS: Record<string, string> = {
 const OTHER_CLAUDE_TOOLS = new Set(["Agent", "Glob", "Grep", "Read", "Skill", "Task", "WebSearch"]);
 
 /** One plain sentence per activity, as the v4 Details board writes them: "Edited session-status.ts", "Ran pnpm test". */
+export function sessionExitSentence(exitCode: number): string {
+  return exitCode === 0 ? "Session ended" : `Failed with exit code ${exitCode}`;
+}
+
 export function activitySentence(event: SessionActivityEvent): string {
   const payload = event.payload;
   switch (event.kind) {

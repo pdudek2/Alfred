@@ -20,7 +20,7 @@ import {
   type SessionTile,
 } from "../session-state";
 import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
-import { sessionAgeLabel, sessionAgeTitle, sessionStartedLabel } from "../session-time";
+import { sessionAgeLabel, sessionAgeTitle, sessionStripLabel } from "../session-time";
 import {
   codexStartScreen,
   codexStartScreenSentence,
@@ -311,6 +311,7 @@ export function TerminalDesk({
               <ManualTerminalTile
                 cwd={session.cwd}
                 createdAt={session.createdAt}
+                endedAt={session.endedAt}
                 key={session.id}
                 now={now}
                 sessionKey={session.id}
@@ -603,6 +604,7 @@ function usableTerminalDimensions(dimensions: { cols: number; rows: number } | u
 function ManualTerminalTile({
   cwd,
   createdAt,
+  endedAt,
   now,
   agentKind,
   detectedAgentKind,
@@ -658,6 +660,7 @@ function ManualTerminalTile({
 }: {
   cwd: string;
   createdAt?: number | undefined;
+  endedAt?: number | undefined;
   now: number;
   agentKind?: SessionTile["agentKind"];
   detectedAgentKind?: SessionTile["detectedAgentKind"];
@@ -817,7 +820,11 @@ function ManualTerminalTile({
     relaunchArmed,
   );
   const latestActivity = latestVisibleActivity(activityEvents);
-  const startedLabel = sessionStartedLabel(createdAt, now);
+  const stripLabel = runtimeStatus === "exited"
+    ? sessionStripLabel("Ended", endedAt, now)
+    : runtimeStatus === "error"
+      ? sessionStripLabel("Failed", endedAt, now)
+      : sessionStripLabel("Started", createdAt, now);
   // Contract vocabulary: a session is Claude, Codex or Terminal.
   const kindLabel = kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Terminal";
   const sessionLocationTitle = isolatedCheckout
@@ -1600,8 +1607,8 @@ function ManualTerminalTile({
                   <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
                 )}
                 <span className="session-strip-spacer" />
-                {startedLabel && (
-                  <span className="session-strip-age" title={sessionAgeTitle(createdAt)}>{startedLabel}</span>
+                {stripLabel && (
+                  <span className="session-strip-age" title={sessionAgeTitle(createdAt)}>{stripLabel}</span>
                 )}
                 <div className="session-strip-menu">
                   <ChromeMenu label={`More actions for ${title}`} title={`${title} actions`} items={actionItems}>
