@@ -936,7 +936,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
       try {
         const result = await (options.applyAgentWorktreePatch ?? defaultApplyAgentWorktreePatch)(
-          operation.request,
+          { ...operation.request, reviewedFingerprint: request.reviewedFingerprint },
           operation.options,
         );
         return { ok: true, appliedFiles: result.appliedFiles, ...(result.alreadyApplied ? { alreadyApplied: true } : {}) };

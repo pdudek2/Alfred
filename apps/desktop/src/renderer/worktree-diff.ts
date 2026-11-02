@@ -15,6 +15,7 @@ export type WorktreeDiffView =
       sessionId: string;
       sessionTitle: string;
       result: Extract<TerminalWorktreeDiffResult, { ok: true }>;
+      applyRefusal?: string;
     }
   | { status: "error"; instanceKey: string; sessionId: string; sessionTitle: string; error: string };
 

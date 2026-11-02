@@ -13,6 +13,7 @@ const readyView: WorktreeDiffView = {
     summary: "1 changed file",
     files: [{ path: "src/app.tsx", status: "M" }],
     applied: false,
+    fingerprint: "reviewed-state",
     patch: [
       "diff --git a/src/app.tsx b/src/app.tsx",
       "@@ -4,2 +4,2 @@",
@@ -23,7 +24,7 @@ const readyView: WorktreeDiffView = {
   },
 };
 
-const actions = { projectName: "Alfred", onApply: vi.fn(), onDiscard: vi.fn() };
+const actions = { projectName: "Alfred", onApply: vi.fn(), onReview: vi.fn(), onDiscard: vi.fn() };
 
 describe("WorktreeDiffPanel", () => {
   it("renders real files, totals, and accessible unified-diff lines", () => {
@@ -69,7 +70,7 @@ describe("WorktreeDiffPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Apply to Alfred" }));
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
-    expect(onApply.mock.calls).toEqual([["codex-1"]]);
+    expect(onApply.mock.calls).toEqual([["codex-1", "reviewed-state"]]);
     expect(onDiscard.mock.calls).toEqual([["codex-1"]]);
 
     rerender(panel(readyView, "apply"));
@@ -128,6 +129,7 @@ describe("WorktreeDiffPanel", () => {
             summary: "1 untracked file",
             files: [{ path: "notes/new.md", status: "??" }],
             applied: false,
+            fingerprint: "",
             patch: "",
           },
         }}

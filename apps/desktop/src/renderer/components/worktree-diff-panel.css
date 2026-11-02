@@ -62,6 +62,10 @@
   font: 500 11px/1.2 var(--sans);
 }
 
+.worktree-diff-panel__header .worktree-diff-panel__refusal {
+  color: var(--signal-agent);
+}
+
 .worktree-diff-panel__header button {
   min-height: 30px;
   border: 1px solid var(--border-strong);

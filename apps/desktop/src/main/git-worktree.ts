@@ -59,6 +59,8 @@ export type AgentWorktreeInspection = {
   patch: string;
   /** Every change is already in the project's files, as after an Apply. */
   applied: boolean;
+  /** Differs whenever the checkout's changes do, whether or not the patch shows them. */
+  fingerprint: string;
 };
 
 const execFile = promisify(execFileCallback) as ExecFile;
@@ -157,17 +159,22 @@ export async function inspectAgentWorktree(
     files,
     patch,
     applied: files.length > 0 && await changesAreInProject(run, cleanupTarget.worktreePath, request.baseCwd, files),
+    fingerprint: await changesFingerprint(cleanupTarget.worktreePath, files, patch),
   };
 }
 
 export async function applyAgentWorktreePatch(
-  request: AgentWorktreeCleanupRequest,
+  request: AgentWorktreeCleanupRequest & { reviewedFingerprint?: string | undefined },
   options: Pick<PrepareAgentWorktreeOptions, "cp" | "execFile" | "lstat" | "mkdir" | "rm" | "worktreeStoreRoot"> = {},
 ): Promise<{ appliedFiles: number; alreadyApplied?: true }> {
   const run = options.execFile ?? execFile;
   const rmImpl = options.rm ?? rm;
   const cleanupTarget = resolveAgentWorktreeCleanupTarget(request, options);
   const inspected = await inspectAgentWorktree(request, options);
+  // shortcut: the checkout can still change before the writes below run; applying from a snapshot would close that.
+  if (request.reviewedFingerprint !== undefined && request.reviewedFingerprint !== inspected.fingerprint) {
+    throw new Error("This worktree changed after its diff was read. Review the diff again before applying.");
+  }
   if (inspected.files.length === 0) {
     return { appliedFiles: 0 };
   }
@@ -401,6 +408,20 @@ async function entryContent(filePath: string): Promise<{ bytes: Buffer; executab
     if (isFsErrorCode(error, "ENOENT") || isFsErrorCode(error, "ENOTDIR")) return null;
     throw error;
   }
+}
+
+/**
+ * No patch holds an untracked file, so its stat stands in for its content: every read of the changes takes this, and a
+ * rewrite with the same bytes only asks for a second look.
+ */
+async function changesFingerprint(worktreePath: string, files: AgentWorktreeChangeFile[], patch: string): Promise<string> {
+  const hash = createHash("sha256").update(JSON.stringify(files)).update(patch);
+  for (const file of files) {
+    if (file.status !== "??") continue;
+    const stats = await lstat(path.join(worktreePath, file.path)).catch(() => null);
+    hash.update(JSON.stringify([file.path, stats?.size, stats?.mtimeMs, stats?.mode]));
+  }
+  return hash.digest("hex");
 }
 
 function changedFilesSummary(count: number): string {

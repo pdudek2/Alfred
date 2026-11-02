@@ -10,24 +10,28 @@ export function WorktreeDiffPanel({
   projectName,
   pendingAction,
   onApply,
+  onReview,
   onDiscard,
   onClose,
 }: {
   view: WorktreeDiffView;
   projectName: string;
   pendingAction?: "review" | "apply" | undefined;
-  onApply: (sessionId: string) => void;
+  onApply: (sessionId: string, reviewedFingerprint: string) => void;
+  onReview: (sessionId: string) => void;
   onDiscard: (sessionId: string) => void;
   onClose: (reason: WorktreeDiffCloseReason) => void;
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const reviewRef = useRef<HTMLButtonElement | null>(null);
   const hasChanges = view.status === "ready" && view.result.files.length > 0;
   const applied = hasChanges && view.result.applied;
+  const refusal = view.status === "ready" ? view.applyRefusal : undefined;
   const pending = pendingAction !== undefined;
 
   useEffect(() => {
-    closeRef.current?.focus();
-  }, [view.instanceKey, applied]);
+    (refusal ? reviewRef : closeRef).current?.focus();
+  }, [view.instanceKey, applied, refusal]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -44,7 +48,9 @@ export function WorktreeDiffPanel({
       <header className="worktree-diff-panel__header">
         <div>
           <h2>{view.sessionTitle}</h2>
-          <p>Changes in its isolated worktree</p>
+          {refusal
+            ? <p className="worktree-diff-panel__refusal" role="alert">{refusal}</p>
+            : <p>Changes in its isolated worktree</p>}
         </div>
         <div className="worktree-diff-panel__actions">
           {applied && <span className="worktree-diff-panel__applied" role="status">Applied to {projectName}</span>}
@@ -52,9 +58,11 @@ export function WorktreeDiffPanel({
             <button type="button" className="worktree-diff-panel__discard" disabled={pending} onClick={() => onDiscard(view.sessionId)}>
               Discard
             </button>
-            <button type="button" disabled={pending} onClick={() => onApply(view.sessionId)}>
-              {pendingAction === "apply" ? "Applying..." : `Apply to ${projectName}`}
-            </button>
+            {refusal
+              ? <button ref={reviewRef} type="button" disabled={pending} onClick={() => onReview(view.sessionId)}>Review diff</button>
+              : <button type="button" disabled={pending} onClick={() => onApply(view.sessionId, view.result.fingerprint)}>
+                {pendingAction === "apply" ? "Applying..." : `Apply to ${projectName}`}
+              </button>}
           </>}
           <button ref={closeRef} type="button" onClick={() => onClose("button")}>
             {view.status === "error" ? "Back to terminal" : "Close diff"}

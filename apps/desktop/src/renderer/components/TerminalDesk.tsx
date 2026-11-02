@@ -118,7 +118,8 @@ type TerminalDeskProps = {
   onOpenPlan?: (() => void) | undefined;
   onCloseSession: (sessionId: string) => void;
   onCloseWorktreeDiff: () => void;
-  onApplyWorktree: (sessionId: string) => void;
+  onApplyWorktree: (sessionId: string, reviewedFingerprint?: string) => void;
+  onReviewWorktree: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenHistory: () => void;
@@ -163,6 +164,7 @@ export function TerminalDesk({
   onAddManualSession,
   onCloseSession,
   onApplyWorktree,
+  onReviewWorktree,
   onCloseWorktreeDiff,
   onContinueRestoredSession,
   onOpenExternalTerminal,
@@ -381,6 +383,7 @@ export function TerminalDesk({
             projectName={workspaceLabel}
             pendingAction={worktreeDiffPendingAction}
             onApply={onApplyWorktree}
+            onReview={onReviewWorktree}
             onDiscard={onCloseSession}
             onClose={handleCloseDiff}
           />

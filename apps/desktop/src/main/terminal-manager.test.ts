@@ -3120,7 +3120,7 @@ describe("terminal-manager IPC", () => {
   });
 
   it("resolves sanitized isolated worktree operations through the authoritative workspace root", async () => {
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false, fingerprint: "" }));
     const resolveWorkspaceRoot = vi.fn(async (workspaceId: string) => workspaceId === "A" ? "/repo" : undefined);
     configureTerminalPersistence(storeWithRestoredSessions([{
       clientId: "sanitized",
@@ -3142,6 +3142,7 @@ describe("terminal-manager IPC", () => {
       summary: "1 changed file",
       files: [],
       applied: false,
+      fingerprint: "",
       patch: "",
     });
     expect(resolveWorkspaceRoot).toHaveBeenCalledWith("A");
@@ -3164,7 +3165,7 @@ describe("terminal-manager IPC", () => {
       // Checkouts are made from the repository's root, and the session starts in the project's folder inside one.
       const worktree = path.join(managedProjectWorktreeRoot(worktreeStoreRoot, repository), branchName);
       await fs.mkdir(path.join(worktree, "packages", "app"), { recursive: true });
-      const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
+      const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false, fingerprint: "" }));
       configureTerminalPersistence(storeWithRestoredSessions([{
         clientId: "subfolder",
         title: "Codex",
@@ -3188,6 +3189,7 @@ describe("terminal-manager IPC", () => {
         summary: "1 changed file",
         files: [],
         applied: false,
+        fingerprint: "",
         patch: "",
       });
       expect(inspectAgentWorktree).toHaveBeenCalledWith(expect.objectContaining({ baseCwd: repository, branchName }), {
@@ -3217,7 +3219,7 @@ describe("terminal-manager IPC", () => {
       );
       await fs.mkdir(canonicalWorktree, { recursive: true });
 
-      const inspectAgentWorktree = vi.fn(async () => ({ summary: "2 changed files", files: [], patch: "", applied: false }));
+      const inspectAgentWorktree = vi.fn(async () => ({ summary: "2 changed files", files: [], patch: "", applied: false, fingerprint: "" }));
       configureTerminalPersistence(storeWithRestoredSessions([{
         clientId: "s4-fresh-apply",
         title: "S4 fresh Apply fixture",
@@ -3245,6 +3247,7 @@ describe("terminal-manager IPC", () => {
         summary: "2 changed files",
         files: [],
         applied: false,
+        fingerprint: "",
         patch: "",
       });
       expect(inspectAgentWorktree).toHaveBeenCalledWith({
@@ -3273,7 +3276,7 @@ describe("terminal-manager IPC", () => {
       error: "This project points to a different folder. Reattach the original project first.",
     },
   ])("rejects sanitized operations for $name before worktree access", async ({ error, fingerprint, resolvedRoot }) => {
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "unexpected", files: [], patch: "", applied: false }));
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "unexpected", files: [], patch: "", applied: false, fingerprint: "" }));
     const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
     const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
     configureTerminalPersistence(storeWithRestoredSessions([{
@@ -3527,6 +3530,7 @@ describe("terminal-manager IPC", () => {
       files,
       patch: "",
       applied: false,
+      fingerprint: "",
     }));
     registerTerminalIpc({
       cleanupAgentWorktree,
@@ -3941,6 +3945,7 @@ describe("terminal-manager IPC", () => {
         { path: "notes/review.md", status: "??" },
       ],
       applied: false,
+      fingerprint: "reviewed-state",
       patch: "diff --git a/src/app.tsx b/src/app.tsx\n--- a/src/app.tsx\n+++ b/src/app.tsx",
     }));
     const prepareAgentWorktree = vi.fn(async () => ({
@@ -3977,6 +3982,7 @@ describe("terminal-manager IPC", () => {
         { path: "notes/review.md", status: "??" },
       ],
       applied: false,
+      fingerprint: "reviewed-state",
       patch: "diff --git a/src/app.tsx b/src/app.tsx\n--- a/src/app.tsx\n+++ b/src/app.tsx",
     });
     expect(inspectAgentWorktree).toHaveBeenCalledWith({
@@ -4037,6 +4043,10 @@ describe("terminal-manager IPC", () => {
     }, {
       worktreeStoreRoot: "/alfred/userData/worktrees",
     });
+
+    await invoke(terminalChannels.worktreeApply, { clientId: "codex-1", reviewedFingerprint: "reviewed" });
+
+    expect(applyAgentWorktreePatch).toHaveBeenLastCalledWith(expect.objectContaining({ reviewedFingerprint: "reviewed" }), expect.anything());
   });
 
   it("does not apply shared sessions as isolated worktrees", async () => {
@@ -4452,7 +4462,7 @@ describe("terminal-manager IPC", () => {
     const ownerSender = senderFor(ownerWindow);
     const otherSender = senderFor(otherWindow);
     const pty = new FakePty();
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false, fingerprint: "" }));
     const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
     registerTerminalIpc({
       applyAgentWorktreePatch,

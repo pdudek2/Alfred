@@ -178,11 +178,15 @@ export type TerminalWorktreeDiffResult =
       patch: string;
       /** Every change is already in the project's files, as after an Apply. */
       applied: boolean;
+      /** Sent back with Apply as `reviewedFingerprint`. */
+      fingerprint: string;
     }
   | { ok: false; error: string };
 
 export type TerminalWorktreeApplyRequest = {
   clientId: string;
+  /** Refuses the Apply if the worktree no longer matches the diff read with this fingerprint. */
+  reviewedFingerprint?: string | undefined;
 };
 
 export type TerminalWorktreeApplyResult =
