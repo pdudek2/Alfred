@@ -4,6 +4,7 @@ import {
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
+  isProcessGoneReadError,
   isZombieProcessStat,
   linuxElectronArguments,
 } from "./electron-harness-pure";
@@ -42,6 +43,12 @@ describe("Electron harness pure guards", () => {
     expect(isZombieProcessStat("3372 (electron) S 3370 3370 3370 0 -1 4227084")).toBe(false);
     expect(isZombieProcessStat("41 (a) Z (b)) R 1 41 41 0 -1")).toBe(false);
     expect(isZombieProcessStat("41 (a) R (b)) Z 1 41 41 0 -1")).toBe(true);
+  });
+
+  it("counts a process that goes while its stat file is read as gone", () => {
+    expect(isProcessGoneReadError({ code: "ENOENT" })).toBe(true);
+    expect(isProcessGoneReadError({ code: "ESRCH" })).toBe(true);
+    expect(isProcessGoneReadError({ code: "EACCES" })).toBe(false);
   });
 
   it("treats only pgrep exit code 1 as no descendants", () => {
