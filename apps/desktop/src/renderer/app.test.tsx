@@ -384,6 +384,7 @@ function installDesktopBridge(
     ],
     patch: "",
     applied: false,
+    fingerprint: "reviewed-state",
   });
   let terminalSnapshots = [...terminalSessions];
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
@@ -633,6 +634,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onCloseSession: vi.fn(),
     onCloseWorktreeDiff: vi.fn(),
     onApplyWorktree: vi.fn(),
+    onReviewWorktree: vi.fn(),
     onContinueRestoredSession: vi.fn(),
     onOpenExternalTerminal: vi.fn().mockResolvedValue(true),
     onOpenHistory: vi.fn(),
@@ -1840,7 +1842,7 @@ describe("App integration", () => {
 
   it("applies from the diff header and keeps the diff behind a cancelled discard", async () => {
     const user = userEvent.setup();
-    const { worktreeApply } = installDesktopBridge(undefined, null, [liveSnapshot("diff-header", {
+    const { worktreeApply, worktreeDiff } = installDesktopBridge(undefined, null, [liveSnapshot("diff-header", {
       isolation: "worktree", branchName: "diff-header-work", baseCwd: "/Users/sample/Desktop/Alfred",
     })]);
     render(<App />);
@@ -1856,17 +1858,33 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     expect(diff).toBeInTheDocument();
 
-    // The worktree can lose its changes after the diff was read; applying nothing must not read as applied.
-    worktreeApply.mockResolvedValueOnce({ ok: true, appliedFiles: 0 });
+    // A refused Apply keeps the diff on screen and asks for a new read, which is what the next Apply then vouches for.
+    const refusal = "This worktree changed after its diff was read. Review the diff again before applying.";
+    worktreeApply.mockResolvedValueOnce({ ok: false, error: refusal, needsManualReview: true });
     await user.click(within(diff).getByRole("button", { name: "Apply to Alfred" }));
-    await waitFor(() => expect(within(diff).getByRole("button", { name: "Apply to Alfred" })).toBeEnabled());
-    expect(worktreeApply).toHaveBeenCalledOnce();
+    expect(await within(diff).findByRole("alert")).toHaveTextContent(refusal);
+    expect(worktreeApply).toHaveBeenCalledWith({ clientId: "diff-header", reviewedFingerprint: "reviewed-state" });
+    expect(within(diff).getByRole("list", { name: "Changed files" })).toBeInTheDocument();
     expect(within(diff).queryByRole("status")).not.toBeInTheDocument();
+    expect(within(diff).queryByRole("button", { name: "Apply to Alfred" })).not.toBeInTheDocument();
+    const reviewAgain = within(diff).getByRole("button", { name: "Review diff" });
+    await waitFor(() => expect(reviewAgain).toHaveFocus());
 
-    await user.click(within(diff).getByRole("button", { name: "Apply to Alfred" }));
+    worktreeDiff.mockResolvedValue({
+      ok: true, summary: "1 changed file", files: [{ path: "src/app.tsx", status: "M" }], patch: "", applied: false, fingerprint: "newer-state",
+    });
+    await user.click(reviewAgain);
+    const apply = await within(diff).findByRole("button", { name: "Apply to Alfred" });
+    expect(within(diff).queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(apply).toBeEnabled());
+
+    await user.click(apply);
     expect(await within(diff).findByRole("status")).toHaveTextContent("Applied to Alfred");
-    expect(worktreeApply).toHaveBeenCalledWith({ clientId: "diff-header" });
+    expect(worktreeApply).toHaveBeenLastCalledWith({ clientId: "diff-header", reviewedFingerprint: "newer-state" });
     expect(within(diff).queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+
+    await user.click(within(diff).getByRole("button", { name: "Close diff" }));
+    expect(within(details).getByRole("button", { name: "Review diff" })).toHaveFocus();
   });
 
   it("opens Details again after reload and never saves or reads the retired drawer field", async () => {
@@ -6017,6 +6035,7 @@ describe("App integration", () => {
       files: [{ path: "src/stale.ts", status: "M" }],
       applied: false,
       patch: "@@ -1 +1 @@\n-old\n+stale",
+      fingerprint: "",
     }));
 
     await waitFor(() => expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument());
@@ -9643,6 +9662,7 @@ describe("App integration", () => {
         files: [],
         applied: false,
         patch: "",
+        fingerprint: "",
       } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
     },
     {
@@ -9652,6 +9672,7 @@ describe("App integration", () => {
         summary: "1 changed file",
         files: [{ path: "src/stale.ts", status: "M" }],
         patch: "",
+        fingerprint: "",
       } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
     },
   ])("ignores a stale $name result after the session instance is replaced", async ({ result }) => {

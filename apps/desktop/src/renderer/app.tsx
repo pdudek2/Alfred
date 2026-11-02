@@ -1289,10 +1289,12 @@ export function App() {
 
     const actionKey = beginWorktreeAction(session, "review");
     if (!actionKey) return;
-    worktreeDiffReturnFocusRef.current = document.activeElement instanceof HTMLElement
-      && document.activeElement !== document.body
-      ? document.activeElement
-      : null;
+    if (worktreeDiffView?.sessionId !== sessionId) {
+      worktreeDiffReturnFocusRef.current = document.activeElement instanceof HTMLElement
+        && document.activeElement !== document.body
+        ? document.activeElement
+        : null;
+    }
     setNeedsYouOpen(false);
     handleFocusSessionInWorkspace(workspaceId, sessionId);
     setWorktreeDiffView({
@@ -1353,7 +1355,7 @@ export function App() {
     } finally {
       finishWorktreeAction(actionKey);
     }
-  }, [beginWorktreeAction, finishWorktreeAction, handleFocusSessionInWorkspace, isCurrentSessionInstance]);
+  }, [beginWorktreeAction, finishWorktreeAction, handleFocusSessionInWorkspace, isCurrentSessionInstance, worktreeDiffView?.sessionId]);
 
   const handleReviewWorktree = useCallback((sessionId: string) => {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
@@ -1365,7 +1367,7 @@ export function App() {
     setWorktreeDiffView(null);
   }, []);
 
-  const handleApplyWorktree = useCallback(async (sessionId: string) => {
+  const handleApplyWorktree = useCallback(async (sessionId: string, reviewedFingerprint?: string) => {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     if (!session || !isReviewableWorktreeSession(session)) {
       setTerminalSessions((sessions) =>
@@ -1393,14 +1395,15 @@ export function App() {
     const actionKey = beginWorktreeAction(session, "apply");
     if (!actionKey) return;
     try {
-      const result = await terminalApi.worktreeApply({ clientId: sessionId });
+      const result = await terminalApi.worktreeApply({ clientId: sessionId, reviewedFingerprint });
       if (!isCurrentSessionInstance(sessionId, actionKey)) return;
-      if (result.ok && (result.appliedFiles > 0 || result.alreadyApplied)) {
-        setWorktreeDiffView((current) =>
-          current?.status === "ready" && current.instanceKey === actionKey
+      if (!result.ok || result.appliedFiles > 0 || result.alreadyApplied) {
+        setWorktreeDiffView((current) => {
+          if (current?.status !== "ready" || current.instanceKey !== actionKey) return current;
+          return result.ok
             ? { ...current, result: { ...current.result, applied: true } }
-            : current,
-        );
+            : { ...current, applyRefusal: result.error };
+        });
       }
       setTerminalSessions((sessions) =>
         sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
@@ -2762,6 +2765,7 @@ export function App() {
                   onAddManualSession={() => openNewSession("terminal")}
                   onCloseSession={handleCloseSession}
                   onApplyWorktree={handleApplyWorktree}
+                  onReviewWorktree={handleReviewWorktree}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}

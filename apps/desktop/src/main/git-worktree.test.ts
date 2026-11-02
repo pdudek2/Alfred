@@ -523,6 +523,53 @@ describe("git worktree preparation", () => {
     }
   });
 
+  it.each<[string, (cwd: string) => Promise<unknown>]>([
+    ["a tracked file", (cwd) => writeFile(path.join(cwd, "notes.txt"), "written after the review\n")],
+    ["a binary file", (cwd) => writeFile(path.join(cwd, "drawing.bin"), Buffer.from([0, 1, 3]))],
+    ["an untracked file", (cwd) => writeFile(path.join(cwd, "draft.md"), "written after the review\n")],
+    ["everything, leaving nothing to apply", async (cwd) => {
+      await git(cwd, "reset", "-q", "--hard");
+      await rm(path.join(cwd, "draft.md"));
+    }],
+  ])("refuses a reviewed Apply once %s changed and leaves the project as it was", async (_name, change) => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request } = await realCheckout();
+    try {
+      await writeFile(path.join(request.cwd, "drawing.bin"), Buffer.from([0, 1, 2]));
+      await git(request.cwd, "add", "drawing.bin");
+      await writeFile(path.join(request.cwd, "draft.md"), "reviewed draft\n");
+      const { fingerprint } = await inspectAgentWorktree(request, { worktreeStoreRoot });
+      await change(request.cwd);
+      const before = [await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")];
+
+      await expect(applyAgentWorktreePatch({ ...request, reviewedFingerprint: fingerprint }, { worktreeStoreRoot }))
+        .rejects.toThrow("changed after its diff was read");
+
+      expect([await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")]).toEqual(before);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("applies a reviewed worktree that still matches, and one with no review to match", async () => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request } = await realCheckout();
+    try {
+      await writeFile(path.join(request.cwd, "draft.md"), "reviewed draft\n");
+      const { fingerprint } = await inspectAgentWorktree(request, { worktreeStoreRoot });
+
+      await expect(applyAgentWorktreePatch({ ...request, reviewedFingerprint: fingerprint }, { worktreeStoreRoot }))
+        .resolves.toEqual({ appliedFiles: 2 });
+      expect(await readFile(path.join(baseCwd, "draft.md"), "utf8")).toBe("reviewed draft\n");
+
+      await git(baseCwd, "reset", "-q", "--hard");
+      await rm(path.join(baseCwd, "draft.md"));
+      await writeFile(path.join(request.cwd, "draft.md"), "written after the review\n");
+      await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot })).resolves.toEqual({ appliedFiles: 2 });
+      expect(await readFile(path.join(baseCwd, "draft.md"), "utf8")).toBe("written after the review\n");
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ["", "\n"],
     [" whose line endings Git converts", "\r\n"],
@@ -686,6 +733,7 @@ describe("git worktree preparation", () => {
       ],
       patch,
       applied: false,
+      fingerprint: expect.any(String),
     });
     expect(execFile).toHaveBeenCalledWith(
       "git",
