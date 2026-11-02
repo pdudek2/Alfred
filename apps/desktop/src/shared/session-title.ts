@@ -75,7 +75,11 @@ export function stripTitleControlCharacters(value: string): string {
 }
 
 export function normalizeSessionTitle(title: string): string {
-  return stripTitleControlCharacters(stripTerminalControlSequences(title)).trim().replace(/\s+/g, " ").slice(0, MAX_SESSION_TITLE_LENGTH);
+  const text = stripTitleControlCharacters(stripTerminalControlSequences(title)).trim().replace(/\s+/g, " ");
+  if (text.length <= MAX_SESSION_TITLE_LENGTH) return text;
+  const room = text.slice(0, MAX_SESSION_TITLE_LENGTH - 1);
+  const lastSpace = room.lastIndexOf(" ");
+  return `${lastSpace > MAX_SESSION_TITLE_LENGTH / 2 ? room.slice(0, lastSpace) : room.trimEnd()}…`;
 }
 
 /**
