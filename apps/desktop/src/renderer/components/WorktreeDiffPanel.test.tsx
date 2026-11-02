@@ -23,9 +23,11 @@ const readyView: WorktreeDiffView = {
   },
 };
 
+const actions = { projectName: "Alfred", onApply: vi.fn(), onDiscard: vi.fn() };
+
 describe("WorktreeDiffPanel", () => {
   it("renders real files, totals, and accessible unified-diff lines", () => {
-    render(<WorktreeDiffPanel view={readyView} onClose={vi.fn()} />);
+    render(<WorktreeDiffPanel {...actions} view={readyView} onClose={vi.fn()} />);
 
     expect(screen.getByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex review" })).toBeInTheDocument();
@@ -47,7 +49,7 @@ describe("WorktreeDiffPanel", () => {
 
   it("reports whether Close diff or Escape dismissed the panel", async () => {
     const onClose = vi.fn();
-    render(<WorktreeDiffPanel view={readyView} onClose={onClose} />);
+    render(<WorktreeDiffPanel {...actions} view={readyView} onClose={onClose} />);
 
     const close = screen.getByRole("button", { name: "Close diff" });
     await waitFor(() => expect(close).toHaveFocus());
@@ -57,9 +59,36 @@ describe("WorktreeDiffPanel", () => {
     expect(onClose.mock.calls).toEqual([["button"], ["escape"]]);
   });
 
+  it("applies or discards from the header only while there is something to act on", async () => {
+    const onApply = vi.fn();
+    const onDiscard = vi.fn();
+    const panel = (view: WorktreeDiffView, pendingAction?: "apply") => (
+      <WorktreeDiffPanel {...actions} view={view} pendingAction={pendingAction} onApply={onApply} onDiscard={onDiscard} onClose={vi.fn()} />
+    );
+    const { rerender } = render(panel(readyView));
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply to Alfred" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onApply.mock.calls).toEqual([["codex-1"]]);
+    expect(onDiscard.mock.calls).toEqual([["codex-1"]]);
+
+    rerender(panel(readyView, "apply"));
+    expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+
+    rerender(panel({ ...readyView, result: { ...readyView.result, applied: true } }));
+    expect(screen.getByRole("status")).toHaveTextContent("Applied to Alfred");
+    expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close diff" })).toHaveFocus());
+
+    rerender(panel({ ...readyView, result: { ...readyView.result, files: [] } }));
+    expect(screen.queryByRole("button", { name: "Apply to Alfred" })).not.toBeInTheDocument();
+  });
+
   it("renders loading and error states with one recovery action", () => {
     const { rerender } = render(
       <WorktreeDiffPanel
+        {...actions}
         view={{
           status: "loading",
           instanceKey: "codex-1:1",
@@ -73,6 +102,7 @@ describe("WorktreeDiffPanel", () => {
 
     rerender(
       <WorktreeDiffPanel
+        {...actions}
         view={{
           status: "error",
           instanceKey: "codex-1:1",
@@ -90,6 +120,7 @@ describe("WorktreeDiffPanel", () => {
   it("explains an empty patch when only untracked files are available", () => {
     render(
       <WorktreeDiffPanel
+        {...actions}
         view={{
           ...readyView,
           result: {

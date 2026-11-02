@@ -1395,6 +1395,13 @@ export function App() {
     try {
       const result = await terminalApi.worktreeApply({ clientId: sessionId });
       if (!isCurrentSessionInstance(sessionId, actionKey)) return;
+      if (result.ok && (result.appliedFiles > 0 || result.alreadyApplied)) {
+        setWorktreeDiffView((current) =>
+          current?.status === "ready" && current.instanceKey === actionKey
+            ? { ...current, result: { ...current.result, applied: true } }
+            : current,
+        );
+      }
       setTerminalSessions((sessions) =>
         sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
           ? appendSessionActivity(
@@ -2744,6 +2751,7 @@ export function App() {
                   terminalFocusRequestKey={terminalFocusRequestKey}
                   worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
                   worktreeDiffView={worktreeDiffView}
+                  worktreeDiffPendingAction={worktreeDiffView ? worktreeActionPending[worktreeDiffView.instanceKey] : undefined}
                   workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}
                   workspaceRootPath={activeWorkspace.rootPath}
@@ -2753,6 +2761,7 @@ export function App() {
                   onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
                   onAddManualSession={() => openNewSession("terminal")}
                   onCloseSession={handleCloseSession}
+                  onApplyWorktree={handleApplyWorktree}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}

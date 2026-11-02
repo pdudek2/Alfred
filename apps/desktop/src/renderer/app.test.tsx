@@ -632,6 +632,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onAddManualSession: vi.fn(),
     onCloseSession: vi.fn(),
     onCloseWorktreeDiff: vi.fn(),
+    onApplyWorktree: vi.fn(),
     onContinueRestoredSession: vi.fn(),
     onOpenExternalTerminal: vi.fn().mockResolvedValue(true),
     onOpenHistory: vi.fn(),
@@ -1835,6 +1836,37 @@ describe("App integration", () => {
     await user.click(await within(details).findByRole("button", { name: "Apply to Alfred" }));
     await waitFor(() => expect(worktreeApply).toHaveBeenCalledWith({ clientId: "details-diff" }));
     expect(screen.getByTestId("xterm-host")).toBe(host);
+  });
+
+  it("applies from the diff header and keeps the diff behind a cancelled discard", async () => {
+    const user = userEvent.setup();
+    const { worktreeApply } = installDesktopBridge(undefined, null, [liveSnapshot("diff-header", {
+      isolation: "worktree", branchName: "diff-header-work", baseCwd: "/Users/sample/Desktop/Alfred",
+    })]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · diff-header/ });
+    await selectSurface(user, "Details");
+    const details = screen.getByRole("complementary", { name: "Details" });
+    await user.click(await within(details).findByRole("button", { name: "Review diff" }));
+    const diff = await screen.findByRole("region", { name: "Worktree diff" });
+
+    await user.click(await within(diff).findByRole("button", { name: "Discard" }));
+    await screen.findByRole("dialog", { name: "Discard isolated worktree" });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
+    expect(diff).toBeInTheDocument();
+
+    // The worktree can lose its changes after the diff was read; applying nothing must not read as applied.
+    worktreeApply.mockResolvedValueOnce({ ok: true, appliedFiles: 0 });
+    await user.click(within(diff).getByRole("button", { name: "Apply to Alfred" }));
+    await waitFor(() => expect(within(diff).getByRole("button", { name: "Apply to Alfred" })).toBeEnabled());
+    expect(worktreeApply).toHaveBeenCalledOnce();
+    expect(within(diff).queryByRole("status")).not.toBeInTheDocument();
+
+    await user.click(within(diff).getByRole("button", { name: "Apply to Alfred" }));
+    expect(await within(diff).findByRole("status")).toHaveTextContent("Applied to Alfred");
+    expect(worktreeApply).toHaveBeenCalledWith({ clientId: "diff-header" });
+    expect(within(diff).queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
   });
 
   it("opens Details again after reload and never saves or reads the retired drawer field", async () => {
