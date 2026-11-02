@@ -137,7 +137,7 @@ function TreeItem({
   const canPin = !focused && session.id !== pinnedSessionId;
   const canAddWorker = parentTitle === undefined && (kind === "claude" || kind === "codex");
   const preview = PREVIEW_KINDS.has(status.kind) ? sessionPreviewLine(session, status) : null;
-  const meta = collapsed ? <WorkerCounts workers={workers} /> : preview;
+  const meta = collapsed ? <WorkerCounts workers={workers} /> : preview && <span className="session-tree-preview">{preview}</span>;
   const describedBy = [meta ? metaId : null, parentTitle === undefined ? null : parentId].filter(Boolean).join(" ");
   const actions = (workers.length > 0 ? 1 : 0) + (canPin ? 1 : 0) + (canAddWorker ? 1 : 0);
   // The title makes room for the row's actions on hover instead of running under them.
