@@ -3334,6 +3334,7 @@ describe("terminal-manager IPC", () => {
     const forgetting = invoke(terminalChannels.forget, {
       clientId: "codex-discard",
       cleanupWorktree: true,
+      discardConfirmed: true,
     });
     await vi.waitFor(() => expect(cleanupAgentWorktree).toHaveBeenCalledOnce());
     expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toHaveLength(1);
@@ -3430,6 +3431,7 @@ describe("terminal-manager IPC", () => {
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-discard",
       cleanupWorktree: true,
+      discardConfirmed: true,
     })).resolves.toEqual({ ok: false, error: "Unable to remove isolated Git worktree." });
     expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([
       expect.objectContaining({ clientId: "codex-discard" }),
@@ -3457,6 +3459,7 @@ describe("terminal-manager IPC", () => {
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-discard",
       cleanupWorktree: true,
+      discardConfirmed: true,
     })).resolves.toEqual({ ok: false, error: "disk full" });
     expect(store.updateState).toHaveBeenCalledTimes(2);
     await expect(store.getState()).resolves.toMatchObject({
@@ -3501,6 +3504,7 @@ describe("terminal-manager IPC", () => {
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-live",
       cleanupWorktree: true,
+      discardConfirmed: true,
     })).resolves.toEqual({ ok: true });
 
     expect(order).toEqual(["kill", "cleanup alfred-codex-live force=true"]);
@@ -3510,13 +3514,20 @@ describe("terminal-manager IPC", () => {
 
   it("keeps a running checkout that changed before its agent stopped", async () => {
     const pty = new FakePty();
+    const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
+    const lateFile = { path: "written-late.ts", status: "M" };
+    let files: Array<typeof lateFile> = [];
     pty.kill = () => {
+      files = [lateFile];
       pty.killed = true;
       queueMicrotask(() => pty.onExitHandler?.({ exitCode: 0 }));
     };
-    const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
-    const files = [{ path: "written-late.ts", status: "M" }];
-    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 file changed", files, patch: "", applied: false }));
+    const inspectAgentWorktree = vi.fn(async () => ({
+      summary: files.length === 0 ? "0 changed files" : "1 file changed",
+      files,
+      patch: "",
+      applied: false,
+    }));
     registerTerminalIpc({
       cleanupAgentWorktree,
       inspectAgentWorktree,
@@ -3538,14 +3549,15 @@ describe("terminal-manager IPC", () => {
       rows: 24,
     });
 
+    await expect(invoke(terminalChannels.worktreeDiff, { clientId: "codex-late" }))
+      .resolves.toMatchObject({ ok: true, files: [] });
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-late",
       cleanupWorktree: true,
-      onlyIfSettled: true,
     })).resolves.toEqual({
       ok: false,
       error: "This checkout changed while it was closing.",
-      changes: { summary: "1 file changed", files },
+      changes: { summary: "1 file changed", files: [lateFile] },
     });
 
     expect(pty.killed).toBe(true);
@@ -3554,6 +3566,7 @@ describe("terminal-manager IPC", () => {
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-late",
       cleanupWorktree: true,
+      discardConfirmed: true,
     })).resolves.toEqual({ ok: true });
     expect(cleanupAgentWorktree).toHaveBeenCalledTimes(1);
   });
@@ -3665,6 +3678,7 @@ describe("terminal-manager IPC", () => {
     const forgetting = invoke(terminalChannels.forget, {
       clientId: "racing-client",
       cleanupWorktree: true,
+      discardConfirmed: true,
     });
     await vi.waitFor(() => expect(cleanupAgentWorktree).toHaveBeenCalledOnce());
 
@@ -3800,6 +3814,7 @@ describe("terminal-manager IPC", () => {
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-1",
       cleanupWorktree: true,
+      discardConfirmed: true,
     })).resolves.toEqual({ ok: true });
 
     expect(cleanupAgentWorktree).toHaveBeenCalledWith({
@@ -3855,6 +3870,7 @@ describe("terminal-manager IPC", () => {
     await expect(invoke(terminalChannels.forget, {
       clientId: "codex-legacy",
       cleanupWorktree: true,
+      discardConfirmed: true,
     })).resolves.toEqual({ ok: true });
 
     expect(cleanupAgentWorktree).toHaveBeenCalledWith({

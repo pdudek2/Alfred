@@ -1014,13 +1014,12 @@ export function App() {
   }, [activeSelectedSessionId, activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
 
   /**
-   * Closes a session; `discardCheckout` also removes a running session's checkout, after main stops its agent.
-   * With `settled`, a checkout that changed by then is kept and the Discard dialog opens for it.
+   * Closes a session; `discard` also removes a running session's checkout, after main stops its agent.
+   * Unless the discard is confirmed, a checkout with unapplied changes by then is kept and the Discard dialog opens for it.
    */
   const closeSessionNow = useCallback(async (
     sessionId: string,
-    discardCheckout = false,
-    settled?: { returnFocus: HTMLElement | null },
+    discard?: { confirmed?: boolean; returnFocus?: HTMLElement | null },
   ) => {
     const terminalApi = getDesktopTerminalApi();
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
@@ -1035,7 +1034,7 @@ export function App() {
       }
     };
     closingSessionIdsRef.current.set(sessionId, closingOperation);
-    const destructiveWorktreeCleanup = discardCheckout
+    const destructiveWorktreeCleanup = discard !== undefined
       || session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
     const pendingStart = startingSessionIdsRef.current.get(sessionId);
     if (pendingStart) {
@@ -1050,7 +1049,7 @@ export function App() {
           ? await terminalApi.forget({
               clientId: session.id,
               cleanupWorktree: true,
-              ...(settled ? { onlyIfSettled: true } : {}),
+              ...(discard?.confirmed ? { discardConfirmed: true } : {}),
             })
           : { ok: false, error: "Desktop terminal API is unavailable." };
       } catch {
@@ -1063,8 +1062,8 @@ export function App() {
       }
       if (!result.ok) {
         finishClosing();
-        if (settled && result.changes) {
-          discardReturnFocusRef.current = settled.returnFocus;
+        if (result.changes) {
+          discardReturnFocusRef.current = discard?.returnFocus ?? null;
           setPendingDiscardConfirmation({
             sessionId,
             title: currentSession.title,
@@ -1159,7 +1158,7 @@ export function App() {
       }
 
       if (result.files.length === 0 || result.applied) {
-        void closeSessionNow(sessionId, true, { returnFocus });
+        void closeSessionNow(sessionId, { returnFocus });
         return;
       }
 
@@ -1478,7 +1477,7 @@ export function App() {
 
     discardReturnFocusRef.current = null;
     setPendingDiscardConfirmation(null);
-    void closeSessionNow(confirmation.sessionId, true);
+    void closeSessionNow(confirmation.sessionId, { confirmed: true });
   }, [closeSessionNow, pendingDiscardConfirmation]);
 
   const handleRuntimeSessionStarting = useCallback((tileId: string, attempt: TerminalStartAttempt): boolean => {
