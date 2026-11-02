@@ -482,7 +482,7 @@ describe("git worktree preparation", () => {
   });
 
   /** A real repository with a 20-line file and an isolated checkout of it; the agent changed line 2. */
-  async function realCheckout() {
+  async function realCheckout({ eol = "\n" }: { eol?: "\n" | "\r\n" } = {}) {
     const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-worktree-apply-"));
     const baseCwd = path.join(temporaryRoot, "repo");
     const worktreeStoreRoot = path.join(temporaryRoot, "worktrees");
@@ -491,14 +491,15 @@ describe("git worktree preparation", () => {
     await git(baseCwd, "init", "-q");
     await git(baseCwd, "config", "user.name", "Fixture");
     await git(baseCwd, "config", "user.email", "fixture@example.test");
-    await writeFile(path.join(baseCwd, "notes.txt"), `${lines.join("\n")}\n`);
-    await git(baseCwd, "add", "notes.txt");
+    if (eol === "\r\n") await writeFile(path.join(baseCwd, ".gitattributes"), "notes.txt text eol=crlf\n");
+    await writeFile(path.join(baseCwd, "notes.txt"), `${lines.join(eol)}${eol}`);
+    await git(baseCwd, "add", ".");
     await git(baseCwd, "commit", "-qm", "baseline");
     const request = await prepareAgentWorktree({ cwd: baseCwd, branchName: "alfred-codex-review" }, { worktreeStoreRoot });
     const edit = async (cwd: string, line: number, text: string) => {
       const next = [...lines];
       next[line - 1] = text;
-      await writeFile(path.join(cwd, "notes.txt"), `${next.join("\n")}\n`);
+      await writeFile(path.join(cwd, "notes.txt"), `${next.join(eol)}${eol}`);
     };
     await edit(request.cwd, 2, "line 2 by the agent");
     return { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit };
@@ -522,8 +523,11 @@ describe("git worktree preparation", () => {
     }
   });
 
-  it("applies over a project change elsewhere in the same file", async () => {
-    const { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit } = await realCheckout();
+  it.each([
+    ["", "\n"],
+    [" whose line endings Git converts", "\r\n"],
+  ] as const)("applies over a project change elsewhere in the same file%s", async (_name, eol) => {
+    const { temporaryRoot, baseCwd, worktreeStoreRoot, request, edit } = await realCheckout({ eol });
     try {
       await edit(baseCwd, 19, "line 19 by you");
       await git(baseCwd, "commit", "-qam", "your change");
@@ -540,6 +544,9 @@ describe("git worktree preparation", () => {
 
       await git(baseCwd, "commit", "-qam", "your commit of the applied work");
       expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(true);
+
+      await edit(request.cwd, 5, "line 5 by the agent");
+      expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
