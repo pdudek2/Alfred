@@ -196,6 +196,9 @@ describe("desktop session state", () => {
     expect(agent).not.toHaveProperty("shellTitle");
     const [, renamed] = renameSession([other, running!], "manual-2", "Dev server");
     expect(renamed).not.toHaveProperty("shellTitle");
+    const [, agentNamed] = recordSessionOutputActivity([other, { ...shell, title: "pnpm dev", shellTitle: "zsh 2" }], event({ agentTitle: "Fix the retry loop" }));
+    expect(agentNamed).toMatchObject({ title: "Fix the retry loop" });
+    expect(agentNamed).not.toHaveProperty("shellTitle");
     const [, kept] = recordSessionOutputActivity([other, renamed!], event({ foregroundCommand: "vitest --watch" }));
     expect(kept?.title).toBe("Dev server");
     expect(recordSessionOutputActivity([other, kept!], event({ shellBusy: false }))[1]?.title).toBe("Dev server");

@@ -49,7 +49,6 @@ import {
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
   hydratePersistedTerminalSessions,
-  isGeneratedSessionTitle,
   markSessionExited,
   markSessionStartFailed,
   markSessionUnavailable,
@@ -274,10 +273,6 @@ export function App() {
     // Named as the session is now: a shell takes its program's name after that program has printed its address.
     return source ? [{ ...candidate, sessionTitle: source.title }] : [];
   });
-  const needsGeneratedCodexTitleBackfill = terminalSessions.some((session) => (
-    isGeneratedSessionTitle(session.title)
-    && (session.agentKind === "codex" || session.detectedAgentKind === "codex" || session.command === "codex")
-  ));
   const activeSelectedPreviewUrl =
     activePreviewCandidates.find((candidate) => candidate.url === selectedPreviewUrlsByWorkspace[activeWorkspace.id])
       ?.url ??
@@ -1242,11 +1237,11 @@ export function App() {
     );
   }, [armedRecoverySessionIds]);
 
-  const handleRenameSession = useCallback((sessionId: string, title: string) => {
+  const handleRenameSession = useCallback((sessionId: string, title: string, byYou = false) => {
     const normalizedTitle = normalizeSessionTitle(title);
     if (!normalizedTitle) return;
     setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle));
-    void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle });
+    void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle, ...(byYou ? { byYou: true } : {}) });
   }, []);
 
   const beginWorktreeAction = useCallback((session: SessionTile, action: WorktreeActionKind): string | null => {
@@ -2255,16 +2250,9 @@ export function App() {
   ]);
 
   useEffect(() => {
-    if (activeSurface !== "sessions" && !needsGeneratedCodexTitleBackfill) return;
+    if (activeSurface !== "sessions") return;
     void handleRefreshExternalSessions();
-  }, [activeSurface, handleRefreshExternalSessions, needsGeneratedCodexTitleBackfill]);
-
-  useEffect(() => {
-    if (externalSessions.length === 0) return;
-    for (const backfill of generatedCodexTitleBackfills(terminalSessionsRef.current, externalSessions)) {
-      handleRenameSession(backfill.sessionId, backfill.title);
-    }
-  }, [externalSessions, handleRenameSession]);
+  }, [activeSurface, handleRefreshExternalSessions]);
 
   useEffect(() => {
     if (activeSurface !== "work") return;
@@ -3370,70 +3358,6 @@ function previewCandidatesFromSessions(sessions: SessionTile[]): PreviewUrlCandi
       ...(seenAt === undefined ? {} : { seenAt }),
     });
   }, []);
-}
-
-function generatedCodexTitleBackfills(
-  sessions: SessionTile[],
-  externalSessions: ExternalSessionSummary[],
-): Array<{ sessionId: string; title: string }> {
-  const titleByContentKey = new Map(externalSessions.map((session) => [session.contentSessionKey, session.title]));
-  const generatedSessions = sessions.filter((session) => (
-    isGeneratedSessionTitle(session.title)
-    && (session.agentKind === "codex" || session.detectedAgentKind === "codex" || session.command === "codex")
-  ));
-  const backfills: Array<{ sessionId: string; title: string }> = [];
-  const matchedSessionIds = new Set<string>();
-  const reservedContentKeys = new Set<string>();
-
-  for (const session of generatedSessions) {
-    const contentKey = managedCodexContentKey(session);
-    const title = contentKey ? titleByContentKey.get(contentKey) : undefined;
-    if (!contentKey || !title) continue;
-    backfills.push({ sessionId: session.id, title });
-    matchedSessionIds.add(session.id);
-    reservedContentKeys.add(contentKey);
-  }
-
-  // ponytail: 30s UUIDv7 proximity is a fallback; replace it with runtime session IDs when Codex exposes them.
-  const pairs = generatedSessions
-    .filter((session) => !matchedSessionIds.has(session.id) && session.createdAt !== undefined)
-    .flatMap((session) => externalSessions.flatMap((external) => {
-      if (reservedContentKeys.has(external.contentSessionKey)) return [];
-      const createdAt = codexUuidV7Timestamp(external.contentSessionKey);
-      const sameLocation = external.project.id === session.workspaceId
-        || external.locationLabel === session.cwd.replace(/\\/g, "/").split("/").filter(Boolean).at(-1);
-      const distance = createdAt === null ? Number.POSITIVE_INFINITY : Math.abs(createdAt - session.createdAt!);
-      return sameLocation && distance <= 30_000 ? [{ session, external, distance }] : [];
-    }))
-    .sort((left, right) => left.distance - right.distance);
-  const assignedContentKeys = new Set(reservedContentKeys);
-
-  for (const { session, external } of pairs) {
-    if (matchedSessionIds.has(session.id) || assignedContentKeys.has(external.contentSessionKey)) continue;
-    backfills.push({ sessionId: session.id, title: external.title });
-    matchedSessionIds.add(session.id);
-    assignedContentKeys.add(external.contentSessionKey);
-  }
-
-  return backfills;
-}
-
-function managedCodexContentKey(session: SessionTile): string | null {
-  if (session.resumeTarget?.agentKind === "codex") {
-    return `external-codex:${session.resumeTarget.sessionId}`;
-  }
-  const rolloutId = session.initialBuffer?.match(
-    /rollout-[^/\\\s]*?([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.jsonl/i,
-  )?.[1];
-  return rolloutId ? `external-codex:${rolloutId}` : null;
-}
-
-function codexUuidV7Timestamp(contentSessionKey: string): number | null {
-  const id = contentSessionKey.startsWith("external-codex:")
-    ? contentSessionKey.slice("external-codex:".length)
-    : "";
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return null;
-  return Number.parseInt(`${id.slice(0, 8)}${id.slice(9, 13)}`, 16);
 }
 
 function mergeSnapshotActivityEvents(

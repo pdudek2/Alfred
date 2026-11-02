@@ -653,7 +653,7 @@ export function recordSessionOutputActivity(
     const outputAt = event.at ?? acceptedLastActivityAt ?? now;
     const { agentSignal: _previousSignal, shellTitle: _shellTitle, servingUrl: _servingUrl, ...withoutSignal } = item;
     const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
-    const named = titleForForegroundCommand(item, event);
+    const named = event.agentTitle ? { title: event.agentTitle } : titleForForegroundCommand(item, event);
     // An address a shell echoes as you type it is not served; only one printed while a program runs is.
     const servingUrl = (event.shellBusy ?? item.shellBusy) ? extractLocalPreviewUrls(event.data)[0] ?? item.servingUrl : undefined;
 

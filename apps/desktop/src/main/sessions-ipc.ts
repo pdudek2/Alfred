@@ -82,8 +82,8 @@ function isTranscriptPageRequest(value: unknown): value is ReadTranscriptPageReq
     && ((value as { mode?: unknown }).mode === undefined || (value as { mode?: unknown }).mode === "conversation" || (value as { mode?: unknown }).mode === "raw");
 }
 
-function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }
-function defaultClaudeHome(): string { return process.env.CLAUDE_CONFIG_DIR ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".claude"); }
+export function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }
+export function defaultClaudeHome(): string { return process.env.CLAUDE_CONFIG_DIR ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".claude"); }
 
 function sanitizeListRequest(
   request: unknown,

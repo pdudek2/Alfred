@@ -20,6 +20,7 @@ import {
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
+import { agentConversationTitle } from "./agent-titles.js";
 import { createCodexImageIndex } from "./codex-images.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import {
@@ -165,6 +166,7 @@ type TerminalSession = {
   agentSignal?: TerminalAgentSignal | undefined;
   /** The agent's transcript, as its last hook named it. */
   transcriptPath?: string;
+  namedByYou?: true;
   oscCarry: string;
   shellBusy?: boolean | undefined;
   /** The program holding a plain shell's foreground as a title ("pnpm dev"), once it has held it a while. */
@@ -319,6 +321,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     const applied = applyAgentSignal(session, update, "hook", Date.now());
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal, ...(resumeTarget ? { resumeTarget } : {}) });
     if (resumeTarget) rememberSessionSnapshot(session);
+    if (update.state === "your-turn") void adoptAgentTitle(session);
   });
 
   const workerReplies = new Map<string, (reply: TerminalWorkerReply) => void>();
@@ -605,6 +608,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         session = {
           ...metadata,
           ...(eventLogKey ? { eventLogKey } : {}),
+          ...(safeRequest.clientId && restoredSessionSnapshots.get(safeRequest.clientId)?.namedByYou ? { namedByYou: true as const } : {}),
           buffer: restoredSnapshot?.buffer ?? "",
           activityEvents: [],
           activityStream: { carry: "" },
@@ -664,6 +668,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
               const applied = applyAgentSignal(session, update, "osc9", now);
               agentSignal = applied.signal;
               activities.push(...applied.activities);
+              if (update.state === "your-turn") void adoptAgentTitle(session);
             }
           }
         }
@@ -893,15 +898,17 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       (session) => session.clientId === request.clientId && (!window || canAttachToWindow(session, window)),
     );
 
+    const byYou = request.byYou === true ? { namedByYou: true as const } : {};
     if (liveSession) {
       liveSession.title = title;
+      Object.assign(liveSession, byYou);
       rememberSessionSnapshot(liveSession);
       return;
     }
 
     const restoredSession = restoredSessionSnapshots.get(request.clientId);
     if (restoredSession) {
-      restoredSessionSnapshots.set(request.clientId, { ...restoredSession, title });
+      restoredSessionSnapshots.set(request.clientId, { ...restoredSession, title, ...byYou });
       scheduleTerminalPersistence();
     }
   });
@@ -1322,6 +1329,7 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
         : session;
       if (sanitized) restoredSessionSnapshots.set(clientId, sanitized);
     }
+    await adoptAgentTitlesWhileAsleep();
     persistenceHydrated = true;
   })();
   persistenceHydration = hydration;
@@ -1485,6 +1493,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(args === undefined ? {} : { args: [...args] }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
+    ...(session.namedByYou ? { namedByYou: true as const } : {}),
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
@@ -1905,6 +1914,25 @@ function newConversation(session: TerminalSession, conversationId: string | unde
   return { agentKind, sessionId: conversationId, source: "agent-hook" };
 }
 
+/** The agents name a conversation early in its first turn and on /rename, so a turn's end finds any new name. */
+async function adoptAgentTitle(session: TerminalSession): Promise<void> {
+  if (!session.resumeTarget || session.namedByYou) return;
+  const title = await agentConversationTitle(session.resumeTarget, session.cwd, session.transcriptPath);
+  if (!title || title === session.title || session.namedByYou || sessions.get(session.id) !== session) return;
+  session.title = title;
+  sendSignalUpdate(session, { agentTitle: title });
+  rememberSessionSnapshot(session);
+}
+
+async function adoptAgentTitlesWhileAsleep(): Promise<void> {
+  await Promise.all([...restoredSessionSnapshots.values()].map(async ({ clientId, cwd, resumeTarget, namedByYou }) => {
+    if (!resumeTarget || namedByYou) return;
+    const title = await agentConversationTitle(resumeTarget, cwd ?? "");
+    const current = restoredSessionSnapshots.get(clientId);
+    if (title && current && !current.namedByYou) restoredSessionSnapshots.set(clientId, { ...current, title });
+  }));
+}
+
 function isCodexSession(session: TerminalSession): boolean {
   return session.command === "codex" || session.agentKind === "codex" || session.foregroundAgentKind === "codex";
 }
@@ -1974,6 +2002,7 @@ function sendSignalUpdate(
     foregroundCommand?: string;
     promptSubmitted?: true;
     resumeTarget?: TerminalResumeTarget;
+    agentTitle?: string;
   },
 ): void {
   sendToSessionWindow(session, terminalChannels.data, {
@@ -1988,6 +2017,7 @@ function sendSignalUpdate(
     ...(update.foregroundCommand === undefined ? {} : { foregroundCommand: update.foregroundCommand }),
     ...(update.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(update.resumeTarget ? { resumeTarget: update.resumeTarget } : {}),
+    ...(update.agentTitle ? { agentTitle: update.agentTitle } : {}),
   });
 }
 

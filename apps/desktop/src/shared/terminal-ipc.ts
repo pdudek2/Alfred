@@ -97,6 +97,8 @@ export type PersistedTerminalSessionSnapshot = {
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
   parentClientId?: string;
+  /** You renamed this session, so the agent's name for the conversation stays out. */
+  namedByYou?: true;
   buffer?: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
@@ -153,6 +155,8 @@ export type TerminalForgetResult =
 export type TerminalRenameRequest = {
   clientId: string;
   title: string;
+  /** You typed this name, so the agent's name for the conversation no longer replaces it. */
+  byYou?: true;
 };
 
 export type TerminalCodexImagesRequest = {
@@ -226,6 +230,8 @@ export type TerminalDataEvent = {
   promptSubmitted?: true;
   /** Sent when the agent's hooks name a conversation other than the one known. */
   resumeTarget?: TerminalResumeTarget;
+  /** The agent's own name for the conversation, sent when it replaces the session's title. */
+  agentTitle?: string;
 };
 
 /** An orchestrator agent asked for a worker; the renderer adds it under its parent and answers with the new session. */
