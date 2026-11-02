@@ -842,7 +842,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         if (!operation.ok) {
           return operation;
         }
-        if (request.onlyIfSettled === true) {
+        if (request.discardConfirmed !== true) {
           // The agent could write until it stopped, after the check that started this close.
           const { summary, files, applied } = await (options.inspectAgentWorktree ?? defaultInspectAgentWorktree)(
             operation.request,

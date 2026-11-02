@@ -377,8 +377,9 @@ async function mergeLeavesProjectFile(
   const folder = await mkdtemp(path.join(os.tmpdir(), "alfred-applied-"));
   const [merged, base, theirs] = ["merged", "base", "theirs"].map((name) => path.join(folder, name)) as [string, string, string];
   try {
-    const showBase = ["-C", worktreePath, "show", `HEAD:${basePath}`];
-    const { stdout } = await run("git", showBase, { cwd: os.homedir(), ...gitLimits(showBase) });
+    // The base is read as a checkout writes it, so line-ending and other filters match the files it merges.
+    const readBase = ["-C", worktreePath, "cat-file", "--filters", `HEAD:${basePath}`];
+    const { stdout } = await run("git", readBase, { cwd: os.homedir(), ...gitLimits(readBase) });
     await Promise.all([writeFile(merged, project), writeFile(base, stdout), writeFile(theirs, checkout)]);
     const merge = ["-C", folder, "merge-file", "-q", merged, base, theirs];
     await run("git", merge, { cwd: os.homedir(), ...gitLimits(merge) });
@@ -671,7 +672,7 @@ function gitLimits(args: string[]): { maxBuffer?: number; timeout: number } {
   // Every call starts with `-C <dir>`, so the subcommand is the third argument.
   const subcommand = args[2];
   if (subcommand === "worktree" || subcommand === "apply") return { timeout: GIT_CHECKOUT_TIMEOUT_MS };
-  if (subcommand === "status" || subcommand === "diff" || subcommand === "ls-files" || subcommand === "show") {
+  if (subcommand === "status" || subcommand === "diff" || subcommand === "ls-files" || subcommand === "cat-file") {
     return { maxBuffer: GIT_LISTING_MAX_BUFFER, timeout: GIT_LISTING_TIMEOUT_MS };
   }
   // `stash create` scans the checkout as `status` does; `merge-tree` walks both trees.
