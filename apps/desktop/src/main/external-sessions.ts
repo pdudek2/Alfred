@@ -731,7 +731,7 @@ function longestMatchingRoot(project: CanonicalSessionsProject, cwd: string): nu
 function pathMatchesWorkspace(cwd: string, root: string): boolean {
   return Boolean(cwd && root && (cwd === root || cwd.startsWith(`${root}${path.sep}`)));
 }
-async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> {
+export async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> {
   let content: string;
   try { content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8"); } catch { return new Map(); }
   const titles = new Map<string, string>();

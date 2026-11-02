@@ -133,7 +133,7 @@ type TerminalDeskProps = {
   onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
-  onRenameSession: (sessionId: string, title: string) => void;
+  onRenameSession: (sessionId: string, title: string, byYou?: boolean) => void;
   /** Keeps a session under the focus in a 3:2 split, or none. */
   onPinSession: (sessionId: string | null) => void;
   onSelectSession: (sessionId: string) => void;
@@ -704,7 +704,7 @@ function ManualTerminalTile({
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
-  onRenameSession: (sessionId: string, title: string) => void;
+  onRenameSession: (sessionId: string, title: string, byYou?: boolean) => void;
   onUnpin: () => void;
   /** Shown under the focus with its own header instead of the session strip (v4 Pinned board). */
   pinned?: boolean;
@@ -987,7 +987,7 @@ function ManualTerminalTile({
   const submitRename = () => {
     const nextTitle = normalizeSessionTitle(renameDraft);
     if (nextTitle) {
-      onRenameSession(sessionKey, nextTitle);
+      onRenameSession(sessionKey, nextTitle, true);
     }
     endRename();
   };

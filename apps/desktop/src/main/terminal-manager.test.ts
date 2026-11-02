@@ -245,6 +245,8 @@ describe("terminal-manager IPC", () => {
     vi.mocked(BrowserWindow.fromWebContents).mockImplementation(
       (sender) => (sender as { window?: ReturnType<typeof fakeWindow> }).window as never,
     );
+    vi.stubEnv("CLAUDE_CONFIG_DIR", path.join(os.tmpdir(), "alfred-test-no-claude-home"));
+    vi.stubEnv("CODEX_HOME", path.join(os.tmpdir(), "alfred-test-no-codex-home"));
   });
 
   afterEach(() => {
@@ -4620,6 +4622,123 @@ describe("terminal-manager IPC", () => {
     const lastDataEvent = () => sentEvents.filter((event) => event.channel === terminalChannels.data).at(-1)?.payload as
       | Record<string, unknown>
       | undefined;
+
+    describe("the agent's name for the conversation", () => {
+      const conversationId = "11111111-2222-4333-8444-555555555555";
+      let home: string;
+      let transcriptPath: string;
+
+      beforeEach(async () => {
+        home = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-agent-titles-"));
+        vi.stubEnv("CLAUDE_CONFIG_DIR", path.join(home, "claude"));
+        vi.stubEnv("CODEX_HOME", path.join(home, "codex"));
+        const projectDir = path.join(home, "claude", "projects", "-repo-my-app");
+        await fs.mkdir(projectDir, { recursive: true });
+        transcriptPath = path.join(projectDir, `${conversationId}.jsonl`);
+        await fs.writeFile(transcriptPath, `${JSON.stringify({ type: "ai-title", aiTitle: "Fix the retry loop" })}\n`);
+      });
+
+      afterEach(() => fs.rm(home, { recursive: true, force: true }));
+
+      const startClaude = async (bridge: ReturnType<typeof fakeBridge>["bridge"]) => {
+        registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+        return invoke<{ id: string }>(terminalChannels.create, {
+          agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo/my_app", rows: 24, title: "Fix it",
+        });
+      };
+      const snapshotTitles = async () => (await invoke<{ sessions: Array<{ title: string }> }>(terminalChannels.list)).sessions.map((session) => session.title);
+
+      it("takes it at the end of a turn and follows a later rename there", async () => {
+        const { bridge, fire } = fakeBridge();
+        const { id } = await startClaude(bridge);
+
+        fire(id, { state: "working" }, transcriptPath, conversationId);
+        expect(lastDataEvent()).not.toHaveProperty("agentTitle");
+
+        fire(id, { state: "your-turn" }, transcriptPath, conversationId);
+        await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ agentTitle: "Fix the retry loop" }));
+        expect(await snapshotTitles()).toEqual(["Fix the retry loop"]);
+
+        await fs.appendFile(transcriptPath, `${JSON.stringify({ type: "custom-title", customTitle: "Retry work" })}\n`);
+        fire(id, { state: "your-turn" }, transcriptPath, conversationId);
+        await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ agentTitle: "Retry work" }));
+      });
+
+      it("reads a Codex conversation's latest name from its index", async () => {
+        await fs.mkdir(path.join(home, "codex"), { recursive: true });
+        await fs.writeFile(path.join(home, "codex", "session_index.jsonl"), [
+          JSON.stringify({ id: conversationId, thread_name: "First name" }),
+          JSON.stringify({ id: conversationId, thread_name: "\u001b[31mSecond\u001b[0m name" }),
+        ].join("\n"));
+        const { bridge, fire } = fakeBridge();
+        registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+        const { id } = await invoke<{ id: string }>(terminalChannels.create, {
+          agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+        });
+
+        fire(id, { state: "your-turn" }, undefined, conversationId);
+        await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ agentTitle: "Second name" }));
+      });
+
+      it("keeps the name you gave, across a restart too", async () => {
+        const { bridge, fire } = fakeBridge();
+        const ptys = [new FakePty(), new FakePty(), new FakePty()];
+        const unused = [...ptys];
+        registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(unused.shift()!) as never });
+        const launch = { agentKind: "claude", cols: 80, command: "claude", cwd: "/repo/my_app", rows: 24 };
+        const { id } = await invoke<{ id: string }>(terminalChannels.create, { ...launch, clientId: "claude-1", title: "Fix it" });
+        const other = await invoke<{ id: string }>(terminalChannels.create, { ...launch, clientId: "claude-2", title: "Other" });
+        const finishTurn = async (sessionId: string) => {
+          sentEvents.length = 0;
+          fire(sessionId, { state: "your-turn" }, transcriptPath, conversationId);
+          fire(other.id, { state: "your-turn" }, transcriptPath, conversationId);
+          await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ id: other.id, agentTitle: "Fix the retry loop" }));
+          await invoke(terminalChannels.rename, { clientId: "claude-2", title: "Other" });
+        };
+
+        await invoke(terminalChannels.rename, { clientId: "claude-1", title: "My name", byYou: true });
+        await finishTurn(id);
+        expect(await snapshotTitles()).toContain("My name");
+
+        ptys[0]!.onExitHandler?.({ exitCode: 0 });
+        const restarted = await invoke<{ id: string }>(terminalChannels.create, { ...launch, clientId: "claude-1", title: "My name" });
+        await finishTurn(restarted.id);
+        expect(await snapshotTitles()).toContain("My name");
+      });
+
+      it("a title that is not yours does not stop it", async () => {
+        const { bridge, fire } = fakeBridge();
+        const { id } = await startClaude(bridge);
+        await invoke(terminalChannels.rename, { clientId: "claude-1", title: "From the first prompt" });
+
+        fire(id, { state: "your-turn" }, transcriptPath, conversationId);
+        await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ agentTitle: "Fix the retry loop" }));
+      });
+
+      it("names sessions asleep from an earlier launch, except one you named", async () => {
+        const resumeTarget = { agentKind: "claude", sessionId: conversationId, source: "agent-hook" } as const;
+        const asleep = { source: "manual", agentKind: "claude", command: "claude", cwd: "/repo/my_app", shell: "/bin/zsh", resumeTarget } as const;
+        const state: DesktopStateSnapshot = {
+          ...DEFAULT_DESKTOP_STATE,
+          restoredTerminalSessions: [
+            { ...asleep, clientId: "claude-1", title: "Old prompt" },
+            { ...asleep, clientId: "claude-2", title: "My name", namedByYou: true },
+            { ...asleep, clientId: "claude-3", title: "Gone", resumeTarget: { ...resumeTarget, sessionId: "99999999-2222-4333-8444-555555555555" } },
+          ],
+        };
+        configureTerminalPersistence({
+          ...persistedStateStoreMethods(() => state),
+          getState: vi.fn(async () => state),
+          setState: vi.fn(async () => state),
+          updateState: vi.fn(async () => state),
+        }, { debounceMs: 0 });
+        registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+        const { restoredSessions } = await invoke<{ restoredSessions: Array<{ title: string }> }>(terminalChannels.list);
+
+        expect(restoredSessions.map((session) => session.title)).toEqual(["Fix the retry loop", "My name", "Gone"]);
+      });
+    });
 
     it("launches Claude with hooks and turns hook events into signals that input can clear", async () => {
       const { bridge, fire } = fakeBridge();

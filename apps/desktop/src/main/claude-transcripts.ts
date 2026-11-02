@@ -88,18 +88,7 @@ async function readClaudeDetails(file: SessionFile): Promise<TranscriptDetails |
     if (cwd && firstPrompt && model) break;
   }
 
-  // Your own name for the conversation wins over the one Claude Code gave it.
-  let customTitle: string | undefined;
-  let aiTitle: string | undefined;
-  for (const line of tail.reverse()) {
-    if (!line.includes('"custom-title"') && !line.includes('"ai-title"')) continue;
-    const record = parseJsonRecord(line);
-    if (record?.type === "custom-title") customTitle ??= stringValue(record.customTitle);
-    if (record?.type === "ai-title") aiTitle ??= stringValue(record.aiTitle);
-    if (customTitle) break;
-  }
-
-  const title = customTitle ?? aiTitle;
+  const title = titleFromTail(tail);
   const parentId = subagent ? path.basename(path.dirname(path.dirname(file.path))) : undefined;
   return {
     id: path.basename(file.path, ".jsonl"),
@@ -110,6 +99,28 @@ async function readClaudeDetails(file: SessionFile): Promise<TranscriptDetails |
     ...(model ? { model } : {}),
     ...(parentId ? { parentId, readOnly: true as const } : {}),
   };
+}
+
+export async function claudeConversationTitle(transcriptPath: string): Promise<string | undefined> {
+  try {
+    return titleFromTail(await readTranscriptTailLines(transcriptPath, TAIL_BYTES));
+  } catch {
+    return undefined;
+  }
+}
+
+function titleFromTail(tail: string[]): string | undefined {
+  // Your own name for the conversation wins over the one Claude Code gave it.
+  let customTitle: string | undefined;
+  let aiTitle: string | undefined;
+  for (const line of [...tail].reverse()) {
+    if (!line.includes('"custom-title"') && !line.includes('"ai-title"')) continue;
+    const record = parseJsonRecord(line);
+    if (record?.type === "custom-title") customTitle ??= stringValue(record.customTitle);
+    if (record?.type === "ai-title") aiTitle ??= stringValue(record.aiTitle);
+    if (customTitle) break;
+  }
+  return customTitle ?? aiTitle;
 }
 
 function parseClaudeRecord(line: string, id: string, mode: TranscriptReadMode): ParsedRecord {

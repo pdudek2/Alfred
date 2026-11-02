@@ -1118,92 +1118,6 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: "Run the test suite" })).toBeInTheDocument();
   });
 
-  it("backfills only generated Codex titles from the indexed conversation", async () => {
-    const externalSessionId = "019edc4b-0000-7000-9000-title";
-    const bufferedSessionId = "019fe5fd-fd77-7e93-9cb1-65f20f455abf";
-    const timedSessionId = "019fe61b-bfb3-7790-9cf6-c5b4ae97df0a";
-    const { renameTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [
-        liveSnapshot("codex-generated", {
-          title: "Codex",
-          args: ["resume", externalSessionId],
-          resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
-        }),
-        liveSnapshot("codex-custom", {
-          title: "Release reviewer",
-          args: ["resume", externalSessionId],
-          resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
-        }),
-        liveSnapshot("codex-buffered", {
-          title: "Codex 2",
-          buffer: `Failed to resume /tmp/rollout-2026-08-09T12-07-35-${bufferedSessionId}.jsonl`,
-        }),
-        liveSnapshot("codex-timed", {
-          title: "Codex 3",
-          createdAt: 1_786_271_998_928,
-          cwd: "/Users/sample/Documents/Codex/2026-08-09/alfred-W16",
-        }),
-      ],
-      undefined,
-      undefined,
-      undefined,
-      [],
-      [
-        {
-          sessionKey: `external-codex:${externalSessionId}:200`,
-          lineageKey: `external-codex:${externalSessionId}`,
-          contentSessionKey: `external-codex:${externalSessionId}`,
-          source: "external-codex",
-          kind: "codex",
-          title: "\u001b[31mFix the\u001b[0m \u001b]0;spoof\u0007retry loop",
-          project: { id: "A", label: "Alfred" },
-          locationLabel: "Alfred",
-          updatedAt: 200,
-          lifecycle: "resumable",
-          model: "gpt-5",
-          originator: "codex",
-        },
-        {
-          sessionKey: `external-codex:${bufferedSessionId}:201`,
-          lineageKey: `external-codex:${bufferedSessionId}`,
-          contentSessionKey: `external-codex:${bufferedSessionId}`,
-          source: "external-codex",
-          kind: "codex",
-          title: "Recover the rollout session",
-          project: { id: null, label: "External Codex" },
-          locationLabel: "alfred-W16",
-          updatedAt: 201,
-          lifecycle: "read-only",
-        },
-        {
-          sessionKey: `external-codex:${timedSessionId}:202`,
-          lineageKey: `external-codex:${timedSessionId}`,
-          contentSessionKey: `external-codex:${timedSessionId}`,
-          source: "external-codex",
-          kind: "codex",
-          title: "Explain the preview",
-          project: { id: null, label: "External Codex" },
-          locationLabel: "alfred-W16",
-          updatedAt: 202,
-          lifecycle: "read-only",
-        },
-      ],
-    );
-    render(<App />);
-
-    expect(await screen.findByRole("article", { name: "Fix the retry loop" })).toBeInTheDocument();
-    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="codex-buffered"]'))
-      .toHaveAttribute("aria-label", "Recover the rollout session");
-    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="codex-timed"]'))
-      .toHaveAttribute("aria-label", "Explain the preview");
-    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="codex-custom"]'))
-      .toHaveAttribute("aria-label", "Release reviewer");
-    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-generated", title: "Fix the retry loop" });
-    expect(renameTerminal).not.toHaveBeenCalledWith({ clientId: "codex-custom", title: expect.any(String) });
-  });
-
   it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {
     installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: [
@@ -6129,7 +6043,7 @@ describe("App integration", () => {
     await user.clear(input);
     await user.type(input, "Spec reviewer{Enter}");
 
-    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Spec reviewer" });
+    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Spec reviewer", byYou: true });
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
 
     resolveApply({ ok: true, appliedFiles: 1 });
@@ -7797,7 +7711,7 @@ describe("App integration", () => {
     // The new name shows where the title lives now: in the breadcrumb.
     expect(await within(screen.getByRole("navigation", { name: "Breadcrumb" })).findByText("Spec reviewer")).toBeInTheDocument();
     expect(tile).toHaveAccessibleName("Spec reviewer");
-    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-a", title: "Spec reviewer" });
+    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-a", title: "Spec reviewer", byYou: true });
   });
 
   it("offers focused session handoff commands from the command palette", async () => {
