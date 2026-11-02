@@ -62,6 +62,8 @@ jobs:
     # The scenarios type non-ASCII text into zsh, which reads it only in a UTF-8 locale.
     env:
       LANG: C.UTF-8
+      # A cached pnpm store skips node-pty's build and leaves no loadable pty.node; Linux has no prebuild to fall back on.
+      npm_config_side_effects_cache: "false"
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
