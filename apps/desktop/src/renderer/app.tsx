@@ -1079,7 +1079,7 @@ export function App() {
           )
             ? appendSessionActivity(current, session.id, {
                 kind: "warning",
-                title: "Discard checkout blocked",
+                title: "Discard worktree blocked",
                 detail: result.error,
               })
             : current,
@@ -1132,8 +1132,8 @@ export function App() {
       setTerminalSessions((sessions) =>
         appendSessionActivity(sessions, sessionId, {
           kind: "error",
-          title: "Discard checkout blocked",
-          detail: "Desktop terminal API is unavailable, so Alfred cannot inspect this checkout before deleting it.",
+          title: "Discard worktree blocked",
+          detail: "Desktop terminal API is unavailable, so Alfred cannot inspect this worktree before deleting it.",
         }),
       );
       return;
@@ -1179,7 +1179,7 @@ export function App() {
         )
           ? appendSessionActivity(sessions, sessionId, {
               kind: "warning",
-              title: "Discard checkout blocked",
+              title: "Discard worktree blocked",
               detail: "Desktop terminal request failed. Try again.",
             })
           : sessions,
@@ -1280,7 +1280,7 @@ export function App() {
         appendSessionActivity(sessions, sessionId, {
           kind: "warning",
           title: "Review diff unavailable",
-          detail: "Session is not an isolated checkout.",
+          detail: "Session is not an isolated worktree.",
         }),
       );
       return;
@@ -1311,7 +1311,7 @@ export function App() {
       } catch (error) {
         result = {
           ok: false,
-          error: error instanceof Error ? error.message : "Checkout diff inspection failed.",
+          error: error instanceof Error ? error.message : "Worktree diff inspection failed.",
         };
       }
 
@@ -1336,7 +1336,7 @@ export function App() {
               result.ok
                 ? {
                     kind: "plan",
-                    title: "Checkout diff reviewed",
+                    title: "Worktree diff reviewed",
                     detail: worktreeDiffDetail(result),
                     payload: { type: "plan", summary: worktreeDiffDetail(result) },
                   }
@@ -1371,7 +1371,7 @@ export function App() {
         appendSessionActivity(sessions, sessionId, {
           kind: "warning",
           title: "Apply blocked",
-          detail: "Session is not an isolated checkout.",
+          detail: "Session is not an isolated worktree.",
         }),
       );
       return;
@@ -1404,7 +1404,7 @@ export function App() {
                   ? {
                       kind: "lifecycle",
                       title: "Already in the project",
-                      detail: "This checkout's changes are already in the project's files. Nothing was applied again.",
+                      detail: "This worktree's changes are already in the project's files. Nothing was applied again.",
                     }
                   : {
                       kind: "lifecycle",
@@ -3043,16 +3043,16 @@ function PrivacyPanel({
         <div className="privacy-panel-body">
           <section className="privacy-control-row">
             <div>
-              <strong>Terminal scrollback</strong>
-              <span>{settings.terminalScrollbackRetention === "off" ? "Saved terminal buffers and agent events are disabled." : "Only a redacted 80k tail and redacted agent events are saved."}</span>
+              <strong>Saved terminal output</strong>
+              <span>{settings.terminalScrollbackRetention === "off" ? "Alfred does not keep terminal output or agent events." : "Alfred keeps the last 80,000 characters of each terminal and the agent events, with detected secrets removed."}</span>
             </div>
-            <div className="privacy-segmented" role="group" aria-label="Terminal scrollback retention">
+            <div className="privacy-segmented" role="group" aria-label="Saved terminal output">
               <button
                 type="button"
                 aria-pressed={settings.terminalScrollbackRetention === "redactedTail"}
                 onClick={() => updateRetention("redactedTail")}
               >
-                Redacted tail
+                Keep recent
               </button>
               <button
                 type="button"
@@ -3068,7 +3068,7 @@ function PrivacyPanel({
             <div>
               <strong>Asleep sessions</strong>
               <span>
-                Clear Alfred&apos;s persisted terminal buffers, activity previews, the draft plan, and the agent event log.
+                Clear Alfred&apos;s saved terminal output, activity previews, the draft plan, and the agent event log.
                 This can&apos;t be undone.
               </span>
             </div>
@@ -3145,7 +3145,7 @@ function DiscardCheckoutDialog({
         className="discard-checkout-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label="Discard isolated checkout"
+        aria-label="Discard isolated worktree"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
@@ -3171,7 +3171,7 @@ function DiscardCheckoutDialog({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="discard-checkout-header">
-          <strong>Discard isolated checkout</strong>
+          <strong>Discard isolated worktree</strong>
           <small>
             {confirmation.unlisted === undefined
               ? `${confirmation.title} has ${changedFileLabel}.`
@@ -3180,7 +3180,7 @@ function DiscardCheckoutDialog({
         </header>
         {confirmation.unlisted === undefined ? (
           <div className="discard-checkout-body">
-            <p>This checkout has local changes. Review them before you delete the isolated worktree, or discard them for good.</p>
+            <p>This worktree has local changes. Review them before you delete it, or discard them for good.</p>
             <ol aria-label="Changed files">
               {previewFiles.map((file) => (
                 <li key={`${file.status}:${file.path}`}>
@@ -3211,7 +3211,7 @@ function DiscardCheckoutDialog({
             Cancel
           </button>
           <button type="button" className="discard-checkout-danger" onClick={onConfirmDiscard}>
-            Discard checkout permanently
+            Discard worktree permanently
           </button>
         </footer>
       </div>
@@ -3224,7 +3224,7 @@ function worktreeDiffDetail(result: {
   files: Array<{ path: string; status: string }>;
 }): string {
   if (result.files.length === 0) {
-    return "No changes in the isolated checkout.";
+    return "No changes in the isolated worktree.";
   }
 
   const preview = result.files
@@ -3559,7 +3559,7 @@ function useSessionClock(sessions: SessionTile[]): number {
 }
 
 function workspaceDetail(workspace: Workspace): string {
-  const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
+  const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local project";
   return workspace.gitBranch ? `${location} on ${workspace.gitBranch}` : location;
 }
 

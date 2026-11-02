@@ -145,7 +145,7 @@ export function CommandPalette({
   const launchDetail = activeWorkspaceAvailable
     ? activeWorkspaceBound
       ? "this project"
-      : "the scratch desk"
+      : "the scratch project"
     : "Choose the project folder first";
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
@@ -190,7 +190,7 @@ export function CommandPalette({
       },
       {
         id: "new-codex-isolated-session",
-        label: "New Codex isolated checkout",
+        label: "New Codex isolated worktree",
         detail: activeWorkspaceBound
           ? "Create a temporary Git worktree for risky or parallel edits"
           : "Bind a project folder to create a temporary Git worktree for risky or parallel edits",
@@ -199,7 +199,7 @@ export function CommandPalette({
       },
       {
         id: "new-claude-isolated-session",
-        label: "New Claude isolated checkout",
+        label: "New Claude isolated worktree",
         detail: activeWorkspaceBound
           ? "Create a temporary Git worktree for risky or parallel edits"
           : "Bind a project folder to create a temporary Git worktree for risky or parallel edits",
@@ -216,7 +216,7 @@ export function CommandPalette({
       {
         id: "new-workspace",
         label: "New scratch project",
-        detail: "Create an empty desk without choosing a folder",
+        detail: "Create an empty project without choosing a folder",
         run: onAddWorkspace,
       },
       {
@@ -591,7 +591,7 @@ type CommandPaletteRow =
 
 function groupPaletteCommands(commands: CommandPaletteItem[]): CommandPaletteRow[] {
   const rows: CommandPaletteRow[] = [];
-  const groupOrder = ["Launch", "Projects", "Review and resume", "Focused session", "Desk layout", "Commands"];
+  const groupOrder = ["Launch", "Projects", "Review and resume", "Focused session", "Layout", "Commands"];
 
   for (const group of groupOrder) {
     const groupCommands = commands.filter((command) => commandGroupLabel(command.id) === group);

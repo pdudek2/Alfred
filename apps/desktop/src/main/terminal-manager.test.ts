@@ -1712,7 +1712,7 @@ describe("terminal-manager IPC", () => {
     expect(JSON.stringify(snapshot)).not.toContain("PRIVATE_OUTPUT_WHILE_OFF");
   });
 
-  describe("a failed launch of an isolated checkout", () => {
+  describe("a failed launch of an isolated worktree", () => {
     const created = {
       baseCwd: "/repo",
       branchName: "alfred-codex-failed-launch",
@@ -2158,7 +2158,7 @@ describe("terminal-manager IPC", () => {
         cwd: "/tmp/outside",
         rows: 24,
       }),
-    ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+    ).rejects.toThrow("Terminal cwd is outside registered projects.");
 
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
@@ -2317,7 +2317,7 @@ describe("terminal-manager IPC", () => {
       rows: 24,
       source: snapshot.source,
       workspaceId: snapshot.workspaceId,
-    })).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+    })).rejects.toThrow("Terminal cwd is outside registered projects.");
   });
 
   it("lets Codex report its turns through OSC 9 when the hook bridge is unavailable", async () => {
@@ -2352,7 +2352,7 @@ describe("terminal-manager IPC", () => {
         cwd: "/private/etc",
         rows: 24,
       }),
-    ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+    ).rejects.toThrow("Terminal cwd is outside registered projects.");
 
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
@@ -2382,7 +2382,7 @@ describe("terminal-manager IPC", () => {
           cwd: symlinkPath,
           rows: 24,
         }),
-      ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+      ).rejects.toThrow("Terminal cwd is outside registered projects.");
       expect(nodePty.spawn).not.toHaveBeenCalled();
     } finally {
       await fs.rm(root, { force: true, recursive: true });
@@ -2932,7 +2932,7 @@ describe("terminal-manager IPC", () => {
     });
   });
 
-  it("reuses an existing isolated checkout when launch metadata is present", async () => {
+  it("reuses an existing isolated worktree when launch metadata is present", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
     const prepareAgentWorktree = vi.fn();
@@ -3060,7 +3060,7 @@ describe("terminal-manager IPC", () => {
     expect(created).not.toHaveProperty("baseCwd");
   });
 
-  it("retains a live isolated checkout after Close and restores it after fresh hydration", async () => {
+  it("retains a live isolated worktree after Close and restores it after fresh hydration", async () => {
     let state = stateWithRestoredSessions([]);
     const store = storeWithRestoredSessions([]);
     vi.mocked(store.updateState).mockImplementation(async (updater) => {
@@ -3119,7 +3119,7 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
-  it("resolves sanitized isolated checkout operations through the authoritative workspace root", async () => {
+  it("resolves sanitized isolated worktree operations through the authoritative workspace root", async () => {
     const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [], patch: "", applied: false }));
     const resolveWorkspaceRoot = vi.fn(async (workspaceId: string) => workspaceId === "A" ? "/repo" : undefined);
     configureTerminalPersistence(storeWithRestoredSessions([{
@@ -3264,13 +3264,13 @@ describe("terminal-manager IPC", () => {
       name: "missing workspace",
       fingerprint: workspaceRootFingerprint("/repo"),
       resolvedRoot: undefined,
-      error: "Reattach the original project before managing this checkout.",
+      error: "Reattach the original project before managing this worktree.",
     },
     {
       name: "workspace fingerprint mismatch",
       fingerprint: workspaceRootFingerprint("/other"),
       resolvedRoot: "/repo",
-      error: "This workspace points to a different project. Reattach the original project first.",
+      error: "This project points to a different folder. Reattach the original project first.",
     },
   ])("rejects sanitized operations for $name before worktree access", async ({ error, fingerprint, resolvedRoot }) => {
     const inspectAgentWorktree = vi.fn(async () => ({ summary: "unexpected", files: [], patch: "", applied: false }));
@@ -3315,7 +3315,7 @@ describe("terminal-manager IPC", () => {
     const cleanup = deferred<void>();
     const store = storeWithRestoredSessions([{
       clientId: "codex-discard",
-      title: "Discard checkout",
+      title: "Discard worktree",
       source: "alfred",
       agentKind: "codex",
       workspaceId: "A",
@@ -3362,7 +3362,7 @@ describe("terminal-manager IPC", () => {
     const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
     configureTerminalPersistence(storeWithRestoredSessions([{
       clientId: "isolated-forget",
-      title: "Isolated checkout",
+      title: "Isolated worktree",
       source: "alfred",
       agentKind: "codex",
       isolation: "worktree",
@@ -3377,7 +3377,7 @@ describe("terminal-manager IPC", () => {
       ...request,
     })).resolves.toEqual({
       ok: false,
-      error: "Discarding an isolated checkout requires worktree cleanup.",
+      error: "Discarding an isolated worktree requires worktree cleanup.",
     });
     expect(cleanupAgentWorktree).not.toHaveBeenCalled();
     expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([
@@ -3411,7 +3411,7 @@ describe("terminal-manager IPC", () => {
   it("retains an isolated snapshot when cleanup rejects", async () => {
     const store = storeWithRestoredSessions([{
       clientId: "codex-discard",
-      title: "Discard checkout",
+      title: "Discard worktree",
       source: "alfred",
       agentKind: "codex",
       isolation: "worktree",
@@ -3441,7 +3441,7 @@ describe("terminal-manager IPC", () => {
   it("restores recovery metadata when the post-cleanup persistence flush rejects", async () => {
     const store = storeWithRestoredSessions([{
       clientId: "codex-discard",
-      title: "Discard checkout",
+      title: "Discard worktree",
       source: "alfred",
       agentKind: "codex",
       isolation: "worktree",
@@ -3470,7 +3470,7 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
-  it("stops a running checkout's agent before Discard removes its checkout", async () => {
+  it("stops a running checkout's agent before Discard removes its worktree", async () => {
     const pty = new FakePty();
     const order: string[] = [];
     pty.kill = () => {
@@ -3556,7 +3556,7 @@ describe("terminal-manager IPC", () => {
       cleanupWorktree: true,
     })).resolves.toEqual({
       ok: false,
-      error: "This checkout changed while it was closing.",
+      error: "This worktree changed while it was closing.",
       changes: { summary: "1 file changed", files: [lateFile] },
     });
 
@@ -3612,7 +3612,7 @@ describe("terminal-manager IPC", () => {
       cleanupWorktree: true,
     })).resolves.toEqual({
       ok: false,
-      error: "Close the live session before discarding its checkout.",
+      error: "Close the live session before discarding its worktree.",
     });
     expect(cleanupAgentWorktree).not.toHaveBeenCalled();
     expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions).toHaveLength(1);
@@ -3932,7 +3932,7 @@ describe("terminal-manager IPC", () => {
     expect(cleanupAgentWorktree).not.toHaveBeenCalled();
   });
 
-  it("returns a diff summary for a live isolated checkout", async () => {
+  it("returns a diff summary for a live isolated worktree", async () => {
     const pty = new FakePty();
     const inspectAgentWorktree = vi.fn(async () => ({
       summary: "2 changed files",
@@ -4039,7 +4039,7 @@ describe("terminal-manager IPC", () => {
     });
   });
 
-  it("does not apply shared sessions as isolated checkouts", async () => {
+  it("does not apply shared sessions as isolated worktrees", async () => {
     const pty = new FakePty();
     const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
     registerTerminalIpc({
@@ -4063,7 +4063,7 @@ describe("terminal-manager IPC", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "Session is not an isolated checkout.",
+      error: "Session is not an isolated worktree.",
       needsManualReview: true,
     });
     expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
@@ -4113,13 +4113,13 @@ describe("terminal-manager IPC", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "Session is not an isolated checkout.",
+      error: "Session is not an isolated worktree.",
       needsManualReview: true,
     });
     expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
   });
 
-  it("rejects unsafe isolated checkout metadata before apply", async () => {
+  it("rejects unsafe isolated worktree metadata before apply", async () => {
     let state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [
@@ -4163,7 +4163,7 @@ describe("terminal-manager IPC", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "Isolated checkout metadata is not safe.",
+      error: "Isolated worktree metadata is not safe.",
       needsManualReview: true,
     });
     expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
@@ -4215,7 +4215,7 @@ describe("terminal-manager IPC", () => {
       cleanupWorktree: true,
     })).resolves.toEqual({
       ok: false,
-      error: "Isolated checkout metadata is not safe.",
+      error: "Isolated worktree metadata is not safe.",
     });
 
     expect(cleanupAgentWorktree).not.toHaveBeenCalled();
@@ -4445,7 +4445,7 @@ describe("terminal-manager IPC", () => {
     expect(pty.writes).toEqual([]);
   });
 
-  it("rejects live isolated checkout operations from a different window even when a snapshot exists", async () => {
+  it("rejects live isolated worktree operations from a different window even when a snapshot exists", async () => {
     const ownerWindow = fakeWindow(1);
     const otherWindow = fakeWindow(2);
     liveWindows = [ownerWindow, otherWindow];
@@ -4492,7 +4492,7 @@ describe("terminal-manager IPC", () => {
     expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
   });
 
-  it("does not let another window forget or clean a live isolated checkout by client id", async () => {
+  it("does not let another window forget or clean a live isolated worktree by client id", async () => {
     const ownerWindow = fakeWindow(1);
     const otherWindow = fakeWindow(2);
     liveWindows = [ownerWindow, otherWindow];

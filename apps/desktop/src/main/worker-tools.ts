@@ -59,7 +59,7 @@ export type WorkerHost = {
   startWorker(parentClientId: string, request: WorkerStartRequest): Promise<{ clientId: string; title: string }>;
   /** Types the text into the worker's terminal and presses Enter. */
   send(clientId: string, text: string): void;
-  /** Ends the worker's process; its checkout stays. */
+  /** Ends the worker's process; its worktree stays. */
   stop(clientId: string): void;
   /** The orchestrator has read these workers' current state, so Alfred need not wake it about them. */
   markSeen(parentClientId: string, workerClientIds: string[]): void;

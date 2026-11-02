@@ -32,14 +32,14 @@ export function WorktreeDiffPanel({
       <header className="worktree-diff-panel__header">
         <div>
           <h2>{view.sessionTitle}</h2>
-          <p>Changes in its isolated checkout</p>
+          <p>Changes in its isolated worktree</p>
         </div>
         <button ref={closeRef} type="button" onClick={() => onClose("button")}>
           {view.status === "error" ? "Back to terminal" : "Close diff"}
         </button>
       </header>
       {view.status === "loading" && (
-        <p className="worktree-diff-panel__state" role="status">Loading checkout diff…</p>
+        <p className="worktree-diff-panel__state" role="status">Loading worktree diff…</p>
       )}
       {view.status === "error" && (
         <p className="worktree-diff-panel__state is-error" role="alert">{view.error}</p>
@@ -72,7 +72,7 @@ function ReadyDiff({ view }: { view: Extract<WorktreeDiffView, { status: "ready"
           ))}
         </ul>
       ) : (
-        <p className="worktree-diff-panel__empty">No changed files in this checkout.</p>
+        <p className="worktree-diff-panel__empty">No changed files in this worktree.</p>
       )}
       {lines.length > 0 ? (
         <div className="worktree-diff-panel__code" role="list" aria-label="Unified diff">

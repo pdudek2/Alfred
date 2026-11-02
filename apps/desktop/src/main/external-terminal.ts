@@ -31,7 +31,7 @@ export async function openExternalTerminal(
 
   const resolvedPath = path.resolve(normalizedRequest.request.cwd);
   if (!await isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
-    return { ok: false, error: "Path is outside registered workspaces.", resolvedPath };
+    return { ok: false, error: "Path is outside registered projects.", resolvedPath };
   }
 
   const directoryResult = await verifyDirectory(resolvedPath);

@@ -172,7 +172,7 @@ describe("persisted-desktop-state", () => {
             launchPreflight: {
               status: "ready",
               label: "Ready",
-              detail: "Will launch in the selected workspace.",
+              detail: "Will launch in the selected project.",
               isolation: "shared",
             },
           },
@@ -187,8 +187,8 @@ describe("persisted-desktop-state", () => {
             launchPreflight: {
               status: "blocked",
               code: "cwd_outside_workspace",
-              label: "Workspace mismatch",
-              reason: "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+              label: "Project mismatch",
+              reason: "This agent asked to launch outside the selected project. Bind the right folder or adjust the plan.",
             },
           },
         ],
@@ -1311,7 +1311,7 @@ describe("persisted-desktop-state", () => {
     const store = createPersistedDesktopStateStore({ filePath });
     const recoveredSession = {
       clientId: "codex-discard",
-      title: "Discard checkout",
+      title: "Discard worktree",
       source: "alfred" as const,
       agentKind: "codex" as const,
       workspaceId: "A",

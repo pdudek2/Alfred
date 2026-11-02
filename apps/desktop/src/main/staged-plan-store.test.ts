@@ -31,7 +31,7 @@ const createPlan = (): AlfredStagedPlanSnapshot => ({
       launchPreflight: {
         status: "ready",
         label: "Ready",
-        detail: "Will launch in the selected workspace.",
+        detail: "Will launch in the selected project.",
         isolation: "shared",
       },
     },
@@ -46,8 +46,8 @@ const createPlan = (): AlfredStagedPlanSnapshot => ({
       launchPreflight: {
         status: "blocked",
         code: "cwd_outside_workspace",
-        label: "Workspace mismatch",
-        reason: "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+        label: "Project mismatch",
+        reason: "This agent asked to launch outside the selected project. Bind the right folder or adjust the plan.",
       },
     },
   ],

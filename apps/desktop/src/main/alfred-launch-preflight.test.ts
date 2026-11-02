@@ -17,7 +17,7 @@ describe("preflightAlfredPlan", () => {
     expect(result.sessions[0]?.launchPreflight).toEqual({
       status: "ready",
       label: "Ready",
-      detail: "Will launch in the selected workspace.",
+      detail: "Will launch in the selected project.",
       isolation: "shared",
     });
   });
@@ -79,7 +79,7 @@ describe("preflightAlfredPlan", () => {
     expect(result.sessions[0]?.launchPreflight).toEqual({
       status: "ready",
       label: "Ready",
-      detail: "Will launch in the selected workspace.",
+      detail: "Will launch in the selected project.",
       isolation: "shared",
     });
   });
@@ -153,7 +153,7 @@ describe("preflightAlfredPlan", () => {
     expect(result.sessions[0]?.launchPreflight).toEqual({
       status: "ready",
       label: "Ready",
-      detail: "Will launch in the selected workspace.",
+      detail: "Will launch in the selected project.",
       isolation: "shared",
     });
   });
@@ -193,7 +193,7 @@ describe("preflightAlfredPlan", () => {
     expect(result.sessions[1]?.args).toEqual(["Review the UI"]);
   });
 
-  it("blocks coding agents that ask to launch outside the selected workspace", async () => {
+  it("blocks coding agents that ask to launch outside the selected project", async () => {
     const preflightAgentWorktree = vi.fn();
     const result = await preflightAlfredPlan(
       {
@@ -210,7 +210,7 @@ describe("preflightAlfredPlan", () => {
     expect(result.sessions[0]?.launchPreflight).toMatchObject({
       status: "blocked",
       code: "cwd_outside_workspace",
-      reason: "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+      reason: "This agent asked to launch outside the selected project. Bind the right folder or adjust the plan.",
     });
   });
 
@@ -226,7 +226,7 @@ describe("preflightAlfredPlan", () => {
     expect(result.sessions[0]?.launchPreflight).toMatchObject({
       status: "ready",
       isolation: "shared",
-      label: "Scratch workspace",
+      label: "Scratch project",
     });
   });
 
@@ -306,15 +306,15 @@ describe("preflightAlfredPlan", () => {
       {
         commandExists: async () => true,
         preflightAgentWorktree: async () => {
-          throw new Error("Workspace is not a Git repository. fatal: not a Git repository");
+          throw new Error("Project is not a Git repository. fatal: not a Git repository");
         },
       },
     );
 
     expect(result.sessions[0]?.launchPreflight).toEqual({
       status: "ready",
-      label: "Shared workspace",
-      detail: "Workspace is not Git; will launch in the selected folder.",
+      label: "Shared project",
+      detail: "Project is not Git; will launch in the selected folder.",
       isolation: "shared",
     });
   });

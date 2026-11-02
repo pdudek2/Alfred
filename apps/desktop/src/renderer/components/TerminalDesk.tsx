@@ -841,11 +841,11 @@ function ManualTerminalTile({
   const externalTerminalCwd = resolvedCwd || cwd;
   const worktreeRecoverySession = discardableSession && isolatedCheckout;
   const recoveryOnly = tileStatus === "restored" && worktreeRecoverySession && !relaunchCapable;
-  const closeActionLabel = discardableSession ? (worktreeRecoverySession ? "Discard checkout" : "Discard") : "Close";
+  const closeActionLabel = discardableSession ? (worktreeRecoverySession ? "Discard worktree" : "Discard") : "Close";
   const closeActionTitle = discardableSession
     ? worktreeRecoverySession
-      ? "Discard this isolated checkout"
-      : "Discard this recovery item"
+      ? "Discard this isolated worktree"
+      : "Discard this session"
     : "Close terminal";
   const runtimeBindingKey = runtimeId
     ?? (runtimeStatus === "starting" || runtimeStatus === "restored" ? runtimeStatus : "inactive");
@@ -1004,7 +1004,7 @@ function ManualTerminalTile({
   const stripNote = resumeAction
     ? null
     : recoveryOnly
-      ? "Launch details were cleared for privacy. Your isolated checkout is still available."
+      ? "Launch details were cleared for privacy. Your isolated worktree is still available."
       : displayStatus.kind === "unavailable" ? "This session is unavailable." : attentionCopy;
   const actionItems: ChromeMenuItem[] = [
     ...(externalTerminalCwd

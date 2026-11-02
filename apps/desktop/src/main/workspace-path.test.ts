@@ -63,7 +63,7 @@ describe("workspace-path", () => {
       resolveWorkspacePathForReveal({ cwd: allowedRoot, path: outsideFile }, { allowedRoots: [allowedRoot] }),
     ).resolves.toEqual({
       ok: false,
-      error: "Path is outside registered workspaces.",
+      error: "Path is outside registered projects.",
       resolvedPath: outsideFile,
     });
   });
@@ -85,7 +85,7 @@ describe("workspace-path", () => {
       ),
     ).resolves.toEqual({
       ok: false,
-      error: "Path is outside registered workspaces.",
+      error: "Path is outside registered projects.",
       resolvedPath: path.join(symlinkPath, "secret.txt"),
     });
   });
@@ -111,7 +111,7 @@ describe("workspace-path", () => {
       ),
     ).resolves.toEqual({
       ok: false,
-      error: "Path is outside registered workspaces.",
+      error: "Path is outside registered projects.",
       resolvedPath: path.join(aliasPath, "secret.txt"),
     });
   });

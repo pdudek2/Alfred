@@ -1090,7 +1090,7 @@ describe("SessionsSurface", () => {
     expect(article).toHaveTextContent("Codex worked in wt/oracle-v2. Asleep for 9 days.");
 
     expect(within(article).getByRole("button", { name: "Resume" })).toHaveClass("sessions-reader__primary");
-    const actions = within(article).getByRole("toolbar", { name: "Asleep checkout actions" });
+    const actions = within(article).getByRole("toolbar", { name: "Asleep worktree actions" });
     expect(within(actions).getAllByRole("button").map((button) => button.textContent))
       .toEqual(["Review diff", "Apply to Alfred", "Discard"]);
 

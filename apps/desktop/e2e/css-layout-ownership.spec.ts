@@ -396,7 +396,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const { app, marker, page, paths } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
   const states: CssStateEvidence[] = [];
-  // Details shows Changes only for an isolated checkout, which this fixture has none of; the evidence unit test
+  // Details shows Changes only for an isolated worktree, which this fixture has none of; the evidence unit test
   // checks that mask on a checkout's Details.
   const checkoutOnlySelectors = new Set([".details-section[aria-label='Changes'] > :not(.details-section-heading)"]);
   const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors]
@@ -597,7 +597,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     .toBeLessThanOrEqual(0);
   const narrowPrivacyControls = [
     narrowPrivacy.getByRole("button", { name: "Done" }),
-    narrowPrivacy.getByRole("button", { name: "Redacted tail" }),
+    narrowPrivacy.getByRole("button", { name: "Keep recent" }),
     narrowPrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     narrowPrivacy.getByRole("button", { name: "Reveal in Finder" }),
   ];
@@ -630,7 +630,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     .toBeLessThanOrEqual(0);
   const widePrivacyControls = [
     widePrivacy.getByRole("button", { name: "Done" }),
-    widePrivacy.getByRole("button", { name: "Redacted tail" }),
+    widePrivacy.getByRole("button", { name: "Keep recent" }),
     widePrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     widePrivacy.getByRole("button", { name: "Reveal in Finder" }),
   ];

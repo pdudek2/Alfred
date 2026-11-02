@@ -93,7 +93,7 @@ function isUsefulLifecycle(event: SessionActivityEvent): boolean {
     text.includes("already in the project") ||
     text.includes("started in a new worktree") ||
     text.includes("started from the last commit") ||
-    text.includes("checkout diff reviewed") ||
+    text.includes("diff reviewed") ||
     text.includes("relaunching session") ||
     text.includes("resuming session") ||
     text.includes("session asleep") ||
@@ -143,7 +143,7 @@ export function activitySentence(event: SessionActivityEvent): string {
       return payload?.type === "file" ? `${FILE_VERBS[payload.operation]} ${fileName(payload.path)}` : event.detail || event.title;
     case "tool":
       return payload?.type === "tool" ? toolSentence(payload.name, payload.input) : event.title;
-    // "Plan updated", "Checkout diff reviewed": the title reads as a sentence.
+    // "Plan updated", "Worktree diff reviewed": the title reads as a sentence.
     case "plan":
       return event.title;
     // "You asked", or "Orchestrator asked" for a message an orchestrator sent through Alfred.

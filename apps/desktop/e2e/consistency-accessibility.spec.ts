@@ -128,7 +128,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(privacy).toBeVisible();
   await expectSansFont(privacy);
   // Settings uses the New sheet's 30 px buttons.
-  await expectMinimumHeight(privacy.getByRole("button", { name: "Redacted tail" }), 30);
+  await expectMinimumHeight(privacy.getByRole("button", { name: "Keep recent" }), 30);
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: ".privacy-panel button:not(:disabled)",
     verticalScrollOwners: [{ id: "privacy-body", label: "Privacy body", selector: ".privacy-panel-body" }],
@@ -220,7 +220,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   const asleep = page.getByRole("region", { name: "History" });
   await asleep.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Fixture diff handoff/ }).click();
-  await asleep.getByRole("toolbar", { name: "Asleep checkout actions" })
+  await asleep.getByRole("toolbar", { name: "Asleep worktree actions" })
     .getByRole("button", { name: "Review diff" }).click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
   await expect(diff).toBeVisible();

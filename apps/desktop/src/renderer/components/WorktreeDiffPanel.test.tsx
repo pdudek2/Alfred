@@ -69,7 +69,7 @@ describe("WorktreeDiffPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByText("Loading checkout diff…")).toBeInTheDocument();
+    expect(screen.getByText("Loading worktree diff…")).toBeInTheDocument();
 
     rerender(
       <WorktreeDiffPanel
@@ -78,12 +78,12 @@ describe("WorktreeDiffPanel", () => {
           instanceKey: "codex-1:1",
           sessionId: "codex-1",
           sessionTitle: "Codex review",
-          error: "Project root no longer matches this checkout.",
+          error: "Project root no longer matches this worktree.",
         }}
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Project root no longer matches this checkout.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Project root no longer matches this worktree.");
     expect(screen.getByRole("button", { name: "Back to terminal" })).toBeInTheDocument();
   });
 
