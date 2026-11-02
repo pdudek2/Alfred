@@ -1856,6 +1856,13 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     expect(diff).toBeInTheDocument();
 
+    // The worktree can lose its changes after the diff was read; applying nothing must not read as applied.
+    worktreeApply.mockResolvedValueOnce({ ok: true, appliedFiles: 0 });
+    await user.click(within(diff).getByRole("button", { name: "Apply to Alfred" }));
+    await waitFor(() => expect(within(diff).getByRole("button", { name: "Apply to Alfred" })).toBeEnabled());
+    expect(worktreeApply).toHaveBeenCalledOnce();
+    expect(within(diff).queryByRole("status")).not.toBeInTheDocument();
+
     await user.click(within(diff).getByRole("button", { name: "Apply to Alfred" }));
     expect(await within(diff).findByRole("status")).toHaveTextContent("Applied to Alfred");
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "diff-header" });

@@ -1395,7 +1395,7 @@ export function App() {
     try {
       const result = await terminalApi.worktreeApply({ clientId: sessionId });
       if (!isCurrentSessionInstance(sessionId, actionKey)) return;
-      if (result.ok) {
+      if (result.ok && (result.appliedFiles > 0 || result.alreadyApplied)) {
         setWorktreeDiffView((current) =>
           current?.status === "ready" && current.instanceKey === actionKey
             ? { ...current, result: { ...current.result, applied: true } }
