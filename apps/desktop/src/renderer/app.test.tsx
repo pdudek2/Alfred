@@ -7907,7 +7907,10 @@ describe("App integration", () => {
       activities: [],
       agentSignal: { state: "needs-you", source: "osc9", at: Date.now(), detail: "Approval requested" },
     });
-    const waiting = ["Claude · claude: needs-you", "Codex · two: needs-you", "Codex · one: your-turn", "zsh: running"];
+    // A start screen is read off the terminal, which the list never carries either.
+    terminalLines.splice(0, terminalLines.length, "  Folder access", "  Trust this folder?", "  enter continue · esc quit");
+    await bridge.emitData({ id: "runtime-one", clientId: "one", data: "  Folder access", activities: [] });
+    const waiting = ["Codex · one: needs-you", "Claude · claude: needs-you", "Codex · two: needs-you", "zsh: running"];
     await waitFor(() => expect(railRows()).toEqual(waiting));
 
     const listed = list.mock.calls.length;

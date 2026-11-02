@@ -32,3 +32,19 @@ export function sendHook(agent: LaunchedAgent, event: string, payload: Record<st
     socket.on("close", () => resolve());
   });
 }
+
+/** What is appended to this file, the fixture agent prints. */
+export async function fixtureAgentOutput(root: string, agent: string): Promise<string> {
+  const markers = (await readdir(root)).filter((name) => name.startsWith(`alfred-${agent}-fixture-`));
+  expect(markers).toHaveLength(1);
+  return path.join(root, markers[0]!);
+}
+
+/** Paints rows the way a TUI does, by cursor moves out of order, and parks the cursor below them. */
+export function paintedScreen(rows: readonly string[]): string {
+  const cells = rows.flatMap((text, row) => {
+    const half = Math.floor(text.length / 2);
+    return [`\u001b[${row + 1};${half + 1}H${text.slice(half)}`, `\u001b[${row + 1};1H${text.slice(0, half)}`];
+  });
+  return `\u001b[2J${cells.reverse().join("")}\u001b[${rows.length + 2};1H`;
+}

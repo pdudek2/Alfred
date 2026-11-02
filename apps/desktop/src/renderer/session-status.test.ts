@@ -84,6 +84,20 @@ describe("sessionState", () => {
     ).toEqual({ kind: "working", label: "working" });
   });
 
+  it("shows a Codex start screen as Needs you while it lasts, over what the session reports", () => {
+    const codex = { agentKind: "codex" as const, command: "codex", lastOutputAt: 9_000 };
+    const startScreen = { kind: "needs-you", label: "needs you", reason: "start-screen" };
+    expect(sessionState(liveSession({ ...codex, startScreen: "hooks" }), "ready", 10_000)).toEqual(startScreen);
+    // A worker launched with its message, after a key on the screen, or with a hook already reporting: it still waits.
+    expect(sessionState(liveSession({ ...codex, args: ["--", "fix it"], startScreen: "sign-in" }), "ready", 10_000)).toEqual(startScreen);
+    expect(sessionState(liveSession({ ...codex, promptSubmitted: true, startScreen: "folder" }), "ready", 10_000)).toEqual(startScreen);
+    const working = { agentSignal: { state: "working" as const, source: "hook" as const, at: 9_000 } };
+    expect(sessionState(liveSession({ ...codex, ...working, startScreen: "hooks" }), "ready", 10_000)).toEqual(startScreen);
+    // Once the screen goes, the session's own signal counts again.
+    expect(sessionState(liveSession({ ...codex, ...working }), "ready", 10_000).kind).toBe("working");
+    expect(sessionState(liveSession({ ...codex, runtimeStatus: "exited", startScreen: "hooks" }), "ready", 10_000).kind).toBe("done");
+  });
+
   it("keeps a runtime blocker as Needs you, even after its process ended, until later work arrives", () => {
     expect(sessionState(liveSession({ activityEvents: [blocker], lastOutputAt: 1_000 }), "ready", 2_000)).toEqual({
       kind: "needs-you",

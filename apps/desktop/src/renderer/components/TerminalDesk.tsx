@@ -21,7 +21,12 @@ import {
 } from "../session-state";
 import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle, sessionStartedLabel } from "../session-time";
-import { codexStartScreen, mayShowCodexStartScreen } from "../codex-start-screen";
+import {
+  codexStartScreen,
+  codexStartScreenSentence,
+  watchesCodexStartScreen,
+  type CodexStartScreen,
+} from "../codex-start-screen";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
@@ -50,7 +55,6 @@ import type { WorktreeDiffView } from "../worktree-diff";
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
 const MAX_CAPTURED_AGENT_INPUT = 512;
-const START_SCREEN_SETTLE_MS = 150;
 
 type AgentTitleInputCapture = {
   buffer: string;
@@ -121,7 +125,7 @@ type TerminalDeskProps = {
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
-  onRuntimeSessionStartScreen: (sessionId: string, startScreen: string | null) => void;
+  onRuntimeSessionStartScreen: (sessionId: string, startScreen: CodexStartScreen | null) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
@@ -325,7 +329,8 @@ export function TerminalDesk({
                 source={session.source}
                 agentKind={session.agentKind}
                 detectedAgentKind={session.detectedAgentKind}
-                watchesStartScreen={mayShowCodexStartScreen(session)}
+                watchesStartScreen={watchesCodexStartScreen(session)}
+                startScreen={session.startScreen}
                 isolation={session.isolation}
                 branchName={session.branchName}
                 baseCwd={session.baseCwd}
@@ -649,6 +654,7 @@ function ManualTerminalTile({
   resumeMode,
   parentSessionId,
   watchesStartScreen,
+  startScreen,
 }: {
   cwd: string;
   createdAt?: number | undefined;
@@ -656,6 +662,7 @@ function ManualTerminalTile({
   agentKind?: SessionTile["agentKind"];
   detectedAgentKind?: SessionTile["detectedAgentKind"];
   watchesStartScreen: boolean;
+  startScreen?: CodexStartScreen | undefined;
   isolation?: SessionTile["isolation"] | undefined;
   branchName?: string | undefined;
   baseCwd?: string | undefined;
@@ -674,7 +681,7 @@ function ManualTerminalTile({
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
-  onRuntimeSessionStartScreen: (sessionId: string, startScreen: string | null) => void;
+  onRuntimeSessionStartScreen: (sessionId: string, startScreen: CodexStartScreen | null) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
@@ -720,6 +727,8 @@ function ManualTerminalTile({
   const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
   const watchesStartScreenRef = useRef(watchesStartScreen);
   watchesStartScreenRef.current = watchesStartScreen;
+  const startScreenRef = useRef(startScreen);
+  startScreenRef.current = startScreen;
   useEffect(() => {
     const wasHidden = previousTileHiddenRef.current;
     previousTileHiddenRef.current = tileHidden;
@@ -768,6 +777,7 @@ function ManualTerminalTile({
     ...(agentSignal === undefined ? {} : { agentSignal }),
     ...(shellBusy === undefined ? {} : { shellBusy }),
     ...(activityEvents === undefined ? {} : { activityEvents }),
+    ...(startScreen === undefined ? {} : { startScreen }),
   } satisfies Parameters<typeof sessionState>[0];
   const displayStatus = sessionState(displaySession, tileStatus, now);
   const restartable = isRestartable(displayStatus);
@@ -968,9 +978,11 @@ function ManualTerminalTile({
   const waitingOn = displayStatus.kind === "needs-you" && displayStatus.reason === "approval"
     ? pendingApproval(activityEvents)
     : latestActivity;
-  const attentionCopy = displayStatus.kind === "needs-you" && waitingOn
-    ? waitingSentence(waitingOn, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
-    : null;
+  const attentionCopy = displayStatus.kind === "needs-you" && displayStatus.reason === "start-screen" && startScreen
+    ? codexStartScreenSentence(startScreen)
+    : displayStatus.kind === "needs-you" && waitingOn
+      ? waitingSentence(waitingOn, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
+      : null;
   const resumeAction = tileStatus === "restored" && relaunchCapable
     ? {
         copy: "This session is asleep.",
@@ -1177,24 +1189,18 @@ function ManualTerminalTile({
         if (passes > 1) scheduleRepaint(passes - 1);
       });
     };
-    let startScreen: string | null = null;
-    let startScreenRead: number | undefined;
+    // The rendered screen, not the stream: Codex redraws only the cells that change.
     const readStartScreen = () => {
       const page = terminal.buffer.active;
-      const lines = Array.from({ length: terminal.rows }, (_, row) => page.getLine(page.baseY + row)?.translateToString(true));
-      const screen = codexStartScreen(lines.join("\n"));
-      if (screen === startScreen) return;
-      startScreen = screen;
-      runtimeCallbacksRef.current.onRuntimeSessionStartScreen(sessionKey, screen);
+      const rows = Array.from({ length: terminal.rows }, (_, row) => page.getLine(page.baseY + row)?.translateToString(true) ?? "");
+      const screen = codexStartScreen(rows);
+      if (screen !== (startScreenRef.current ?? null)) runtimeCallbacksRef.current.onRuntimeSessionStartScreen(sessionKey, screen);
     };
     const writeAndRepaint = (data: string) => {
       terminal.write(data, () => {
         if (disposed) return;
         scheduleRepaint();
-        if (!watchesStartScreenRef.current && startScreen === null) return;
-        // After the output settles, so a half-drawn frame neither raises nor clears it.
-        window.clearTimeout(startScreenRead);
-        startScreenRead = window.setTimeout(readStartScreen, START_SCREEN_SETTLE_MS);
+        if (watchesStartScreenRef.current) readStartScreen();
       });
       scheduleRepaint();
     };
@@ -1208,7 +1214,6 @@ function ManualTerminalTile({
 
     return () => {
       disposed = true;
-      window.clearTimeout(startScreenRead);
       resizeObserver.disconnect();
       fitAndResizeRef.current = null;
       scheduleRepaintRef.current = null;

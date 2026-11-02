@@ -78,6 +78,7 @@ import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
 import { isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
 import type { WorktreeDiffView } from "./worktree-diff";
+import type { CodexStartScreen } from "./codex-start-screen";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
@@ -1645,14 +1646,16 @@ export function App() {
     );
   }, []);
 
-  const handleRuntimeSessionStartScreen = useCallback((sessionId: string, startScreen: string | null) => {
-    setTerminalSessions((sessions) =>
-      sessions.map((session) => {
-        if (session.id !== sessionId) return session;
+  const handleRuntimeSessionStartScreen = useCallback((sessionId: string, startScreen: CodexStartScreen | null) => {
+    setTerminalSessions((sessions) => {
+      const current = sessions.find((session) => session.id === sessionId);
+      if (!current || (current.startScreen ?? null) === startScreen) return sessions;
+      return sessions.map((session) => {
+        if (session !== current) return session;
         const { startScreen: _previous, ...rest } = session;
         return startScreen ? { ...rest, startScreen } : rest;
-      }),
-    );
+      });
+    });
   }, []);
 
   const handleRuntimeSessionReplayBuffer = useCallback(
@@ -3591,6 +3594,8 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
       // The main process sends these again only when they change, so a list read before the last change keeps them.
       ...(liveSession.agentSignal === undefined && session.agentSignal !== undefined ? { agentSignal: session.agentSignal } : {}),
       ...(liveSession.shellBusy === undefined && session.shellBusy !== undefined ? { shellBusy: session.shellBusy } : {}),
+      // Read off the terminal here, so the main process never sends it.
+      ...(session.startScreen ? { startScreen: session.startScreen } : {}),
       ...(session.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
       ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
