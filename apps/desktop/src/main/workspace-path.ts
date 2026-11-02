@@ -26,7 +26,7 @@ export async function resolveWorkspacePathForReveal(
 
   const resolvedPath = resolveWorkspacePath(rawPath, revealRequest.cwd);
   if (!await isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
-    return { ok: false, error: "Path is outside registered workspaces.", resolvedPath };
+    return { ok: false, error: "Path is outside registered projects.", resolvedPath };
   }
 
   try {

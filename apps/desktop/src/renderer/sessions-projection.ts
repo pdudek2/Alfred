@@ -276,7 +276,7 @@ function managedLifecycle(session: SessionTile): SessionLifecycle {
 function displayLocation(session: SessionTile): string {
   if (session.branchName?.trim()) return session.branchName;
   const segments = session.cwd.split("/").filter(Boolean);
-  return segments.at(-1) ?? "local desk";
+  return segments.at(-1) ?? "local project";
 }
 
 function meaningfulActivityAt(session: SessionTile): number {

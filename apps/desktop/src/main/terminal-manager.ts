@@ -633,7 +633,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             },
             options.managedWorktreeRootPath === undefined ? {} : { worktreeStoreRoot: options.managedWorktreeRootPath },
           ).catch((cleanupError: unknown) => {
-            console.warn("Failed to remove the checkout of a terminal that did not start.", cleanupError);
+            console.warn("Failed to remove the worktree of a terminal that did not start.", cleanupError);
           });
         }
         throw error;
@@ -813,7 +813,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           return { ok: false, error: "Session not found." };
         }
         if (request.cleanupWorktree !== true || !isIsolatedWorktreeSession(liveSession)) {
-          return { ok: false, error: "Close the live session before discarding its checkout." };
+          return { ok: false, error: "Close the live session before discarding its worktree." };
         }
         // A running checkout is resolved while its session is live; then its agent stops before the folder goes.
         const operation = await worktreeOperationRequest(event.sender, request.clientId, options);
@@ -835,7 +835,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
       const isolatedWorktree = stoppedCheckout !== null || (session && isIsolatedWorktreeSession(session));
       if (isolatedWorktree && request.cleanupWorktree !== true) {
-        return { ok: false, error: "Discarding an isolated checkout requires worktree cleanup." };
+        return { ok: false, error: "Discarding an isolated worktree requires worktree cleanup." };
       }
       if (isolatedWorktree) {
         const operation = stoppedCheckout ?? await worktreeOperationRequest(event.sender, request.clientId, options);
@@ -849,7 +849,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             operation.options,
           );
           if (files.length > 0 && !applied) {
-            return { ok: false, error: "This checkout changed while it was closing.", changes: { summary, files } };
+            return { ok: false, error: "This worktree changed while it was closing.", changes: { summary, files } };
           }
         }
         await (options.cleanupAgentWorktree ?? defaultCleanupAgentWorktree)(
@@ -1373,7 +1373,7 @@ async function worktreeOperationRequest(
     return { ok: false, error: "Session not found." };
   }
   if (session.isolation === "shared" || (!session.baseCwd && !session.branchName)) {
-    return { ok: false, error: "Session is not an isolated checkout." };
+    return { ok: false, error: "Session is not an isolated worktree." };
   }
   const projectRoot = session.workspaceId && session.workspaceRootFingerprint
     ? await options.resolveWorkspaceRoot?.(session.workspaceId)
@@ -1384,7 +1384,7 @@ async function worktreeOperationRequest(
     ? (await gitRepositoryRoot(projectRoot)) ?? projectRoot
     : projectRoot;
   if (!baseCwd) {
-    return { ok: false, error: "Reattach the original project before managing this checkout." };
+    return { ok: false, error: "Reattach the original project before managing this worktree." };
   }
   if (
     session.workspaceRootFingerprint
@@ -1392,11 +1392,11 @@ async function worktreeOperationRequest(
   ) {
     return {
       ok: false,
-      error: "This workspace points to a different project. Reattach the original project first.",
+      error: "This project points to a different folder. Reattach the original project first.",
     };
   }
   if (!session.branchName) {
-    return { ok: false, error: "Isolated checkout metadata is incomplete." };
+    return { ok: false, error: "Isolated worktree metadata is incomplete." };
   }
 
   const cleanupOptions = worktreeStoreOptions(options);
@@ -1408,7 +1408,7 @@ async function worktreeOperationRequest(
     cleanupRequest.cwd = session.cwd;
   }
   if (!isSafeAgentWorktreeCleanupRequest(cleanupRequest, cleanupOptions)) {
-    return { ok: false, error: "Isolated checkout metadata is not safe." };
+    return { ok: false, error: "Isolated worktree metadata is not safe." };
   }
 
   return {
@@ -2217,7 +2217,7 @@ async function resolveValidatedTerminalCwd(
   const allowed = await isAllowedWorkspacePath(canonicalCwd, roots);
 
   if (!allowed && !await isExactPersistedRestoredCwd(request)) {
-    throw new Error("Terminal cwd is outside registered workspaces.");
+    throw new Error("Terminal cwd is outside registered projects.");
   }
 
   return canonicalCwd;
@@ -2243,7 +2243,7 @@ async function resolveLaunchCwd(
     }, {
       ...(options.managedWorktreeRootPath === undefined ? {} : { worktreeStoreRoot: options.managedWorktreeRootPath }),
     })) {
-      throw new Error("Terminal isolated checkout metadata is not safe to reuse.");
+      throw new Error("Terminal isolated worktree metadata is not safe to reuse.");
     }
 
     return {

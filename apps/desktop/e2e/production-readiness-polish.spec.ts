@@ -85,7 +85,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   const asleep = page.getByRole("region", { name: "History" });
   await asleep.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Fixture diff handoff/ }).click();
-  await asleep.getByRole("toolbar", { name: "Asleep checkout actions" })
+  await asleep.getByRole("toolbar", { name: "Asleep worktree actions" })
     .getByRole("button", { name: "Review diff" }).click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
   await expect(diff).toBeVisible();

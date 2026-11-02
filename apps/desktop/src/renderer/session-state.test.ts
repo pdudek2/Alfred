@@ -1339,7 +1339,7 @@ describe("desktop session state", () => {
     ]);
   });
 
-  it("assigns new manual sessions to the selected workspace", () => {
+  it("assigns new manual sessions to the selected project", () => {
     const next = addManualSession(createInitialSessions("/repo", "A"), "/repo", "UI");
 
     expect(next[1]).toMatchObject({ id: "manual-2", workspaceId: "UI" });

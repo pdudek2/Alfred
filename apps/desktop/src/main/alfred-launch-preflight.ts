@@ -58,8 +58,8 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
       ...normalizedSession,
       launchPreflight: {
         status: "ready",
-        label: "Scratch workspace",
-        detail: "No folder is bound; will launch in Alfred's scratch desk.",
+        label: "Scratch project",
+        detail: "No folder is bound; will launch in Alfred's scratch project.",
         isolation: "shared",
       },
     };
@@ -71,8 +71,8 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
       ...normalizedSession,
       launchPreflight: blockedPreflight(
         "cwd_outside_workspace",
-        "Workspace mismatch",
-        "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+        "Project mismatch",
+        "This agent asked to launch outside the selected project. Bind the right folder or adjust the plan.",
       ),
     };
   }
@@ -96,7 +96,7 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
       launchPreflight: {
         status: "ready",
         label: "Ready",
-        detail: "Will launch in the selected workspace.",
+        detail: "Will launch in the selected project.",
         isolation: "shared",
       },
     };
@@ -119,8 +119,8 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
         ...normalizedSession,
         launchPreflight: {
           status: "ready",
-          label: "Shared workspace",
-          detail: "Workspace is not Git; will launch in the selected folder.",
+          label: "Shared project",
+          detail: "Project is not Git; will launch in the selected folder.",
           isolation: "shared",
         },
       };

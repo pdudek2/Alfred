@@ -130,7 +130,7 @@ export async function inspectAgentWorktree(
   const baseHead = await gitOutput(
     run,
     ["-C", request.baseCwd, "rev-parse", "HEAD"],
-    "Unable to inspect base workspace history.",
+    "Unable to inspect the project's history.",
   );
   const unappliedCommits = await gitOutput(
     run,
@@ -138,7 +138,7 @@ export async function inspectAgentWorktree(
     "Unable to inspect isolated Git worktree history.",
   );
   if (unappliedCommits !== "0") {
-    throw new Error("Isolated checkout has commits not present in the base workspace. Merge them manually before applying.");
+    throw new Error("Isolated worktree has commits not present in the project. Merge them manually before applying.");
   }
   const status = await gitOutputRaw(
     run,
@@ -178,16 +178,16 @@ export async function applyAgentWorktreePatch(
   const baseStatus = await gitOutputRaw(
     run,
     ["-C", request.baseCwd, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
-    "Unable to inspect base workspace before apply.",
+    "Unable to inspect the project before apply.",
   );
   const uncommitted = statusFilesFromPorcelainZ(baseStatus).length;
   if (uncommitted > 0) {
     throw new Error(
-      `The project has uncommitted changes in ${uncommitted} file${uncommitted === 1 ? "" : "s"}. Commit or stash them before applying this checkout.`,
+      `The project has uncommitted changes in ${uncommitted} file${uncommitted === 1 ? "" : "s"}. Commit or stash them before applying this worktree.`,
     );
   }
   if (inspected.files.some((file) => isUnmergedStatusCode(file.status))) {
-    throw new Error("Isolated checkout has unresolved merge conflicts. Resolve them before applying.");
+    throw new Error("Isolated worktree has unresolved merge conflicts. Resolve them before applying.");
   }
 
   const trackedFiles = inspected.files.filter((file) => file.status !== "??");
@@ -205,22 +205,22 @@ export async function applyAgentWorktreePatch(
     const changes = await gitOutput(
       run,
       ["-C", cleanupTarget.worktreePath, "stash", "create"],
-      "Unable to read isolated checkout changes.",
+      "Unable to read isolated worktree changes.",
     );
     if (!await mergesCleanly(run, request.baseCwd, changes)) {
-      throw new Error("The project changed the same lines since this checkout started. Review its diff and merge it by hand.");
+      throw new Error("The project changed the same lines since this worktree started. Review its diff and merge it by hand.");
     }
     const patchPath = path.join(os.tmpdir(), `${cleanupTarget.branchName}-${randomUUID()}.alfred-apply.patch`);
     try {
       await gitOutput(
         run,
         ["-C", cleanupTarget.worktreePath, "diff", "--binary", "HEAD", `--output=${patchPath}`],
-        "Unable to create isolated checkout patch.",
+        "Unable to create isolated worktree patch.",
       );
       await gitOutput(
         run,
         ["-C", request.baseCwd, "apply", "--3way", "--whitespace=nowarn", patchPath],
-        "Unable to apply isolated checkout patch.",
+        "Unable to apply isolated worktree patch.",
       );
     } finally {
       await rmImpl(patchPath, { force: true }).catch(() => undefined);
@@ -265,7 +265,7 @@ export function isSafeAgentWorktreeCleanupRequest(
 /** The root of the Git repository a folder is in, which checkouts are made from; null outside one. */
 export async function gitRepositoryRoot(cwd: string, options: Pick<PrepareAgentWorktreeOptions, "execFile"> = {}): Promise<string | null> {
   try {
-    return await gitOutput(options.execFile ?? execFile, ["-C", cwd, "rev-parse", "--show-toplevel"], "Workspace is not a Git repository.");
+    return await gitOutput(options.execFile ?? execFile, ["-C", cwd, "rev-parse", "--show-toplevel"], "Project is not a Git repository.");
   } catch {
     return null;
   }
@@ -276,12 +276,12 @@ export async function preflightAgentWorktree(
   options: Pick<PrepareAgentWorktreeOptions, "execFile" | "now" | "randomSuffix" | "worktreeStoreRoot"> = {},
 ): Promise<AgentWorktreeResult> {
   const run = options.execFile ?? execFile;
-  const gitRoot = await gitOutput(run, ["-C", request.cwd, "rev-parse", "--show-toplevel"], "Workspace is not a Git repository.");
+  const gitRoot = await gitOutput(run, ["-C", request.cwd, "rev-parse", "--show-toplevel"], "Project is not a Git repository.");
   const relativeLaunchPath = safeRelativePath(gitRoot, path.resolve(request.cwd));
   const status = await gitOutput(
     run,
     ["-C", gitRoot, "status", "--porcelain", "--untracked-files=all"],
-    "Unable to inspect Git workspace status.",
+    "Unable to inspect the project's Git status.",
   );
   const uncommittedFiles = status.split(/\r?\n/).filter(Boolean).length;
 
@@ -414,7 +414,7 @@ async function isolatedUntrackedPaths(run: ExecFile, worktreePath: string): Prom
   const rawUntrackedPaths = await gitOutputRaw(
     run,
     ["-C", worktreePath, "ls-files", "--others", "--exclude-standard", "-z"],
-    "Unable to inspect isolated checkout untracked files.",
+    "Unable to inspect isolated worktree untracked files.",
   );
   return splitNulOutput(rawUntrackedPaths).map((relativePath) => {
     if (!safeSnapshotRelativePath(relativePath)) {
@@ -434,10 +434,10 @@ async function assertUntrackedDestinationsAvailable(
     const destinationPath = path.join(baseCwd, relativePath);
     const state = await destinationPathState(destinationPath, lstatImpl);
     if (state === "exists") {
-      throw new Error(`Base workspace already has a file at ${relativePath}. Remove it before applying this isolated checkout.`);
+      throw new Error(`The project already has a file at ${relativePath}. Remove it before applying this isolated worktree.`);
     }
     if (state === "blocked-by-file-parent" && !hasTrackedPathAncestor(relativePath, trackedPaths)) {
-      throw new Error(`Base workspace already has a file blocking ${relativePath}. Remove it before applying this isolated checkout.`);
+      throw new Error(`The project already has a file blocking ${relativePath}. Remove it before applying this isolated worktree.`);
     }
   }
 }
@@ -656,7 +656,7 @@ async function mergesCleanly(run: ExecFile, baseCwd: string, commit: string): Pr
     return true;
   } catch (error: unknown) {
     if ((error as { code?: unknown }).code === 1) return false;
-    throw new Error(`Unable to check the isolated checkout against the project. ${errorMessage(error)}`, { cause: error });
+    throw new Error(`Unable to check the isolated worktree against the project. ${errorMessage(error)}`, { cause: error });
   }
 }
 

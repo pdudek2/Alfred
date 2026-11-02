@@ -121,7 +121,7 @@ test("reviews the real diff of an asleep checkout without replacing the live xte
   await expect(sessions).toBeVisible();
   await sessions.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Fixture diff handoff/ }).click();
-  await sessions.getByRole("toolbar", { name: "Asleep checkout actions" })
+  await sessions.getByRole("toolbar", { name: "Asleep worktree actions" })
     .getByRole("button", { name: "Review diff" }).click();
 
   const diff = page.getByRole("region", { name: "Worktree diff" });

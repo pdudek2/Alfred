@@ -34,9 +34,12 @@ const SAVED_ACTION_RESULT_TITLES = new Set([
   "Applied to project",
   "Apply failed",
   "Apply needs review",
+  "Worktree diff reviewed",
+  "Discard worktree blocked",
+  "Review diff failed",
+  // Sessions saved earlier keep these titles.
   "Checkout diff reviewed",
   "Discard checkout blocked",
-  "Review diff failed",
 ]);
 
 // A transcript Alfred did not run has no process to report on; it reads as ended.

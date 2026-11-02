@@ -463,9 +463,9 @@ describe("git worktree preparation", () => {
 
       if (rejects) {
         await expect(inspectAgentWorktree(request, { worktreeStoreRoot }))
-          .rejects.toThrow("commits not present in the base workspace. Merge them manually");
+          .rejects.toThrow("commits not present in the project. Merge them manually");
         await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot }))
-          .rejects.toThrow("commits not present in the base workspace. Merge them manually");
+          .rejects.toThrow("commits not present in the project. Merge them manually");
         expect([await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")]).toEqual(baseBefore);
         expect([await git(worktreeCwd, "rev-parse", "HEAD"), await git(worktreeCwd, "status", "--porcelain")]).toEqual(worktreeBefore);
         expect(await readFile(path.join(baseCwd, "feature.txt"), "utf8")).toBe(baseFileBefore);
@@ -481,7 +481,7 @@ describe("git worktree preparation", () => {
     }
   });
 
-  /** A real repository with a 20-line file and an isolated checkout of it; the agent changed line 2. */
+  /** A real repository with a 20-line file and an isolated worktree of it; the agent changed line 2. */
   async function realCheckout() {
     const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-worktree-apply-"));
     const baseCwd = path.join(temporaryRoot, "repo");
@@ -617,7 +617,7 @@ describe("git worktree preparation", () => {
 
       expect((await inspectAgentWorktree(request, { worktreeStoreRoot })).applied).toBe(false);
       await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot }))
-        .rejects.toThrow("The project has uncommitted changes in 1 file. Commit or stash them before applying this checkout.");
+        .rejects.toThrow("The project has uncommitted changes in 1 file. Commit or stash them before applying this worktree.");
       expect(await readFile(path.join(baseCwd, "notes.txt"), "utf8")).not.toContain("line 5 by the agent");
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
@@ -867,7 +867,7 @@ describe("git worktree preparation", () => {
         { baseCwd: "/repo", branchName: "alfred-codex-review" },
         { execFile, lstat },
       ),
-    ).rejects.toThrow("Base workspace already has a file blocking notes/review.md.");
+    ).rejects.toThrow("The project already has a file blocking notes/review.md.");
 
     expect(execFile).not.toHaveBeenCalledWith(
       "git",
@@ -893,7 +893,7 @@ describe("git worktree preparation", () => {
         { baseCwd: "/repo", branchName: "alfred-codex-review" },
         { execFile },
       ),
-    ).rejects.toThrow("The project has uncommitted changes in 2 files. Commit or stash them before applying this checkout.");
+    ).rejects.toThrow("The project has uncommitted changes in 2 files. Commit or stash them before applying this worktree.");
 
     expect(execFile).not.toHaveBeenCalledWith("git", expect.arrayContaining(["apply"]), expect.any(Object));
   });
@@ -940,6 +940,6 @@ describe("git worktree preparation", () => {
     });
 
     await expect(prepareAgentWorktree({ agentKind: "codex", clientId: "codex-1", cwd: "/tmp/project" }, { execFile }))
-      .rejects.toThrow("Workspace is not a Git repository.");
+      .rejects.toThrow("Project is not a Git repository.");
   });
 });

@@ -5776,8 +5776,8 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     const palette = screen.getByRole("dialog", { name: "Command palette" });
-    expect(within(palette).getByText("New Codex isolated checkout")).toBeInTheDocument();
-    expect(within(palette).getByText("New Claude isolated checkout")).toBeInTheDocument();
+    expect(within(palette).getByText("New Codex isolated worktree")).toBeInTheDocument();
+    expect(within(palette).getByText("New Claude isolated worktree")).toBeInTheDocument();
     expect(within(palette).getAllByText("Create a temporary Git worktree for risky or parallel edits")).toHaveLength(2);
     await submitCommandPalette(user, "codex isolated");
     expect(screen.getByRole("checkbox")).toBeChecked();
@@ -5798,7 +5798,7 @@ describe("App integration", () => {
     expect(await screen.findByLabelText("Agent activity")).toHaveTextContent("Started in a new worktree");
   });
 
-  it("reviews and applies a legacy isolated checkout from focus mode", async () => {
+  it("reviews and applies a legacy isolated worktree from focus mode", async () => {
     const user = userEvent.setup();
     const { worktreeApply, worktreeDiff } = installDesktopBridge(undefined, null, [
       {
@@ -5828,7 +5828,7 @@ describe("App integration", () => {
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-1" });
     await waitFor(() => {
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Checkout diff reviewed");
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Worktree diff reviewed");
       expect(within(screen.getByLabelText("Agent activity")).getByRole("button", { name: /^Copy plan: 2 changed files/ })).toBeInTheDocument();
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("src/app.tsx");
     });
@@ -5959,7 +5959,7 @@ describe("App integration", () => {
     const actions = await checkoutActions(user);
     bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
     await user.click(within(actions).getByRole("button", { name: "Review diff" }));
-    expect(await screen.findByText("Loading checkout diff…")).toBeInTheDocument();
+    expect(await screen.findByText("Loading worktree diff…")).toBeInTheDocument();
 
     vi.mocked(window.alfredDesktop!.terminal.list).mockResolvedValue({
       sessions: [{
@@ -5991,7 +5991,7 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Replacement session/i })).not.toHaveTextContent("1 stale file");
   });
 
-  it("keeps isolated checkout apply actions single-flight", async () => {
+  it("keeps isolated worktree apply actions single-flight", async () => {
     const user = userEvent.setup();
     let resolveApply!: (value: { ok: true; appliedFiles: number }) => void;
     const { worktreeApply } = installDesktopBridge(undefined, null, [
@@ -6126,7 +6126,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "close focused session");
     // Its checkout still holds changes, so closing asks first.
-    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
     await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -6181,11 +6181,11 @@ describe("App integration", () => {
       await screen.findByRole("article", { name: /Codex · running checkout/i });
 
       await closeFocused(user);
-      const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+      const dialog = await screen.findByRole("dialog", { name: "Discard isolated worktree" });
       expect(dialog).toHaveTextContent("src/app.tsx");
       expect(forgetTerminal).not.toHaveBeenCalled();
 
-      await user.click(within(dialog).getByRole("button", { name: "Discard checkout permanently" }));
+      await user.click(within(dialog).getByRole("button", { name: "Discard worktree permanently" }));
       await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-1", cleanupWorktree: true }));
       await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · running checkout/i })).not.toBeInTheDocument());
       expect(killTerminal).not.toHaveBeenCalled();
@@ -6210,7 +6210,7 @@ describe("App integration", () => {
         cleanupWorktree: true,
         onlyIfSettled: true,
       }));
-      expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     });
 
     it("asks first when its agent wrote something while it was closing", async () => {
@@ -6219,14 +6219,14 @@ describe("App integration", () => {
       worktreeDiff.mockResolvedValue({ ok: true, summary: "", files: [], patch: "", applied: false });
       forgetTerminal.mockResolvedValueOnce({
         ok: false,
-        error: "This checkout changed while it was closing.",
+        error: "This worktree changed while it was closing.",
         changes: { summary: "1 changed file", files: [{ path: "src/written-late.ts", status: "M" }] },
       } as never);
       render(<App />);
       await screen.findByRole("article", { name: /Codex · running checkout/i });
 
       await closeFocused(user);
-      const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+      const dialog = await screen.findByRole("dialog", { name: "Discard isolated worktree" });
       expect(dialog).toHaveTextContent("src/written-late.ts");
       expect(screen.getByRole("article", { name: /Codex · running checkout/i })).toBeInTheDocument();
     });
@@ -6258,7 +6258,7 @@ describe("App integration", () => {
       await screen.findByRole("region", { name: "Worktree diff" });
 
       await closeFocused(user);
-      await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+      await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
 
       await waitFor(() => expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument());
     });
@@ -6297,7 +6297,7 @@ describe("App integration", () => {
     expect(worktreeApply).not.toHaveBeenCalled();
   });
 
-  it("disables isolated checkout commands when no workspace folder is bound", async () => {
+  it("disables isolated worktree commands when no workspace folder is bound", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
@@ -6310,8 +6310,8 @@ describe("App integration", () => {
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "isolated");
 
-    expect(within(palette).getByRole("option", { name: /New Codex isolated checkout/i })).toBeDisabled();
-    expect(within(palette).getByRole("option", { name: /New Claude isolated checkout/i })).toBeDisabled();
+    expect(within(palette).getByRole("option", { name: /New Codex isolated worktree/i })).toBeDisabled();
+    expect(within(palette).getByRole("option", { name: /New Claude isolated worktree/i })).toBeDisabled();
     expect(
       within(palette).getAllByText("Bind a project folder to create a temporary Git worktree for risky or parallel edits"),
     ).toHaveLength(2);
@@ -8878,7 +8878,7 @@ describe("App integration", () => {
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-recovery" });
-    expect(screen.getByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Discard isolated worktree" })).toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
@@ -8910,20 +8910,20 @@ describe("App integration", () => {
     // The agent committed, so the checkout's changes are not a diff Alfred can list.
     worktreeDiff.mockResolvedValueOnce({
       ok: false,
-      error: "Isolated checkout has commits not present in the base workspace. Merge them manually before applying.",
+      error: "Isolated worktree has commits not present in the project. Merge them manually before applying.",
     });
 
     render(<App />);
     const history = await openHistorySession(user, "Codex · committed recovery");
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
-    expect(dialog).toHaveTextContent("Isolated checkout has commits not present in the base workspace.");
+    const dialog = await screen.findByRole("dialog", { name: "Discard isolated worktree" });
+    expect(dialog).toHaveTextContent("Isolated worktree has commits not present in the project.");
     expect(dialog).toHaveTextContent("alfred-codex-recovery");
     expect(within(dialog).queryByRole("button", { name: "Review changes" })).not.toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
 
-    await user.click(within(dialog).getByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(within(dialog).getByRole("button", { name: "Discard worktree permanently" }));
     await waitFor(() => expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-recovery", cleanupWorktree: true }));
   });
 
@@ -8959,9 +8959,9 @@ describe("App integration", () => {
 
     const discardTrigger = within(history).getByRole("button", { name: "Discard asleep session" });
     await user.click(discardTrigger);
-    const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+    const dialog = await screen.findByRole("dialog", { name: "Discard isolated worktree" });
     const firstControl = within(dialog).getByRole("button", { name: "Review changes" });
-    const lastControl = within(dialog).getByRole("button", { name: "Discard checkout permanently" });
+    const lastControl = within(dialog).getByRole("button", { name: "Discard worktree permanently" });
     expect(forgetTerminal).not.toHaveBeenCalled();
 
     lastControl.focus();
@@ -8974,7 +8974,7 @@ describe("App integration", () => {
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     expect(discardTrigger).toHaveFocus();
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
     expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
@@ -9050,7 +9050,7 @@ describe("App integration", () => {
     let history = await openHistorySession(user, "Original risky recovery");
     await user.click(within(history).getByRole("button", { name: "Review resume" }));
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
-    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
     expect(bridge.forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-1", cleanupWorktree: true });
 
     bridge.createTerminal.mockResolvedValueOnce({
@@ -9110,17 +9110,17 @@ describe("App integration", () => {
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-9" });
-    const discardDialog = screen.getByRole("dialog", { name: "Discard isolated checkout" });
+    const discardDialog = screen.getByRole("dialog", { name: "Discard isolated worktree" });
     expect(discardDialog).toHaveTextContent("2 changed files");
     expect(forgetTerminal).not.toHaveBeenCalled();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     expect(history).toBeVisible();
     expect(within(history).getByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/ })).toBeInTheDocument();
 
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
-    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
 
     expect(screen.queryByRole("article", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     await waitFor(() => expect(within(history).queryByText("Codex 9")).not.toBeInTheDocument());
@@ -9160,7 +9160,7 @@ describe("App integration", () => {
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
-    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
 
     expect(await screen.findByRole("alert", { name: "Asleep session action failed" })).toHaveTextContent(
       "Unable to remove isolated Git worktree.",
@@ -9249,14 +9249,14 @@ describe("App integration", () => {
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /(?<!\/)Codex 9(?! \d)(?! ·)/i }));
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
-    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
 
     expect(await screen.findByRole("alert", { name: "Asleep session action failed" })).toHaveTextContent(
       "Desktop terminal request failed. Try again.",
     );
 
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
-    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await user.click(await screen.findByRole("button", { name: "Discard worktree permanently" }));
     await waitFor(() => expect(forgetTerminal).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("alert", { name: "Asleep session action failed" })).toHaveTextContent(
       "Second fixture rejection.",
@@ -9298,7 +9298,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("alert", { name: "Asleep session action failed" })).toHaveTextContent(
       "Desktop terminal request failed. Try again.",
     );
-    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Discard inspection rejection/i })).toBeInTheDocument();
     expect(discard).toHaveFocus();
   });
@@ -9373,14 +9373,14 @@ describe("App integration", () => {
     await user.click(await screen.findByRole("option", { name: /Codex recovery/i }));
     expect(screen.queryByRole("button", { name: /Resume|Continue|Resume/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Project" })).toBeVisible();
-    const checkoutActions = screen.getByRole("toolbar", { name: "Asleep checkout actions" });
+    const checkoutActions = screen.getByRole("toolbar", { name: "Asleep worktree actions" });
     await user.click(within(checkoutActions).getByRole("button", { name: "Review diff" }));
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
     expect(await screen.findByRole("region", { name: "Worktree diff" })).toHaveTextContent("2 changed files");
     await user.click(screen.getByRole("button", { name: "Close diff" }));
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Codex recovery/i }));
-    const reopenedCheckoutActions = screen.getByRole("toolbar", { name: "Asleep checkout actions" });
+    const reopenedCheckoutActions = screen.getByRole("toolbar", { name: "Asleep worktree actions" });
     await user.click(within(reopenedCheckoutActions).getByRole("button", { name: "Apply to Alfred" }));
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-private" });
     await waitFor(() => {
@@ -9463,17 +9463,17 @@ describe("App integration", () => {
     const actions = await checkoutActions(user);
     worktreeDiff.mockResolvedValueOnce({
       ok: false,
-      error: "Project root no longer matches this checkout.",
+      error: "Project root no longer matches this worktree.",
     });
     await user.click(within(actions).getByRole("button", { name: "Review diff" }));
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
 
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent(
-        "Project root no longer matches this checkout.",
+        "Project root no longer matches this worktree.",
       );
     });
-    expect(screen.getByRole("alert")).toHaveTextContent("Project root no longer matches this checkout.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Project root no longer matches this worktree.");
     await user.click(screen.getByRole("button", { name: "Back to terminal" }));
     expect(screen.getByRole("article", { name: /Codex recovery/i })).toBeInTheDocument();
   });
@@ -9676,12 +9676,12 @@ describe("App integration", () => {
 
     const replacement = await screen.findByRole("article", { name: /Replacement session/i });
     expect(replacement).not.toHaveTextContent("stale diff warning");
-    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Discard isolated worktree" })).not.toBeInTheDocument();
     expect(bridge.killTerminal).not.toHaveBeenCalled();
     expect(bridge.forgetTerminal).not.toHaveBeenCalled();
   });
 
-  it("preserves legacy isolated checkout metadata when resuming a restored agent session", async () => {
+  it("preserves legacy isolated worktree metadata when resuming a restored agent session", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge(
       undefined,
@@ -9760,7 +9760,7 @@ describe("App integration", () => {
 
     render(<App />);
     expect(screen.queryByRole("article", { name: /Codex · shared session/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Discard checkout Codex · shared session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard worktree Codex · shared session" })).not.toBeInTheDocument();
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /Codex · shared session/i }));
     await user.click(screen.getByRole("button", { name: "Resume" }));

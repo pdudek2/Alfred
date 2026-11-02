@@ -178,7 +178,7 @@ export function SessionsReader({
                     <div
                       className="sessions-reader__saved-actions"
                       role="toolbar"
-                      aria-label={savedActions.ended ? "Ended session actions" : savedActions.checkout ? "Asleep checkout actions" : "Asleep session actions"}
+                      aria-label={savedActions.ended ? "Ended session actions" : savedActions.checkout ? "Asleep worktree actions" : "Asleep session actions"}
                     >
                       {savedActions.checkout && (
                         <>

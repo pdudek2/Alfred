@@ -114,7 +114,7 @@ describe("external-terminal", () => {
       ),
     ).resolves.toEqual({
       ok: false,
-      error: "Path is outside registered workspaces.",
+      error: "Path is outside registered projects.",
       resolvedPath: outsideRoot,
     });
     expect(spawned).not.toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe("external-terminal", () => {
       ),
     ).resolves.toEqual({
       ok: false,
-      error: "Path is outside registered workspaces.",
+      error: "Path is outside registered projects.",
       resolvedPath: symlinkPath,
     });
     expect(spawned).not.toHaveBeenCalled();

@@ -16,7 +16,7 @@ const expectCheckoutRemoved = async (workspace: string) => {
 
 test.use({ fixtureOptions: { handoffDiff: true } });
 
-test("discards an isolated checkout whose agent committed, once you confirm", async ({ harness }, testInfo) => {
+test("discards an isolated worktree whose agent committed, once you confirm", async ({ harness }, testInfo) => {
   const { app, page, paths } = harness;
   await setWindowSize(app, page, 1440, 900);
   // The agent committed its work, so the checkout has no diff for Alfred to list.
@@ -29,13 +29,13 @@ test("discards an isolated checkout whose agent committed, once you confirm", as
   await history.getByRole("listbox", { name: "Session results" }).getByRole("option", { name: /Fixture diff handoff/ }).click();
   await history.getByRole("button", { name: "Discard asleep session" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Discard isolated checkout" });
-  await expect(dialog).toContainText("commits not present in the base workspace");
+  const dialog = page.getByRole("dialog", { name: "Discard isolated worktree" });
+  await expect(dialog).toContainText("commits not present in the project");
   await expect(dialog).toContainText(BRANCH);
   await expect(dialog.getByRole("button", { name: "Review changes" })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("discard-unlisted-1440x900.png") });
 
-  await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
+  await dialog.getByRole("button", { name: "Discard worktree permanently" }).click();
   await expectCheckoutRemoved(paths.workspaceA);
 });
 
@@ -51,12 +51,12 @@ test("asks before closing a running checkout with changes, then stops its agent 
   await page.getByRole("dialog", { name: "Command palette" }).getByRole("textbox", { name: "Search commands" }).fill("close focused session");
   await page.keyboard.press("Enter");
 
-  const dialog = page.getByRole("dialog", { name: "Discard isolated checkout" });
+  const dialog = page.getByRole("dialog", { name: "Discard isolated worktree" });
   await expect(dialog).toContainText("handoff-status.txt");
   await page.screenshot({ path: testInfo.outputPath("discard-running-1440x900.png") });
   expect(await git(paths.workspaceA, "worktree", "list")).toContain(BRANCH);
 
-  await dialog.getByRole("button", { name: "Discard checkout permanently" }).click();
+  await dialog.getByRole("button", { name: "Discard worktree permanently" }).click();
   await expectCheckoutRemoved(paths.workspaceA);
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(0);
 });
