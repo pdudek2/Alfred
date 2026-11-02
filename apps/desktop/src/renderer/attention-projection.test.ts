@@ -173,6 +173,27 @@ describe("buildAttentionProjection", () => {
     expect(needsYouItems(items).map((item) => item.kind)).toEqual(["blocked-safety", "agent-waiting"]);
   });
 
+  it("asks for you, in a sentence, while Codex holds on a start screen", () => {
+    const codex = { command: "codex", agentKind: "codex" as const, runtimeStatus: "live" as const };
+    const items = buildAttentionProjection(
+      workspaces,
+      [
+        session({ ...codex, id: "hooks", title: "Hooks", startScreen: "hooks", lastOutputAt: 100 }),
+        session({ ...codex, id: "folder", title: "Folder", workspaceId: "CLIENT", startScreen: "folder", lastOutputAt: 200 }),
+        session({ ...codex, id: "sign-in", title: "Sign in", args: ["--", "fix it"], startScreen: "sign-in", lastOutputAt: 300 }),
+        session({ ...codex, id: "composer", title: "Composer", lastOutputAt: 400 }),
+      ],
+      NOW,
+    );
+
+    expect(items.map(({ sessionId, kind, reason, action }) => ({ sessionId, kind, reason, action }))).toEqual([
+      { sessionId: "hooks", kind: "agent-waiting", reason: "Codex asks you to review its hooks", action: { kind: "open-in-work" } },
+      { sessionId: "folder", kind: "agent-waiting", reason: "Codex asks to trust this folder", action: { kind: "open-in-work" } },
+      { sessionId: "sign-in", kind: "agent-waiting", reason: "Codex needs you to sign in", action: { kind: "open-in-work" } },
+    ]);
+    expect(blockingAttentionCountByWorkspace(items)).toEqual(new Map([["ALFRED", 2], ["CLIENT", 1]]));
+  });
+
   it("omits statuses and ended records that do not have a real attention action", () => {
     const items = buildAttentionProjection(
       workspaces,
