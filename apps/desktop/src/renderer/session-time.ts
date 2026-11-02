@@ -20,12 +20,12 @@ export function sessionAgeLabel(createdAt: number | undefined, now = Date.now())
   return sessionAgeShort(createdAt, now);
 }
 
-/** The focused session's strip spells the age out: "Started 6 min ago". */
-export function sessionStartedLabel(createdAt: number | undefined, now = Date.now()): string | null {
-  const age = sessionAgeLabel(createdAt, now);
+/** The focused session's strip spells the age out: "Started 6 min ago", "Ended just now". */
+export function sessionStripLabel(verb: "Started" | "Ended" | "Failed", at: number | undefined, now = Date.now()): string | null {
+  const age = sessionAgeLabel(at, now);
   if (age === null) return null;
-  if (age === "now") return "Started just now";
-  return `Started ${/^\d+m$/.test(age) ? `${age.slice(0, -1)} min` : age} ago`;
+  if (age === "now") return `${verb} just now`;
+  return `${verb} ${/^\d+m$/.test(age) ? `${age.slice(0, -1)} min` : age} ago`;
 }
 
 /** History rows carry one unit, as on the canvas: "2h", "9d", "3w". */

@@ -38,8 +38,8 @@ describe("Details Changes", () => {
     ] });
     render(<DetailsChanges {...props} />);
     const rows = await screen.findAllByRole("listitem");
-    expect(rows.map((row) => [row.querySelector(".details-file-type")?.className.split(" ")[1], row.querySelector(".details-file-change")?.textContent]))
-      .toEqual([["type-ts", "M"], ["type-css", "M"], ["type-json", "M"], ["type-md", "D"], ["type-image", "A"], ["type-pdf", "A"], [undefined, "R"]]);
+    expect(rows.map((row) => [row.querySelector(".details-file-type")?.className.split(" ")[1], row.querySelector(".file-change")?.textContent]))
+      .toEqual([["type-ts", "M"], ["type-css", "M"], ["type-json", "M"], ["type-md", "D"], ["type-image", "A"], ["type-pdf", "A"], ["type-file", "R"]]);
   });
 
   it("reads the changes on opening, then once more when a burst of activity has gone quiet", async () => {

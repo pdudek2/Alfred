@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { parseUnifiedDiff, type WorktreeDiffLine, type WorktreeDiffView } from "../worktree-diff";
+import { FileChangeLetter } from "./DetailsChanges";
 import "./worktree-diff-panel.css";
 
 export type WorktreeDiffCloseReason = "button" | "escape";
@@ -66,7 +67,7 @@ function ReadyDiff({ view }: { view: Extract<WorktreeDiffView, { status: "ready"
         <ul className="worktree-diff-panel__files" aria-label="Changed files">
           {view.result.files.map((file) => (
             <li key={`${file.status}:${file.path}`}>
-              <span aria-label={`Status ${file.status}`}>{file.status}</span>
+              <FileChangeLetter status={file.status} />
               <code>{file.path}</code>
             </li>
           ))}

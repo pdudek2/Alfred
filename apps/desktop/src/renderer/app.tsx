@@ -10,7 +10,7 @@ import {
   getDesktopWorkspaceApi,
 } from "./desktop-api";
 import { CommandPalette } from "./components/CommandPalette";
-import { DetailsChanges } from "./components/DetailsChanges";
+import { DetailsChanges, FileChangeLetter } from "./components/DetailsChanges";
 import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
@@ -79,6 +79,7 @@ import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./se
 import { isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
 import type { WorktreeDiffView } from "./worktree-diff";
 import type { CodexStartScreen } from "./codex-start-screen";
+import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
@@ -1587,9 +1588,7 @@ export function App() {
       return appendSessionActivity(next, session.id, {
         kind: failed ? "error" : "lifecycle",
         title: failed ? "Process failed" : "Process exited",
-        detail: failed
-          ? `The terminal process exited with code ${event.exitCode}.`
-          : "The terminal process ended; scrollback remains available.",
+        detail: sessionExitSentence(event.exitCode),
       });
     });
   }, []);
@@ -3184,7 +3183,7 @@ function DiscardCheckoutDialog({
             <ol aria-label="Changed files">
               {previewFiles.map((file) => (
                 <li key={`${file.status}:${file.path}`}>
-                  <span>{file.status}</span>
+                  <FileChangeLetter status={file.status} />
                   <code>{file.path}</code>
                 </li>
               ))}

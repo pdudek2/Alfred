@@ -493,7 +493,8 @@ describe("desktop session state", () => {
         lastOutputAt: 100,
       },
     ]);
-    const exited = markSessionExited(hydrated, "pty-a");
+    const exited = markSessionExited(hydrated, "pty-a", 0, undefined, 500);
+    expect(exited[0]?.endedAt).toBe(500);
 
     expect(restartSession(exited, "manual-4")[0]).toEqual({
       id: "manual-4",

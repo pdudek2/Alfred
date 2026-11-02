@@ -30,6 +30,7 @@ export type SessionTile = {
   branchName?: string;
   baseCwd?: string;
   createdAt?: number;
+  endedAt?: number;
   source: "manual" | "alfred";
   stage: "staged" | "live";
   stagedReviewStatus?: "checking" | "edited";
@@ -269,6 +270,7 @@ export function markSessionExited(
   runtimeId: TerminalSessionId,
   exitCode = 0,
   clientId?: string,
+  now = Date.now(),
 ): SessionTile[] {
   const runtimeStatus = exitCode === 0 ? "exited" : "error";
   return sessions.map((session) =>
@@ -276,7 +278,7 @@ export function markSessionExited(
       id: runtimeId,
       ...(clientId === undefined ? {} : { clientId }),
     })
-      ? { ...session, runtimeId, runtimeStatus }
+      ? { ...session, runtimeId, runtimeStatus, endedAt: now }
       : session,
   );
 }
@@ -289,6 +291,7 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
       lastOutputAt: _lastOutputAt,
       runtimeId: _runtimeId,
       createdAt: _createdAt,
+      endedAt: _endedAt,
       // What the ended process reported; the new one reports its own.
       agentSignal: _agentSignal,
       startScreen: _startScreen,

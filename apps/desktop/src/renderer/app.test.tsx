@@ -2843,7 +2843,7 @@ describe("App integration", () => {
         at: 5_000,
         kind: "lifecycle",
         title: "Process exited",
-        detail: "The terminal process exited with code 7.",
+        detail: "Failed with exit code 7",
       }],
       lastActivityAt: 5_000,
     };
@@ -5888,6 +5888,7 @@ describe("App integration", () => {
     const gridRectBeforeDiff = gridColumn.getBoundingClientRect();
     await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
     await bridge.emitExit({ id: "runtime-diff-reader", exitCode: 0 });
+    expect(await screen.findByText("Ended just now")).toBeInTheDocument();
 
     const reviewDiff = within(await checkoutActions(user)).getByRole("button", { name: "Review diff" });
     await user.click(reviewDiff);
