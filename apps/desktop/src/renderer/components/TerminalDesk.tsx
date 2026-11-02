@@ -107,6 +107,7 @@ type TerminalDeskProps = {
   terminalFocusRequestKey: number;
   worktreeDiffReturnFocus: HTMLElement | null;
   worktreeDiffView: WorktreeDiffView | null;
+  worktreeDiffPendingAction?: "review" | "apply" | undefined;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
@@ -117,6 +118,7 @@ type TerminalDeskProps = {
   onOpenPlan?: (() => void) | undefined;
   onCloseSession: (sessionId: string) => void;
   onCloseWorktreeDiff: () => void;
+  onApplyWorktree: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenHistory: () => void;
@@ -150,6 +152,7 @@ export function TerminalDesk({
   terminalFocusRequestKey,
   worktreeDiffReturnFocus,
   worktreeDiffView,
+  worktreeDiffPendingAction,
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
@@ -159,6 +162,7 @@ export function TerminalDesk({
   onOpenPlan,
   onAddManualSession,
   onCloseSession,
+  onApplyWorktree,
   onCloseWorktreeDiff,
   onContinueRestoredSession,
   onOpenExternalTerminal,
@@ -372,7 +376,14 @@ export function TerminalDesk({
           </div>
         </div>
         {worktreeDiffView && (
-          <WorktreeDiffPanel view={worktreeDiffView} onClose={handleCloseDiff} />
+          <WorktreeDiffPanel
+            view={worktreeDiffView}
+            projectName={workspaceLabel}
+            pendingAction={worktreeDiffPendingAction}
+            onApply={onApplyWorktree}
+            onDiscard={onCloseSession}
+            onClose={handleCloseDiff}
+          />
         )}
       </div>
     </section>

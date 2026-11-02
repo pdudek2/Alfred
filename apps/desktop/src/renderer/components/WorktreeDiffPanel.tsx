@@ -7,16 +7,27 @@ export type WorktreeDiffCloseReason = "button" | "escape";
 
 export function WorktreeDiffPanel({
   view,
+  projectName,
+  pendingAction,
+  onApply,
+  onDiscard,
   onClose,
 }: {
   view: WorktreeDiffView;
+  projectName: string;
+  pendingAction?: "review" | "apply" | undefined;
+  onApply: (sessionId: string) => void;
+  onDiscard: (sessionId: string) => void;
   onClose: (reason: WorktreeDiffCloseReason) => void;
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const hasChanges = view.status === "ready" && view.result.files.length > 0;
+  const applied = hasChanges && view.result.applied;
+  const pending = pendingAction !== undefined;
 
   useEffect(() => {
     closeRef.current?.focus();
-  }, [view.instanceKey]);
+  }, [view.instanceKey, applied]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -35,9 +46,20 @@ export function WorktreeDiffPanel({
           <h2>{view.sessionTitle}</h2>
           <p>Changes in its isolated worktree</p>
         </div>
-        <button ref={closeRef} type="button" onClick={() => onClose("button")}>
-          {view.status === "error" ? "Back to terminal" : "Close diff"}
-        </button>
+        <div className="worktree-diff-panel__actions">
+          {applied && <span className="worktree-diff-panel__applied" role="status">Applied to {projectName}</span>}
+          {hasChanges && !applied && <>
+            <button type="button" className="worktree-diff-panel__discard" disabled={pending} onClick={() => onDiscard(view.sessionId)}>
+              Discard
+            </button>
+            <button type="button" disabled={pending} onClick={() => onApply(view.sessionId)}>
+              {pendingAction === "apply" ? "Applying..." : `Apply to ${projectName}`}
+            </button>
+          </>}
+          <button ref={closeRef} type="button" onClick={() => onClose("button")}>
+            {view.status === "error" ? "Back to terminal" : "Close diff"}
+          </button>
+        </div>
       </header>
       {view.status === "loading" && (
         <p className="worktree-diff-panel__state" role="status">Loading worktree diff…</p>
