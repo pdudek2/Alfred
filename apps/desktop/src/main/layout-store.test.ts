@@ -7,9 +7,11 @@ import {
   configureLayoutPersistence,
   getLayoutsSnapshot,
   resetLayoutPersistence,
+  setRailWidthSnapshot,
   setWorkspaceViewStateSnapshot,
 } from "./layout-store.js";
 import { DESKTOP_STATE_VERSION, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { DEFAULT_RAIL_WIDTH, MAX_RAIL_WIDTH } from "../shared/layout-ipc.js";
 
 let temporaryDirectory: string | null = null;
 
@@ -45,6 +47,21 @@ describe("layout-store", () => {
         W2: { selectedSessionId: "codex-1" },
       },
     });
+  });
+
+  it("keeps the rail's width within its range across a restart", async () => {
+    const filePath = await temporaryStateFile();
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
+    await expect(getLayoutsSnapshot()).resolves.not.toHaveProperty("railWidth");
+
+    await setRailWidthSnapshot(1000);
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ railWidth: MAX_RAIL_WIDTH });
+    await setRailWidthSnapshot("wide");
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ railWidth: DEFAULT_RAIL_WIDTH });
+
+    await setRailWidthSnapshot(320);
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ railWidth: 320 });
   });
 
   it("does not expose a retired context drawer value from persisted layout state", async () => {

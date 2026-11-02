@@ -134,6 +134,49 @@ test("starts workers from their parent's row and keeps them under the parent acr
   await page.screenshot({ path: testInfo.outputPath("rail-tree-after-restart.png") });
 });
 
+test("widens the rail by dragging its edge, within its range, and remembers the width", async ({ harness }, testInfo) => {
+  const { app } = harness;
+  let { page } = harness;
+  await setWindowSize(app, page, 1440, 900);
+  await startSession(page, /^Codex/);
+  const rail = page.getByTestId("project-navigator");
+  const handle = page.getByRole("separator", { name: "Resize sidebar" });
+  await expect(rail).toHaveCSS("width", "264px");
+
+  const dragBy = async (distance: number) => {
+    const box = (await handle.boundingBox())!;
+    const y = box.y + 300;
+    await page.mouse.move(box.x + 3, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 3 + distance, y, { steps: 4 });
+    await page.mouse.up();
+  };
+
+  await dragBy(56);
+  await expect(rail).toHaveCSS("width", "320px");
+  await expect(handle).toHaveAttribute("aria-valuenow", "320");
+  await dragBy(-200);
+  await expect(rail).toHaveCSS("width", "264px");
+  await dragBy(500);
+  await expect(rail).toHaveCSS("width", "392px");
+
+  // The widest rail leaves the terminal and Details inside the smallest window.
+  await setWindowSize(app, page, 1120, 720);
+  const details = (await page.getByTestId("context-column").boundingBox())!;
+  expect(details.x + details.width).toBeLessThanOrEqual(1120);
+  expect((await page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])').boundingBox())!.width).toBeGreaterThanOrEqual(400);
+  await page.screenshot({ path: testInfo.outputPath("rail-widest-1120x720.png") });
+  await setWindowSize(app, page, 1440, 900);
+
+  const stateFile = resolveDesktopStateFilePath({ userDataPath: harness.paths.userData });
+  await expect.poll(async () => (JSON.parse(await readFile(stateFile, "utf8")) as { railWidth?: number }).railWidth).toBe(392);
+  ({ page } = await harness.restart());
+  const restarted = page.getByTestId("project-navigator");
+  await expect(restarted).toHaveCSS("width", "392px");
+  await page.getByRole("separator", { name: "Resize sidebar" }).dblclick();
+  await expect(restarted).toHaveCSS("width", "264px");
+});
+
 async function startSession(page: Page, kind: RegExp): Promise<void> {
   await page.getByRole("button", { name: "New", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "New session", exact: true });

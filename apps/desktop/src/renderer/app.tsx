@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   getDesktopAlfredApi,
@@ -15,6 +15,7 @@ import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
+import { RailResizeHandle } from "./components/RailResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
@@ -105,10 +106,12 @@ import type {
   TerminalSessionSnapshot,
   TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc";
-import type {
-  DispatchTargetSnapshot,
-  WorkspaceLayoutsSnapshot,
-  WorkspaceViewState,
+import {
+  clampRailWidth,
+  DEFAULT_RAIL_WIDTH,
+  type DispatchTargetSnapshot,
+  type WorkspaceLayoutsSnapshot,
+  type WorkspaceViewState,
 } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import {
@@ -179,6 +182,7 @@ export function App() {
     status: "loading",
   });
   const [workspaceHydrationRetryIndex, setWorkspaceHydrationRetryIndex] = useState<number>(0);
+  const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
   const [externalSessions, setExternalSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalSessionsError, setExternalSessionsError] = useState<string | null>(null);
   const [externalSessionsLoading, setExternalSessionsLoading] = useState<boolean>(false);
@@ -1242,6 +1246,11 @@ export function App() {
     if (!normalizedTitle) return;
     setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle));
     void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle, ...(byYou ? { byYou: true } : {}) });
+  }, []);
+
+  const handleRailWidthChange = useCallback((width: number) => {
+    setRailWidth(width);
+    void getDesktopLayoutApi()?.setRailWidth(width);
   }, []);
 
   const beginWorktreeAction = useCallback((session: SessionTile, action: WorktreeActionKind): string | null => {
@@ -2450,6 +2459,7 @@ export function App() {
         if (cancelled) return;
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
+        setRailWidth(clampRailWidth(layoutResult.railWidth));
         const hydratedSelectedSessionIds = Object.fromEntries(
           Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
             viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
@@ -2586,6 +2596,7 @@ export function App() {
       </div>
       <section
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
+        style={{ "--rail-width": `${railWidth}px` } as CSSProperties}
         aria-label="Alfred Agent Space desktop shell"
       >
         <ProjectNavigator
@@ -2597,6 +2608,7 @@ export function App() {
           inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
           now={now}
           pinnedSessionId={activePinnedSessionId}
+          railResizer={<RailResizeHandle width={railWidth} onChange={handleRailWidthChange} />}
           sessions={terminalSessions}
           settingsTriggerRef={settingsTriggerRef}
           workspaces={workspaces}

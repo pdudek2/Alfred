@@ -1,29 +1,45 @@
-import type {
-  WorkspaceLayoutsSnapshot,
-  WorkspaceViewState,
-  WorkspaceViewStateSetRequest,
+import {
+  clampRailWidth,
+  type WorkspaceLayoutsSnapshot,
+  type WorkspaceViewState,
+  type WorkspaceViewStateSetRequest,
 } from "../shared/layout-ipc.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 const viewStateByWorkspace = new Map<string, WorkspaceViewState>();
+let railWidth: number | undefined;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 
 export function configureLayoutPersistence(store: PersistedDesktopStateStore): void {
   persistedStateStore = store;
   viewStateByWorkspace.clear();
+  railWidth = undefined;
 }
 
 export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
   if (persistedStateStore) {
     const state = await persistedStateStore.getState();
-    return { viewStateByWorkspace: cloneViewStateByWorkspace(state.viewStateByWorkspace) };
+    return {
+      viewStateByWorkspace: cloneViewStateByWorkspace(state.viewStateByWorkspace),
+      ...(state.railWidth === undefined ? {} : { railWidth: state.railWidth }),
+    };
   }
 
   return {
     viewStateByWorkspace: Object.fromEntries(
       [...viewStateByWorkspace.entries()].map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
+    ...(railWidth === undefined ? {} : { railWidth }),
   };
+}
+
+export async function setRailWidthSnapshot(width: unknown): Promise<void> {
+  const next = clampRailWidth(width);
+  if (persistedStateStore) {
+    await persistedStateStore.updateState((current) => ({ ...current, railWidth: next }));
+    return;
+  }
+  railWidth = next;
 }
 
 export async function setWorkspaceViewStateSnapshot(
@@ -65,6 +81,7 @@ export async function clearLayoutSnapshots(): Promise<void> {
 export function resetLayoutPersistence(): void {
   persistedStateStore = null;
   viewStateByWorkspace.clear();
+  railWidth = undefined;
 }
 
 function cloneViewStateByWorkspace(
