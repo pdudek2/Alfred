@@ -188,7 +188,6 @@ const MAX_BUFFER_LENGTH = 200_000;
 // What saving gets: the tail it keeps and the margin redaction reads before it.
 const MAX_PERSISTED_BUFFER_LENGTH = MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN;
 const MAX_RECENT_TERMINAL_EXITS = 64;
-/** How long discarding a running checkout waits for its agent to exit before the folder goes anyway. */
 /** More sent messages than a terminal's scrollback can show. */
 const MAX_CODEX_VISIBLE_MESSAGES = 1_000;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
