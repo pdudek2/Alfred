@@ -759,7 +759,7 @@ function ManualTerminalTile({
       ? workspaceGitBranch ?? null
       : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
   const locationTitle = workTree ? workTree.root : locationMatchesWorkspaceRoot ? workspaceRootPath : resolvedCwd ?? "runtime cwd";
-  const externalTerminalCwd = resolvedCwd || cwd;
+  const externalTerminalCwd = workTree?.root || resolvedCwd || cwd;
   const closeActionLabel = discardableSession ? "Discard" : "Close";
   const closeActionTitle = discardableSession ? "Discard this session" : "Close terminal";
   const runtimeBindingKey = runtimeId

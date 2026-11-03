@@ -173,6 +173,11 @@ describe("AgentTimelinePanel", () => {
     const worktree = "/home/.codex/worktrees/a1f3/alfred";
     rerender(panel({ ...session, workTree: { root: worktree, branch: "fix" } }));
     expect(screen.getByTitle(worktree)).toHaveTextContent(worktree);
+    const locationName = () => screen.getByRole("region", { name: "Location" }).querySelector(".details-location-name");
+    expect(locationName()).toHaveTextContent(/^alfred$/);
+    rerender(panel({ ...session, workTree: { root: "/repo/alfred/.worktrees/fix", branch: "fix" } }));
+    expect(locationName()).toHaveTextContent(/^w1\/\.worktrees\/fix$/);
+    rerender(panel({ ...session, workTree: { root: worktree, branch: "fix" } }));
     await user.click(within(handoff).getByRole("button", { name: "Show in Finder for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Open in external terminal for codex — feature" }));
     expect(onRevealActivityFile).toHaveBeenLastCalledWith(".", worktree);

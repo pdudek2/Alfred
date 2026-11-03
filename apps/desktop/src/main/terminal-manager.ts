@@ -136,8 +136,6 @@ type TerminalSession = {
   transcriptPath?: string;
   changeTally?: ChangeTally;
   tallyingChanges?: boolean;
-  /** The folder `workTree` was resolved from. */
-  workTreeFolder?: string;
   workTree?: TerminalWorkTree;
   namedByYou?: true;
   oscCarry: string;
@@ -1654,8 +1652,7 @@ async function tallyAgentChanges(session: TerminalSession): Promise<void> {
       sendSignalUpdate(session, { changeStats: changeStats(session.changeTally) });
     }
     const folder = workingFolder(session.changeTally);
-    if (folder && folder !== session.workTreeFolder) {
-      session.workTreeFolder = folder;
+    if (folder) {
       const workTree = await resolveWorkTree(folder);
       if (workTree?.root !== session.workTree?.root || workTree?.branch !== session.workTree?.branch) {
         if (workTree) session.workTree = workTree;

@@ -4,7 +4,7 @@ import { activitySentence, presentActivityEvents } from "../../shared/activity-p
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
-import { pathMatchesWorkspace } from "../workspace-path-matching";
+import { pathMatchesWorkspace, workTreeFolderLabel } from "../workspace-path-matching";
 import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 
@@ -65,6 +65,8 @@ export function AgentTimelinePanel({
   // The session starts in the project; an agent that made its own worktree works there instead.
   const folder = session.workTree && !pathMatchesWorkspace(session.cwd, session.workTree.root) ? session.workTree.root : session.cwd;
   const handoffActions = sessionHandoffActions(session, folder);
+  const workTreeLabel = folder === session.cwd ? undefined : workTreeFolderLabel(folder, session.cwd);
+  const locationTitle = workTreeLabel && pathMatchesWorkspace(folder, session.cwd) ? `${locationName}/${workTreeLabel}` : workTreeLabel ?? locationName;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   // Why a draft cannot launch, as its plan row says it.
   const blockLabel = session.launchPreflight?.status === "blocked" ? session.launchPreflight.label : undefined;
@@ -302,7 +304,7 @@ export function AgentTimelinePanel({
         </section>
         <section className="details-section" aria-label="Location">
           <header className="details-section-heading"><h2>Location</h2></header>
-          <p className="details-location-name">{locationName}</p>
+          <p className="details-location-name">{locationTitle}</p>
           <p className="details-location-path" title={folder}>{folder || "Default project folder"}</p>
         {handoffActions.length > 0 && (
           <div
