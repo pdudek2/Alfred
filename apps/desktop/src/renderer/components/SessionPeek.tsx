@@ -1,4 +1,4 @@
-import { Folder, GitBranch } from "lucide-react";
+import { Folder } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { activitySentence } from "../../shared/activity-presentation";
@@ -34,7 +34,6 @@ export function SessionPeek({ id, session, kind, projectLabel, now, anchor }: {
       <p className="session-peek-title">{session.title}</p>
       <div className="session-peek-facts">
         <span><Folder aria-hidden="true" size={12} /><span>{projectLabel}</span></span>
-        {session.branchName && <span><GitBranch aria-hidden="true" size={12} /><span>{session.branchName}</span></span>}
         <span>
           <span className={`session-peek-kind kind-${kind}`} aria-hidden="true"><TileKindIcon kind={kind} size={12} /></span>
           <span>{tileKindMeta(kind).label}</span>
