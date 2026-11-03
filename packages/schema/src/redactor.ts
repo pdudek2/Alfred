@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 
 import type { PrivacyMode } from "./enums.js";
 
@@ -153,6 +154,8 @@ function redactSecretText(value: string, options: RedactValueOptions = STANDARD_
 }
 
 function redactedPathMarker(value: string): string {
+  const home = homedir();
+  if (value === home || value.startsWith(`${home}/`)) return `~${value.slice(home.length)}`;
   const digest = createHash("sha256").update(value).digest("hex").slice(0, 8);
   return `[redacted-path:${digest}]`;
 }
