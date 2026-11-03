@@ -390,6 +390,14 @@ function installDesktopBridge(
     const session = terminalSnapshots.find((candidate) => candidate.id === request.id);
     return session ? { state: "running", snapshot: session } : { state: "missing" };
   });
+  // A tile subscribes in an effect that can run after it is on screen, then reconciles or creates its runtime;
+  // the main process would replay an event the tile missed, this static bridge cannot.
+  const waitForTileListening = ({ id, clientId }: { id: string; clientId?: string }) =>
+    waitFor(() => {
+      const listening = reconcileTerminal.mock.calls.some(([request]) => request.id === id)
+        || createTerminal.mock.calls.some(([request]) => request.clientId === clientId);
+      if (!listening) throw new Error(`No terminal tile is listening for ${id}`);
+    });
   const terminal: TerminalApi = {
     create: createTerminal,
     forget: forgetTerminal,
@@ -505,11 +513,13 @@ function installDesktopBridge(
       for (const listener of dataListeners) listener(event);
     },
     emitData: async (event: TerminalDataEvent) => {
+      await waitForTileListening(event);
       await act(async () => {
         for (const listener of dataListeners) listener(event);
       });
     },
     emitExit: async (event: TerminalExitEvent) => {
+      await waitForTileListening(event);
       await act(async () => {
         for (const listener of exitListeners) listener(event);
       });
@@ -5826,7 +5836,7 @@ describe("App integration", () => {
 
   it("routes Claude authentication and Codex MCP runtime blockers through Needs you back to Work", async () => {
     const user = userEvent.setup();
-    const bridge = installDesktopBridge(
+    installDesktopBridge(
       undefined,
       null,
       [
@@ -5880,9 +5890,6 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await act(async () => {
-      await bridge.emitExit({ id: "runtime-claude-auth", exitCode: 0 });
-    });
     await openNeedsYou(user);
 
     const popover = screen.getByRole("dialog", { name: "Needs you" });
