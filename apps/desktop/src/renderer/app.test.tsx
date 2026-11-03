@@ -6657,6 +6657,9 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("zsh 9 is now failed.");
     });
+    // The strip says why, beside Resume.
+    expect(screen.getByText("Failed with exit code 1.")).toBeInTheDocument();
+    expect(screen.queryByText("This session failed.")).not.toBeInTheDocument();
   });
 
   it("surfaces the latest important activity on the terminal tile", async () => {

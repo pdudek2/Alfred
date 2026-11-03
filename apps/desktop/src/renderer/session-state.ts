@@ -28,6 +28,8 @@ export type SessionTile = {
   cwd: string;
   createdAt?: number;
   endedAt?: number;
+  /** What the ended process exited with, while it stays ended. */
+  exitCode?: number;
   source: "manual" | "alfred";
   stage: "staged" | "live";
   stagedReviewStatus?: "checking" | "edited";
@@ -262,7 +264,7 @@ export function markSessionExited(
       id: runtimeId,
       ...(clientId === undefined ? {} : { clientId }),
     })
-      ? { ...session, runtimeId, runtimeStatus, endedAt: now }
+      ? { ...session, runtimeId, runtimeStatus, endedAt: now, exitCode }
       : session,
   );
 }
@@ -276,6 +278,7 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
       runtimeId: _runtimeId,
       createdAt: _createdAt,
       endedAt: _endedAt,
+      exitCode: _exitCode,
       // What the ended process reported; the new one reports its own.
       agentSignal: _agentSignal,
       startScreen: _startScreen,
