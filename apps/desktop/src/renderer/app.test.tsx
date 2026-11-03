@@ -5836,7 +5836,7 @@ describe("App integration", () => {
 
   it("routes Claude authentication and Codex MCP runtime blockers through Needs you back to Work", async () => {
     const user = userEvent.setup();
-    installDesktopBridge(
+    const bridge = installDesktopBridge(
       undefined,
       null,
       [
@@ -5890,6 +5890,12 @@ describe("App integration", () => {
     );
 
     render(<App />);
+    await bridge.emitExit({ id: "runtime-claude-auth", exitCode: 0 });
+    await bridge.emitExit({ id: "runtime-codex-mcp", exitCode: 1 });
+    expect(screen.getByRole("button", { name: "Needs you, 2 sessions" })).toBeInTheDocument();
+    expect(railRows()).toEqual(["Claude authentication: needs-you", "Codex MCP: needs-you"]);
+    expect(screen.getByRole("article", { name: /Claude authentication/ }).querySelector(".session-strip"))
+      .toHaveTextContent("Not logged in");
     await openNeedsYou(user);
 
     const popover = screen.getByRole("dialog", { name: "Needs you" });

@@ -275,5 +275,10 @@ describe("sessionPreviewLine", () => {
     const line = sessionPreviewLine({ activityEvents: [command, approval, warning] }, { kind: "needs-you", label: "needs you", reason: "approval" });
     expect(line).toBe(waitingSentence(approval));
     expect(line).toMatch(/^Wants to run /);
+
+    const blocker: SessionActivityEvent = { id: "5", kind: "error", title: "Runtime blocked", detail: "Not logged in", at: 5 };
+    const failed: SessionActivityEvent = { id: "6", kind: "error", title: "Process failed", detail: "Failed with exit code 1", at: 6 };
+    expect(sessionPreviewLine({ activityEvents: [blocker, failed] }, { kind: "needs-you", label: "needs you", reason: "runtime-blocker" }))
+      .toBe("Not logged in");
   });
 });

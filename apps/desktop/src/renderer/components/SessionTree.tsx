@@ -1,6 +1,7 @@
 import { ChevronDown, Plus } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { activitySentence, pendingApproval, waitingSentence } from "../../shared/activity-presentation";
+import { pendingRuntimeBlocker } from "../../shared/session-activity";
 import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -323,6 +324,10 @@ export function sessionPreviewLine(
   }
   const approval = status.kind === "needs-you" && status.reason === "approval" ? pendingApproval(session.activityEvents) : undefined;
   if (approval) return waitingSentence(approval);
+  const blocker = status.kind === "needs-you" && status.reason === "runtime-blocker"
+    ? pendingRuntimeBlocker(session.activityEvents)
+    : undefined;
+  if (blocker) return activitySentence(blocker);
   const events = session.activityEvents ?? [];
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!;

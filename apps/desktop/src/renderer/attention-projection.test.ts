@@ -45,7 +45,7 @@ describe("buildAttentionProjection", () => {
             detail: "Not logged in",
             payload: { type: "error", message: "Not logged in" },
             at: 100,
-          }],
+          }, { id: "exit", kind: "lifecycle", title: "Process exited", detail: "Session ended", at: 110 }],
           lastOutputAt: 100,
         }),
         session({

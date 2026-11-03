@@ -1,5 +1,5 @@
 import type { SessionTile } from "./session-state";
-import { runtimeBlockerReason } from "../shared/session-activity";
+import { pendingRuntimeBlocker } from "../shared/session-activity";
 
 export type LocalTerminalStatus = "connecting" | "ready" | "browser" | "exited" | "error" | "restored";
 
@@ -117,8 +117,8 @@ export function sessionState(
       : state("draft");
   }
 
+  if (pendingRuntimeBlocker(session.activityEvents)) return needsYou("runtime-blocker");
   const latestEvent = session.activityEvents?.at(-1);
-  if (latestEvent && runtimeBlockerReason(latestEvent)) return needsYou("runtime-blocker");
 
   if (localStatus === "browser" || session.runtimeStatus === "unavailable") return state("unavailable");
   if (localStatus === "error" || session.runtimeStatus === "error") return state("failed");

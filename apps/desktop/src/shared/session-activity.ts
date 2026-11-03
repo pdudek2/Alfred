@@ -269,6 +269,17 @@ export function runtimeBlockerReason(activity: RuntimeBlockerActivity): string |
   return activity.kind === "error" ? runtimeBlockerReasonFromLine(activity.detail) : null;
 }
 
+/** The runtime blocker a session still waits on. Its process exiting does not answer it; a resume or new activity does. */
+export function pendingRuntimeBlocker<T extends SessionActivityEvent>(events: readonly T[] | undefined): T | undefined {
+  const latest = events?.slice().reverse().find((event) => !isProcessExit(event));
+  return latest && runtimeBlockerReason(latest) ? latest : undefined;
+}
+
+// The titles the renderer and the main process record an exit under.
+function isProcessExit(event: SessionActivityEvent): boolean {
+  return event.title === "Process exited" || event.title === "Process failed";
+}
+
 function runtimeBlockerReasonFromLine(line: string): string | null {
   if (/\b(?:not logged in|login required|authentication required|sign in required)\b/i.test(line)) {
     return truncateActivityDetail(line);

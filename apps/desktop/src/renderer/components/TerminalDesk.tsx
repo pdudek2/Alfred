@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { activitySentence, pendingApproval, sessionExitSentence, waitingSentence } from "../../shared/activity-presentation";
+import { pendingRuntimeBlocker } from "../../shared/session-activity";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
 import { codexSentMessagesAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";
@@ -884,7 +885,9 @@ function ManualTerminalTile({
   // What the agent waits for, in one sentence, when the focused session needs you: "Claude wants to edit app.tsx".
   const waitingOn = displayStatus.kind === "needs-you" && displayStatus.reason === "approval"
     ? pendingApproval(activityEvents)
-    : latestActivity;
+    : displayStatus.kind === "needs-you" && displayStatus.reason === "runtime-blocker"
+      ? pendingRuntimeBlocker(activityEvents)
+      : latestActivity;
   const attentionCopy = displayStatus.kind === "needs-you" && displayStatus.reason === "start-screen" && startScreen
     ? codexStartScreenSentence(startScreen)
     : displayStatus.kind === "needs-you" && waitingOn

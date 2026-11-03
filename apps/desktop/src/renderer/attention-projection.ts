@@ -5,7 +5,7 @@ import { sessionRelaunchSafety } from "./relaunch-safety";
 import { sessionState, type SessionDisplayStatus } from "./session-status";
 import { isLaunchBlocked, type SessionTile } from "./session-state";
 import { checkSafety } from "../shared/terminal-command-safety";
-import { runtimeBlockerReason } from "../shared/session-activity";
+import { pendingRuntimeBlocker, runtimeBlockerReason } from "../shared/session-activity";
 
 export type AttentionKind =
   | "agent-waiting"
@@ -86,9 +86,9 @@ function projectRuntimeBlocker(
   workspace: AttentionWorkspace,
   status: SessionDisplayStatus,
 ): AttentionProjection | null {
-  const latestEvent = session.activityEvents?.at(-1);
-  const reason = latestEvent ? runtimeBlockerReason(latestEvent) : null;
-  if (status.kind !== "needs-you" || status.reason !== "runtime-blocker" || !latestEvent || !reason) return null;
+  const blocker = pendingRuntimeBlocker(session.activityEvents);
+  const reason = blocker ? runtimeBlockerReason(blocker) : null;
+  if (status.kind !== "needs-you" || status.reason !== "runtime-blocker" || !blocker || !reason) return null;
 
   return {
     ...projectionIdentity(session, workspace),
@@ -96,7 +96,7 @@ function projectRuntimeBlocker(
     section: "needs-you",
     blocksAgent: true,
     rank: 0,
-    attentionAt: latestEvent.at,
+    attentionAt: blocker.at,
     reason,
     provenance: "runtime",
     ...projectionCommand(session),

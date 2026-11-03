@@ -107,6 +107,21 @@ describe("sessionState", () => {
     expect(
       sessionState(liveSession({ runtimeStatus: "exited", activityEvents: [blocker], lastOutputAt: 1_000 }), "ready", 2_000),
     ).toEqual({ kind: "needs-you", label: "needs you", reason: "runtime-blocker" });
+    // The renderer and the main process each record the exit; neither answers the blocker.
+    const exited: SessionActivityEvent = { id: "exit", kind: "lifecycle", title: "Process exited", detail: "Session ended", at: 1_500 };
+    const failed: SessionActivityEvent = { id: "fail", kind: "error", title: "Process failed", detail: "Failed with exit code 1", at: 1_500 };
+    expect(sessionState(liveSession({ runtimeStatus: "exited", activityEvents: [blocker, exited, exited] }), "ready", 2_000))
+      .toEqual({ kind: "needs-you", label: "needs you", reason: "runtime-blocker" });
+    expect(sessionState(liveSession({ runtimeStatus: "error", activityEvents: [blocker, exited, failed] }), "ready", 2_000))
+      .toEqual({ kind: "needs-you", label: "needs you", reason: "runtime-blocker" });
+    // Without a blocker the exit is Done or Failed, and resuming answers the blocker.
+    const progress: SessionActivityEvent = { id: "progress", kind: "output", title: "Progress reported", detail: "Build complete", at: 1_000 };
+    expect(sessionState(liveSession({ runtimeStatus: "exited", activityEvents: [progress, exited] }), "ready", 2_000).kind).toBe("done");
+    expect(sessionState(liveSession({ runtimeStatus: "error", activityEvents: [progress, exited, failed] }), "ready", 2_000).kind)
+      .toBe("failed");
+    const resuming: SessionActivityEvent = { id: "resume", kind: "lifecycle", title: "Resuming session", detail: "", at: 1_800 };
+    expect(sessionState(liveSession({ runtimeStatus: "starting", activityEvents: [blocker, exited, resuming] }), "connecting").kind)
+      .toBe("running");
     expect(
       sessionState(
         liveSession({
