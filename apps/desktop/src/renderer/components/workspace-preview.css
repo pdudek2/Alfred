@@ -98,7 +98,7 @@
 
 .workspace-preview-icon:focus-visible,
 .workspace-preview-address:focus-within,
-.workspace-preview-offline-actions button:focus-visible {
+.workspace-preview-retry:focus-visible {
   outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
@@ -140,10 +140,7 @@
 }
 
 .workspace-preview-fallback h2,
-.workspace-preview-fallback p,
-.workspace-preview-fallback dl,
-.workspace-preview-fallback dt,
-.workspace-preview-fallback dd {
+.workspace-preview-fallback p {
   margin: 0;
 }
 
@@ -152,51 +149,20 @@
   font: 500 14px/20px var(--sans);
 }
 
-.workspace-preview-fallback p,
-.workspace-preview-fallback code {
+.workspace-preview-fallback p {
+  max-width: min(440px, 100%);
   font: 400 13px/18px var(--sans);
-}
-
-.workspace-preview-fallback dl {
-  width: min(344px, 100%);
-  margin-top: 6px;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 0;
-  display: grid;
-  gap: 4px;
-}
-
-.workspace-preview-fallback dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font: 400 12px/16px var(--sans);
-}
-
-.workspace-preview-fallback dd {
-  color: var(--text-secondary);
-}
-
-.workspace-preview-fallback code {
-  width: min(344px, 100%);
-  color: var(--text-secondary);
   overflow-wrap: anywhere;
+}
+
+.workspace-preview-offline-url {
+  color: var(--text-secondary);
   user-select: text;
 }
 
-.workspace-preview-offline-actions {
-  margin-top: 6px;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.workspace-preview-offline-actions button {
+.workspace-preview-retry {
   height: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  margin-top: 6px;
   border: 0;
   border-radius: 10px;
   padding: 0 12px;
@@ -207,6 +173,6 @@
   cursor: pointer;
 }
 
-.workspace-preview-offline-actions button:hover {
+.workspace-preview-retry:hover {
   background: var(--surface-control-hover);
 }

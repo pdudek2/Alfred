@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ExternalLink, RotateCw, WifiOff } from "lucide-react";
+import { ExternalLink, RotateCw } from "lucide-react";
 import type { PreviewUrlCandidate } from "../preview-state";
 import "./workspace-preview.css";
 
@@ -27,11 +27,6 @@ export function WorkspacePreviewPanel({
 }: WorkspacePreviewPanelProps) {
   const selected = candidates.find((candidate) => candidate.url === selectedUrl) ?? candidates[0] ?? null;
   const [reachability, setReachability] = useState<PreviewReachability>("checking");
-  const [hadSuccessfulCheck, setHadSuccessfulCheck] = useState(false);
-
-  useEffect(() => {
-    setHadSuccessfulCheck(false);
-  }, [selected?.url]);
 
   // The address, not the candidate object: terminal output recomputes the candidates, and each new object asked again.
   const selectedAddress = selected?.url;
@@ -52,9 +47,7 @@ export function WorkspacePreviewPanel({
       signal: controller.signal,
     })
       .then(() => {
-        if (disposed) return;
-        setReachability("online");
-        setHadSuccessfulCheck(true);
+        if (!disposed) setReachability("online");
       })
       .catch(() => {
         if (!disposed) setReachability("offline");
@@ -141,20 +134,9 @@ export function WorkspacePreviewPanel({
         )}
         {selected && reachability === "offline" && (
           <div className="workspace-preview-fallback" role="status">
-            <WifiOff aria-hidden="true" size={18} />
             <h2>Preview is offline</h2>
-            <p>The local app is no longer responding.</p>
-            <dl>
-              <div><dt>Source</dt><dd>{selected.sessionTitle}</dd></div>
-              <div><dt>Last successful check</dt><dd>{hadSuccessfulCheck ? "Earlier" : "Not yet"}</dd></div>
-            </dl>
-            <code>{selected.url}</code>
-            <div className="workspace-preview-offline-actions">
-              <button type="button" onClick={onRefresh}>
-                <RotateCw aria-hidden="true" size={13} />
-                Retry
-              </button>
-            </div>
+            <p><span className="workspace-preview-offline-url">{selected.url}</span> stopped responding.</p>
+            <button type="button" className="workspace-preview-retry" onClick={onRefresh}>Retry</button>
           </div>
         )}
         {!selected && (
