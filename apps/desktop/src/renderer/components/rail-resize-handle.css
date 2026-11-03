@@ -1,0 +1,33 @@
+.rail-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.rail-resize-handle:focus-visible {
+  outline: none;
+}
+
+.rail-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.rail-resize-handle:hover::after,
+.rail-resize-handle:active::after {
+  background: var(--text-muted);
+}
+
+.rail-resize-handle:focus-visible::after {
+  width: 2px;
+  background: var(--focus-border);
+}

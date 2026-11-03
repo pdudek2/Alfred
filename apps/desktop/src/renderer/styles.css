@@ -167,7 +167,7 @@ button {
   background: var(--surface-canvas);
   display: grid;
   /* v4 canvas: a full-height rail, then the top bar over the content. v5: 264px so worker titles fit in the tree. */
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: var(--rail-width, 264px) minmax(0, 1fr);
   grid-template-rows: 52px auto minmax(0, 1fr);
 }
 
@@ -529,6 +529,7 @@ button {
 .project-navigator {
   grid-column: 1;
   grid-row: 1 / -1;
+  position: relative;
   min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--border);

@@ -230,6 +230,7 @@ function installDesktopBridge(
   createTerminal: ReturnType<typeof vi.fn>;
   forgetTerminal: ReturnType<typeof vi.fn>;
   getLayouts: ReturnType<typeof vi.fn>;
+  setRailWidth: ReturnType<typeof vi.fn>;
   getStagedPlans: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   killTerminal: ReturnType<typeof vi.fn>;
@@ -290,6 +291,7 @@ function installDesktopBridge(
   );
   const getLayouts = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
+  const setRailWidth = vi.fn().mockResolvedValue(undefined);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
   const bindFolderToWorkspace = vi.fn().mockImplementation((request: { workspaceId: string }) =>
@@ -465,7 +467,7 @@ function installDesktopBridge(
       revealStateFile,
       updatePrivacySettings,
     },
-    layout: { getLayouts, setWorkspaceViewState },
+    layout: { getLayouts, setRailWidth, setWorkspaceViewState },
     sessions: {
       listExternalSessions,
       releaseListSnapshot,
@@ -494,6 +496,7 @@ function installDesktopBridge(
     createTerminal,
     forgetTerminal,
     getLayouts,
+    setRailWidth,
     getRuntimeStatus,
     getStagedPlans,
     killTerminal,
@@ -1196,6 +1199,30 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toHaveClass("selected");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
+  });
+
+  it("restores the rail's width and changes it from the keyboard and by double click", async () => {
+    const { setRailWidth } = installDesktopBridge(undefined, null, [], undefined, { viewStateByWorkspace: {}, railWidth: 300 });
+
+    render(<App />);
+
+    const handle = await screen.findByRole("separator", { name: "Resize sidebar" });
+    await waitFor(() => expect(handle).toHaveAttribute("aria-valuenow", "300"));
+    expect(document.querySelector<HTMLElement>(".desktop-frame")!.style.getPropertyValue("--rail-width")).toBe("300px");
+
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(setRailWidth).toHaveBeenLastCalledWith(316);
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    fireEvent.keyDown(handle, { key: "End" });
+    expect(setRailWidth).toHaveBeenLastCalledWith(392);
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(setRailWidth).toHaveBeenLastCalledWith(392);
+
+    fireEvent.doubleClick(handle);
+    expect(setRailWidth).toHaveBeenLastCalledWith(264);
+    expect(document.querySelector<HTMLElement>(".desktop-frame")!.style.getPropertyValue("--rail-width")).toBe("264px");
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(handle).toHaveAttribute("aria-valuenow", "264");
   });
 
   it("opens the global Rename action from Sessions on the Work surface", async () => {

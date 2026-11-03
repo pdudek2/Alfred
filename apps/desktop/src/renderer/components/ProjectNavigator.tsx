@@ -34,6 +34,7 @@ export type ProjectNavigatorProps = {
   inert?: boolean;
   now: number;
   pinnedSessionId: string | null;
+  railResizer?: ReactNode;
   sessions: SessionTile[];
   settingsTriggerRef?: Ref<HTMLButtonElement>;
   workspaces: ProjectNavigatorWorkspace[];
@@ -109,6 +110,7 @@ export function ProjectNavigator({
   inert = false,
   now,
   pinnedSessionId,
+  railResizer,
   sessions,
   settingsTriggerRef,
   workspaces,
@@ -329,6 +331,7 @@ export function ProjectNavigator({
       <button ref={settingsTriggerRef} type="button" className="project-navigator-settings" onClick={onOpenSettings}>
         Settings
       </button>
+      {railResizer}
     </aside>
   );
 }

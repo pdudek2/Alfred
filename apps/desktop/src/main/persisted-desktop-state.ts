@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc.js";
+import { clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
   SessionActivityEvent,
   SessionActivityEventKind,
@@ -53,6 +53,7 @@ export type DesktopWindowState = {
 
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
+  railWidth?: number;
   stagedPlans: Record<string, AlfredStagedPlanSnapshot>;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
   windowState: DesktopWindowState;
@@ -269,6 +270,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     activeWorkspaceId,
     // Builds before the retired tile grid was removed also saved layoutsByWorkspace and a work mode; both are dropped.
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
+    ...(typeof value.railWidth === "number" ? { railWidth: clampRailWidth(value.railWidth) } : {}),
     stagedPlans: normalizeStagedPlans(value.stagedPlans, value.stagedPlan, activeWorkspaceId),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions, privacySettings),
     windowState: normalizeWindowState(value.windowState),
@@ -827,6 +829,7 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
     viewStateByWorkspace: Object.fromEntries(
       Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
+    ...(state.railWidth === undefined ? {} : { railWidth: state.railWidth }),
     stagedPlans: Object.fromEntries(Object.entries(state.stagedPlans).map(([id, plan]) => [id, cloneStagedPlan(plan)])),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
     windowState: cloneWindowState(state.windowState),
