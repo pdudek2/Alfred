@@ -2923,6 +2923,7 @@ describe("App integration", () => {
 
     await selectSurface(user, "Details");
     const activity = await screen.findByRole("region", { name: "Activity" });
+    await user.click(within(activity).getByRole("button", { name: "Show 40 tool calls" }));
 
     expect(within(activity).getByText("Ran overflow-a")).toBeInTheDocument();
     expect(within(activity).getByText("Ran overflow-b")).toBeInTheDocument();

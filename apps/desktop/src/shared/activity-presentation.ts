@@ -13,24 +13,38 @@ const DEFAULT_VISIBLE_LIMIT = 8;
 export function presentActivityEvents(
   events: SessionActivityEvent[],
   {
+    hideWork = false,
     includeRaw = false,
     limit = DEFAULT_VISIBLE_LIMIT,
   }: {
+    /** Routine work (reads, commands, tool calls) goes with the raw events, leaving the session's state changes. */
+    hideWork?: boolean;
     includeRaw?: boolean;
     limit?: number;
   } = {},
 ): PresentedActivity {
   // Newest first; events of the same millisecond (a burst of hooks, one output chunk) keep their order, latest on top.
   const ordered = [...events].reverse().sort((left, right) => right.at - left.at);
-  const rawEvents = ordered.filter((event) => classifyActivityPresentationLayer(event) === "raw");
-  const primaryEvents = ordered.filter((event) => classifyActivityPresentationLayer(event) !== "raw");
-  const sourceEvents = includeRaw ? ordered : primaryEvents;
+  const hidden = (event: SessionActivityEvent) => {
+    const layer = classifyActivityPresentationLayer(event);
+    return layer === "raw" || (hideWork && layer === "work");
+  };
+  const rawEvents = ordered.filter(hidden);
+  const sourceEvents = includeRaw ? ordered : ordered.filter((event) => !hidden(event));
 
   return {
     hiddenRawCount: includeRaw ? 0 : rawEvents.length,
     rawEvents,
-    visibleEvents: sourceEvents.slice(0, limit),
+    visibleEvents: withoutRepeatedPrompts(sourceEvents).slice(0, limit),
   };
+}
+
+// The same message sent again, with nothing shown between, is one ask; the first one stays.
+function withoutRepeatedPrompts(events: SessionActivityEvent[]): SessionActivityEvent[] {
+  return events.filter((event, index) => {
+    const older = events[index + 1];
+    return !(event.kind === "prompt" && older?.kind === "prompt" && older.title === event.title && older.detail === event.detail);
+  });
 }
 
 export function classifyActivityPresentationLayer(event: SessionActivityEvent): ActivityPresentationLayer {
@@ -39,12 +53,14 @@ export function classifyActivityPresentationLayer(event: SessionActivityEvent): 
   switch (event.kind) {
     case "approval":
     case "error":
+    case "plan":
     case "prompt":
     case "warning":
       return "signal";
+    // A change to a file is what the session did; reading one is how it got there.
     case "file":
+      return event.payload?.type === "file" && event.payload.operation === "read" ? "work" : "signal";
     case "command":
-    case "plan":
     case "tool":
       return "work";
     case "output":

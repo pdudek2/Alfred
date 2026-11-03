@@ -1,4 +1,4 @@
-import { stripTerminalControlSequences, stripTerminalControlSequencesWithRemainder } from "./session-title.js";
+import { stripTerminalControlSequences, stripTerminalControlSequencesWithRemainder, withBackspacesApplied } from "./session-title.js";
 
 export type SessionActivityEventKind =
   | "approval"
@@ -49,6 +49,8 @@ type RuntimeBlockerActivity = Pick<SessionActivityInput, "detail" | "kind">;
 
 export type TerminalOutputActivityStreamState = {
   carry: string;
+  /** The line you sent a shell at its prompt, until the shell echoes it after the prompt. */
+  echo?: string;
   terminalControlCarry?: string;
 };
 
@@ -70,19 +72,31 @@ export function classifyTerminalOutputChunk(
   const normalized = `${state.carry}${stripped.text}`.replace(/\r/g, "\n");
   const segments = normalized.split("\n");
   const unfinished = normalized.endsWith("\n") ? "" : (segments.pop() ?? "");
+  let echo = state.echo;
   const activities = segments.flatMap((segment) => {
-    const line = segment.trim();
+    // zsh echoes a typed-ahead first letter, then takes it back as its line editor redraws the line.
+    const line = withBackspacesApplied(segment).trim();
     if (!line) return [];
+    // The first line after Enter is the shell's echo of its prompt and your line, not output: the step is the command
+    // itself, or nothing when a recalled or edited line differs from what was typed.
+    if (echo) {
+      const command = echo;
+      echo = undefined;
+      return line.endsWith(command)
+        ? [{ kind: "command", title: "Ran command", detail: truncateActivityDetail(command), payload: { type: "command", command } } satisfies SessionActivityInput]
+        : [];
+    }
     const activity = classifyOutputLine(line);
     return activity ? [activity] : [];
   });
-  const prompt = selfTerminatingApproval(unfinished);
+  const prompt = selfTerminatingApproval(withBackspacesApplied(unfinished));
   if (prompt) activities.push(prompt);
 
   return {
     activities,
     state: {
       carry: prompt ? "" : unfinished.slice(-MAX_ACTIVITY_CARRY),
+      ...(echo ? { echo } : {}),
       ...(stripped.remainder ? { terminalControlCarry: boundedControlCarry(stripped.remainder) } : {}),
     },
   };

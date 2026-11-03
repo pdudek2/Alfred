@@ -56,13 +56,19 @@ export function terminalOutputLines(value: string): string[] {
     let end = line.length;
     while (end > 0 && line[end - 1] === "\r") end -= 1;
     const visible = line.slice(0, end);
-    const characters: string[] = [];
-    for (const character of visible.slice(visible.lastIndexOf("\r") + 1)) {
-      if (character === "\b") characters.pop();
-      else characters.push(character);
-    }
-    return characters.join("").trimEnd();
+    return withBackspacesApplied(visible.slice(visible.lastIndexOf("\r") + 1)).trimEnd();
   });
+}
+
+/** A line as it reads once each backspace has taken back the character before it. */
+export function withBackspacesApplied(line: string): string {
+  if (!line.includes("\b")) return line;
+  const characters: string[] = [];
+  for (const character of line) {
+    if (character === "\b") characters.pop();
+    else characters.push(character);
+  }
+  return characters.join("");
 }
 
 export function stripTitleControlCharacters(value: string): string {

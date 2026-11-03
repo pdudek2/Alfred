@@ -172,6 +172,40 @@ describe("activity presentation", () => {
     expect(classifyActivityPresentationLayer(events[1]!)).toBe("signal");
   });
 
+  it("can leave only state changes, with routine work counted among the hidden steps", () => {
+    const step = (id: string, event: Omit<SessionActivityEvent, "at" | "id">): SessionActivityEvent => ({ ...event, id, at: 1 });
+    const asked = (id: string) => step(id, { kind: "prompt", title: "You asked", detail: "Refuse a stale Apply" });
+    const file = (id: string, operation: "edited" | "read" | "wrote") =>
+      step(id, { kind: "file", title: "File activity", detail: id, payload: { type: "file", operation, path: `src/${id}.ts` } });
+    const events: SessionActivityEvent[] = [
+      asked("asked"),
+      file("read", "read"),
+      asked("asked-again"),
+      step("search", { kind: "tool", title: "Used WebSearch", detail: "git", payload: { type: "tool", name: "WebSearch", input: "git" } }),
+      step("notion", { kind: "tool", title: "Used mcp__notion__notion-fetch", detail: "", payload: { type: "tool", name: "mcp__notion__notion-fetch", input: "" } }),
+      step("test", { kind: "command", title: "Ran command", detail: "pnpm test", payload: { type: "command", command: "pnpm test" } }),
+      file("edit", "edited"),
+      file("write", "wrote"),
+      step("hook", { kind: "output", title: "Progress reported", detail: "PostToolUse hook (completed)" }),
+      step("plan", { kind: "plan", title: "Plan updated", detail: "", payload: { type: "plan", summary: "" } }),
+      step("failed", { kind: "error", title: "Error reported", detail: "build failed", payload: { type: "error", message: "build failed" } }),
+      step("exit", { kind: "lifecycle", title: "Process exited", detail: "Exited with code 1." }),
+      asked("asked-later"),
+    ];
+
+    const signal = presentActivityEvents(events, { hideWork: true, limit: events.length });
+    // The repeated ask collapses once the read between them is hidden; an ask after other steps stays.
+    expect(signal.visibleEvents.map((event) => event.id)).toEqual(["asked-later", "exit", "failed", "plan", "write", "edit", "asked"]);
+    expect(signal.rawEvents.map((event) => event.id)).toEqual(["hook", "test", "notion", "search", "read"]);
+    expect(signal.hiddenRawCount).toBe(5);
+
+    const all = presentActivityEvents(events, { hideWork: true, includeRaw: true, limit: events.length });
+    expect(all.visibleEvents).toHaveLength(events.length);
+    expect(all.hiddenRawCount).toBe(0);
+    // Without the option, as an orchestrator reads its worker, routine work stays in the steps.
+    expect(presentActivityEvents(events, { limit: events.length }).visibleEvents.map((event) => event.id)).toContain("test");
+  });
+
   it("can include raw events explicitly for inspection", () => {
     const events: SessionActivityEvent[] = [
       { ...baseEvent, id: "raw", kind: "output", title: "Progress reported", detail: "PostToolUse hook (completed)" },

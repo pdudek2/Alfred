@@ -682,7 +682,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     if (!session) return;
     const input = consumeAgentCommandInput(session.commandInput, request.data);
     session.commandInput = input.buffer;
-    if (input.submitted) session.submittedAgentKind = input.agentKind;
+    if (input.submitted) {
+      session.submittedAgentKind = input.agentKind;
+      if (input.line && shellAtPrompt(session)) session.activityStream = { ...session.activityStream, echo: input.line };
+    }
     session.pty.write(request.data);
     // Moving the mouse over or clicking into a waiting Codex terminal sends mouse and focus reports; only your own
     // input answers it.
@@ -1057,18 +1060,32 @@ function probeForegroundCommand(session: TerminalSession, foreground: string): v
   }, foregroundCommandDelayMs).unref();
 }
 
+/** A plain terminal whose shell holds the foreground reads your input as its next command line. */
+function shellAtPrompt(session: TerminalSession): boolean {
+  if (session.command !== undefined || process.platform === "win32") return false;
+  try {
+    return isShellProcess(session.pty.process);
+  } catch {
+    return false; // The PTY may disappear between input and inspection.
+  }
+}
+
 function consumeAgentCommandInput(buffer: string, data: string): {
   agentKind?: TerminalForegroundAgentKind | undefined;
   buffer: string;
+  /** The command line Enter sent, as you typed it. */
+  line?: string | undefined;
   submitted: boolean;
 } {
   let nextBuffer = buffer;
   let agentKind: TerminalForegroundAgentKind | undefined;
+  let line: string | undefined;
   let submitted = false;
 
   for (const character of data) {
     if (character === "\r" || character === "\n") {
-      const command = nextBuffer.trim().split(/\s+/, 1)[0];
+      line = nextBuffer.trim();
+      const command = line.split(/\s+/, 1)[0];
       agentKind = command === "codex" || command === "claude" ? command : undefined;
       nextBuffer = "";
       submitted = true;
@@ -1081,7 +1098,7 @@ function consumeAgentCommandInput(buffer: string, data: string): {
     }
   }
 
-  return { agentKind, buffer: nextBuffer, submitted };
+  return { agentKind, buffer: nextBuffer, line, submitted };
 }
 
 function appendToBuffer(session: TerminalSession, data: string): void {

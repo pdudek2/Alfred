@@ -41,7 +41,9 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   await hook("Stop", { last_assistant_message: "Fixed the build." });
 
   const activity = page.getByRole("complementary", { name: "Details" }).getByRole("region", { name: "Activity" });
-  const order = ["Fixed the build.", "Edited app.tsx", "Ran pnpm --filter @alfred/desktop typecheck", "Run tests", `You asked: ${prompt}`];
+  await expect(activity).not.toContainText("Run tests");
+  await activity.getByRole("button", { name: "Show 2 tool calls" }).click();
+  const order =["Fixed the build.", "Edited app.tsx", "Ran pnpm --filter @alfred/desktop typecheck", "Run tests", `You asked: ${prompt}`];
   for (const line of order) {
     await expect(activity).toContainText(line);
   }
