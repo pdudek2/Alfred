@@ -23,8 +23,9 @@ test("launches and discards drafts from the plan line without touching live term
   const planLine = page.locator(".plan-line");
   const trigger = planLine.locator(".plan-line__disclose");
   await expect(trigger).toContainText("Fixture plan");
-  await expect(trigger).toContainText("2 ready");
+  await expect(trigger).toContainText("2 ready, 1 blocked");
   await expect(planLine.getByRole("button", { name: "Launch 2 ready drafts" })).toBeEnabled();
+  await expect(planLine.getByRole("button", { name: "Launch 2 ready drafts" })).toHaveText("Launch 2");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
   await expect(page.getByRole("status", { name: "Empty project" })).toContainText("Nothing is running");
   // With nothing live the plan line sits above the empty state.
@@ -44,6 +45,9 @@ test("launches and discards drafts from the plan line without touching live term
   const rowBox = await geometry(planLine.locator(".plan-line__row"));
   const tileTop = await geometry(page.getByTestId("terminal-tile").first());
   expect(tileTop.y - (rowBox.y + rowBox.height)).toBeGreaterThanOrEqual(8);
+  // The plan line keeps the terminal box's left and right edges.
+  expect(Math.round(rowBox.x)).toBe(Math.round(tileTop.x));
+  expect(Math.round(rowBox.x + rowBox.width)).toBe(Math.round(tileTop.x + tileTop.width));
   const tileBefore = await geometry(page.getByTestId("terminal-tile").first());
   await capture(page, "closed");
 
