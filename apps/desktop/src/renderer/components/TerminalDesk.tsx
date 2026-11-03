@@ -286,6 +286,7 @@ export function TerminalDesk({
                 launchPreflight={session.launchPreflight}
                 command={session.command}
                 args={session.args}
+                promptSubmitted={session.promptSubmitted}
                 resumeTarget={session.resumeTarget}
                 parentSessionId={session.parentSessionId}
                 resumeMode={session.resumeMode}
@@ -595,6 +596,7 @@ function ManualTerminalTile({
   preview,
   command,
   args,
+  promptSubmitted,
   resumeTarget,
   resumeMode,
   parentSessionId,
@@ -652,6 +654,7 @@ function ManualTerminalTile({
   preview?: ReactNode;
   command?: string | undefined;
   args?: string[] | undefined;
+  promptSubmitted?: boolean | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
   resumeMode?: SessionTile["resumeMode"] | undefined;
   parentSessionId?: string | undefined;
@@ -716,6 +719,8 @@ function ManualTerminalTile({
     ...(agentKind === undefined ? {} : { agentKind }),
     ...(detectedAgentKind === undefined ? {} : { detectedAgentKind }),
     ...(command === undefined ? {} : { command }),
+    ...(args === undefined ? {} : { args }),
+    ...(promptSubmitted === undefined ? {} : { promptSubmitted }),
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
     ...(lastOutputAt === undefined ? {} : { lastOutputAt }),
     ...(agentSignal === undefined ? {} : { agentSignal }),
