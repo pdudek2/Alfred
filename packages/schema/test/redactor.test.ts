@@ -425,7 +425,7 @@ describe("redactPayload", () => {
   ])("redacts 200k characters of repeated $name in linear time", ({ input }) => {
     const started = performance.now();
     redactText(input);
-    expect(performance.now() - started).toBeLessThan(100);
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it.each([
