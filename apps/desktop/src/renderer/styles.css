@@ -28,7 +28,7 @@
   --signal-danger-soft: color-mix(in oklab, var(--signal-danger) 10%, transparent);
   --signal-success: #7FC79A;
   --signal-shell: #9CC7AA;
-  /* Added and removed text in a diff, the canvas tints. */
+  /* Added and removed line counts, in the canvas tints. */
   --diff-added-text: var(--signal-success);
   --diff-removed-text: var(--signal-danger);
   --role-active: var(--signal-focus);
