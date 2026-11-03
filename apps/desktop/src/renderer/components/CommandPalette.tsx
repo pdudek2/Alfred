@@ -14,6 +14,7 @@ import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
 import { shortenPath } from "../path-display";
+import { externalTerminalApp } from "./WorkspaceActionsMenu";
 
 type CommandPaletteItem = {
   id: string;
@@ -224,17 +225,15 @@ export function CommandPalette({
       },
       {
         id: "reveal-workspace-folder",
-        label: "Reveal project folder",
+        label: "Show project in Finder",
         detail: activeWorkspace?.rootPath ? shortenPath(activeWorkspace.rootPath) : "No folder bound",
         disabled: !activeWorkspace?.rootPath,
         run: onOpenWorkspaceFolder,
       },
       {
         id: "open-workspace-terminal",
-        label: "Open project in external terminal",
-        detail: activeWorkspace?.rootPath
-          ? `Open ${shortenPath(activeWorkspace.rootPath)} outside Alfred`
-          : "No folder bound",
+        label: `Open project in ${externalTerminalApp()}`,
+        detail: activeWorkspace?.rootPath ? shortenPath(activeWorkspace.rootPath) : "No folder bound",
         disabled: !activeWorkspace?.rootPath,
         run: onOpenWorkspaceTerminal,
       },
@@ -320,7 +319,7 @@ export function CommandPalette({
       },
       {
         id: "open-focused-session-terminal",
-        label: "Open focused session in external terminal",
+        label: `Open focused session in ${externalTerminalApp()}`,
         detail: selectedSession?.cwd ? shortenPath(selectedSession.cwd) : "No focused session folder",
         ...(selectedSession?.cwd ? { shortcut: shortcutKey(shortcutModifier, "Shift O") } : {}),
         disabled: !selectedSession?.cwd,
@@ -330,7 +329,7 @@ export function CommandPalette({
       },
       {
         id: "reveal-focused-session-folder",
-        label: "Reveal focused session folder",
+        label: "Show focused session in Finder",
         detail: selectedSession?.cwd ? shortenPath(selectedSession.cwd) : "No focused session folder",
         disabled: !selectedSession?.cwd,
         run: () => {
@@ -339,7 +338,7 @@ export function CommandPalette({
       },
       {
         id: "copy-focused-session-cwd",
-        label: "Copy focused session cwd",
+        label: "Copy focused session path",
         detail: selectedSession?.cwd ? selectedSession.cwd : "No focused session folder",
         disabled: !selectedSession?.cwd,
         run: () => {

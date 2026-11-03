@@ -1,12 +1,16 @@
-import { Ellipsis, FolderOpen, ListChecks, Pencil, SquareTerminal, Trash2 } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import { shortenPath } from "../path-display";
 
-/** The project menu and Details open the same terminal app, so they name it the same way. */
+/** Every menu, Details and the palette open the same terminal app, so they name it the same way. */
+export function externalTerminalApp(): string {
+  return navigator.platform.includes("Mac") ? "Ghostty" : "external terminal";
+}
+
 export function externalTerminalLabel(): string {
-  return navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
+  return `Open in ${externalTerminalApp()}`;
 }
 
 export type WorkspaceActionsMenuProps = {
@@ -57,7 +61,6 @@ export function WorkspaceActionsMenu({
   const missionInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [missionEditing, setMissionEditing] = useState(false);
   const [missionDraft, setMissionDraft] = useState<WorkspaceMissionDraft>(() => missionBriefToDraft(missionBrief));
-  const revealLabel = navigator.platform.includes("Mac") ? "Reveal in Finder" : "Reveal folder";
   const terminalLabel = externalTerminalLabel();
   const popoverLabel = renameEditing
     ? "Rename project"
@@ -65,7 +68,6 @@ export function WorkspaceActionsMenu({
       ? "Project mission brief"
       : "Project actions";
   const missionActionLabel = missionBrief ? "Edit mission brief..." : "Add mission brief...";
-  const missionSummary = missionBrief?.goal || missionBrief?.doneWhen[0] || "Give Alfred persistent context";
   const handleMissionCancel = () => {
     setMissionDraft(missionBriefToDraft(missionBrief));
     setMissionEditing(false);
@@ -255,21 +257,17 @@ export function WorkspaceActionsMenu({
           ) : (
             <>
               <button type="button" disabled={!rootPath} onClick={() => { onOpenExternalTerminal(); onClose(); }}>
-                <SquareTerminal size={14} />
                 <span><strong>{terminalLabel}</strong><small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small></span>
               </button>
               <button type="button" disabled={!rootPath} onClick={() => { onRevealFolder(); onClose(); }}>
-                <FolderOpen size={14} />
-                <span><strong>{revealLabel}</strong><small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small></span>
+                <span><strong>Show in Finder</strong><small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small></span>
               </button>
               <hr />
               <button type="button" onClick={onStartRename}>
-                <Pencil size={14} />
-                <span><strong>Rename project...</strong><small>Keep this project readable</small></span>
+                <span><strong>Rename project...</strong></span>
               </button>
               <button type="button" onClick={() => { setMissionDraft(missionBriefToDraft(missionBrief)); setMissionEditing(true); }}>
-                <ListChecks size={14} />
-                <span><strong>{missionActionLabel}</strong><small>{truncateText(missionSummary, 38)}</small></span>
+                <span><strong>{missionActionLabel}</strong></span>
               </button>
               {canCloseWorkspace && (
                 <>
@@ -280,8 +278,7 @@ export function WorkspaceActionsMenu({
                     aria-label="Close project"
                     onClick={() => { onCloseWorkspace(); onClose(); }}
                   >
-                    <Trash2 size={14} />
-                    <span><strong>Close project</strong><small>Remove this empty project</small></span>
+                    <span><strong>Close project</strong></span>
                   </button>
                 </>
               )}
@@ -331,9 +328,4 @@ function normalizeMissionDraftList(value: string): string[] {
 
 function normalizeMissionDraftLine(value: string, maxLength: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
-}
-
-function truncateText(value: string, maxLength: number): string {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }

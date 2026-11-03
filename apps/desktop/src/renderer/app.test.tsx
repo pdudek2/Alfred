@@ -4530,7 +4530,7 @@ describe("App integration", () => {
 
     await user.click(trigger);
     await user.click(
-      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Reveal/ }),
+      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Show in Finder/ }),
     );
 
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
@@ -4577,7 +4577,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("button", { name: "Project menu for Alfred" }));
     await user.click(
-      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Reveal/ }),
+      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Show in Finder/ }),
     );
 
     const alert = await screen.findByRole("alert", { name: "Shell action failed" });
@@ -7040,7 +7040,7 @@ describe("App integration", () => {
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "reveal focused session");
+    await submitCommandPalette(user, "show focused session in finder");
 
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
   });

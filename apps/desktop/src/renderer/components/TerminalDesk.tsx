@@ -48,6 +48,7 @@ import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder, titl
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 import { SESSION_VIEW_IDS } from "../tab-keys";
 
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -911,7 +912,7 @@ function ManualTerminalTile({
     ...(externalTerminalCwd
       ? [{
           id: "external-terminal",
-          label: "Open in external terminal",
+          label: externalTerminalLabel(),
           detail: shortenPath(externalTerminalCwd),
           run: () => void onOpenExternalTerminal(externalTerminalCwd),
         } satisfies ChromeMenuItem]

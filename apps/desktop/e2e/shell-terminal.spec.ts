@@ -141,7 +141,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(compactActionsTrigger).toBeVisible();
   await compactActionsTrigger.click();
   await expect(
-    narrowTile.getByRole("menuitem", { name: /Open in external terminal/ }),
+    narrowTile.getByRole("menuitem", { name: /^Open in (Ghostty|external terminal)/ }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(compactActionsTrigger).toBeFocused();
