@@ -16,7 +16,7 @@ import {
   savesTerminalData,
   waitForTerminalExits,
 } from "./terminal-manager.js";
-import type { SessionActivityInput } from "../shared/session-activity.js";
+import { pendingRuntimeBlocker, type SessionActivityInput } from "../shared/session-activity.js";
 import { CODEX_LAUNCH_ARGS } from "./agent-signals.js";
 import * as workerTools from "./worker-tools.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
@@ -3706,6 +3706,28 @@ describe("terminal-manager IPC", () => {
       const events = sentEvents.length;
       emit(terminalChannels.write, { id: created.id, data: "y" });
       expect(sentEvents.slice(events).filter((event) => event.channel === terminalChannels.data)).toEqual([]);
+    });
+
+    it("answers a runtime blocker a shell printed with your input, not with the terminal's own reports", async () => {
+      const pty = new FakePty();
+      registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        clientId: "shell-1", cols: 80, command: "zsh", cwd: "/repo", rows: 24,
+      });
+      pty.onDataHandler?.("unauthorized: authentication required\n");
+      expect(lastDataEvent()).toMatchObject({ activities: [expect.objectContaining({ kind: "error", title: "Runtime blocked" })] });
+
+      const events = sentEvents.length;
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[I" });
+      expect(sentEvents.slice(events).filter((event) => event.channel === terminalChannels.data)).toEqual([]);
+
+      emit(terminalChannels.write, { id: created.id, data: "l" });
+      expect(lastDataEvent()).toMatchObject({
+        activities: [expect.objectContaining({ kind: "lifecycle", title: "Prompt answered" })],
+      });
+      const listed = await invoke<TerminalListResult>(terminalChannels.list);
+      expect(listed.sessions[0]?.activityEvents?.at(-1)).toMatchObject({ kind: "lifecycle", title: "Prompt answered" });
+      expect(pendingRuntimeBlocker(listed.sessions[0]?.activityEvents)).toBeUndefined();
     });
 
     it("tells the window once that you sent the session a message, not when the terminal reports", async () => {

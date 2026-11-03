@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import {
   appendActivityEvent,
   classifyTerminalOutputChunk,
+  pendingRuntimeBlocker,
   runtimeBlockerReason,
   type SessionActivityEvent,
   type TerminalOutputActivityChunkResult,
@@ -1762,11 +1763,12 @@ function clearWaitingSignal(session: TerminalSession): boolean {
 }
 
 /**
- * Your input settles the prompt the session last asked, so the quiet after a declined prompt does not read as one still
- * waiting. Details leaves this event out, as it does every lifecycle event it does not name.
+ * Your input settles the prompt or runtime blocker the session last showed, so the quiet after it does not read as one
+ * still waiting. Details leaves this event out, as it does every lifecycle event it does not name.
  */
 function answerApproval(session: TerminalSession): SessionActivityEvent | null {
-  if (session.activityEvents?.at(-1)?.kind !== "approval") return null;
+  const events = session.activityEvents;
+  if (events?.at(-1)?.kind !== "approval" && !pendingRuntimeBlocker(events)) return null;
   return recordSessionActivity(session, { kind: "lifecycle", title: "Prompt answered", detail: "You answered in the terminal." });
 }
 
