@@ -1,11 +1,12 @@
 import { ChevronDown, Plus } from "lucide-react";
-import { useId, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { activitySentence, pendingApproval, waitingSentence } from "../../shared/activity-presentation";
 import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+import { SessionPeek } from "./SessionPeek";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import "./session-tree.css";
 
@@ -28,6 +29,9 @@ const COUNTED_KINDS: readonly SessionStateKind[] = ["needs-you", "your-turn", "w
 const ICON_ACTION_WIDTH = 24;
 const PIN_ACTION_WIDTH = 32;
 const ACTION_GAP = 2;
+// A card waits for the pointer to rest; once one is open, the next row's card follows at once.
+const PEEK_DELAY_MS = 500;
+const PEEK_LINGER_MS = 100;
 
 type SessionTreeProps = {
   asleepCount: number;
@@ -46,6 +50,12 @@ type SessionTreeProps = {
 };
 
 type TreeNode = { session: SessionTile; status: SessionDisplayStatus; workers: TreeNode[] };
+type PeekControl = {
+  peekId: string;
+  openPeekSessionId: string | null;
+  showPeek: (sessionId: string, entry: HTMLElement, at: "now" | "after-delay") => void;
+  hidePeek: (at: "now" | "after-delay") => void;
+};
 
 export function sessionTree(sessions: readonly SessionTile[], now: number): TreeNode[] {
   const rank = (status: SessionDisplayStatus) => TREE_RANKS.findIndex((kinds) => kinds.includes(status.kind));
@@ -85,7 +95,35 @@ export function SessionTree({
   onToggleWorkers,
 }: SessionTreeProps) {
   const roots = sessionTree(sessions, now);
-  const rowProps = { focusSessionId, now, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
+  const peekId = useId();
+  const [peek, setPeek] = useState<{ sessionId: string; anchor: DOMRect } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  const showPeek: PeekControl["showPeek"] = (sessionId, entry, at) => {
+    window.clearTimeout(peekTimer.current);
+    const open = () => setPeek({ sessionId, anchor: entry.getBoundingClientRect() });
+    if (at === "now" || peek) open();
+    else peekTimer.current = window.setTimeout(open, PEEK_DELAY_MS);
+  };
+  const hidePeek: PeekControl["hidePeek"] = (at) => {
+    window.clearTimeout(peekTimer.current);
+    if (at === "now") setPeek(null);
+    else peekTimer.current = window.setTimeout(() => setPeek(null), PEEK_LINGER_MS);
+  };
+  // The card is placed once; scrolling or resizing would leave it beside another row.
+  useEffect(() => {
+    if (!peek) return;
+    const close = () => setPeek(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [peek]);
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
+  const peekNode = peek ? findNode(roots, peek.sessionId) : undefined;
+  const peekControl: PeekControl = { peekId, openPeekSessionId: peekNode ? peek!.sessionId : null, showPeek, hidePeek };
+  const rowProps = { focusSessionId, now, peekControl, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
   if (roots.length === 0 && asleepCount === 0) return null;
   return (
     <div className="session-tree">
@@ -105,8 +143,27 @@ export function SessionTree({
           <span>{asleepCount} asleep</span>
         </button>
       )}
+      {peek && peekNode && (
+        <SessionPeek
+          id={peekId}
+          session={peekNode.session}
+          kind={sessionTileKind(peekNode.session)}
+          projectLabel={workspaceLabel}
+          now={now}
+          anchor={peek.anchor}
+        />
+      )}
     </div>
   );
+}
+
+function findNode(nodes: readonly TreeNode[], sessionId: string): TreeNode | undefined {
+  for (const node of nodes) {
+    if (node.session.id === sessionId) return node;
+    const worker = findNode(node.workers, sessionId);
+    if (worker) return worker;
+  }
+  return undefined;
 }
 
 function TreeItem({
@@ -114,6 +171,7 @@ function TreeItem({
   parentTitle,
   focusSessionId,
   now,
+  peekControl,
   pinnedSessionId,
   collapsedParentIds,
   onFocusSession,
@@ -125,6 +183,7 @@ function TreeItem({
   parentTitle?: string;
   focusSessionId: string | null;
   now: number;
+  peekControl: PeekControl;
   pinnedSessionId: string | null;
   collapsedParentIds: ReadonlySet<string>;
   onFocusSession: (sessionId: string) => void;
@@ -147,16 +206,24 @@ function TreeItem({
   const lead = changes ? <ChangeCounts {...changes} /> : preview && <span className="session-tree-preview">{preview}</span>;
   const age = agent && lead ? sessionAgeLabel(session.lastActivityAt, now) : null;
   const meta = collapsed ? <WorkerCounts workers={workers} /> : lead && <>{lead}{age && <span className="session-tree-age">{age}</span>}</>;
-  const describedBy = [meta ? metaId : null, parentTitle === undefined ? null : parentId].filter(Boolean).join(" ");
+  const peeking = peekControl.openPeekSessionId === session.id;
+  const describedBy = [meta ? metaId : null, parentTitle === undefined ? null : parentId, peeking ? peekControl.peekId : null]
+    .filter(Boolean).join(" ");
+  const pressed = useRef(false);
   const actions = (workers.length > 0 ? 1 : 0) + (canPin ? 1 : 0) + (canAddWorker ? 1 : 0);
   // The title makes room for the row's actions on hover instead of running under them.
   const actionsWidth = (workers.length > 0 ? ICON_ACTION_WIDTH : 0) + (canPin ? PIN_ACTION_WIDTH : 0)
     + (canAddWorker ? ICON_ACTION_WIDTH : 0) + Math.max(0, actions - 1) * ACTION_GAP;
-  const childProps = { focusSessionId, now, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
+  const childProps = { focusSessionId, now, peekControl, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
 
   return (
     <li className={`session-tree-item${parentTitle === undefined ? "" : " is-worker"}`}>
-      <div className={`session-tree-entry${focused ? " is-focused" : ""}`} style={{ "--tree-actions": `${actionsWidth}px` } as CSSProperties}>
+      <div
+        className={`session-tree-entry${focused ? " is-focused" : ""}`}
+        style={{ "--tree-actions": `${actionsWidth}px` } as CSSProperties}
+        onMouseEnter={(event) => peekControl.showPeek(session.id, event.currentTarget, "after-delay")}
+        onMouseLeave={() => peekControl.hidePeek("after-delay")}
+      >
         <button
           type="button"
           className="session-tree-row"
@@ -164,7 +231,14 @@ function TreeItem({
           aria-current={focused ? "true" : undefined}
           aria-describedby={describedBy || undefined}
           onClick={() => onFocusSession(session.id)}
-          title={session.title}
+          // A row reached from the keyboard shows its card at once; one clicked already shows on hover.
+          onPointerDown={() => { pressed.current = true; }}
+          onFocus={(event) => {
+            if (!pressed.current) peekControl.showPeek(session.id, event.currentTarget.parentElement!, "now");
+            pressed.current = false;
+          }}
+          onBlur={() => peekControl.hidePeek("now")}
+          onKeyDown={(event) => { if (event.key === "Escape" && peeking) peekControl.hidePeek("now"); }}
         >
           <span className={`session-tree-kind kind-${kind}`} aria-hidden="true"><TileKindIcon kind={kind} size={14} /></span>
           <span className="session-tree-title" id={titleId}>{session.title}</span>
