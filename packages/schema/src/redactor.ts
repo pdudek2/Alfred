@@ -90,7 +90,7 @@ const ABSOLUTE_LOCAL_PATH_PATTERN = new RegExp(
   String.raw`(?:\/Users|\/home|\/tmp|\/private\/tmp|\/var\/folders|\/Volumes)\/[^\s"'\x60\x00-\x1f\x7f]+`,
   "g",
 );
-const REDACTED = "[redacted]";
+export const REDACTED = "[redacted]";
 
 type RedactValueOptions = {
   redactPaths: boolean;

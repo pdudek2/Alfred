@@ -268,12 +268,11 @@ describe("persisted-desktop-state", () => {
   it.each([
     { args: ["--password", "hunter2"], expected: ["--password", "[redacted]"] },
     { args: ["gh", "--token", "ghp_…"], expected: ["gh", "--token", "[redacted]"] },
-    { args: ["mysql", "-p", "x"], expected: ["mysql", "-p", "x"] },
     { args: ["curl", "-u", "user:pass"], expected: ["curl", "-u", "[redacted]"] },
     ...["--token", "--api-key", "--apikey", "--secret", "--client-secret", "--access-token", "--refresh-token", "--PASSWORD"].map((flag) => ({
       args: [flag, "opaque value with spaces"], expected: [flag, "[redacted]"],
     })),
-  ])("saves CLI args $args with only secret values redacted in sessions and plans", async ({ args, expected }) => {
+  ])("drops a session's launch and holds a plan's when CLI args $args carry a secret", async ({ args, expected }) => {
     const filePath = await temporaryStateFile();
     await createPersistedDesktopStateStore({ filePath }).setState({
       ...DEFAULT_DESKTOP_STATE,
@@ -285,13 +284,33 @@ describe("persisted-desktop-state", () => {
     });
 
     const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
-    expect(saved.restoredTerminalSessions[0]?.args).toEqual(expected);
-    expect(saved.stagedPlans.A?.sessions[0]?.args).toEqual(expected);
+    expect(saved.restoredTerminalSessions[0]).not.toHaveProperty("command");
+    expect(saved.restoredTerminalSessions[0]).not.toHaveProperty("args");
+    expect(saved.stagedPlans.A?.sessions[0]).toMatchObject({ args: expected, safetyNote: expect.stringMatching(/secret/) });
+  });
+
+  it("drops a launch an older build saved with a redacted argument", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(filePath, JSON.stringify({
+      version: DESKTOP_STATE_VERSION,
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", command: "cli", args: ["--token", "[redacted]"] }],
+      stagedPlans: { A: {
+        id: "plan", workspaceId: "A", prompt: "Run CLI",
+        sessions: [{ id: "draft", kind: "shell", title: "CLI", command: "cli", args: ["--token", "[redacted]"] }],
+      } },
+    }));
+
+    const state = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("args");
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("command");
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.stagedPlans.A?.sessions[0]?.safetyNote).toMatch(/secret/);
   });
 
   it("keeps ordinary args, case-sensitive short flags and secret flags without a value", async () => {
     const filePath = await temporaryStateFile();
-    const args = ["--tokenizer", "ordinary", "-P", "3306", "--password"];
+    const args = ["--tokenizer", "ordinary", "-P", "3306", "-p", "x", "--password"];
     await createPersistedDesktopStateStore({ filePath }).setState({
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", args }],
@@ -306,7 +325,7 @@ describe("persisted-desktop-state", () => {
     const store = createPersistedDesktopStateStore({ filePath });
     const command = "/Users/x/bin/codex";
     const cwd = "/Users/x/repo";
-    const args = ["--add-dir", cwd, "--password=hunter2", "--token", "opaque-token"];
+    const args = ["--add-dir", cwd];
     const state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [{ clientId: "manual", title: "Codex", source: "manual", command, args, cwd }],
@@ -322,7 +341,7 @@ describe("persisted-desktop-state", () => {
       await store.setState(state);
     }
 
-    const launch = { command, cwd, args: ["--add-dir", cwd, "--password=[redacted]", "--token", "[redacted]"] };
+    const launch = { command, cwd, args };
     const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
     expect(saved.restoredTerminalSessions[0]).toMatchObject(launch);
     expect(saved.stagedPlans.A?.sessions[0]).toMatchObject(launch);

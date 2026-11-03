@@ -1,7 +1,8 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
+import { REDACTED, redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
+import { checkSafety } from "../shared/terminal-command-safety.js";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import { clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
@@ -554,6 +555,9 @@ export function sanitizePersistedTerminalSession(
   clearLaunchData = false,
 ): PersistedTerminalSessionSnapshot | null {
   if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") return null;
+  // A launch that lost a secret would relaunch with the marker as a real argument, so it is not kept at all.
+  const keepsLaunch = ![redactSecrets(session.command ?? ""), ...redactArgs(session.args ?? [])]
+    .some((part) => part.includes(REDACTED));
 
   return {
     clientId: session.clientId.trim(),
@@ -567,10 +571,8 @@ export function sanitizePersistedTerminalSession(
     ...(session.namedByYou ? { namedByYou: true as const } : {}),
     ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
     ...(session.shell === undefined ? {} : { shell: session.shell }),
-    ...(session.command === undefined || redactSecrets(session.command) !== session.command
-      ? {}
-      : { command: session.command }),
-    ...(session.args === undefined ? {} : { args: redactArgs(session.args) }),
+    ...(session.command === undefined || !keepsLaunch ? {} : { command: session.command }),
+    ...(session.args === undefined || !keepsLaunch ? {} : { args: [...session.args] }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.buffer === undefined
       ? {}
@@ -656,12 +658,15 @@ function redactStagedPlansForDisk(state: DesktopStateSnapshot): Record<string, A
   return Object.fromEntries(Object.entries(state.stagedPlans).map(([workspaceId, plan]) => [workspaceId, {
     ...plan,
     prompt: redactText(plan.prompt),
-    sessions: plan.sessions.map((session) => ({
-      ...session,
-      command: redactSecrets(session.command),
-      args: redactArgs(session.args),
-      ...(session.safetyNote === undefined ? {} : { safetyNote: redactText(session.safetyNote) }),
-    })),
+    sessions: plan.sessions.map((session) => {
+      const command = redactSecrets(session.command);
+      const args = redactArgs(session.args);
+      const safety = checkSafety(command, args);
+      const safetyNote = session.safetyNote === undefined
+        ? safety.unsafe ? safety.reason : undefined
+        : redactText(session.safetyNote);
+      return { ...session, command, args, ...(safetyNote === undefined ? {} : { safetyNote }) };
+    }),
   }]));
 }
 
