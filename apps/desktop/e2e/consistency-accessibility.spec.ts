@@ -9,7 +9,6 @@ import { privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 test.use({
   fixtureOptions: {
     externalSessionFixture: "mixed",
-    handoffDiff: true,
     stagedItems: 1,
     restoredSessions: 1,
   },
@@ -216,17 +215,6 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expectSansFont(needsYou);
   await page.keyboard.press("Escape");
   await expect(needsYou).toBeHidden();
-  await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
-  const asleep = page.getByRole("region", { name: "History" });
-  await asleep.getByRole("listbox", { name: "Session results" })
-    .getByRole("option", { name: /Fixture diff handoff/ }).click();
-  await asleep.getByRole("toolbar", { name: "Asleep worktree actions" })
-    .getByRole("button", { name: "Review diff" }).click();
-  const diff = page.getByRole("region", { name: "Worktree diff" });
-  await expect(diff).toBeVisible();
-  await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
-  await expectSansFont(diff.locator(".worktree-diff-panel__line").first());
-  await diff.getByRole("button", { name: "Close diff" }).click();
   // Focus zsh 2 from the rail's tree.
   await treeRow(page, "manual-2").click();
   const hiddenFirstTerminal = page.locator(

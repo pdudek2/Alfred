@@ -3,7 +3,6 @@ import { app } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { createExternalSessionsReader } from "./external-sessions.js";
-import { projectWorktreeRoots } from "./git-worktree.js";
 import { isAllowedWorkspacePath } from "./workspace-path.js";
 import { sessionsChannels, type ReadTranscriptPageRequest, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
 import type { SessionsProjectInput } from "../shared/sessions-ipc.js";
@@ -13,7 +12,6 @@ type SessionsReader = ReturnType<typeof createExternalSessionsReader>;
 type RegisterSessionsOptions = {
   codexHome?: string;
   claudeHome?: string;
-  managedWorktreeRootPath?: string;
   reader?: SessionsReader;
   workspaceStore?: WorkspaceStore;
 };
@@ -22,9 +20,6 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   const reader = options.reader ?? createExternalSessionsReader({
     codexHome: options.codexHome ?? defaultCodexHome(),
     claudeHome: options.claudeHome ?? defaultClaudeHome(),
-    ...(options.managedWorktreeRootPath === undefined
-      ? {}
-      : { managedWorktreeRootPath: options.managedWorktreeRootPath }),
   });
   let mutationQueue = Promise.resolve();
 
@@ -57,7 +52,7 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     if (result.kind !== "resume" || !options.workspaceStore) return result;
     const state = await options.workspaceStore.getWorkspaceState();
     const workspace = state.workspaces.find((candidate) => candidate.id === result.projectId);
-    return await pathMatchesWorkspace(result.cwd, workspace?.rootPath, options.managedWorktreeRootPath)
+    return await pathMatchesWorkspace(result.cwd, workspace?.rootPath)
       ? result
       : { kind: "add-project" };
   });
@@ -119,9 +114,8 @@ function sanitizeProjectsFromRequest(request: unknown): SessionsProjectInput[] {
 async function pathMatchesWorkspace(
   cwd: string,
   rootPath: string | undefined,
-  managedWorktreeRootPath: string | undefined,
 ): Promise<boolean> {
   const root = rootPath ? path.resolve(rootPath) : undefined;
   if (!cwd || !root) return false;
-  return isAllowedWorkspacePath(cwd, [root, ...projectWorktreeRoots(root, managedWorktreeRootPath)]);
+  return isAllowedWorkspacePath(cwd, [root]);
 }

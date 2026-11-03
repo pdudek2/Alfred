@@ -3,7 +3,6 @@ import type { SessionActivityEvent } from "./session-activity.js";
 
 export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
-export type TerminalSessionIsolation = "shared" | "worktree";
 export type TerminalForegroundAgentKind = Extract<AgentKind, "codex" | "claude">;
 /** Claude and Codex name a conversation by UUID; only such an id goes back to them as a Resume argument. */
 export function isAgentConversationId(value: unknown): value is string {
@@ -28,9 +27,6 @@ export type TerminalCreateRequest = {
   agentKind?: AgentKind;
   workspaceId?: string;
   cwd?: string;
-  isolation?: TerminalSessionIsolation;
-  branchName?: string;
-  baseCwd?: string;
   cols: number;
   rows: number;
   command?: string;
@@ -52,19 +48,13 @@ export type TerminalCreateResult = {
   source: TerminalSessionSource;
   agentKind?: AgentKind;
   workspaceId?: string;
-  workspaceRootFingerprint?: string;
   cwd: string;
-  isolation?: TerminalSessionIsolation;
-  branchName?: string;
-  baseCwd?: string;
   createdAt?: number;
   shell: string;
   command?: string;
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
   parentClientId?: string;
-  /** Files the project had uncommitted when this new checkout was made from its last commit. */
-  uncommittedFiles?: number;
 };
 
 export type TerminalSessionSnapshot = TerminalCreateResult & {
@@ -88,14 +78,10 @@ export type PersistedTerminalSessionSnapshot = {
   source: TerminalSessionSource;
   agentKind?: AgentKind;
   workspaceId?: string;
-  workspaceRootFingerprint?: string;
-  isolation?: TerminalSessionIsolation;
-  branchName?: string;
   createdAt?: number;
   /** Names this session in the agent event log, across resumes; its client id can return for a later session. */
   eventLogKey?: string;
   cwd?: string;
-  baseCwd?: string;
   shell?: string;
   command?: string;
   args?: string[];
@@ -147,14 +133,11 @@ export type TerminalKillRequest = {
 
 export type TerminalForgetRequest = {
   clientId: string;
-  cleanupWorktree?: boolean;
-  /** The user agreed to lose the checkout's unapplied changes; without it a checkout that has them is kept. */
-  discardConfirmed?: boolean;
 };
 
 export type TerminalForgetResult =
   | { ok: true }
-  | { ok: false; error: string; changes?: { summary: string; files: Array<{ path: string; status: string; from?: string }> } };
+  | { ok: false; error: string };
 
 export type TerminalRenameRequest = {
   clientId: string;
@@ -173,33 +156,6 @@ export type TerminalCodexImagesRequest = {
 
 /** The message's image files by placeholder, such as "[Image #1]"; empty when it is not known. */
 export type TerminalCodexImagesResult = { images: Record<string, string> };
-
-export type TerminalWorktreeDiffRequest = {
-  clientId: string;
-};
-
-export type TerminalWorktreeDiffResult =
-  | {
-      ok: true;
-      summary: string;
-      files: Array<{ path: string; status: string; from?: string }>;
-      patch: string;
-      /** Every change is already in the project's files, as after an Apply. */
-      applied: boolean;
-      /** Sent back with Apply as `reviewedFingerprint`. */
-      fingerprint: string;
-    }
-  | { ok: false; error: string };
-
-export type TerminalWorktreeApplyRequest = {
-  clientId: string;
-  /** Refuses the Apply if the worktree no longer matches the diff read with this fingerprint. */
-  reviewedFingerprint?: string | undefined;
-};
-
-export type TerminalWorktreeApplyResult =
-  | { ok: true; appliedFiles: number; alreadyApplied?: true }
-  | { ok: false; error: string; needsManualReview?: boolean };
 
 export type TerminalExitEvent = {
   id: TerminalSessionId;
@@ -245,7 +201,6 @@ export type TerminalWorkerRequest = {
   parentClientId: string;
   agent: "claude" | "codex";
   prompt: string;
-  isolated: boolean;
   title?: string;
   model?: string;
   effort?: string;
@@ -267,8 +222,6 @@ export type TerminalApi = {
   forget(request: TerminalForgetRequest): Promise<TerminalForgetResult>;
   rename(request: TerminalRenameRequest): Promise<void>;
   codexImages(request: TerminalCodexImagesRequest): Promise<TerminalCodexImagesResult>;
-  worktreeDiff(request: TerminalWorktreeDiffRequest): Promise<TerminalWorktreeDiffResult>;
-  worktreeApply(request: TerminalWorktreeApplyRequest): Promise<TerminalWorktreeApplyResult>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
   onWorkerRequest(callback: (request: TerminalWorkerRequest) => void): () => void;
@@ -287,8 +240,6 @@ export const terminalChannels = {
   forget: "alfred:terminal:forget",
   rename: "alfred:terminal:rename",
   codexImages: "alfred:terminal:codex-images",
-  worktreeDiff: "alfred:terminal:worktree-diff",
-  worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
   workerRequest: "alfred:terminal:worker-request",

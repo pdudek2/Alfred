@@ -50,8 +50,8 @@ describe("activity sentences", () => {
       .toBe("Edited app.tsx");
     expect(activitySentence({ ...baseEvent, kind: "command", title: "Ran command", detail: "\"pnpm test\"", payload: { type: "command", command: "pnpm test" } }))
       .toBe("Ran pnpm test");
-    expect(activitySentence({ ...baseEvent, kind: "lifecycle", title: "Applied to project", detail: "1 file applied to the base project. Review and commit normally." }))
-      .toBe("1 file applied to the base project.");
+    expect(activitySentence({ ...baseEvent, kind: "lifecycle", title: "Process exited", detail: "Exited with code 1. Resume it to continue." }))
+      .toBe("Exited with code 1.");
     expect(activitySentence({ ...baseEvent, kind: "lifecycle", title: "Session asleep", detail: "" })).toBe("Session asleep");
     expect(activitySentence({ ...baseEvent, kind: "error", title: "Error reported", detail: "build failed", payload: { type: "error", message: "build failed" } }))
       .toBe("build failed");
@@ -100,7 +100,7 @@ describe("activity sentences", () => {
 });
 
 describe("activity presentation", () => {
-  it.each(["Resuming session", "Relaunching session", "Session asleep", "Started in a new worktree", "Started from the last commit", "Already in the project", "Checkout diff reviewed", "Worktree diff reviewed"])(
+  it.each(["Resuming session", "Relaunching session", "Session asleep"])(
     "keeps the %s lifecycle event visible, including titles saved before the vocabulary change",
     (title) => {
       const event: SessionActivityEvent = { ...baseEvent, kind: "lifecycle", title, detail: "Alfred is starting a fresh process." };

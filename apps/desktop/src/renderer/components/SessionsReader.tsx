@@ -19,13 +19,8 @@ export type SessionsReaderEmptyState = {
 };
 
 export type SessionsSavedActions = {
-  checkout: boolean;
   ended: boolean;
-  confirmInline: boolean;
-  pendingAction?: "review" | "apply" | undefined;
-  onApply: () => void;
   onDiscard: () => void;
-  onReview: () => void;
 };
 
 export type SessionsSavedActionFeedback = {
@@ -178,34 +173,15 @@ export function SessionsReader({
                     <div
                       className="sessions-reader__saved-actions"
                       role="toolbar"
-                      aria-label={savedActions.ended ? "Ended session actions" : savedActions.checkout ? "Asleep worktree actions" : "Asleep session actions"}
+                      aria-label={savedActions.ended ? "Ended session actions" : "Asleep session actions"}
                     >
-                      {savedActions.checkout && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={savedActions.pendingAction !== undefined}
-                            onClick={savedActions.onReview}
-                          >
-                            {savedActions.pendingAction === "review" ? "Reviewing…" : "Review diff"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={savedActions.pendingAction !== undefined}
-                            onClick={savedActions.onApply}
-                          >
-                            {savedActions.pendingAction === "apply" ? "Applying…" : `Apply to ${selected.project.label}`}
-                          </button>
-                        </>
-                      )}
                       <span className="sessions-reader__actions-spacer" />
                       <button
                         type="button"
                         className="sessions-reader__discard"
                         aria-label={savedActions.ended ? "Discard ended session" : "Discard asleep session"}
-                        disabled={savedActions.pendingAction !== undefined}
                         onClick={() => {
-                          if (savedActions.confirmInline && !discardArmed) {
+                          if (!discardArmed) {
                             setDiscardArmed(true);
                             return;
                           }

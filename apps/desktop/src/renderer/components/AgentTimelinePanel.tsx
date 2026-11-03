@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import { activitySentence, presentActivityEvents } from "../../shared/activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
@@ -16,7 +16,6 @@ export type AgentTimelinePanelProps = {
   /** The app's one session clock, shared with every other surface. */
   now: number;
   projectName?: string;
-  changes?: ReactNode;
 };
 
 export function AgentTimelinePanel({
@@ -27,7 +26,6 @@ export function AgentTimelinePanel({
   session,
   now,
   projectName,
-  changes,
 }: AgentTimelinePanelProps) {
   const commandInputRef = useRef<HTMLInputElement | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -62,8 +60,7 @@ export function AgentTimelinePanel({
     includeRaw: showRawActivity,
     limit: activityEvents.length,
   });
-  const locationName = session.branchName || (isIsolatedCheckoutSession(session)
-    ? session.cwd.replace(/\/+$/, "").split("/").at(-1) : null) || projectName || session.workspaceId;
+  const locationName = projectName || session.workspaceId;
   const handoffActions = sessionHandoffActions(session);
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   // Why a draft cannot launch, as its plan row says it.
@@ -199,7 +196,6 @@ export function AgentTimelinePanel({
         <strong>{session.title}</strong>
       </header>
       <div className="agent-timeline-body">
-        {changes}
         {session.stage === "staged" && blockReason && !canEditStagedSession && <p className="details-empty">{blockReason}</p>}
         {canEditStagedSession && !editMode && (
           <section className="agent-staged-editor" aria-label={`Edit draft command for ${session.title}`}>
@@ -400,11 +396,6 @@ function HandoffActionButton({
       {actionState ?? action.label}
     </button>
   );
-}
-
-function isIsolatedCheckoutSession(session: Pick<SessionTile, "isolation" | "branchName" | "baseCwd">): boolean {
-  if (session.isolation === "shared") return false;
-  return Boolean(session.branchName && session.baseCwd) || session.isolation === "worktree";
 }
 
 function sessionHandoffActions(session: SessionTile): SessionHandoffAction[] {

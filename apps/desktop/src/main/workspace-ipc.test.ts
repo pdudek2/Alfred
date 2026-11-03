@@ -5,7 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import { openExternalTerminal } from "./external-terminal.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
-import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { allowedWorkspaceRoots, folderDialogOptions } from "./workspace-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
@@ -41,28 +40,12 @@ describe("folder dialog", () => {
 });
 
 describe("workspace IPC allowed roots", () => {
-  it("allows workspace roots plus their managed and legacy project worktree roots only", async () => {
-    const managedRoot = "/Users/sample/Library/Application Support/Alfred/worktrees";
+  it("allows bound workspace roots only", async () => {
     const alfredRoot = "/Users/sample/Desktop/Alfred";
     const otherRoot = "/Users/sample/Desktop/Other App";
-    const legacyAlfredRoot = "/Users/sample/Desktop/.alfred-worktrees/Alfred";
-    const legacyOtherRoot = "/Users/sample/Desktop/.alfred-worktrees/Other App";
-    const roots = await allowedWorkspaceRoots(
-      fakeWorkspaceStore([alfredRoot, otherRoot, undefined]),
-      { managedWorktreeRootPath: managedRoot },
-    );
+    const roots = await allowedWorkspaceRoots(fakeWorkspaceStore([alfredRoot, otherRoot, undefined]));
 
-    expect(roots).toEqual([
-      alfredRoot,
-      otherRoot,
-      legacyAlfredRoot,
-      legacyOtherRoot,
-      managedProjectWorktreeRoot(managedRoot, alfredRoot),
-      managedProjectWorktreeRoot(managedRoot, otherRoot),
-    ]);
-    expect(roots).not.toContain(managedRoot);
-    expect(roots).not.toContain("/Users/sample/Desktop/.alfred-worktrees");
-    expect(roots).not.toContain(path.join(managedRoot, "unregistered-12345678"));
+    expect(roots).toEqual([alfredRoot, otherRoot]);
   });
 
   it("allows app-owned scratch paths for reveal and external terminal actions", async () => {

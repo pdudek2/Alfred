@@ -138,32 +138,6 @@ Ready.`;
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it("accepts and preserves explicit worktree isolation in a valid plan", async () => {
-    const plan = JSON.stringify({
-      sessions: [
-        {
-          kind: "codex",
-          title: "Isolated refactor",
-          command: "codex",
-          args: ["Refactor safely"],
-          isolation: "worktree",
-        },
-      ],
-    });
-    const fetchImpl = mockFetchOk(plan);
-
-    const result = await runLlmPlan({ ...baseInput, fetchImpl });
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.plan.sessions[0]).toMatchObject({
-        kind: "codex",
-        title: "Isolated refactor",
-        isolation: "worktree",
-      });
-    }
-  });
-
   it("repairs coding-agent prompts that speak as Alfred instead of instructing the agent", async () => {
     const prompt = "przygotuj dwie sesje codexa do asystowania mi";
     const plan = JSON.stringify({

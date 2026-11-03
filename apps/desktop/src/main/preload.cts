@@ -19,8 +19,6 @@ const terminalChannels = {
   forget: "alfred:terminal:forget",
   rename: "alfred:terminal:rename",
   codexImages: "alfred:terminal:codex-images",
-  worktreeDiff: "alfred:terminal:worktree-diff",
-  worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
   workerRequest: "alfred:terminal:worker-request",
@@ -113,10 +111,6 @@ const terminal: TerminalApi = {
   rename: (request) => ipcRenderer.invoke(terminalChannels.rename, request) as ReturnType<TerminalApi["rename"]>,
   codexImages: (request) =>
     ipcRenderer.invoke(terminalChannels.codexImages, request) as ReturnType<TerminalApi["codexImages"]>,
-  worktreeDiff: (request) =>
-    ipcRenderer.invoke(terminalChannels.worktreeDiff, request) as ReturnType<TerminalApi["worktreeDiff"]>,
-  worktreeApply: (request) =>
-    ipcRenderer.invoke(terminalChannels.worktreeApply, request) as ReturnType<TerminalApi["worktreeApply"]>,
   onData: sharedSubscription<TerminalDataEvent>(terminalChannels.data),
   onExit: sharedSubscription<TerminalExitEvent>(terminalChannels.exit),
   onWorkerRequest: (callback) => {

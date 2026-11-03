@@ -1,9 +1,6 @@
-import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-import { managedProjectWorktreeRoot, workspaceRootFingerprint } from "../../src/main/git-worktree";
 import {
   DEFAULT_DESKTOP_STATE,
   DESKTOP_STATE_FILE_NAME,
@@ -17,11 +14,8 @@ import {
   writeMixedCodexSessionFixtures,
 } from "../../src/test-support/codex-session-fixtures";
 
-const execFileAsync = promisify(execFile);
-
 export type DesktopStateFixtureOptions = {
   activeWorkspaceId?: "A" | "B";
-  handoffDiff?: boolean;
   stagedItems?: number;
   blockedStagedItem?: number;
   waitingStagedItem?: number;
@@ -152,7 +146,6 @@ export async function createDesktopFixture(
               "/bin/echo 'Approval required: allow deterministic fixture?'; exec /bin/cat",
             ]
           : [`fixture item ${number}\n`],
-        isolation: "shared" as const,
         launchPreflight: blocked
           ? {
               status: "blocked" as const,
@@ -167,8 +160,6 @@ export async function createDesktopFixture(
               detail: waiting
                 ? "Deterministic PTY waits for explicit input."
                 : "Deterministic local fixture command.",
-              isolation: "shared" as const,
-              cwd,
             },
       };
     });
@@ -223,9 +214,6 @@ export async function createDesktopFixture(
         };
       }),
     );
-    if (options.handoffDiff) {
-      restoredTerminalSessions.push(await createHandoffDiffFixture(paths));
-    }
     const state: DesktopStateFile = {
       ...structuredClone(DEFAULT_DESKTOP_STATE),
       version: DESKTOP_STATE_VERSION,
@@ -275,70 +263,6 @@ export async function createDesktopFixture(
     await rm(root, { recursive: true, force: true });
     throw error;
   }
-}
-
-async function createHandoffDiffFixture(
-  paths: DesktopFixturePaths,
-): Promise<PersistedTerminalSessionSnapshot> {
-  const branchName = "alfred-codex-fixture-handoff";
-  const trackedFile = "handoff-status.txt";
-  const worktreeRoot = managedProjectWorktreeRoot(path.join(paths.userData, "worktrees"), paths.workspaceA);
-  const cwd = path.join(worktreeRoot, branchName);
-
-  await execFileAsync("git", ["-C", paths.workspaceA, "init"]);
-  await writeFile(path.join(paths.workspaceA, trackedFile), "handoff status: pending\ncontext stays stable\n", "utf8");
-  await execFileAsync("git", ["-C", paths.workspaceA, "add", trackedFile]);
-  await execFileAsync("git", [
-    "-C",
-    paths.workspaceA,
-    "-c",
-    "user.name=Alfred E2E",
-    "-c",
-    "user.email=alfred-e2e@example.invalid",
-    "commit",
-    "-m",
-    "fixture: seed handoff diff",
-  ]);
-  await mkdir(worktreeRoot, { recursive: true });
-  await execFileAsync("git", [
-    "-C",
-    paths.workspaceA,
-    "worktree",
-    "add",
-    "-b",
-    branchName,
-    cwd,
-    "HEAD",
-  ]);
-  await writeFile(path.join(cwd, trackedFile), "handoff status: ready\ncontext stays stable\n", "utf8");
-
-  return {
-    clientId: "fixture-handoff-diff",
-    title: "Fixture diff handoff",
-    source: "alfred",
-    agentKind: "codex",
-    workspaceId: "A",
-    workspaceRootFingerprint: workspaceRootFingerprint(paths.workspaceA),
-    isolation: "worktree",
-    branchName,
-    baseCwd: paths.workspaceA,
-    cwd,
-    createdAt: 1_720_200_000_000,
-    shell: "codex",
-    command: "codex",
-    args: [],
-    buffer: "Handoff ready for review.\n",
-    activityEvents: [{
-      id: "fixture-handoff-diff-activity-1720200000000-1",
-      kind: "file",
-      title: "Updated handoff status",
-      detail: "Changed handoff-status.txt from pending to ready.",
-      at: 1_720_200_000_000,
-      payload: { type: "file", operation: "edited", path: trackedFile },
-    }],
-    lastActivityAt: 1_720_200_000_000,
-    lastOutputAt: 1_720_200_000_000,
-  };
 }
 
 function assertFixtureIndex(

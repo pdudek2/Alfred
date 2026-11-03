@@ -142,7 +142,6 @@ function DraftRow({
   const command = [draft.command ?? "", ...(draft.args ?? [])].join(" ").trim();
   const meta = [
     tileKindMeta(sessionTileKind(draft)).label,
-    draft.isolation === "worktree" ? "isolated worktree" : null,
     draft.stagedReviewStatus === "edited" ? "edited" : null,
   ].filter(Boolean).join(", ");
 

@@ -18,7 +18,6 @@ const productCssPaths = [
   "styles.css",
   "components/needs-you-popover.css",
   "components/workspace-preview.css",
-  "components/worktree-diff-panel.css",
   "components/plan-line.css",
   "components/history.css",
   "components/new-session-sheet.css",
@@ -31,7 +30,7 @@ if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate pro
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
 const previewStylesPath = productCssPaths[2]!;
 const previewStyles = readFileSync(productCssPaths[2]!, "utf8");
-const historyStyles = readFileSync(productCssPaths[5]!, "utf8");
+const historyStyles = readFileSync(productCssPaths[4]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -339,8 +338,6 @@ describe("renderer CSS contracts", () => {
       ".plan-line__sub code",
       ".workbench-actions kbd",
       ".sessions-run-details dd.technical",
-      ".worktree-diff-panel__files code",
-      ".worktree-diff-panel__line",
       ".workspace-preview-fallback code",
     ]) {
       const bodies = allRulesIn(productStyles).filter(({ selectors }) => selectors.includes(selector));
@@ -844,8 +841,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
-    const overlayBackdrop = blockFor(".discard-checkout-backdrop,\n.command-palette-backdrop");
-    const commandPalette = blockFor(".command-palette,\n.discard-checkout-dialog");
+    const overlayBackdrop = singleTopLevelRuleBodyIn(styles, ".command-palette-backdrop");
+    const commandPalette = topLevelExactRuleBodies(".command-palette").join("\n");
 
     expect(overlayBackdrop).toContain("backdrop-filter: none");
     expect(overlayBackdrop).toContain("background-image: none");
@@ -959,7 +956,6 @@ describe("renderer CSS contracts", () => {
     const activityRow = singleTopLevelRuleBodyIn(styles, ".context-drawer .agent-activity-list li");
     expect(activityRow).toContain("display: flex");
     expect(activityRow).toContain("background: transparent");
-    expect(singleTopLevelRuleBodyIn(styles, ".details-actions button")).toContain("background: var(--surface-control)");
     expect(styles).not.toContain(".agent-context-zone");
     expect(styles).not.toContain(".agent-section-heading");
   });
@@ -1011,8 +1007,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlays opaque and tactical instead of glassy", () => {
-    const primaryOverlayBackdrop = blockFor(".discard-checkout-backdrop,\n.command-palette-backdrop");
-    const overlayPanels = blockFor(".command-palette,\n.discard-checkout-dialog");
+    const primaryOverlayBackdrop = singleTopLevelRuleBodyIn(styles, ".command-palette-backdrop");
+    const overlayPanels = topLevelExactRuleBodies(".command-palette").join("\n");
     const activePaletteRow = blockFor(
       ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
     );
@@ -1037,7 +1033,6 @@ describe("renderer CSS contracts", () => {
       [".command-palette-group", "font: 500 12px/16px var(--sans)"],
       [".command-palette-list button small", "font: 400 12px/16px var(--sans)"],
       [".command-palette-empty", "font: 400 12px/16px var(--sans)"],
-      [".discard-checkout-actions button", "font: 400 13px/18px var(--sans)"],
     ] as const;
 
     for (const [selector, font] of expectedFonts) {
@@ -1059,20 +1054,10 @@ describe("renderer CSS contracts", () => {
     for (const selector of [
       ".renderer-crash-shell",
       ".renderer-crash-card",
-      ".discard-checkout-dialog",
     ]) {
       const bodies = topLevelExactRuleBodies(selector);
       expect(bodies.length, selector).toBeGreaterThan(0);
       expect(bodies.every((body) => !body.includes("linear-gradient")), selector).toBe(true);
-    }
-
-    for (const selector of [
-      ".discard-checkout-body li",
-    ]) {
-      const row = singleTopLevelRuleBodyIn(styles, selector);
-      expect(row, selector).toContain("border-radius: 0");
-      expect(row, selector).toContain("background: transparent");
-      expect(row, selector).not.toContain("box-shadow");
     }
   });
 });

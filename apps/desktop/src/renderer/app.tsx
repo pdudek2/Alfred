@@ -10,14 +10,13 @@ import {
   getDesktopWorkspaceApi,
 } from "./desktop-api";
 import { CommandPalette } from "./components/CommandPalette";
-import { DetailsChanges, FileChangeLetter } from "./components/DetailsChanges";
 import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { RailResizeHandle } from "./components/RailResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
-import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
+import { TerminalDesk, type TerminalStartAttempt } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
@@ -76,8 +75,7 @@ import {
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
-import type { WorktreeDiffView } from "./worktree-diff";
+import { isFreeChatScope, isWorkSession } from "./session-scope";
 import type { CodexStartScreen } from "./codex-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
@@ -102,9 +100,7 @@ import type {
   TerminalDataEvent,
   TerminalExitEvent,
   TerminalForgetResult,
-  TerminalSessionIsolation,
   TerminalSessionSnapshot,
-  TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc";
 import {
   clampRailWidth,
@@ -131,16 +127,6 @@ type WorkspaceHydrationStatus =
 type ShellActionResult = {
   ok: boolean;
   error?: string;
-};
-
-type PendingDiscardConfirmation = {
-  branchName?: string | undefined;
-  files: Array<{ path: string; status: string }>;
-  sessionId: string;
-  summary: string;
-  title: string;
-  /** Why Alfred cannot list the checkout's changes, such as a missing folder or the agent's commits. */
-  unlisted?: string;
 };
 
 const ACCESSIBLE_DISMISSAL_OWNER_SELECTOR =
@@ -198,17 +184,13 @@ export function App() {
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
   const [previewDockOpenByWorkspace, setPreviewDockOpenByWorkspace] = useState<Record<string, boolean>>({});
-  const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
-  const [worktreeDiffView, setWorktreeDiffView] = useState<WorktreeDiffView | null>(null);
   const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
-  const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionDraftsByWorkspace, setNewSessionDraftsByWorkspace] = useState<Record<string, string>>({});
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const newSessionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [newSessionKind, setNewSessionKind] = useState<NewSessionKind>("codex");
   const [newSessionProjectId, setNewSessionProjectId] = useState(DEFAULT_WORKSPACE_ID);
-  const [newSessionIsolation, setNewSessionIsolation] = useState(false);
   // "New worker" on a rail row: the session the new one is started under.
   const [newSessionParentId, setNewSessionParentId] = useState<string | null>(null);
   const [newSessionOpening, setNewSessionOpening] = useState(0);
@@ -217,12 +199,11 @@ export function App() {
     newSessionGenerationRef.current += 1;
     setNewSessionOpen(false);
   }, []);
-  const openNewSession = useCallback((kind?: NewSessionKind, isolation: TerminalSessionIsolation = "shared") => {
+  const openNewSession = useCallback((kind?: NewSessionKind) => {
     newSessionGenerationRef.current += 1;
     setNewSessionOpening(newSessionGenerationRef.current);
     if (kind) setNewSessionKind(kind);
     setNewSessionProjectId(activeWorkspaceId);
-    setNewSessionIsolation(isolation === "worktree");
     setNewSessionParentId(null);
     setNewSessionOpen(true);
     setNeedsYouOpen(false);
@@ -234,11 +215,9 @@ export function App() {
     setNewSessionKind((kind) => (kind === "plan" ? "codex" : kind));
   }, [openNewSession]);
   const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
   const contextReturnFocusRef = useRef<HTMLElement | null>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
-  const discardReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusLabelRef = useRef<string | null>(null);
   const restoreWorkFocusPendingRef = useRef(false);
@@ -250,7 +229,6 @@ export function App() {
   const startingSessionIdsRef = useRef(new Map<string, { attempt: TerminalStartAttempt; cancelled: boolean }>());
   const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
   const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
-  const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
   const pendingPlansRef = useRef<Record<string, SquadPlan>>({});
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
@@ -422,7 +400,7 @@ export function App() {
     });
   }, [showTerminalInWorkspace]);
 
-  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared", workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string) => {
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string) => {
     if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addAgentSession(
@@ -430,7 +408,6 @@ export function App() {
         kind,
         workspace.rootPath ?? "",
         workspace.id,
-        isolation,
         prompt,
         parentSessionId,
         seenSessionIdsRef.current,
@@ -460,7 +437,6 @@ export function App() {
         request.agent,
         workspace.rootPath ?? "",
         workspace.id,
-        request.isolated ? "worktree" : "shared",
         request.prompt,
         parent.id,
         seenSessionIdsRef.current,
@@ -546,13 +522,7 @@ export function App() {
                 || session.cwd !== activeWorkspace.rootPath
               ) return session;
 
-              return {
-                ...session,
-                cwd: rootPath,
-                ...(session.launchPreflight?.status === "ready" && session.launchPreflight.cwd === activeWorkspace.rootPath
-                  ? { launchPreflight: { ...session.launchPreflight, cwd: rootPath } }
-                  : {}),
-              };
+              return { ...session, cwd: rootPath };
             });
           });
         }
@@ -1014,14 +984,7 @@ export function App() {
     });
   }, [activeSelectedSessionId, activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
 
-  /**
-   * Closes a session; `discard` also removes a running session's checkout, after main stops its agent.
-   * Unless the discard is confirmed, a checkout with unapplied changes by then is kept and the Discard dialog opens for it.
-   */
-  const closeSessionNow = useCallback(async (
-    sessionId: string,
-    discard?: { confirmed?: boolean; returnFocus?: HTMLElement | null },
-  ) => {
+  const handleCloseSession = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     if (!session || closingSessionIdsRef.current.has(sessionId)) return;
@@ -1035,23 +998,19 @@ export function App() {
       }
     };
     closingSessionIdsRef.current.set(sessionId, closingOperation);
-    const destructiveWorktreeCleanup = discard !== undefined
-      || session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
+    const forgetsSavedSession =
+      session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
     const pendingStart = startingSessionIdsRef.current.get(sessionId);
     if (pendingStart) {
       pendingStart.cancelled = true;
       closingOperation.attempt = pendingStart.attempt;
     }
 
-    if (destructiveWorktreeCleanup) {
+    if (forgetsSavedSession) {
       let result: TerminalForgetResult;
       try {
         result = terminalApi
-          ? await terminalApi.forget({
-              clientId: session.id,
-              cleanupWorktree: true,
-              ...(discard?.confirmed ? { discardConfirmed: true } : {}),
-            })
+          ? await terminalApi.forget({ clientId: session.id })
           : { ok: false, error: "Desktop terminal API is unavailable." };
       } catch {
         result = { ok: false, error: "Desktop terminal request failed. Try again." };
@@ -1063,23 +1022,13 @@ export function App() {
       }
       if (!result.ok) {
         finishClosing();
-        if (result.changes) {
-          discardReturnFocusRef.current = discard?.returnFocus ?? null;
-          setPendingDiscardConfirmation({
-            sessionId,
-            title: currentSession.title,
-            summary: result.changes.summary,
-            files: result.changes.files,
-          });
-          return;
-        }
         setTerminalSessions((current) =>
           current.some(
             (item) => item.id === sessionId && sessionInstanceKey(item) === closingOperation.instanceKey,
           )
             ? appendSessionActivity(current, session.id, {
                 kind: "warning",
-                title: "Discard worktree blocked",
+                title: "Discard blocked",
                 detail: result.error,
               })
             : current,
@@ -1095,9 +1044,8 @@ export function App() {
       return next;
     });
     setPreviewCandidates((candidates) => removePreviewSessionCandidates(candidates, sessionId));
-    setWorktreeDiffView((current) => (current?.sessionId === sessionId ? null : current));
 
-    if (destructiveWorktreeCleanup) {
+    if (forgetsSavedSession) {
       finishClosing();
     } else if (session.runtimeId) {
       terminalApi?.kill({ id: session.runtimeId });
@@ -1113,79 +1061,6 @@ export function App() {
         : sessions,
     );
   }, []);
-
-  // Closing a checkout, running or ended, settles it: one with nothing outside the project goes with its session,
-  // one with unapplied changes asks first. None is left on disk without a session.
-  const handleCloseSession = useCallback((sessionId: string) => {
-    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
-    const terminalApi = getDesktopTerminalApi();
-    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-
-    const settlesCheckout = session?.runtimeStatus === "live" || session?.runtimeStatus === "restored"
-      || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error";
-    if (!session || !settlesCheckout || !isReviewableWorktreeSession(session)) {
-      void closeSessionNow(sessionId);
-      return;
-    }
-
-    if (!terminalApi) {
-      setTerminalSessions((sessions) =>
-        appendSessionActivity(sessions, sessionId, {
-          kind: "error",
-          title: "Discard worktree blocked",
-          detail: "Desktop terminal API is unavailable, so Alfred cannot inspect this worktree before deleting it.",
-        }),
-      );
-      return;
-    }
-
-    const discardSessionInstanceKey = sessionInstanceKey(session);
-    void terminalApi.worktreeDiff({ clientId: sessionId }).then((result) => {
-      const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
-      if (!currentSession || sessionInstanceKey(currentSession) !== discardSessionInstanceKey) return;
-
-      // A checkout whose folder is gone or whose agent committed has no diff to list; it can still go once you confirm.
-      if (!result.ok) {
-        discardReturnFocusRef.current = returnFocus;
-        setPendingDiscardConfirmation({
-          sessionId,
-          title: session.title,
-          summary: "",
-          files: [],
-          branchName: session.branchName,
-          unlisted: result.error,
-        });
-        return;
-      }
-
-      if (result.files.length === 0 || result.applied) {
-        void closeSessionNow(sessionId, { returnFocus });
-        return;
-      }
-
-      discardReturnFocusRef.current = returnFocus;
-      setPendingDiscardConfirmation({
-        sessionId,
-        title: session.title,
-        summary: result.summary,
-        files: result.files,
-      });
-    }).catch(() => {
-      const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
-      if (!currentSession || sessionInstanceKey(currentSession) !== discardSessionInstanceKey) return;
-      setTerminalSessions((sessions) =>
-        sessions.some(
-          (item) => item.id === sessionId && sessionInstanceKey(item) === discardSessionInstanceKey,
-        )
-          ? appendSessionActivity(sessions, sessionId, {
-              kind: "warning",
-              title: "Discard worktree blocked",
-              detail: "Desktop terminal request failed. Try again.",
-            })
-          : sessions,
-      );
-    });
-  }, [closeSessionNow]);
 
   const handleContinueRestoredSession = useCallback((sessionId: string) => {
     const sessions = terminalSessionsRef.current;
@@ -1253,207 +1128,6 @@ export function App() {
     void getDesktopLayoutApi()?.setRailWidth(width);
   }, []);
 
-  const beginWorktreeAction = useCallback((session: SessionTile, action: WorktreeActionKind): string | null => {
-    const actionKey = sessionInstanceKey(session);
-    if (worktreeActionPendingRef.current.has(actionKey)) return null;
-    worktreeActionPendingRef.current.add(actionKey);
-    setWorktreeActionPending((pending) => ({ ...pending, [actionKey]: action }));
-    return actionKey;
-  }, []);
-
-  const finishWorktreeAction = useCallback((actionKey: string): void => {
-    worktreeActionPendingRef.current.delete(actionKey);
-    setWorktreeActionPending((pending) => {
-      if (!pending[actionKey]) return pending;
-      const next = { ...pending };
-      delete next[actionKey];
-      return next;
-    });
-  }, []);
-
-  const isCurrentSessionInstance = useCallback((sessionId: string, actionKey: string): boolean => {
-    const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
-    return Boolean(currentSession && sessionInstanceKey(currentSession) === actionKey);
-  }, []);
-
-  const handleOpenWorktreeDiff = useCallback(async (workspaceId: string, sessionId: string) => {
-    const session = terminalSessionsRef.current.find((item) => (
-      item.workspaceId === workspaceId && item.id === sessionId
-    ));
-    if (!session || !isReviewableWorktreeSession(session)) {
-      setTerminalSessions((sessions) =>
-        appendSessionActivity(sessions, sessionId, {
-          kind: "warning",
-          title: "Review diff unavailable",
-          detail: "Session is not an isolated worktree.",
-        }),
-      );
-      return;
-    }
-
-    const actionKey = beginWorktreeAction(session, "review");
-    if (!actionKey) return;
-    if (worktreeDiffView?.sessionId !== sessionId) {
-      worktreeDiffReturnFocusRef.current = document.activeElement instanceof HTMLElement
-        && document.activeElement !== document.body
-        ? document.activeElement
-        : null;
-    }
-    setNeedsYouOpen(false);
-    handleFocusSessionInWorkspace(workspaceId, sessionId);
-    setWorktreeDiffView({
-      status: "loading",
-      instanceKey: actionKey,
-      sessionId,
-      sessionTitle: session.title,
-    });
-
-    try {
-      let result: TerminalWorktreeDiffResult;
-      const terminalApi = getDesktopTerminalApi();
-      try {
-        result = terminalApi
-          ? await terminalApi.worktreeDiff({ clientId: sessionId })
-          : { ok: false, error: "Desktop terminal API is unavailable." };
-      } catch (error) {
-        result = {
-          ok: false,
-          error: error instanceof Error ? error.message : "Worktree diff inspection failed.",
-        };
-      }
-
-      if (!isCurrentSessionInstance(sessionId, actionKey)) {
-        setWorktreeDiffView((current) =>
-          current?.instanceKey === actionKey ? null : current,
-        );
-        return;
-      }
-
-      setWorktreeDiffView((current) => {
-        if (current?.instanceKey !== actionKey || current.sessionId !== sessionId) return current;
-        return result.ok
-          ? { ...current, status: "ready", result }
-          : { ...current, status: "error", error: result.error };
-      });
-      setTerminalSessions((sessions) =>
-        sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
-          ? appendSessionActivity(
-              sessions,
-              sessionId,
-              result.ok
-                ? {
-                    kind: "plan",
-                    title: "Worktree diff reviewed",
-                    detail: worktreeDiffDetail(result),
-                    payload: { type: "plan", summary: worktreeDiffDetail(result) },
-                  }
-                : {
-                    kind: "error",
-                    title: "Review diff failed",
-                    detail: result.error,
-                    payload: { type: "error", message: result.error },
-                  },
-            )
-          : sessions,
-      );
-    } finally {
-      finishWorktreeAction(actionKey);
-    }
-  }, [beginWorktreeAction, finishWorktreeAction, handleFocusSessionInWorkspace, isCurrentSessionInstance, worktreeDiffView?.sessionId]);
-
-  const handleReviewWorktree = useCallback((sessionId: string) => {
-    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
-    void handleOpenWorktreeDiff(session?.workspaceId ?? activeWorkspaceId, sessionId);
-  }, [activeWorkspaceId, handleOpenWorktreeDiff]);
-
-  const handleCloseWorktreeDiff = useCallback(() => {
-    worktreeDiffReturnFocusRef.current = null;
-    setWorktreeDiffView(null);
-  }, []);
-
-  const handleApplyWorktree = useCallback(async (sessionId: string, reviewedFingerprint?: string) => {
-    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
-    if (!session || !isReviewableWorktreeSession(session)) {
-      setTerminalSessions((sessions) =>
-        appendSessionActivity(sessions, sessionId, {
-          kind: "warning",
-          title: "Apply blocked",
-          detail: "Session is not an isolated worktree.",
-        }),
-      );
-      return;
-    }
-
-    const terminalApi = getDesktopTerminalApi();
-    if (!terminalApi) {
-      setTerminalSessions((sessions) =>
-        appendSessionActivity(sessions, sessionId, {
-          kind: "error",
-          title: "Apply failed",
-          detail: "Desktop terminal API is unavailable.",
-        }),
-      );
-      return;
-    }
-
-    const actionKey = beginWorktreeAction(session, "apply");
-    if (!actionKey) return;
-    try {
-      const result = await terminalApi.worktreeApply({ clientId: sessionId, reviewedFingerprint });
-      if (!isCurrentSessionInstance(sessionId, actionKey)) return;
-      if (!result.ok || result.appliedFiles > 0 || result.alreadyApplied) {
-        setWorktreeDiffView((current) => {
-          if (current?.status !== "ready" || current.instanceKey !== actionKey) return current;
-          return result.ok
-            ? { ...current, result: { ...current.result, applied: true } }
-            : { ...current, applyRefusal: result.error };
-        });
-      }
-      setTerminalSessions((sessions) =>
-        sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
-          ? appendSessionActivity(
-              sessions,
-              sessionId,
-              result.ok
-                ? result.alreadyApplied
-                  ? {
-                      kind: "lifecycle",
-                      title: "Already in the project",
-                      detail: "This worktree's changes are already in the project's files. Nothing was applied again.",
-                    }
-                  : {
-                      kind: "lifecycle",
-                      title: "Applied to project",
-                      detail: `${changedFileCountLabel(result.appliedFiles)} applied to the base project. Review and commit normally.`,
-                    }
-                : {
-                    kind: result.needsManualReview ? "warning" : "error",
-                    title: result.needsManualReview ? "Apply needs review" : "Apply failed",
-                    detail: result.error,
-                    payload: result.needsManualReview
-                      ? { type: "warning", message: result.error }
-                      : { type: "error", message: result.error },
-                  },
-            )
-          : sessions,
-      );
-    } catch {
-      if (!isCurrentSessionInstance(sessionId, actionKey)) return;
-      setTerminalSessions((sessions) =>
-        sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
-          ? appendSessionActivity(sessions, sessionId, {
-              kind: "error",
-              title: "Apply failed",
-              detail: "Desktop terminal request failed. Try again.",
-              payload: { type: "error", message: "Desktop terminal request failed. Try again." },
-            })
-          : sessions,
-      );
-    } finally {
-      finishWorktreeAction(actionKey);
-    }
-  }, [beginWorktreeAction, finishWorktreeAction, isCurrentSessionInstance]);
-
   const handleCloseSelectedSession = useCallback(() => {
     const selectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id];
     const currentWorkspaceSessions = terminalSessionsRef.current.filter(
@@ -1466,35 +1140,8 @@ export function App() {
       currentWorkspaceSessions[0] ??
       activeSelectedSession;
     if (!session) return;
-    handleCloseSession(session.id);
+    void handleCloseSession(session.id);
   }, [activeSelectedSession, activeWorkspace.id, handleCloseSession, selectedSessionIdsByWorkspace]);
-
-  const handleCancelDiscardCheckout = useCallback(() => {
-    const returnFocus = discardReturnFocusRef.current;
-    discardReturnFocusRef.current = null;
-    setPendingDiscardConfirmation(null);
-    queueMicrotask(() => {
-      if (returnFocus?.isConnected) returnFocus.focus();
-    });
-  }, []);
-
-  const handleReviewDiscardCheckout = useCallback(() => {
-    const confirmation = pendingDiscardConfirmation;
-    if (!confirmation) return;
-
-    discardReturnFocusRef.current = null;
-    setPendingDiscardConfirmation(null);
-    void handleReviewWorktree(confirmation.sessionId);
-  }, [handleReviewWorktree, pendingDiscardConfirmation]);
-
-  const handleConfirmDiscardCheckout = useCallback(() => {
-    const confirmation = pendingDiscardConfirmation;
-    if (!confirmation) return;
-
-    discardReturnFocusRef.current = null;
-    setPendingDiscardConfirmation(null);
-    void closeSessionNow(confirmation.sessionId, { confirmed: true });
-  }, [closeSessionNow, pendingDiscardConfirmation]);
 
   const handleRuntimeSessionStarting = useCallback((tileId: string, attempt: TerminalStartAttempt): boolean => {
     const current = startingSessionIdsRef.current.get(tileId);
@@ -1534,29 +1181,7 @@ export function App() {
     }
 
     startingSessionIdsRef.current.delete(tileId);
-    const attachmentAt = runtime.createdAt ?? Date.now();
-    setTerminalSessions((sessions) => {
-      const attached = attachRuntimeSession(sessions, tileId, runtime);
-      const session = attached.find((candidate) => candidate.id === tileId);
-      if (session?.activityEvents?.some((event) => event.at >= attachmentAt)) {
-        return attached;
-      }
-      // A resumed checkout already has a history.
-      const started = session?.isolation === "worktree" && !session.activityEvents?.length
-        ? appendSessionActivity(attached, tileId, {
-            kind: "lifecycle",
-            title: "Started in a new worktree",
-            detail: "Started in a new worktree",
-          }, attachmentAt)
-        : attached;
-      const uncommitted = runtime.uncommittedFiles ?? 0;
-      return uncommitted === 0 ? started : appendSessionActivity(started, tileId, {
-        kind: "lifecycle",
-        title: "Started from the last commit",
-        // Details shows the first sentence of a detail, so this stays one.
-        detail: `Started from the last commit, without the project's ${uncommitted} uncommitted ${uncommitted === 1 ? "file" : "files"}.`,
-      }, attachmentAt);
-    });
+    setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime));
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
       pendingPlansRef.current = removePendingPlanSession(pendingPlansRef.current, tileId);
@@ -1739,7 +1364,7 @@ export function App() {
     return true;
   }, [alfredStatus]);
 
-  const handleStartNewSession = async (isolated: boolean) => {
+  const handleStartNewSession = async () => {
     const workspace = workspaces.find((item) => item.id === newSessionProjectId);
     if (!workspace || workspace.rootStatus === "missing") return false;
     const draft = newSessionDraftsByWorkspace[workspace.id] ?? "";
@@ -1753,7 +1378,7 @@ export function App() {
     } else if (newSessionKind === "terminal") {
       handleAddManualSession(workspace, parentSessionId);
     } else {
-      handleAddAgentSession(newSessionKind, isolated ? "worktree" : "shared", workspace, draft.trim(), parentSessionId);
+      handleAddAgentSession(newSessionKind, workspace, draft.trim(), parentSessionId);
     }
     setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, workspace.id));
     return true;
@@ -2180,7 +1805,6 @@ export function App() {
         args: agentKind === "claude" ? ["--resume", resolved.sessionId] : ["resume", resolved.sessionId],
         resumeTarget: { agentKind, sessionId: resolved.sessionId, source: "external-session-index" },
         resumeMode: "exact",
-        isolation: "shared",
         createdAt: now,
         activityEvents: [
           {
@@ -2351,7 +1975,7 @@ export function App() {
 
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "i") {
         event.preventDefault();
-        if (activeSurface === "work" && !newSessionOpen && !workspaceMenuOpen && !pendingDiscardConfirmation) {
+        if (activeSurface === "work" && !newSessionOpen && !workspaceMenuOpen) {
           handleToggleContextDrawer();
         }
         return;
@@ -2425,7 +2049,6 @@ export function App() {
     handleToggleNeedsYou,
     handleToggleContextDrawer,
     workspaceMenuOpen,
-    pendingDiscardConfirmation,
     privacyPanelOpen,
     workspaces,
   ]);
@@ -2752,9 +2375,6 @@ export function App() {
                   sessions={terminalSessions}
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
-                  worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
-                  worktreeDiffView={worktreeDiffView}
-                  worktreeDiffPendingAction={worktreeDiffView ? worktreeActionPending[worktreeDiffView.instanceKey] : undefined}
                   workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}
                   workspaceRootPath={activeWorkspace.rootPath}
@@ -2764,9 +2384,6 @@ export function App() {
                   onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
                   onAddManualSession={() => openNewSession("terminal")}
                   onCloseSession={handleCloseSession}
-                  onApplyWorktree={handleApplyWorktree}
-                  onReviewWorktree={handleReviewWorktree}
-                  onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
                   onOpenHistory={handleOpenRecoveryHistory}
@@ -2809,15 +2426,12 @@ export function App() {
                   sessionsApi={getDesktopSessionsApi()}
                   state={sessionsViewState}
                   terminalApi={getDesktopTerminalApi()}
-                  worktreeActionPending={worktreeActionPending}
                   workspaces={workspaces}
-                  onApplyWorktree={handleApplyWorktree}
                   onBackToWork={handleExitSessionsToWork}
                   onDiscardSavedSession={handleCloseSession}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onSelectionChange={handleHistorySelectionChange}
                   onRefreshExternalSessions={() => void handleRefreshExternalSessions()}
-                  onReviewWorktree={handleReviewWorktree}
                   onStateChange={setSessionsViewState}
                 />
               </div>
@@ -2830,9 +2444,7 @@ export function App() {
               privacyPanelOpen ||
               newSessionOpen ||
               workspaceMenuOpen ||
-              pendingDiscardConfirmation !== null ||
-              needsYouOpen ||
-              worktreeDiffView !== null
+              needsYouOpen
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             shortcutModifier={shortcutModifier}
@@ -2840,14 +2452,6 @@ export function App() {
               session: activeInspectedSession,
               now,
               projectName: activeWorkspace.label,
-              changes: <DetailsChanges
-                open={detailsVisible}
-                session={activeInspectedSession}
-                projectName={activeWorkspace.label}
-                pendingAction={activeInspectedSession ? worktreeActionPending[sessionInstanceKey(activeInspectedSession)] : undefined}
-                onReview={handleReviewWorktree}
-                onApply={handleApplyWorktree}
-              />,
               onCopyActivityText: handleCopyActivityText,
               onOpenExternalTerminal: handleOpenExternalTerminalForCwd,
               onRevealActivityFile: handleRevealActivityFile,
@@ -2857,7 +2461,7 @@ export function App() {
         </div>
         {needsYouOpen && (
           <NeedsYouPopover
-            dismissalSuspended={commandPaletteOpen || privacyPanelOpen || pendingDiscardConfirmation !== null}
+            dismissalSuspended={commandPaletteOpen || privacyPanelOpen}
             items={needsYouAttention}
             shortcutLabel={shortcutModifier === "Cmd" ? "⌘J" : "Ctrl J"}
             triggerRef={needsYouTriggerRef}
@@ -2873,7 +2477,6 @@ export function App() {
             projectId={newSessionProjectId}
             kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
             planAvailable={planAvailable}
-            initialIsolation={newSessionIsolation}
             parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
             draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
             disabled={commandPaletteOpen || privacyPanelOpen}
@@ -2884,14 +2487,6 @@ export function App() {
             onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [newSessionProjectId]: draft }))}
             onStart={handleStartNewSession}
             onClose={closeNewSession}
-          />
-        )}
-        {pendingDiscardConfirmation && (
-          <DiscardCheckoutDialog
-            confirmation={pendingDiscardConfirmation}
-            onCancel={handleCancelDiscardCheckout}
-            onConfirmDiscard={handleConfirmDiscardCheckout}
-            onReviewChanges={handleReviewDiscardCheckout}
           />
         )}
         {privacyPanelOpen && (
@@ -2919,7 +2514,7 @@ export function App() {
             workspaces={workspaces}
             canCloseWorkspace={canCloseActiveWorkspace}
             hasSavedSessions={activeSavedSessionCount > 0}
-            onAddAgentSession={(kind, isolation) => openNewSession(kind, isolation)}
+            onAddAgentSession={(kind) => openNewSession(kind)}
             onAddManualSession={() => openNewSession("terminal")}
             onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
             onAddWorkspace={handleAddWorkspace}
@@ -3134,123 +2729,6 @@ function PrivacyPanel({
   );
 }
 
-function DiscardCheckoutDialog({
-  confirmation,
-  onCancel,
-  onConfirmDiscard,
-  onReviewChanges,
-}: {
-  confirmation: PendingDiscardConfirmation;
-  onCancel: () => void;
-  onConfirmDiscard: () => void;
-  onReviewChanges: () => void;
-}) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const changedFileLabel = `${confirmation.files.length} changed file${confirmation.files.length === 1 ? "" : "s"}`;
-  const previewFiles = confirmation.files.slice(0, 6);
-  const remaining = confirmation.files.length - previewFiles.length;
-
-  return (
-    <div className="discard-checkout-backdrop" role="presentation" onMouseDown={onCancel}>
-      <div
-        ref={panelRef}
-        className="discard-checkout-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Discard isolated worktree"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            onCancel();
-            return;
-          }
-          if (event.key !== "Tab") return;
-          const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ) ?? [])];
-          const first = controls[0];
-          const last = controls.at(-1);
-          if (!first || !last) return;
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-          }
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="discard-checkout-header">
-          <strong>Discard isolated worktree</strong>
-          <small>
-            {confirmation.unlisted === undefined
-              ? `${confirmation.title} has ${changedFileLabel}.`
-              : `Alfred cannot list the changes of ${confirmation.title}.`}
-          </small>
-        </header>
-        {confirmation.unlisted === undefined ? (
-          <div className="discard-checkout-body">
-            <p>This worktree has local changes. Review them before you delete it, or discard them for good.</p>
-            <ol aria-label="Changed files">
-              {previewFiles.map((file) => (
-                <li key={`${file.status}:${file.path}`}>
-                  <FileChangeLetter status={file.status} />
-                  <code>{file.path}</code>
-                </li>
-              ))}
-              {remaining > 0 && <li className="discard-checkout-more">+{remaining} more</li>}
-            </ol>
-          </div>
-        ) : (
-          <div className="discard-checkout-body">
-            <p>{confirmation.unlisted}</p>
-            <p>
-              Discarding deletes the checkout folder and its branch
-              {confirmation.branchName ? <> <code>{confirmation.branchName}</code></> : null}, with any commits that are only on
-              that branch.
-            </p>
-          </div>
-        )}
-        <footer className="discard-checkout-actions">
-          {confirmation.unlisted === undefined && (
-            <button type="button" className="discard-checkout-primary" onClick={onReviewChanges}>
-              Review changes
-            </button>
-          )}
-          <button type="button" className="discard-checkout-cancel" onClick={onCancel} autoFocus>
-            Cancel
-          </button>
-          <button type="button" className="discard-checkout-danger" onClick={onConfirmDiscard}>
-            Discard worktree permanently
-          </button>
-        </footer>
-      </div>
-    </div>
-  );
-}
-
-function worktreeDiffDetail(result: {
-  summary: string;
-  files: Array<{ path: string; status: string }>;
-}): string {
-  if (result.files.length === 0) {
-    return "No changes in the isolated worktree.";
-  }
-
-  const preview = result.files
-    .slice(0, 5)
-    .map((file) => `${file.status} ${file.path}`)
-    .join(", ");
-  const remaining = result.files.length > 5 ? `, +${result.files.length - 5} more` : "";
-  return `${result.summary}: ${preview}${remaining}`;
-}
-
-function changedFileCountLabel(count: number): string {
-  return `${count} file${count === 1 ? "" : "s"}`;
-}
-
 function createStagedPlanSnapshot({
   name,
   prompt,
@@ -3271,7 +2749,6 @@ function createStagedPlanSnapshot({
     ...(session.cwd === "" ? {} : { cwd: session.cwd }),
     command: session.command ?? "",
     args: session.args ?? [],
-    ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
     ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
     ...(session.launchPreflight === undefined ? {} : { launchPreflight: { ...session.launchPreflight } }),
   }));

@@ -22,7 +22,6 @@ import {
   type TranscriptReadMode,
 } from "../shared/sessions-ipc.js";
 import { sessionPresentationText as presentationText } from "../shared/session-presentation.js";
-import { projectWorktreeRoots } from "./git-worktree.js";
 import { canonicalWorkspacePath } from "./workspace-path.js";
 import { claudeFormat } from "./claude-transcripts.js";
 import { findJsonlFiles, isRecord, parseJsonRecord, readTranscriptPrefixLines, stringValue, type SessionFile } from "./transcript-files.js";
@@ -77,7 +76,6 @@ export type SessionFormat = {
 
 export function createExternalSessionsReader(options: {
   codexHome: string;
-  managedWorktreeRootPath?: string;
   summaryLimit?: number;
   /** Claude Code's config folder; its transcripts join the list when given. */
   claudeHome?: string;
@@ -195,7 +193,6 @@ export function createExternalSessionsReader(options: {
         const summaries = await discoverSummaries(
           formats,
           request.projects,
-          options.managedWorktreeRootPath,
           summaryCache,
           touchSummary,
           cacheSummary,
@@ -269,7 +266,6 @@ export function createExternalSessionsReader(options: {
 async function discoverSummaries(
   formats: SessionFormat[],
   projects: SessionsProjectInput[],
-  managedWorktreeRootPath: string | undefined,
   cache: Map<string, SummaryCacheEntry>,
   touch: (key: string) => void,
   cacheSummary: (key: string, summary: ListedTranscript) => void,
@@ -279,7 +275,7 @@ async function discoverSummaries(
     const titles = await format.readTitles();
     for (const file of await format.findFiles()) listed.push({ format, file, titles });
   }
-  const canonicalProjects = await canonicalizeProjects(projects, managedWorktreeRootPath);
+  const canonicalProjects = await canonicalizeProjects(projects);
   const canonicalCwds: CanonicalCwdCache = new Map();
   listed.sort((left, right) => right.file.updatedAt - left.file.updatedAt);
   const summaries: ListedTranscript[] = [];
@@ -688,19 +684,10 @@ function invalidListCursor(): Error { return new Error("Invalid external session
 function listRequestSignature(request: ListExternalSessionsRequest): string {
   return JSON.stringify({ projects: request.projects, query: request.query ?? "" });
 }
-async function canonicalizeProjects(
-  projects: SessionsProjectInput[],
-  managedWorktreeRootPath: string | undefined,
-): Promise<CanonicalSessionsProject[]> {
+async function canonicalizeProjects(projects: SessionsProjectInput[]): Promise<CanonicalSessionsProject[]> {
   return Promise.all(projects.map(async (project) => {
     if (!project.rootPath) return { ...project, canonicalRoots: [] };
-    const root = path.resolve(project.rootPath);
-    return {
-      ...project,
-      canonicalRoots: await Promise.all(
-        [root, ...projectWorktreeRoots(root, managedWorktreeRootPath)].map((value) => canonicalWorkspacePath(value)),
-      ),
-    };
+    return { ...project, canonicalRoots: [await canonicalWorkspacePath(path.resolve(project.rootPath))] };
   }));
 }
 async function projectForCwd(

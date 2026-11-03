@@ -4,7 +4,6 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import type { AlfredLaunchPreflight, AlfredPlan, AlfredPlanSession, AlfredWorkspaceContext } from "../shared/alfred-ipc.js";
-import { preflightAgentWorktree as defaultPreflightAgentWorktree, type AgentWorktreeResult } from "./git-worktree.js";
 
 type ExecFile = (
   file: string,
@@ -12,12 +11,9 @@ type ExecFile = (
   options?: { cwd?: string | undefined; timeout?: number | undefined },
 ) => Promise<{ stdout: string; stderr: string }>;
 
-type PreflightAgentWorktree = typeof defaultPreflightAgentWorktree;
-
 export type AlfredLaunchPreflightOptions = {
   commandExists?: (command: string) => Promise<boolean>;
   directoryExists?: (path: string) => Promise<boolean>;
-  preflightAgentWorktree?: PreflightAgentWorktree;
 };
 
 const execFile = promisify(execFileCallback) as ExecFile;
@@ -60,7 +56,6 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
         status: "ready",
         label: "Scratch project",
         detail: "No folder is bound; will launch in Alfred's scratch project.",
-        isolation: "shared",
       },
     };
   }
@@ -90,78 +85,13 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
     };
   }
 
-  if (!usesIsolatedWorktree(normalizedSession)) {
-    return {
-      ...normalizedSession,
-      launchPreflight: {
-        status: "ready",
-        label: "Ready",
-        detail: "Will launch in the selected project.",
-        isolation: "shared",
-      },
-    };
-  }
-
-  try {
-    const worktree = await (options.preflightAgentWorktree ?? defaultPreflightAgentWorktree)({
-      agentKind: normalizedSession.kind,
-      clientId: normalizedSession.title,
-      cwd,
-    });
-
-    return {
-      ...normalizedSession,
-      launchPreflight: readyWorktreePreflight(worktree),
-    };
-  } catch (error: unknown) {
-    if (isNotGitRepositoryError(error)) {
-      return {
-        ...normalizedSession,
-        launchPreflight: {
-          status: "ready",
-          label: "Shared project",
-          detail: "Project is not Git; will launch in the selected folder.",
-          isolation: "shared",
-        },
-      };
-    }
-
-    return {
-      ...normalizedSession,
-      launchPreflight: blockedPreflight(
-        "git_not_ready",
-        "Git not ready",
-        error instanceof Error ? error.message : String(error),
-      ),
-    };
-  }
-}
-
-function isNotGitRepositoryError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("not a Git repository");
-}
-
-function usesIsolatedWorktree(session: AlfredPlanSession): boolean {
-  return session.isolation === "worktree" && isCodingAgentKind(session.kind);
-}
-
-function isCodingAgentKind(kind: AlfredPlanSession["kind"]): boolean {
-  return kind === "codex" || kind === "claude";
-}
-
-function readyWorktreePreflight(worktree: AgentWorktreeResult): AlfredLaunchPreflight {
-  const uncommitted = worktree.uncommittedFiles ?? 0;
   return {
-    status: "ready",
-    label: "Worktree ready",
-    detail: uncommitted > 0
-      ? `Will create an isolated Git worktree from the last commit; ${uncommitted} uncommitted ${uncommitted === 1 ? "file stays" : "files stay"} in the project.`
-      : "Will create an isolated Git worktree on launch.",
-    isolation: "worktree",
-    branchName: worktree.branchName,
-    baseCwd: worktree.baseCwd,
-    cwd: worktree.cwd,
+    ...normalizedSession,
+    launchPreflight: {
+      status: "ready",
+      label: "Ready",
+      detail: "Will launch in the selected project.",
+    },
   };
 }
 

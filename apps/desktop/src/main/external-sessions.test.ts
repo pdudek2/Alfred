@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createExternalSessionsReader } from "./external-sessions.js";
-import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { SUMMARY_CACHE_COUNT_LIMIT, SUMMARY_CACHE_TEXT_LIMIT } from "../shared/sessions-ipc.js";
 import {
   writeCodexSummaryFixtures,
@@ -24,33 +23,31 @@ function temporaryDirectory(prefix: string): string {
 }
 
 describe("Codex sessions reader", () => {
-  it("maps sessions from Alfred-managed worktrees back to their project", async () => {
+  it("maps sessions from an agent's own worktrees inside the project back to it", async () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     const projectRoot = path.join(codexHome, "project");
-    const managedWorktreeRootPath = path.join(codexHome, "user-data", "worktrees");
-    const managedCheckout = path.join(managedProjectWorktreeRoot(managedWorktreeRootPath, projectRoot), "feature-a");
+    const checkouts = [path.join(projectRoot, ".worktrees", "feature-a"), path.join(projectRoot, ".claude", "worktrees", "feature-b")];
     const sessionDir = path.join(codexHome, "sessions", "2026", "08", "07");
-    await mkdir(managedCheckout, { recursive: true });
-    await mkdir(sessionDir, { recursive: true });
-    await writeFile(
-      path.join(sessionDir, "managed.jsonl"),
-      codexLines({ id: "managed-session", cwd: managedCheckout, title: "Managed worktree session" }),
-    );
+    await Promise.all([...checkouts, sessionDir].map((folder) => mkdir(folder, { recursive: true })));
+    await Promise.all(checkouts.map((cwd, index) => writeFile(
+      path.join(sessionDir, `checkout-${index}.jsonl`),
+      codexLines({ id: `checkout-session-${index}`, cwd, title: `Checkout session ${index}` }),
+    )));
 
-    const reader = createExternalSessionsReader({ codexHome, managedWorktreeRootPath });
+    const reader = createExternalSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({
       projects: [{ id: "A", label: "Alfred", rootPath: projectRoot }],
     });
 
-    expect(listed.sessions[0]).toMatchObject({
-      project: { id: "A", label: "Alfred" },
-      lifecycle: "resumable",
-    });
-    await expect(reader.resolveExternalSession({ sessionKey: listed.sessions[0]!.sessionKey })).resolves.toEqual({
+    expect(listed.sessions).toHaveLength(2);
+    for (const session of listed.sessions) {
+      expect(session).toMatchObject({ project: { id: "A", label: "Alfred" }, lifecycle: "resumable" });
+    }
+    await expect(reader.resolveExternalSession({ sessionKey: listed.sessions.find((session) => session.title === "Checkout session 0")!.sessionKey })).resolves.toEqual({
       kind: "resume",
       projectId: "A",
-      cwd: managedCheckout,
-      sessionId: "managed-session",
+      cwd: checkouts[0],
+      sessionId: "checkout-session-0",
       agentKind: "codex",
     });
   });
@@ -59,7 +56,6 @@ describe("Codex sessions reader", () => {
     const codexHome = temporaryDirectory("alfred-codex-home-");
     const parentRoot = path.join(codexHome, "very-long-parent-project-name");
     const childRoot = path.join(parentRoot, "x");
-    const managedWorktreeRootPath = path.join(codexHome, "managed-worktrees-with-a-long-root-name");
     const sessionDir = path.join(codexHome, "sessions", "2026", "09", "08");
     await mkdir(childRoot, { recursive: true });
     await mkdir(sessionDir, { recursive: true });
@@ -68,7 +64,7 @@ describe("Codex sessions reader", () => {
       codexLines({ id: "nested-session", cwd: childRoot, title: "Nested project session" }),
     );
 
-    const listed = await createExternalSessionsReader({ codexHome, managedWorktreeRootPath }).listExternalSessions({
+    const listed = await createExternalSessionsReader({ codexHome }).listExternalSessions({
       projects: [
         { id: "PARENT", label: "Parent", rootPath: parentRoot },
         { id: "CHILD", label: "Child", rootPath: childRoot },

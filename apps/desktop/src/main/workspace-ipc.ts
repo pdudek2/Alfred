@@ -13,11 +13,9 @@ import { openExternalUrl } from "./external-url.js";
 import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
-import { projectWorktreeRoots } from "./git-worktree.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 
 type WorkspaceIpcOptions = {
-  managedWorktreeRootPath?: string;
   scratchRootPath?: string;
 };
 
@@ -96,13 +94,6 @@ export async function allowedWorkspaceRoots(store: WorkspaceStore, options: Work
     if (!workspace.rootPath) return [];
     return [path.resolve(workspace.rootPath)];
   });
-  const worktreeRootSets = state.workspaces.flatMap((workspace) => {
-    if (!workspace.rootPath) return [];
-    return [projectWorktreeRoots(workspace.rootPath, options.managedWorktreeRootPath)];
-  });
-  const legacyProjectRoots = worktreeRootSets.flatMap((roots) => roots.slice(-1));
-  const managedProjectRoots = worktreeRootSets.flatMap((roots) => roots.slice(0, -1));
-  const baseRoots = [...workspaceRoots, ...legacyProjectRoots, ...managedProjectRoots];
   const scratchRoot = options.scratchRootPath?.trim();
   const scratchWorkspaceRoots = scratchRoot
     ? [
@@ -110,6 +101,5 @@ export async function allowedWorkspaceRoots(store: WorkspaceStore, options: Work
         ...state.workspaces.map((workspace) => scratchWorkspacePath(scratchRoot, workspace.id)),
       ]
     : [];
-  const withScratchRoot = (roots: string[]) => [...roots, ...scratchWorkspaceRoots];
-  return withScratchRoot(baseRoots);
+  return [...workspaceRoots, ...scratchWorkspaceRoots];
 }

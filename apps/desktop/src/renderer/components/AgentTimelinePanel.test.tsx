@@ -66,30 +66,6 @@ describe("AgentTimelinePanel", () => {
     expect(essentials.querySelector("dl")).toBeNull();
   });
 
-  it("shows the branch and full path without a disclosure", async () => {
-    const session: SessionTile = {
-      id: "s1",
-      title: "codex — worktree",
-      workspaceId: "w1",
-      stage: "live",
-      cwd: "/repo/.worktrees/feature",
-      source: "alfred",
-      command: "codex",
-      runtimeId: "runtime-1",
-      isolation: "worktree",
-      branchName: "feature-branch",
-      baseCwd: "/repo/alfred",
-      lastOutputAt: Date.now(),
-    };
-
-    render(<AgentTimelinePanel now={Date.now()} session={session} />);
-
-    const location = screen.getByRole("region", { name: "Location" });
-    expect(within(location).queryByText("Branch")).not.toBeInTheDocument();
-    expect(within(location).getByText("feature-branch")).toBeVisible();
-    expect(within(location).getByTitle(session.cwd)).toBeVisible();
-  });
-
   it("shows Activity immediately in newest-first order", async () => {
     const session: SessionTile = {
       id: "s1",
@@ -130,11 +106,9 @@ describe("AgentTimelinePanel", () => {
     }
   });
 
-  it("uses the worktree folder name then the project label when no branch is available", () => {
-    const session: SessionTile = { id: "s1", title: "Review", workspaceId: "w1", cwd: "/repo/.worktrees/review/", source: "manual", stage: "live", isolation: "worktree" };
-    const { rerender } = render(<AgentTimelinePanel now={Date.now()} session={session} projectName="Alfred" />);
-    expect(within(screen.getByRole("region", { name: "Location" })).getByText("review")).toBeVisible();
-    rerender(<AgentTimelinePanel now={Date.now()} session={{ ...session, isolation: "shared", cwd: "/repo" }} projectName="Alfred" />);
+  it("names the project in Location", () => {
+    const session: SessionTile = { id: "s1", title: "Review", workspaceId: "w1", cwd: "/repo/.worktrees/review", source: "manual", stage: "live" };
+    render(<AgentTimelinePanel now={Date.now()} session={session} projectName="Alfred" />);
     expect(within(screen.getByRole("region", { name: "Location" })).getByText("Alfred")).toBeVisible();
   });
 
@@ -144,19 +118,17 @@ describe("AgentTimelinePanel", () => {
       title: "codex — one",
       workspaceId: "w1",
       stage: "live",
-      cwd: "/repo/alfred",
+      cwd: "/repo/feature-one",
       source: "alfred",
       command: "codex",
       runtimeId: "runtime-1",
-      branchName: "feature-one",
-      baseCwd: "/repo/alfred",
     };
 
     const { rerender } = render(<AgentTimelinePanel now={Date.now()} session={baseSession} />);
     expect(screen.getByRole("region", { name: "Location" })).toHaveTextContent("feature-one");
-    rerender(<AgentTimelinePanel now={Date.now()} session={{ ...baseSession, id: "s2", title: "codex — two", branchName: "feature-two" }} />);
+    rerender(<AgentTimelinePanel now={Date.now()} session={{ ...baseSession, id: "s2", title: "codex — two", cwd: "/repo/feature-two" }} />);
     expect(screen.getByRole("region", { name: "Location" })).toHaveTextContent("feature-two");
-    expect(screen.queryByText("feature-one")).not.toBeInTheDocument();
+    expect(screen.queryByText("/repo/feature-one")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Activity" })).toBeVisible();
   });
 
@@ -198,12 +170,10 @@ describe("AgentTimelinePanel", () => {
     expect(onCopyActivityText).toHaveBeenCalledWith("/repo/alfred");
   });
 
-  it("preserves full worktree path in title and copy action", async () => {
+  it("preserves a full worktree path in title and copy action", async () => {
     const user = userEvent.setup();
     const onCopyActivityText = vi.fn();
     const cwd = "/Users/sample/Desktop/Alfred/.worktrees/path-noise-pass-with-extra-detail";
-    const branchName = "codex/alfred/focus/right-dock/path-noise-pass-branch";
-    const baseCwd = "/Users/sample/Desktop/Alfred";
     const session: SessionTile = {
       id: "s1",
       title: "codex — path noise",
@@ -213,62 +183,18 @@ describe("AgentTimelinePanel", () => {
       source: "alfred",
       command: "codex",
       runtimeId: "runtime-1",
-      isolation: "worktree",
-      branchName,
-      baseCwd,
     };
 
     const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} onCopyActivityText={onCopyActivityText} />);
 
     const path = screen.getByTitle(cwd);
     expect(path).toHaveTextContent(cwd);
-    expect(screen.getByText(branchName)).toBeVisible();
     expect(container.querySelector("dl")).toBeNull();
 
     const handoff = within(container).getByRole("group", { name: "Session actions for codex — path noise" });
     await user.click(within(handoff).getByRole("button", { name: "Copy path for codex — path noise" }));
 
     expect(onCopyActivityText).toHaveBeenCalledWith(cwd);
-  });
-
-  it("shows worktree Location for legacy worktrees and omits it for shared sessions", () => {
-    const legacyWorktreeSession: SessionTile = {
-      id: "s1",
-      title: "codex — isolated",
-      workspaceId: "w1",
-      stage: "live",
-      cwd: "/repo/.worktrees/codex-isolated",
-      source: "alfred",
-      command: "codex",
-      runtimeId: "runtime-1",
-      branchName: "alfred-codex-isolated",
-      baseCwd: "/repo",
-    };
-
-    const { rerender, container } = render(<AgentTimelinePanel now={Date.now()} session={legacyWorktreeSession} />);
-    expect(within(container).getByTitle(legacyWorktreeSession.cwd)).toBeVisible();
-    expect(within(container).getByText("alfred-codex-isolated")).toBeVisible();
-
-    rerender(
-      <AgentTimelinePanel
-        now={Date.now()}
-        session={{
-          id: "s2",
-          title: "codex — shared",
-          workspaceId: "w1",
-          stage: "live",
-          cwd: "/repo",
-          source: "alfred",
-          command: "codex",
-          runtimeId: "runtime-1",
-          isolation: "shared",
-          branchName: "alfred-codex-stale",
-          baseCwd: "/repo",
-        }}
-      />,
-    );
-
-    expect(within(container).queryByText("Worktree")).not.toBeInTheDocument();
   });
 
   it("renders recent stored activity events before generic runtime copy", async () => {

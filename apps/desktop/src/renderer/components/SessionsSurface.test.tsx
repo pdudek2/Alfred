@@ -1070,15 +1070,10 @@ describe("SessionsSurface", () => {
   it("lays the reader out as on the canvas: title, one sentence, actions, then the session's text", async () => {
     const user = userEvent.setup();
     renderSurface({
-      onApplyWorktree: vi.fn(),
       onDiscardSavedSession: vi.fn(),
-      onReviewWorktree: vi.fn(),
       sessions: [managedSession(0, {
         title: "Oracle memory schema v2",
         runtimeStatus: "restored",
-        isolation: "worktree",
-        branchName: "wt/oracle-v2",
-        baseCwd: "/Users/sample/Desktop/Alfred",
         initialBuffer: "asleep output",
         createdAt: Date.now() - 9 * 24 * 60 * 60_000,
       })],
@@ -1087,12 +1082,11 @@ describe("SessionsSurface", () => {
     await user.click(screen.getByRole("option", { name: /Oracle memory schema v2/ }));
     const article = await screen.findByRole("article", { name: "Oracle memory schema v2" });
     expect(within(article).getByRole("heading", { level: 1 })).toHaveTextContent("Oracle memory schema v2");
-    expect(article).toHaveTextContent("Codex worked in wt/oracle-v2. Asleep for 9 days.");
+    expect(article).toHaveTextContent("Codex worked in Alfred. Asleep for 9 days.");
 
     expect(within(article).getByRole("button", { name: "Resume" })).toHaveClass("sessions-reader__primary");
-    const actions = within(article).getByRole("toolbar", { name: "Asleep worktree actions" });
-    expect(within(actions).getAllByRole("button").map((button) => button.textContent))
-      .toEqual(["Review diff", "Apply to Alfred", "Discard"]);
+    const actions = within(article).getByRole("toolbar", { name: "Asleep session actions" });
+    expect(within(actions).getAllByRole("button").map((button) => button.textContent)).toEqual(["Discard"]);
 
     // Alfred keeps no per-command record, so the session's own text stands where the canvas lists commands.
     const scrollback = within(article).getByRole("region", { name: "Scrollback" });

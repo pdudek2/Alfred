@@ -13,11 +13,9 @@ import {
   isAgentConversationId,
   type PersistedTerminalSessionSnapshot,
   type TerminalResumeTarget,
-  type TerminalSessionIsolation,
   type TerminalSessionSource,
 } from "../shared/terminal-ipc.js";
 import type { WorkspaceMissionBrief, WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
-import { isAlfredManagedBranchName, workspaceRootFingerprint } from "./git-worktree.js";
 
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
@@ -448,7 +446,6 @@ function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
       args: [...session.args],
       ...(typeof session.cwd === "string" ? { cwd: session.cwd } : {}),
       workspaceId,
-      ...(isTerminalSessionIsolation(session.isolation) ? { isolation: session.isolation } : {}),
       ...(typeof session.safetyNote === "string" ? { safetyNote: session.safetyNote } : {}),
       ...(isAlfredLaunchPreflight(session.launchPreflight) ? { launchPreflight: cloneLaunchPreflight(session.launchPreflight) } : {}),
     }];
@@ -467,10 +464,6 @@ function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
 
 function isAgentKind(value: unknown): value is AgentKind {
   return value === "codex" || value === "claude" || value === "dev-server" || value === "shell";
-}
-
-function isTerminalSessionIsolation(value: unknown): value is TerminalSessionIsolation {
-  return value === "shared" || value === "worktree";
 }
 
 function normalizeRestoredTerminalSessions(
@@ -505,12 +498,6 @@ function normalizeRestoredTerminalSessions(
         ? { agentKind: item.agentKind }
         : legacyAgentKind === undefined ? {} : { agentKind: legacyAgentKind }),
       ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
-      ...(typeof item.workspaceRootFingerprint === "string"
-        ? { workspaceRootFingerprint: item.workspaceRootFingerprint }
-        : {}),
-      ...(isTerminalSessionIsolation(item.isolation) ? { isolation: item.isolation } : {}),
-      ...(typeof item.branchName === "string" ? { branchName: item.branchName } : {}),
-      ...(typeof item.baseCwd === "string" ? { baseCwd: item.baseCwd } : {}),
       ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
       ...(typeof item.eventLogKey === "string" ? { eventLogKey: item.eventLogKey } : {}),
       ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
@@ -566,43 +553,19 @@ export function sanitizePersistedTerminalSession(
   privacySettings: DesktopPrivacySettings,
   clearLaunchData = false,
 ): PersistedTerminalSessionSnapshot | null {
-  const launchDataCleared =
-    clearLaunchData || privacySettings.terminalScrollbackRetention === "off";
-  const legacyRoot = session.baseCwd?.trim();
-  const fingerprint = /^[a-f0-9]{16}$/.test(session.workspaceRootFingerprint ?? "")
-    ? session.workspaceRootFingerprint
-    : legacyRoot && path.isAbsolute(legacyRoot)
-      ? workspaceRootFingerprint(legacyRoot)
-      : undefined;
-  const safeIdentity =
-    session.isolation === "worktree"
-    && Boolean(session.workspaceId?.trim())
-    && Boolean(fingerprint)
-    && Boolean(session.branchName && isAlfredManagedBranchName(session.branchName));
+  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") return null;
 
-  const identity = {
+  return {
     clientId: session.clientId.trim(),
     title: currentGeneratedTitle(redactText(session.title)),
     source: session.source,
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
-    ...(fingerprint === undefined ? {} : { workspaceRootFingerprint: fingerprint }),
-    ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
-    ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
     ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
     ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
     ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
     ...(session.namedByYou ? { namedByYou: true as const } : {}),
-  };
-
-  if (launchDataCleared) {
-    return safeIdentity ? identity : null;
-  }
-
-  return {
-    ...identity,
     ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
-    ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
     ...(session.shell === undefined ? {} : { shell: session.shell }),
     ...(session.command === undefined || redactSecrets(session.command) !== session.command
       ? {}
@@ -876,8 +839,7 @@ function isAlfredLaunchPreflight(value: unknown): value is NonNullable<AlfredSta
 }
 
 function isLaunchPreflightBlockCode(value: unknown): boolean {
-  return value === "command_missing" || value === "cwd_missing" || value === "cwd_outside_workspace" || value === "git_not_ready"
-    || value === "no_workspace";
+  return value === "command_missing" || value === "cwd_missing" || value === "cwd_outside_workspace" || value === "no_workspace";
 }
 
 function cloneLaunchPreflight<T extends NonNullable<AlfredStagedPlanSnapshot["sessions"][number]["launchPreflight"]>>(

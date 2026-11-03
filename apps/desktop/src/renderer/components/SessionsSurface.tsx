@@ -16,8 +16,7 @@ import {
   sessionsPrimaryAction,
   type SessionsPrimaryActionRequest,
 } from "../sessions-projection";
-import { sessionInstanceKey, type SessionTile } from "../session-state";
-import { isReviewableWorktreeSession } from "../session-scope";
+import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus } from "../session-status";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
@@ -30,17 +29,7 @@ import {
   type SessionsReaderStatus,
 } from "./SessionsReader";
 
-const SAVED_ACTION_RESULT_TITLES = new Set([
-  "Applied to project",
-  "Apply failed",
-  "Apply needs review",
-  "Worktree diff reviewed",
-  "Discard worktree blocked",
-  "Review diff failed",
-  // Sessions saved earlier keep these titles.
-  "Checkout diff reviewed",
-  "Discard checkout blocked",
-]);
+const SAVED_ACTION_RESULT_TITLES = new Set(["Discard blocked"]);
 
 // A transcript Alfred did not run has no process to report on; it reads as ended.
 const ENDED_STATUS: SessionDisplayStatus = { kind: "done", label: SESSION_STATE_LABELS.done };
@@ -55,14 +44,11 @@ export type SessionsSurfaceProps = {
   sessionsApi: SessionsApi | null;
   state: SessionsViewState;
   terminalApi: Pick<TerminalApi, "snapshot"> | null;
-  worktreeActionPending?: Readonly<Record<string, "review" | "apply" | undefined>>;
   workspaces: SessionsProjectInput[];
-  onApplyWorktree?: (sessionId: string) => void;
   onBackToWork: () => void;
   onDiscardSavedSession?: (sessionId: string) => void;
   onPrimaryAction: ((request: SessionsPrimaryActionRequest) => void) | undefined;
   onRefreshExternalSessions: () => void;
-  onReviewWorktree?: (sessionId: string) => void;
   onSelectionChange?: (selection: HistorySelection | null) => void;
   onStateChange: Dispatch<SetStateAction<SessionsViewState>>;
 };
@@ -77,14 +63,11 @@ export function SessionsSurface({
   sessionsApi,
   state,
   terminalApi,
-  worktreeActionPending,
   workspaces,
-  onApplyWorktree,
   onBackToWork,
   onDiscardSavedSession,
   onPrimaryAction,
   onRefreshExternalSessions,
-  onReviewWorktree,
   onSelectionChange,
   onStateChange,
 }: SessionsSurfaceProps) {
@@ -182,11 +165,6 @@ export function SessionsSurface({
     && onDiscardSavedSession
     ? {
         ended: selectedManagedSession.runtimeStatus !== "restored",
-        confirmInline: !isReviewableWorktreeSession(selectedManagedSession),
-        checkout: isReviewableWorktreeSession(selectedManagedSession)
-          && Boolean(onApplyWorktree && onReviewWorktree),
-        pendingAction: worktreeActionPending?.[sessionInstanceKey(selectedManagedSession)],
-        onApply: () => onApplyWorktree?.(selectedManagedSession.id),
         onDiscard: () => {
           discardSelectionRef.current = {
             key: selected!.sessionKey,
@@ -194,7 +172,6 @@ export function SessionsSurface({
           };
           onDiscardSavedSession(selectedManagedSession.id);
         },
-        onReview: () => onReviewWorktree?.(selectedManagedSession.id),
       }
     : null;
   const selectedSavedActionEvent = selectedManagedSession?.activityEvents

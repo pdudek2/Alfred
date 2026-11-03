@@ -66,10 +66,7 @@ export function registerDesktopStateIpc(
         await store.updateState((latest) => ({
           ...latest,
           stagedPlans: {},
-          restoredTerminalSessions: latest.restoredTerminalSessions.flatMap((session) => {
-            const sanitized = sanitizePersistedTerminalSession(session, latest.privacySettings, true);
-            return sanitized ? [sanitized] : [];
-          }),
+          restoredTerminalSessions: [],
         }));
         await removeQuarantinedDesktopStateFiles(store.getFilePath());
         await options.clearAgentEvents?.();

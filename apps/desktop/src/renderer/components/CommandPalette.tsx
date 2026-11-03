@@ -12,7 +12,6 @@ import type { SessionTile } from "../session-state";
 import { isRestartable, sessionState } from "../session-status";
 import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
-import type { TerminalSessionIsolation } from "../../shared/terminal-ipc";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
 import { shortenPath } from "../path-display";
 
@@ -44,7 +43,7 @@ type CommandPaletteProps = {
   workspaces: ProjectNavigatorWorkspace[];
   canCloseWorkspace: boolean;
   hasSavedSessions: boolean;
-  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
+  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onOpenPlan?: (() => void) | undefined;
   onAddWorkspace: () => void;
@@ -188,24 +187,6 @@ export function CommandPalette({
         disabled: !activeWorkspaceAvailable,
         run: () => onAddAgentSession("claude"),
       },
-      {
-        id: "new-codex-isolated-session",
-        label: "New Codex isolated worktree",
-        detail: activeWorkspaceBound
-          ? "Create a temporary Git worktree for risky or parallel edits"
-          : "Bind a project folder to create a temporary Git worktree for risky or parallel edits",
-        disabled: !activeWorkspaceBound,
-        run: () => onAddAgentSession("codex", "worktree"),
-      },
-      {
-        id: "new-claude-isolated-session",
-        label: "New Claude isolated worktree",
-        detail: activeWorkspaceBound
-          ? "Create a temporary Git worktree for risky or parallel edits"
-          : "Bind a project folder to create a temporary Git worktree for risky or parallel edits",
-        disabled: !activeWorkspaceBound,
-        run: () => onAddAgentSession("claude", "worktree"),
-      },
       ...(onOpenPlan ? [{ id: "new-plan", label: "Plan with Alfred", detail: "Describe a goal and get drafts to launch", run: onOpenPlan }] : []),
       {
         id: "add-project",
@@ -271,7 +252,7 @@ export function CommandPalette({
       ...searchableSessions.map((session) => {
         const workspace = workspaceById.get(session.workspaceId);
         const workspaceLabel = workspace?.label ?? `Project ${session.workspaceId}`;
-        const location = session.branchName ?? session.cwd ?? workspace?.rootPath ?? "default project";
+        const location = session.cwd ?? workspace?.rootPath ?? "default project";
         return {
           id: `focus-session-${session.workspaceId}-${session.id}`,
           label: `Open ${session.title}`,
@@ -626,9 +607,7 @@ function commandGroupLabel(commandId: string): string {
   if (
     commandId === "new-terminal" ||
     commandId === "new-codex-session" ||
-    commandId === "new-claude-session" ||
-    commandId === "new-codex-isolated-session" ||
-    commandId === "new-claude-isolated-session"
+    commandId === "new-claude-session"
   ) {
     return "Launch";
   }

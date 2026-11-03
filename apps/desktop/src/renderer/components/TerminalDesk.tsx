@@ -49,8 +49,6 @@ import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { SESSION_VIEW_IDS } from "../tab-keys";
-import { WorktreeDiffPanel, type WorktreeDiffCloseReason } from "./WorktreeDiffPanel";
-import type { WorktreeDiffView } from "../worktree-diff";
 
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
@@ -92,7 +90,6 @@ function captureAgentTitleInput(state: AgentTitleInputCapture, data: string): Ag
   };
 }
 
-export type WorktreeActionKind = "review" | "apply";
 export type TerminalStartAttempt = { readonly workspaceId: string };
 
 type TerminalDeskProps = {
@@ -105,9 +102,6 @@ type TerminalDeskProps = {
   sessions: SessionTile[];
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
-  worktreeDiffReturnFocus: HTMLElement | null;
-  worktreeDiffView: WorktreeDiffView | null;
-  worktreeDiffPendingAction?: "review" | "apply" | undefined;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
@@ -117,9 +111,6 @@ type TerminalDeskProps = {
   onAddManualSession: () => void;
   onOpenPlan?: (() => void) | undefined;
   onCloseSession: (sessionId: string) => void;
-  onCloseWorktreeDiff: () => void;
-  onApplyWorktree: (sessionId: string, reviewedFingerprint?: string) => void;
-  onReviewWorktree: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenHistory: () => void;
@@ -151,9 +142,6 @@ export function TerminalDesk({
   sessions,
   surfaceActive,
   terminalFocusRequestKey,
-  worktreeDiffReturnFocus,
-  worktreeDiffView,
-  worktreeDiffPendingAction,
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
@@ -163,9 +151,6 @@ export function TerminalDesk({
   onOpenPlan,
   onAddManualSession,
   onCloseSession,
-  onApplyWorktree,
-  onReviewWorktree,
-  onCloseWorktreeDiff,
   onContinueRestoredSession,
   onOpenExternalTerminal,
   onOpenHistory,
@@ -187,11 +172,6 @@ export function TerminalDesk({
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
-  const closeDiffFocusRef = useRef<{
-    fallback: HTMLElement | null;
-    reason: WorktreeDiffCloseReason;
-    returnFocus: HTMLElement | null;
-  } | null>(null);
   const activeSessions = sessions.filter(
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
   );
@@ -223,20 +203,6 @@ export function TerminalDesk({
     return () => column.removeEventListener("wheel", handleWheel);
   }, []);
 
-  const handleCloseDiff = useCallback((reason: WorktreeDiffCloseReason) => {
-    const targetSessionId = worktreeDiffView?.sessionId ?? focusSession?.id;
-    const tiles = Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? []);
-    const tile = tiles.find((candidate) => candidate.dataset.sessionId === targetSessionId)
-      ?? tiles.find((candidate) => candidate.dataset.sessionId === focusSession?.id)
-      ?? tiles[0];
-    closeDiffFocusRef.current = {
-      fallback: tile ?? null,
-      reason,
-      returnFocus: worktreeDiffReturnFocus,
-    };
-    onCloseWorktreeDiff();
-  }, [focusSession?.id, onCloseWorktreeDiff, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
-
   // Pin and Unpin remove the control you pressed, so focus goes to the inverse action or back to the focus.
   const pinFocusRef = useRef<"unpin" | "focus" | null>(null);
   const pinSession = (sessionId: string | null) => {
@@ -262,34 +228,10 @@ export function TerminalDesk({
     element?.focus({ preventScroll: true });
   }, [focusSession?.id, pinnedSession?.id]);
 
-  useEffect(() => {
-    if (worktreeDiffView || !closeDiffFocusRef.current) return;
-    const { fallback, reason, returnFocus } = closeDiffFocusRef.current;
-    closeDiffFocusRef.current = null;
-    const frame = requestAnimationFrame(() => {
-      const inertOwner = returnFocus?.closest("[inert]");
-      if (
-        reason === "button"
-        && returnFocus?.isConnected
-        && (!inertOwner || inertOwner === gridColumnRef.current)
-      ) {
-        returnFocus.focus();
-        return;
-      }
-      fallback?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [worktreeDiffView]);
-
   return (
     <section className="terminal-stage headerless" aria-label="terminals">
       <div className="terminal-stage-body">
-        <div
-          ref={gridColumnRef}
-          className={`terminal-grid-column ${worktreeDiffView ? "worktree-diff-hidden" : ""}`}
-          aria-hidden={worktreeDiffView ? "true" : undefined}
-          inert={worktreeDiffView ? true : undefined}
-        >
+        <div ref={gridColumnRef} className="terminal-grid-column">
           {hasDrafts && planLine}
           <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""}`} data-testid="terminal-grid" ref={gridRef}>
           {liveSessions.length === 0 && (
@@ -327,7 +269,6 @@ export function TerminalDesk({
                 workspaceId={session.workspaceId}
                 workspaceGitBranch={workspaceGitBranch}
                 workspaceRootPath={workspaceRootPath}
-                workspaceRootFingerprint={session.workspaceRootFingerprint}
                 title={session.title}
                 layoutHidden={layoutHidden}
                 workspaceHidden={workspaceHidden}
@@ -338,9 +279,6 @@ export function TerminalDesk({
                 detectedAgentKind={session.detectedAgentKind}
                 watchesStartScreen={watchesCodexStartScreen(session)}
                 startScreen={session.startScreen}
-                isolation={session.isolation}
-                branchName={session.branchName}
-                baseCwd={session.baseCwd}
                 launchPreflight={session.launchPreflight}
                 command={session.command}
                 args={session.args}
@@ -353,7 +291,7 @@ export function TerminalDesk({
                 agentSignal={session.agentSignal}
                 shellBusy={session.shellBusy}
                 selected={inspectedSession?.id === session.id}
-                surfaceActive={surfaceActive && !worktreeDiffView}
+                surfaceActive={surfaceActive}
                 terminalFocusRequestKey={terminalFocusRequestKey}
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
@@ -377,17 +315,6 @@ export function TerminalDesk({
           })}
           </div>
         </div>
-        {worktreeDiffView && (
-          <WorktreeDiffPanel
-            view={worktreeDiffView}
-            projectName={workspaceLabel}
-            pendingAction={worktreeDiffPendingAction}
-            onApply={onApplyWorktree}
-            onReview={onReviewWorktree}
-            onDiscard={onCloseSession}
-            onClose={handleCloseDiff}
-          />
-        )}
       </div>
     </section>
   );
@@ -622,9 +549,6 @@ function ManualTerminalTile({
   now,
   agentKind,
   detectedAgentKind,
-  isolation,
-  branchName,
-  baseCwd,
   launchPreflight,
   activityEvents,
   initialBuffer,
@@ -659,7 +583,6 @@ function ManualTerminalTile({
   workspaceId,
   workspaceGitBranch,
   workspaceRootPath,
-  workspaceRootFingerprint,
   title,
   layoutHidden = false,
   workspaceHidden,
@@ -680,9 +603,6 @@ function ManualTerminalTile({
   detectedAgentKind?: SessionTile["detectedAgentKind"];
   watchesStartScreen: boolean;
   startScreen?: CodexStartScreen | undefined;
-  isolation?: SessionTile["isolation"] | undefined;
-  branchName?: string | undefined;
-  baseCwd?: string | undefined;
   launchPreflight?: SessionTile["launchPreflight"];
   activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
@@ -718,7 +638,6 @@ function ManualTerminalTile({
   workspaceId: string;
   workspaceGitBranch?: string | undefined;
   workspaceRootPath?: string | undefined;
-  workspaceRootFingerprint?: string | undefined;
   title: string;
   layoutHidden?: boolean;
   workspaceHidden: boolean;
@@ -799,20 +718,6 @@ function ManualTerminalTile({
   const displayStatus = sessionState(displaySession, tileStatus, now);
   const restartable = isRestartable(displayStatus);
   const discardableSession = displayStatus.kind === "asleep" || restartable;
-  const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({
-    isolation,
-    branchName,
-    baseCwd,
-    workspaceId,
-    workspaceRootFingerprint,
-  });
-  const isolatedCheckout = isIsolatedCheckout({
-    isolation,
-    branchName,
-    baseCwd,
-    workspaceId,
-    workspaceRootFingerprint,
-  });
   const relaunchCapable = canRelaunchRestoredSession({
     cwd,
     source,
@@ -841,33 +746,16 @@ function ManualTerminalTile({
       : sessionStripLabel("Started", createdAt, now);
   // Contract vocabulary: a session is Claude, Codex or Terminal.
   const kindLabel = kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Terminal";
-  const sessionLocationTitle = isolatedCheckout
-    ? branchName
-      ? baseCwd
-        ? `${branchName}, isolated from ${baseCwd}`
-        : `${branchName} in an isolated worktree`
-      : baseCwd
-        ? `isolated worktree from ${baseCwd}`
-        : "isolated worktree"
-    : resolvedCwd ?? "runtime cwd";
   const locationMatchesWorkspaceRoot = pathsReferToSameLocation(cwd, workspaceRootPath)
     && pathsReferToSameLocation(resolvedCwd, workspaceRootPath);
-  // Where the session works: its worktree branch, a folder other than the project root, or the project's branch.
-  const locationLabel = isolatedCheckout
-    ? branchName ?? "isolated worktree"
-    : locationMatchesWorkspaceRoot
-      ? workspaceGitBranch ?? null
-      : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
-  const locationTitle = isolatedCheckout || !locationMatchesWorkspaceRoot ? sessionLocationTitle : workspaceRootPath;
+  // Where the session works: a folder other than the project root, or the project's branch.
+  const locationLabel = locationMatchesWorkspaceRoot
+    ? workspaceGitBranch ?? null
+    : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const locationTitle = locationMatchesWorkspaceRoot ? workspaceRootPath : resolvedCwd ?? "runtime cwd";
   const externalTerminalCwd = resolvedCwd || cwd;
-  const worktreeRecoverySession = discardableSession && isolatedCheckout;
-  const recoveryOnly = tileStatus === "restored" && worktreeRecoverySession && !relaunchCapable;
-  const closeActionLabel = discardableSession ? (worktreeRecoverySession ? "Discard worktree" : "Discard") : "Close";
-  const closeActionTitle = discardableSession
-    ? worktreeRecoverySession
-      ? "Discard this isolated worktree"
-      : "Discard this session"
-    : "Close terminal";
+  const closeActionLabel = discardableSession ? "Discard" : "Close";
+  const closeActionTitle = discardableSession ? "Discard this session" : "Close terminal";
   const runtimeBindingKey = runtimeId
     ?? (runtimeStatus === "starting" || runtimeStatus === "restored" ? runtimeStatus : "inactive");
   const runtimeMetadataRef = useRef({
@@ -877,10 +765,6 @@ function ManualTerminalTile({
     workspaceId,
     agentKind,
     detectedAgentKind,
-    isolation,
-    branchName,
-    baseCwd,
-    existingCheckoutMetadata,
     launchPreflight,
     command,
     args,
@@ -920,10 +804,6 @@ function ManualTerminalTile({
       workspaceId,
       agentKind,
       detectedAgentKind,
-      isolation,
-      branchName,
-      baseCwd,
-      existingCheckoutMetadata,
       launchPreflight,
       command,
       args,
@@ -941,10 +821,6 @@ function ManualTerminalTile({
     workspaceId,
     agentKind,
     detectedAgentKind,
-    isolation,
-    branchName,
-    baseCwd,
-    existingCheckoutMetadata,
     launchPreflight,
     command,
     args,
@@ -1024,9 +900,7 @@ function ManualTerminalTile({
   // With nothing to press, the strip still says in words why the session is not simply running.
   const stripNote = resumeAction
     ? null
-    : recoveryOnly
-      ? "Launch details were cleared for privacy. Your isolated worktree is still available."
-      : displayStatus.kind === "unavailable" ? "This session is unavailable." : attentionCopy;
+    : displayStatus.kind === "unavailable" ? "This session is unavailable." : attentionCopy;
   const actionItems: ChromeMenuItem[] = [
     ...(externalTerminalCwd
       ? [{
@@ -1451,16 +1325,6 @@ function ManualTerminalTile({
     };
     if (metadata.agentKind) baseRequest.agentKind = metadata.agentKind;
     if (metadata.cwd) baseRequest.cwd = metadata.cwd;
-    if (metadata.existingCheckoutMetadata) {
-      baseRequest.isolation = "worktree";
-      if (metadata.branchName) baseRequest.branchName = metadata.branchName;
-      if (metadata.baseCwd) baseRequest.baseCwd = metadata.baseCwd;
-    } else if (!metadata.branchName && metadata.launchPreflight?.status === "ready" && metadata.launchPreflight.isolation === "worktree") {
-      baseRequest.isolation = "worktree";
-      if (metadata.launchPreflight.branchName) baseRequest.branchName = metadata.launchPreflight.branchName;
-    } else if (metadata.isolation) {
-      baseRequest.isolation = metadata.isolation;
-    }
     if (metadata.command) {
       baseRequest.command = metadata.command;
       baseRequest.args = metadata.args ?? [];
@@ -1713,67 +1577,6 @@ function mergeTerminalReplayBuffer(baseBuffer: string | undefined, pendingOutput
   }
 
   return `${stableBaseBuffer}${pendingOutput}`;
-}
-
-function isIsolatedCheckout({
-  isolation,
-  branchName,
-  baseCwd,
-  workspaceId,
-  workspaceRootFingerprint,
-}: {
-  isolation?: SessionTile["isolation"] | undefined;
-  branchName?: string | undefined;
-  baseCwd?: string | undefined;
-  workspaceId?: string | undefined;
-  workspaceRootFingerprint?: string | undefined;
-}): boolean {
-  if (isolation === "shared") return false;
-  return hasIsolatedCheckoutMetadata({
-    branchName,
-    baseCwd,
-    workspaceId,
-    workspaceRootFingerprint,
-  }) || isolation === "worktree";
-}
-
-function isReusableIsolatedCheckoutMetadata({
-  isolation,
-  branchName,
-  baseCwd,
-  workspaceId,
-  workspaceRootFingerprint,
-}: {
-  isolation?: SessionTile["isolation"] | undefined;
-  branchName?: string | undefined;
-  baseCwd?: string | undefined;
-  workspaceId?: string | undefined;
-  workspaceRootFingerprint?: string | undefined;
-}): boolean {
-  if (isolation === "shared") return false;
-  return hasIsolatedCheckoutMetadata({
-    branchName,
-    baseCwd,
-    workspaceId,
-    workspaceRootFingerprint,
-  });
-}
-
-function hasIsolatedCheckoutMetadata({
-  branchName,
-  baseCwd,
-  workspaceId,
-  workspaceRootFingerprint,
-}: {
-  branchName?: string | undefined;
-  baseCwd?: string | undefined;
-  workspaceId?: string | undefined;
-  workspaceRootFingerprint?: string | undefined;
-}): boolean {
-  return Boolean(
-    branchName
-    && (baseCwd || (workspaceId && workspaceRootFingerprint)),
-  );
 }
 
 function focusEnteredTile(event: ReactFocusEvent<HTMLElement>): boolean {

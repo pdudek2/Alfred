@@ -10,7 +10,6 @@ export type NewSessionSheetProps = {
   projectId: string;
   kind: NewSessionKind;
   draft: string;
-  initialIsolation?: boolean;
   /** Set when the session starts as a worker of another ("New worker" on its rail row). */
   parentTitle?: string | undefined;
   /** Plan with Alfred needs an OpenRouter key; without one it is not offered. */
@@ -22,7 +21,7 @@ export type NewSessionSheetProps = {
   onProjectChange: (id: string) => void;
   onKindChange: (kind: NewSessionKind) => void;
   onDraftChange: (draft: string) => void;
-  onStart: (isolated: boolean) => Promise<boolean> | boolean;
+  onStart: () => Promise<boolean> | boolean;
   onClose: () => void;
 };
 const kinds = [
@@ -32,10 +31,9 @@ const kinds = [
   ["plan", "Plan with Alfred", "Describe a goal and get drafts to launch"],
 ] as const;
 
-export function NewSessionSheet({ projects, projectId, kind, draft, initialIsolation = false, parentTitle, planAvailable = true, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
+export function NewSessionSheet({ projects, projectId, kind, draft, parentTitle, planAvailable = true, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
-  const [isolated, setIsolated] = useState(initialIsolation);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const submitting = useRef(false);
@@ -46,7 +44,6 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialIsola
   }, []);
   const lastFocus = useRef<HTMLElement | null>(null);
   const project = projects.find((item) => item.id === projectId);
-  const agent = kind === "codex" || kind === "claude";
   const reason = project?.rootStatus === "missing" ? "Reconnect the project folder first." : kind === "plan" ? blockedReason : undefined;
   const invalid = disabled || busy || !project || Boolean(reason) || (kind === "plan" && !draft.trim());
   const close = () => {
@@ -78,7 +75,7 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialIsola
     setBusy(true);
     setError(undefined);
     try {
-      const started = await onStart(agent && Boolean(project?.rootPath) && isolated);
+      const started = await onStart();
       if (started && mounted.current) close();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to start. Try again.");
@@ -124,7 +121,6 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialIsola
           {kind !== "terminal" && <div className="new-session-prompt"><label htmlFor="new-session-prompt">{kind === "plan" ? "Goal" : "First prompt"}</label>
             <textarea id="new-session-prompt" rows={3} required={kind === "plan"} value={draft} disabled={busy || disabled} onChange={(event) => onDraftChange(event.target.value)} />
           </div>}
-          {agent && project?.rootPath && <label className="new-session-isolation"><input type="checkbox" checked={isolated} disabled={busy || disabled} onChange={(event) => setIsolated(event.target.checked)} /><span>Work in an isolated worktree<small>Changes reach {project.label} only when you apply them</small></span></label>}
           <div className="new-session-status" role="status">{busy ? "Thinking…" : error ?? (kind === "plan" ? requestError : undefined) ?? reason ?? (disabled ? "New session paused while another Alfred panel is active." : "")}</div>
           <footer><button type="button" disabled={disabled} onClick={close}>Cancel <kbd aria-hidden="true">esc</kbd></button><button type="submit" className="new-session-start" disabled={invalid}>Start <kbd aria-hidden="true">↩</kbd></button></footer>
         </form>

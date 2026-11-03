@@ -173,7 +173,6 @@ describe("persisted-desktop-state", () => {
               status: "ready",
               label: "Ready",
               detail: "Will launch in the selected project.",
-              isolation: "shared",
             },
           },
           {
@@ -183,7 +182,6 @@ describe("persisted-desktop-state", () => {
             title: "Codex",
             command: "codex",
             args: [],
-            isolation: "worktree",
             launchPreflight: {
               status: "blocked",
               code: "cwd_outside_workspace",
@@ -720,6 +718,37 @@ describe("persisted-desktop-state", () => {
       .toMatchObject({ clientId: "codex-2", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d", namedByYou: true });
   });
 
+  it("loads a session saved in an Alfred worktree as an ordinary session in its saved folder", () => {
+    const state = normalizeDesktopState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{
+        clientId: "codex-1",
+        title: "Codex",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+        baseCwd: "/repo",
+        cwd: "/user-data/worktrees/repo/alfred-codex-codex-1-20260729120000-abcd1234",
+        command: "codex",
+        args: [],
+      }],
+    });
+
+    expect(state.restoredTerminalSessions).toEqual([{
+      clientId: "codex-1",
+      title: "Codex",
+      source: "manual",
+      agentKind: "codex",
+      workspaceId: "A",
+      cwd: "/user-data/worktrees/repo/alfred-codex-codex-1-20260729120000-abcd1234",
+      command: "codex",
+      args: [],
+    }]);
+  });
+
   it("gives saved sessions the titles new ones get, once", async () => {
     const filePath = await temporaryStateFile();
     const saved = (clientId: string, title: string) => ({ clientId, title, source: "manual", cwd: "/repo", shell: "/bin/zsh", buffer: "" });
@@ -745,126 +774,7 @@ describe("persisted-desktop-state", () => {
     expect(rewritten.restoredTerminalSessions.map((session) => session.title)).toEqual(titles);
   });
 
-  it("keeps only safe isolated recovery identity when retention is off", () => {
-    const isolated = {
-      clientId: "codex-1",
-      title: "Codex /Users/sample/Client",
-      source: "alfred" as const,
-      agentKind: "codex" as const,
-      workspaceId: "A",
-      isolation: "worktree" as const,
-      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-      baseCwd: "/Users/sample/Client",
-      cwd: "/private/worktrees/client/codex-1",
-      shell: "/bin/zsh",
-      command: "codex",
-      args: ["secret customer prompt"],
-      resumeTarget: {
-        agentKind: "codex" as const,
-        sessionId: "session-secret",
-        source: "codex-session-index" as const,
-      },
-      buffer: "Authorization: Bearer abc.def.ghi",
-      lastActivityAt: 10,
-      lastOutputAt: 11,
-    };
-
-    const sanitized = sanitizePersistedTerminalSession(isolated, {
-      terminalScrollbackRetention: "off",
-    });
-
-    expect(sanitized).toMatchObject({
-      clientId: "codex-1",
-      workspaceId: "A",
-      workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-      isolation: "worktree",
-      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-    });
-    for (const field of [
-      "cwd",
-      "baseCwd",
-      "shell",
-      "command",
-      "args",
-      "resumeTarget",
-      "buffer",
-      "lastActivityAt",
-      "lastOutputAt",
-    ]) {
-      expect(sanitized).not.toHaveProperty(field);
-    }
-    expect(sanitizePersistedTerminalSession(
-      { ...isolated, isolation: "shared" },
-      {
-        terminalScrollbackRetention: "off",
-      },
-    )).toBeNull();
-  });
-
-  it("rejects non-opaque fingerprints and only derives them from absolute legacy roots", () => {
-    const identity = {
-      clientId: "codex-1",
-      title: "Codex recovery",
-      source: "alfred" as const,
-      workspaceId: "A",
-      isolation: "worktree" as const,
-      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-    };
-    const privacySettings = {
-      terminalScrollbackRetention: "off" as const,
-    };
-
-    expect(sanitizePersistedTerminalSession({
-      ...identity,
-      workspaceRootFingerprint: "/Users/sample/Client",
-    }, privacySettings)).toBeNull();
-    expect(sanitizePersistedTerminalSession({
-      ...identity,
-      workspaceRootFingerprint: "not-opaque",
-      baseCwd: "/Users/sample/Client",
-    }, privacySettings)?.workspaceRootFingerprint).toMatch(/^[a-f0-9]{16}$/);
-    expect(sanitizePersistedTerminalSession({
-      ...identity,
-      baseCwd: "relative/client",
-    }, privacySettings)).toBeNull();
-  });
-
-  it("does not let a rejected duplicate hide later safe recovery identity", () => {
-    const normalized = normalizeDesktopState({
-      ...DEFAULT_DESKTOP_STATE,
-      privacySettings: {
-        terminalScrollbackRetention: "off",
-      },
-      restoredTerminalSessions: [
-        {
-          clientId: "codex-1",
-          title: "Shared",
-          source: "manual",
-          isolation: "shared",
-        },
-        {
-          clientId: "codex-1",
-          title: "Isolated",
-          source: "alfred",
-          workspaceId: "A",
-          isolation: "worktree",
-          branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-          baseCwd: "/Users/sample/Client",
-        },
-      ],
-    });
-
-    expect(normalized.restoredTerminalSessions).toEqual([
-      expect.objectContaining({
-        clientId: "codex-1",
-        title: "Isolated",
-        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-        isolation: "worktree",
-      }),
-    ]);
-  });
-
-  it("removes shared restored terminal records when retention is off", async () => {
+  it("removes restored terminal records when retention is off", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -910,16 +820,13 @@ describe("persisted-desktop-state", () => {
 
   it("rewrites a valid legacy privacy state once without a migration backup", async () => {
     const filePath = await temporaryStateFile();
-    const isolated = {
+    const saved = {
       clientId: "codex-1",
       title: "Codex /Users/sample/Client",
       source: "alfred" as const,
       agentKind: "codex" as const,
       workspaceId: "A",
-      isolation: "worktree" as const,
-      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-      baseCwd: "/Users/sample/Client",
-      cwd: "/private/worktrees/client/codex-1",
+      cwd: "/Users/sample/Client",
       shell: "/bin/zsh",
       command: "codex",
       args: ["secret customer prompt"],
@@ -941,45 +848,18 @@ describe("persisted-desktop-state", () => {
         privacySettings: {
           terminalScrollbackRetention: "off",
         },
-        restoredTerminalSessions: [
-          isolated,
-          {
-            ...isolated,
-            clientId: "shared-1",
-            isolation: "shared",
-            branchName: undefined,
-          },
-        ],
+        restoredTerminalSessions: [saved, { ...saved, clientId: "codex-2" }],
       }),
       "utf8",
     );
 
     const firstState = await createPersistedDesktopStateStore({ filePath }).getState();
-    expect(firstState.restoredTerminalSessions).toHaveLength(1);
-    expect(firstState.restoredTerminalSessions[0]).toMatchObject({
-      clientId: "codex-1",
-      workspaceId: "A",
-      workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-      isolation: "worktree",
-      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-    });
-    expect(firstState.restoredTerminalSessions[0]).not.toHaveProperty("baseCwd");
+    expect(firstState.restoredTerminalSessions).toEqual([]);
     expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
 
     const migratedContents = await readFile(filePath, "utf8");
     const migratedFile = JSON.parse(migratedContents) as { restoredTerminalSessions: unknown[] };
-    expect(migratedFile.restoredTerminalSessions).toEqual([
-      {
-        clientId: "codex-1",
-        title: expect.stringMatching(/^Codex \[redacted-path:[a-f0-9]{8}\]$/),
-        source: "alfred",
-        agentKind: "codex",
-        workspaceId: "A",
-        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-        isolation: "worktree",
-        branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
-      },
-    ]);
+    expect(migratedFile.restoredTerminalSessions).toEqual([]);
     await createPersistedDesktopStateStore({ filePath }).getState();
     expect(await readFile(filePath, "utf8")).toBe(migratedContents);
   });
@@ -1001,10 +881,7 @@ describe("persisted-desktop-state", () => {
           source: "alfred",
           agentKind: "codex",
           workspaceId: "A",
-          isolation: "worktree",
-          branchName: "alfred-codex-concurrent",
-          baseCwd: "/repo",
-          cwd: "/private/worktrees/codex-concurrent",
+          cwd: "/repo",
           shell: "codex",
           command: "codex",
           args: ["private prompt"],
@@ -1034,12 +911,7 @@ describe("persisted-desktop-state", () => {
       bounds: { x: 64, y: 48, width: 1600, height: 1000 },
       maximized: true,
     });
-    expect(state.restoredTerminalSessions).toEqual([
-      expect.objectContaining({
-        clientId: "codex-concurrent",
-        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-      }),
-    ]);
+    expect(state.restoredTerminalSessions).toEqual([]);
     expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({
       windowState: state.windowState,
       restoredTerminalSessions: state.restoredTerminalSessions,
@@ -1311,12 +1183,11 @@ describe("persisted-desktop-state", () => {
     const store = createPersistedDesktopStateStore({ filePath });
     const recoveredSession = {
       clientId: "codex-discard",
-      title: "Discard worktree",
+      title: "Codex",
       source: "alfred" as const,
       agentKind: "codex" as const,
       workspaceId: "A",
-      isolation: "worktree" as const,
-      branchName: "alfred-codex-discard",
+      cwd: "/repo",
     };
 
     await expect(store.setState({
