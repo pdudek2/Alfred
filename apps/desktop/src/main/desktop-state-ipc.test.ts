@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -171,6 +171,7 @@ describe("desktop-state IPC", () => {
     await store.getState();
     expect(await readdir(temporaryDirectory)).toEqual([expect.stringMatching(/^desktop-state\.invalid-\d+\.json$/)]);
     await writeFile(path.join(temporaryDirectory, "desktop-state.invalid-1760000000000.json"), "PRIVATE_COPY");
+    await writeFile(path.join(temporaryDirectory, "desktop-state.json.bak"), "PRIVATE_PREVIOUS_SAVE");
     const unrelated = ["notes.tmp", "notes.invalid-123.json", "desktop-state.invalid-text.json", "desktop-state.invalid-123.json.bak"];
     for (const name of unrelated) await writeFile(path.join(temporaryDirectory, name), "keep");
     registerDesktopStateIpc(store);
@@ -180,6 +181,23 @@ describe("desktop-state IPC", () => {
     expect((await readdir(temporaryDirectory)).sort()).toEqual(["desktop-state.json", ...unrelated].sort());
     await expect(clear?.()).resolves.toMatchObject({ ok: true });
     expect((await readdir(temporaryDirectory)).sort()).toEqual(["desktop-state.json", ...unrelated].sort());
+  });
+
+  it("leaves no earlier save with terminal output behind when retention is turned off", async () => {
+    mocks.handlers.clear();
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "alfred-off-state-"));
+    const filePath = path.join(temporaryDirectory, "desktop-state.json");
+    const store = createPersistedDesktopStateStore({ filePath });
+    const withOutput = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [sensitiveSession("off-session")] };
+    await store.setState(withOutput);
+    await store.setState({ ...withOutput, railWidth: 300 });
+    registerDesktopStateIpc(store);
+
+    await mocks.handlers.get(desktopStateChannels.updatePrivacySettings)?.(undefined, { terminalScrollbackRetention: "off" });
+
+    const names = await readdir(temporaryDirectory);
+    const contents = await Promise.all(names.map((name) => readFile(path.join(temporaryDirectory!, name), "utf8")));
+    expect(contents.join("\n")).not.toContain("secret transcript");
   });
 
   it("reports failure when a quarantined state copy cannot be removed", async () => {

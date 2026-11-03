@@ -983,6 +983,22 @@ describe("persisted-desktop-state", () => {
     expect(warnings).toEqual(["Failed to parse desktop state; preserved invalid file."]);
   });
 
+  it.each([
+    { name: "is torn", damage: (filePath: string) => writeFile(filePath, '{"version":', "utf8") },
+    { name: "is missing between the two renames of a save", damage: (filePath: string) => rm(filePath) },
+  ])("opens the previous save when the state file $name", async ({ damage }) => {
+    const filePath = await temporaryStateFile();
+    const writer = createPersistedDesktopStateStore({ filePath });
+    const previous = { ...DEFAULT_DESKTOP_STATE, activeWorkspaceId: "A", railWidth: 300 };
+    await writer.setState(previous);
+    await writer.setState({ ...previous, railWidth: 320 });
+    await damage(filePath);
+
+    const state = await createPersistedDesktopStateStore({ filePath, onWarning: () => undefined }).getState();
+    expect(state.railWidth).toBe(300);
+    expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({ railWidth: 300 });
+  });
+
   it("rejects transient read failures and retries without replacing the existing state", async () => {
     const filePath = await temporaryStateFile();
     const originalState: DesktopStateSnapshot = {
@@ -1149,11 +1165,12 @@ describe("persisted-desktop-state", () => {
     const filePath = await temporaryStateFile();
     const store = createPersistedDesktopStateStore({ filePath });
     await store.getState();
-    // A folder where the state file goes lets the copy be written, then fails the rename over it.
+    // Folders where the state file and its previous save go let the copy be written, then fail the renames.
     await mkdir(path.join(filePath, "blocker"), { recursive: true });
+    await mkdir(path.join(`${filePath}.bak`, "blocker"), { recursive: true });
 
     await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
-    expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
+    expect((await readdir(path.dirname(filePath))).sort()).toEqual(["desktop-state.json", "desktop-state.json.bak"]);
   });
 
   it("removes the copies earlier saves left unfinished, and nothing else", async () => {

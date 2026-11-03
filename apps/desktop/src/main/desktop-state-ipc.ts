@@ -12,7 +12,7 @@ import {
 } from "./terminal-manager.js";
 import {
   normalizeDesktopPrivacySettings,
-  removeQuarantinedDesktopStateFiles,
+  removeDesktopStateCopies,
   sanitizePersistedTerminalSession,
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
@@ -46,6 +46,7 @@ export function registerDesktopStateIpc(
         restoredTerminalSessions: current.restoredTerminalSessions.map((session) =>
           sanitizePersistedTerminalSession(session, privacySettings)),
       }));
+      if (privacySettings.terminalScrollbackRetention === "off") await removeDesktopStateCopies(store.getFilePath());
       return state.privacySettings;
     },
   );
@@ -66,7 +67,7 @@ export function registerDesktopStateIpc(
           stagedPlans: {},
           restoredTerminalSessions: [],
         }));
-        await removeQuarantinedDesktopStateFiles(store.getFilePath());
+        await removeDesktopStateCopies(store.getFilePath());
         await options.clearAgentEvents?.();
         return {
           ok: true,
