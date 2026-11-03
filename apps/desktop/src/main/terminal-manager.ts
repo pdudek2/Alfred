@@ -70,6 +70,7 @@ import {
   DEFAULT_PRIVACY_SETTINGS,
   MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH,
   SCROLLBACK_REDACTION_MARGIN,
+  persistedSessionIdentity,
   sanitizePersistedTerminalSession,
   type DesktopPrivacySettings,
   type PersistedDesktopStateStore,
@@ -205,7 +206,8 @@ const PERSIST_MAX_WAIT_MS = 2_000;
 let persistDeadline = 0;
 let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
 let privacyClearGeneration = 0;
-let explicitPrivacyPolicy: { clearLaunchData: boolean } | null = null;
+// clearedSessions: an explicit Clear removed asleep sessions, so a late hydration must not bring them back.
+let explicitPrivacyPolicy: { clearLaunchData: boolean; clearedSessions: boolean } | null = null;
 /** One counter for every worker's prompts and turn ends, so they order even within one millisecond. */
 let turnSeq = 0;
 const workerListeners = new Set<() => void>();
@@ -870,13 +872,15 @@ export function applyTerminalPrivacyPolicyInMemory(
     clearLaunchData || privacySettings.terminalScrollbackRetention === "off";
   explicitPrivacyPolicy = {
     clearLaunchData: Boolean(explicitPrivacyPolicy?.clearLaunchData || clearsLaunchData),
+    clearedSessions: Boolean(explicitPrivacyPolicy?.clearedSessions || clearLaunchData),
   };
   if (clearsLaunchData) {
     privacyClearGeneration += 1;
   }
 
   for (const [clientId, snapshot] of restoredSessionSnapshots) {
-    const sanitized = sanitizePersistedTerminalSession(snapshot, privacySettings, clearLaunchData);
+    // Clear removes asleep sessions; live ones are remembered again below, by identity only.
+    const sanitized = clearLaunchData ? null : sanitizePersistedTerminalSession(snapshot, privacySettings);
     if (JSON.stringify(snapshot) !== JSON.stringify(sanitized)) changed.add(clientId);
     if (sanitized) restoredSessionSnapshots.set(clientId, sanitized);
     else restoredSessionSnapshots.delete(clientId);
@@ -1132,6 +1136,7 @@ function disableLiveSessionPersistence(changed?: Set<string>): void {
     if (!session.clientId) continue;
     session.persistLaunchData = false;
     clearSessionReplayData(session);
+    rememberSessionSnapshot(session);
     changed?.add(session.clientId);
   }
 }
@@ -1176,6 +1181,7 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
     );
     restoredSessionSnapshots.clear();
     for (const session of state.restoredTerminalSessions) {
+      if (explicitPrivacyPolicy?.clearedSessions) break;
       if (forgottenClientIds.has(session.clientId) || locallyRemembered.has(session.clientId)) continue;
       const sanitized = sanitizeHydratedSessions
         ? sanitizePersistedTerminalSession(session, effectivePrivacySettings, clearLaunchData)
@@ -1228,7 +1234,7 @@ function findLiveSessionByClientId(clientId: string): TerminalSession | undefine
 }
 
 function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSessionSnapshot | null {
-  if (!session.clientId || !session.persistLaunchData) return null;
+  if (!session.clientId) return null;
   const agentKind = session.agentKind ?? session.foregroundAgentKind;
   const command = session.command ?? agentKind;
   const args = session.args ?? (command ? [] : undefined);
@@ -1252,7 +1258,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
-  return snapshot;
+  return session.persistLaunchData ? snapshot : persistedSessionIdentity(snapshot);
 }
 
 function scheduleTerminalPersistence(): void {
@@ -1285,10 +1291,8 @@ async function persistTerminalSnapshots(): Promise<void> {
   if (persistedStateStore !== store) return;
 
   await store.updateState((current) => {
-    const restoredTerminalSessions = [...restoredSessionSnapshots.values()].flatMap((session) => {
-      const sanitized = sanitizePersistedTerminalSession(session, current.privacySettings);
-      return sanitized ? [sanitized] : [];
-    });
+    const restoredTerminalSessions = [...restoredSessionSnapshots.values()].map((session) =>
+      sanitizePersistedTerminalSession(session, current.privacySettings));
     return {
       ...current,
       restoredTerminalSessions,

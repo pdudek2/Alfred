@@ -2651,7 +2651,7 @@ function PrivacyPanel({
           <section className="privacy-control-row">
             <div>
               <strong>Saved terminal output</strong>
-              <span>{settings.terminalScrollbackRetention === "off" ? "Alfred does not keep terminal output or agent events." : "Alfred keeps the last 80,000 characters of each terminal and the agent events, with detected secrets removed."}</span>
+              <span>{settings.terminalScrollbackRetention === "off" ? "Alfred keeps each session's name, folder and conversation so it can resume, but no terminal output or agent events." : "Alfred keeps the last 80,000 characters of each terminal and the agent events, with detected secrets removed."}</span>
             </div>
             <div className="privacy-segmented" role="group" aria-label="Saved terminal output">
               <button

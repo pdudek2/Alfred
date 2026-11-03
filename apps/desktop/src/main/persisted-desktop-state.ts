@@ -517,10 +517,8 @@ function normalizeRestoredTerminalSessions(
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
       ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
     }, privacySettings);
-    if (session) {
-      seenClientIds.add(clientId);
-      sessions.push(session);
-    }
+    seenClientIds.add(clientId);
+    sessions.push(session);
   }
 
   return sessions;
@@ -553,27 +551,17 @@ export function sanitizePersistedTerminalSession(
   session: PersistedTerminalSessionSnapshot,
   privacySettings: DesktopPrivacySettings,
   clearLaunchData = false,
-): PersistedTerminalSessionSnapshot | null {
-  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") return null;
+): PersistedTerminalSessionSnapshot {
+  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") return persistedSessionIdentity(session);
   // A launch that lost a secret would relaunch with the marker as a real argument, so it is not kept at all.
   const keepsLaunch = ![redactSecrets(session.command ?? ""), ...redactArgs(session.args ?? [])]
     .some((part) => part.includes(REDACTED));
 
   return {
-    clientId: session.clientId.trim(),
-    title: currentGeneratedTitle(redactText(session.title)),
-    source: session.source,
-    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
-    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
-    ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
-    ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
-    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
-    ...(session.namedByYou ? { namedByYou: true as const } : {}),
-    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...persistedSessionIdentity(session),
     ...(session.shell === undefined ? {} : { shell: session.shell }),
     ...(session.command === undefined || !keepsLaunch ? {} : { command: session.command }),
     ...(session.args === undefined || !keepsLaunch ? {} : { args: [...session.args] }),
-    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.buffer === undefined
       ? {}
       : {
@@ -585,6 +573,23 @@ export function sanitizePersistedTerminalSession(
     ...(session.activityEvents === undefined
       ? {}
       : { activityEvents: redactActivityEvents(session.activityEvents) }),
+  };
+}
+
+/** What a session keeps while terminal data is not saved: enough to list it asleep and resume its conversation. */
+export function persistedSessionIdentity(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {
+  return {
+    clientId: session.clientId.trim(),
+    title: currentGeneratedTitle(redactText(session.title)),
+    source: session.source,
+    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
+    ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
+    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
+    ...(session.namedByYou ? { namedByYou: true as const } : {}),
+    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };

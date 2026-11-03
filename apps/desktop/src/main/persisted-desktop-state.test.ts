@@ -793,7 +793,7 @@ describe("persisted-desktop-state", () => {
     expect(rewritten.restoredTerminalSessions.map((session) => session.title)).toEqual(titles);
   });
 
-  it("removes restored terminal records when retention is off", async () => {
+  it("keeps only a session's identity when retention is off", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -809,8 +809,16 @@ describe("persisted-desktop-state", () => {
             clientId: "manual-off",
             title: "Manual",
             source: "manual",
+            agentKind: "codex",
+            workspaceId: "A",
+            namedByYou: true,
+            createdAt: 100,
+            lastActivityAt: 120,
             cwd: "/repo",
             shell: "/bin/zsh",
+            command: "codex",
+            args: ["resume", "conversation-1"],
+            resumeTarget: { agentKind: "codex", sessionId: "conversation-1", source: "codex-session-index" },
             buffer: "secret sk-proj-1234567890abcdef",
             activityEvents: [
               {
@@ -833,8 +841,19 @@ describe("persisted-desktop-state", () => {
       privacySettings: {
         terminalScrollbackRetention: "off",
       },
-      restoredTerminalSessions: [],
     });
+    expect((await store.getState()).restoredTerminalSessions).toEqual([{
+      clientId: "manual-off",
+      title: "Manual",
+      source: "manual",
+      agentKind: "codex",
+      workspaceId: "A",
+      namedByYou: true,
+      createdAt: 100,
+      lastActivityAt: 120,
+      cwd: "/repo",
+      resumeTarget: { agentKind: "codex", sessionId: "conversation-1", source: "codex-session-index" },
+    }]);
   });
 
   it("rewrites a valid legacy privacy state once without a migration backup", async () => {
@@ -873,12 +892,16 @@ describe("persisted-desktop-state", () => {
     );
 
     const firstState = await createPersistedDesktopStateStore({ filePath }).getState();
-    expect(firstState.restoredTerminalSessions).toEqual([]);
+    expect(firstState.restoredTerminalSessions).toEqual([
+      expect.objectContaining({ clientId: "codex-1", resumeTarget: saved.resumeTarget }),
+      expect.objectContaining({ clientId: "codex-2", resumeTarget: saved.resumeTarget }),
+    ]);
     expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
 
     const migratedContents = await readFile(filePath, "utf8");
     const migratedFile = JSON.parse(migratedContents) as { restoredTerminalSessions: unknown[] };
-    expect(migratedFile.restoredTerminalSessions).toEqual([]);
+    expect(migratedFile.restoredTerminalSessions).toEqual(firstState.restoredTerminalSessions);
+    expect(migratedContents).not.toMatch(/secret customer prompt|Authorization|"shell"|"buffer"/);
     await createPersistedDesktopStateStore({ filePath }).getState();
     expect(await readFile(filePath, "utf8")).toBe(migratedContents);
   });
@@ -930,7 +953,8 @@ describe("persisted-desktop-state", () => {
       bounds: { x: 64, y: 48, width: 1600, height: 1000 },
       maximized: true,
     });
-    expect(state.restoredTerminalSessions).toEqual([]);
+    expect(state.restoredTerminalSessions).toEqual([expect.objectContaining({ clientId: "codex-concurrent" })]);
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("buffer");
     expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({
       windowState: state.windowState,
       restoredTerminalSessions: state.restoredTerminalSessions,
@@ -1058,16 +1082,18 @@ describe("persisted-desktop-state", () => {
     const store = createPersistedDesktopStateStore({ filePath, onWarning: () => undefined });
 
     try {
+      const identityOnly = [{ clientId: "legacy-1", title: "Shell", source: "alfred", workspaceId: "A" }];
       await expect(store.getState()).resolves.toMatchObject({
         privacySettings: { terminalScrollbackRetention: "off" },
-        restoredTerminalSessions: [],
+        restoredTerminalSessions: identityOnly,
       });
       expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed" });
+      await chmod(path.dirname(filePath), 0o700);
+      await expect(store.retrySave()).resolves.toMatchObject({ restoredTerminalSessions: identityOnly });
     } finally {
       await chmod(path.dirname(filePath), 0o700);
     }
 
-    await expect(store.retrySave()).resolves.toMatchObject({ restoredTerminalSessions: [] });
     expect(store.getSaveStatus()).toEqual({ status: "saved" });
     expect(await readFile(filePath, "utf8")).not.toContain("secret");
   });

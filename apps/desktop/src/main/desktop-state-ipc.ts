@@ -43,10 +43,8 @@ export function registerDesktopStateIpc(
         privacySettings,
         // Plans keep full launch arguments, so they follow the same policy as saved sessions.
         ...(privacySettings.terminalScrollbackRetention === "off" ? { stagedPlans: {} } : {}),
-        restoredTerminalSessions: current.restoredTerminalSessions.flatMap((session) => {
-          const sanitized = sanitizePersistedTerminalSession(session, privacySettings);
-          return sanitized ? [sanitized] : [];
-        }),
+        restoredTerminalSessions: current.restoredTerminalSessions.map((session) =>
+          sanitizePersistedTerminalSession(session, privacySettings)),
       }));
       return state.privacySettings;
     },

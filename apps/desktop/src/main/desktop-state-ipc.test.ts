@@ -87,7 +87,18 @@ describe("desktop-state IPC", () => {
     expect(mocks.applyTerminalPrivacyPolicyInMemory).toHaveBeenCalledWith({
       terminalScrollbackRetention: "off",
     });
-    expect((await store.getState()).restoredTerminalSessions).toEqual([]);
+    expect((await store.getState()).restoredTerminalSessions).toEqual([{
+      clientId: "settings-session",
+      title: "Codex settings-session",
+      source: "alfred",
+      agentKind: "codex",
+      workspaceId: "workspace-a",
+      createdAt: 123,
+      cwd: "/repo",
+      resumeTarget: { agentKind: "codex", sessionId: "secret-session", source: "codex-session-index" },
+      lastActivityAt: 123,
+      lastOutputAt: 124,
+    }]);
   });
 
   it("clears all persisted terminal launch, transcript, and activity data", async () => {
