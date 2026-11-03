@@ -18,6 +18,8 @@ export type TerminalResumeTarget = {
 
 /** Lines the agent's own edits added and removed in this conversation, read from its transcript at each turn's end. */
 export type TerminalChangeStats = { additions: number; deletions: number };
+/** The git worktree an agent last worked in, as git reports it. */
+export type TerminalWorkTree = { root: string; branch?: string };
 
 export type TerminalCreateRequest = {
   clientId?: string;
@@ -66,6 +68,7 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   foregroundCommand?: string;
   /** You have sent this session a message. */
   changeStats?: TerminalChangeStats;
+  workTree?: TerminalWorkTree;
   promptSubmitted?: boolean;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
@@ -191,6 +194,8 @@ export type TerminalDataEvent = {
   /** Sent when the agent's hooks name a conversation other than the one known. */
   resumeTarget?: TerminalResumeTarget;
   changeStats?: TerminalChangeStats;
+  /** Sent when the agent moved to another worktree; null when it left every repository. */
+  workTree?: TerminalWorkTree | null;
   /** The agent's own name for the conversation, sent when it replaces the session's title. */
   agentTitle?: string;
 };
