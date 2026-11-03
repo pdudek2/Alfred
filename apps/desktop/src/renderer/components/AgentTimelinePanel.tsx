@@ -35,7 +35,7 @@ export function AgentTimelinePanel({
   const [editSaving, setEditSaving] = useState(false);
   const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
   const [sessionActionState, setSessionActionState] = useState<Record<string, string>>({});
-  const [showRawActivity, setShowRawActivity] = useState(false);
+  const [showToolCalls, setShowToolCalls] = useState(false);
 
   useEffect(() => {
     setEditMode(false);
@@ -44,7 +44,7 @@ export function AgentTimelinePanel({
     setEditSaving(false);
     setPayloadActionState({});
     setSessionActionState({});
-    setShowRawActivity(false);
+    setShowToolCalls(false);
   }, [session?.id]);
 
   useEffect(() => {
@@ -58,7 +58,8 @@ export function AgentTimelinePanel({
   const displayStatus = sessionState(session, "ready", now);
   const activityEvents = session.activityEvents ?? [];
   const presentedActivity = presentActivityEvents(activityEvents, {
-    includeRaw: showRawActivity,
+    hideWork: true,
+    includeRaw: showToolCalls,
     limit: activityEvents.length,
   });
   const locationName = projectName || session.workspaceId;
@@ -258,19 +259,30 @@ export function AgentTimelinePanel({
             </div>
           </form>
         )}
+        <section className="details-section" aria-label="Location">
+          <header className="details-section-heading"><h2>Location</h2></header>
+          <p className="details-location-name">{locationTitle}</p>
+          <p className="details-location-path" title={folder}>{folder || "Default project folder"}</p>
+        {handoffActions.length > 0 && (
+          <div
+            className="details-location-actions"
+            role="group"
+            aria-label={`Session actions for ${session.title}`}
+          >
+            {handoffActions.map((action) => (
+              <HandoffActionButton
+                action={action}
+                actionState={sessionActionState[sessionHandoffActionKey(session.id, action.id)]}
+                key={action.id}
+                onAction={handleSessionAction}
+              />
+            ))}
+          </div>
+        )}
+        </section>
         <section className="details-section" aria-label="Activity">
           <header className="details-section-heading"><h2>Activity</h2></header>
-              {presentedActivity.hiddenRawCount > 0 && (
-                <button type="button" className="agent-raw-toggle" onClick={() => setShowRawActivity(true)}>
-                  Show raw ({presentedActivity.hiddenRawCount})
-                </button>
-              )}
-              {showRawActivity && presentedActivity.rawEvents.length > 0 && (
-                <button type="button" className="agent-raw-toggle" onClick={() => setShowRawActivity(false)}>
-                  Hide raw
-                </button>
-              )}
-              {visibleTimelineEvents.length === 0 && <p className="details-empty">No activity yet.</p>}
+              {visibleTimelineEvents.length === 0 && presentedActivity.rawEvents.length === 0 && <p className="details-empty">No activity yet.</p>}
               <ol className="agent-activity-list">
                 {visibleTimelineEvents.map((event) => {
                   const payload = activityPayloadView(event);
@@ -301,27 +313,13 @@ export function AgentTimelinePanel({
                   );
                 })}
               </ol>
-        </section>
-        <section className="details-section" aria-label="Location">
-          <header className="details-section-heading"><h2>Location</h2></header>
-          <p className="details-location-name">{locationTitle}</p>
-          <p className="details-location-path" title={folder}>{folder || "Default project folder"}</p>
-        {handoffActions.length > 0 && (
-          <div
-            className="details-location-actions"
-            role="group"
-            aria-label={`Session actions for ${session.title}`}
-          >
-            {handoffActions.map((action) => (
-              <HandoffActionButton
-                action={action}
-                actionState={sessionActionState[sessionHandoffActionKey(session.id, action.id)]}
-                key={action.id}
-                onAction={handleSessionAction}
-              />
-            ))}
-          </div>
-        )}
+              {presentedActivity.rawEvents.length > 0 && (
+                <button type="button" className="details-tool-calls-toggle" aria-expanded={showToolCalls} onClick={() => setShowToolCalls((shown) => !shown)}>
+                  {showToolCalls
+                    ? "Hide tool calls"
+                    : `Show ${presentedActivity.hiddenRawCount} tool ${presentedActivity.hiddenRawCount === 1 ? "call" : "calls"}`}
+                </button>
+              )}
         </section>
       </div>
     </aside>

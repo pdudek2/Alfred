@@ -77,7 +77,7 @@ describe("AgentTimelinePanel", () => {
       command: "codex",
       runtimeId: "runtime-1",
       activityEvents: [
-        { id: "e1", kind: "command", title: "Command ran", detail: "pnpm test", at: 100 },
+        { id: "e1", kind: "file", title: "File activity", detail: "app.ts", at: 100, payload: { type: "file", operation: "edited", path: "src/app.ts" } },
         { id: "e2", kind: "output", title: "Progress reported", detail: "build passed", at: 200 },
       ],
     };
@@ -86,7 +86,41 @@ describe("AgentTimelinePanel", () => {
 
     const activity = within(container).getByRole("region", { name: "Activity" });
     const rows = within(activity).getAllByRole("listitem");
-    expect(rows.map((row) => row.querySelector(".details-activity-text")?.textContent)).toEqual(["build passed", "Ran pnpm test"]);
+    expect(rows.map((row) => row.querySelector(".details-activity-text")?.textContent)).toEqual(["build passed", "Edited app.ts"]);
+  });
+
+  it("puts Location above Activity and keeps routine tool calls behind one link", async () => {
+    const user = userEvent.setup();
+    const asked = (id: string, at: number) => ({ id, kind: "prompt" as const, title: "You asked", detail: "Refuse a stale Apply", at });
+    const { container } = render(<AgentTimelinePanel now={Date.now()} session={{
+      id: "s1", title: "Refuse a stale Apply", workspaceId: "w1", stage: "live", cwd: "/repo/alfred", source: "manual", agentKind: "claude",
+      activityEvents: [
+        asked("asked", 100),
+        { id: "read", kind: "file", title: "File activity", detail: "Read git-worktree.ts", at: 110, payload: { type: "file", operation: "read", path: "src/git-worktree.ts" } },
+        asked("asked-again", 120),
+        { id: "search", kind: "tool", title: "Used WebSearch", detail: "git", at: 130, payload: { type: "tool", name: "WebSearch", input: "git" } },
+        { id: "test", kind: "command", title: "Ran command", detail: "pnpm test", at: 140, payload: { type: "command", command: "pnpm test" } },
+        { id: "edit", kind: "file", title: "File activity", detail: "Edited git-worktree.ts", at: 150, payload: { type: "file", operation: "edited", path: "src/git-worktree.ts" } },
+        { id: "hook", kind: "output", title: "Progress reported", detail: "PostToolUse hook (completed)", at: 160 },
+      ],
+    }} />);
+
+    expect(Array.from(container.querySelectorAll(".details-section"), (section) => section.getAttribute("aria-label"))).toEqual(["Location", "Activity"]);
+    const activity = screen.getByRole("region", { name: "Activity" });
+    const rows = () => within(activity).getAllByRole("listitem").map((row) => row.querySelector(".details-activity-sentence")?.textContent);
+    expect(rows()).toEqual(["Edited git-worktree.ts", "You asked: Refuse a stale Apply"]);
+    expect(screen.queryByRole("button", { name: /raw/i })).not.toBeInTheDocument();
+
+    await user.click(within(activity).getByRole("button", { name: "Show 4 tool calls" }));
+    expect(rows()).toEqual([
+      "PostToolUse hook (completed)", "Edited git-worktree.ts", "Ran pnpm test", "Used WebSearch (git)",
+      "You asked: Refuse a stale Apply", "Read git-worktree.ts", "You asked: Refuse a stale Apply",
+    ]);
+    // The link follows the list.
+    expect(activity.lastElementChild).toHaveTextContent("Hide tool calls");
+
+    await user.click(within(activity).getByRole("button", { name: "Hide tool calls" }));
+    expect(rows()).toHaveLength(2);
   });
 
   it("shows relative seconds and minutes in plain Activity rows without a session creation time", () => {
@@ -96,7 +130,7 @@ describe("AgentTimelinePanel", () => {
       const { container } = render(<AgentTimelinePanel now={Date.now()} session={{
         id: "s1", title: "Review", workspaceId: "w1", cwd: "/repo", source: "manual", stage: "live",
         activityEvents: [40, 120, 1080].map((seconds) => ({
-          id: String(seconds), kind: "command", title: `Command ${seconds}`, detail: "", at: Date.now() - seconds * 1000,
+          id: String(seconds), kind: "warning", title: `Warning ${seconds}`, detail: "", at: Date.now() - seconds * 1000,
         })),
       }} />);
       expect(Array.from(container.querySelectorAll("time"), (time) => time.textContent)).toEqual(["40s", "2m", "18m"]);
@@ -231,9 +265,9 @@ describe("AgentTimelinePanel", () => {
         },
         {
           id: "activity-2",
-          kind: "command",
-          title: "Ran command",
-          detail: "pnpm test",
+          kind: "file",
+          title: "File activity",
+          detail: "Edited app.tsx",
           at: 120,
         },
       ],
@@ -244,7 +278,7 @@ describe("AgentTimelinePanel", () => {
 
     const timeline = within(container).getByRole("list");
     expect(within(timeline).getByText("✓ tests passed")).toBeInTheDocument();
-    expect(within(timeline).getByText("Ran pnpm test")).toBeInTheDocument();
+    expect(within(timeline).getByText("Edited app.tsx")).toBeInTheDocument();
     expect(within(timeline).getAllByRole("listitem")).toHaveLength(2);
     expect(container).not.toHaveTextContent("Terminal output is streaming in the project.");
   });
@@ -259,23 +293,24 @@ describe("AgentTimelinePanel", () => {
       source: "alfred",
       runtimeId: "runtime-1",
       activityEvents: [
-        { id: "activity-1", kind: "command", title: "Oldest command", detail: "pnpm install", at: 100 },
+        { id: "activity-1", kind: "error", title: "Error reported", detail: "install failed", at: 100 },
         { id: "activity-2", kind: "file", title: "File one", detail: "a.ts", at: 110 },
         { id: "activity-3", kind: "file", title: "File two", detail: "b.ts", at: 120 },
         { id: "activity-4", kind: "plan", title: "Plan update", detail: "next edits", at: 130 },
-        { id: "activity-5", kind: "command", title: "Latest command", detail: "pnpm test", at: 140 },
+        { id: "activity-5", kind: "error", title: "Error reported", detail: "tests failed", at: 140 },
       ],
     };
 
     const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
     const timeline = within(container).getByRole("list");
 
-    expect(within(timeline).getByText("Ran pnpm test")).toBeInTheDocument();
-    expect(within(timeline).getByText("Ran pnpm install")).toBeInTheDocument();
+    expect(within(timeline).getByText("tests failed")).toBeInTheDocument();
+    expect(within(timeline).getByText("install failed")).toBeInTheDocument();
     expect(within(timeline).getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("renders structured activity payloads as plain actionable rows", async () => {
+    const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
       title: "codex — activity",
@@ -321,6 +356,7 @@ describe("AgentTimelinePanel", () => {
     };
 
     const { container } = render(<AgentTimelinePanel now={Date.now()} session={session} />);
+    await user.click(screen.getByRole("button", { name: "Show 2 tool calls" }));
     const objects = Array.from(container.querySelectorAll("button.details-activity-text"));
     expect(objects.map((object) => object.getAttribute("title"))).toEqual([
       "Allow edit in app.tsx?", "Alfred terminal UX", "apps/desktop/src/renderer/app.tsx", "pnpm test",
@@ -330,45 +366,6 @@ describe("AgentTimelinePanel", () => {
       "Asked: Allow edit in app.tsx?", "Used WebSearch (Alfred terminal UX)", "Edited app.tsx", "Ran pnpm test",
     ]);
     expect(container.querySelector("details")).toBeNull();
-  });
-
-  it("hides raw hook noise behind an explicit raw toggle", async () => {
-    const user = userEvent.setup();
-    const session: SessionTile = {
-      id: "s1",
-      title: "codex — hygiene",
-      workspaceId: "w1",
-      stage: "live",
-      cwd: "/tmp",
-      source: "alfred",
-      runtimeId: "runtime-1",
-      activityEvents: [
-        {
-          id: "raw-1",
-          kind: "output",
-          title: "Progress reported",
-          detail: "SessionStart hook (completed)",
-          at: 100,
-        },
-        {
-          id: "work-1",
-          kind: "file",
-          title: "File activity",
-          detail: "apps/desktop/src/renderer/app.tsx(modified)",
-          at: 120,
-        },
-      ],
-    };
-
-    render(<AgentTimelinePanel now={Date.now()} session={session} />);
-
-    expect(screen.getByText("apps/desktop/src/renderer/app.tsx(modified)")).toBeInTheDocument();
-    expect(screen.queryByText("SessionStart hook (completed)")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Show raw (1)" }));
-
-    expect(screen.getByText("SessionStart hook (completed)")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hide raw" })).toBeInTheDocument();
   });
 
   it("counts the full bounded activity buffer and reveals older raw events", async () => {
@@ -401,12 +398,10 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
-    expect(screen.getByRole("button", { name: "Show raw (1)" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Show raw (1)" }));
+    await user.click(screen.getByRole("button", { name: "Show 1 tool call" }));
 
     expect(screen.getByText("SessionStart hook (completed)")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hide raw" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide tool calls" })).toBeInTheDocument();
   });
 
   it("reveals file payloads and copies text payloads from the activity object", async () => {
@@ -450,6 +445,7 @@ describe("AgentTimelinePanel", () => {
       />,
     );
     const panel = within(container);
+    await user.click(panel.getByRole("button", { name: "Show 1 tool call" }));
 
     await user.click(
       panel.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
@@ -492,6 +488,7 @@ describe("AgentTimelinePanel", () => {
       />,
     );
     const panel = within(container);
+    await user.click(panel.getByRole("button", { name: "Show 1 tool call" }));
 
     await user.click(panel.getByRole("button", { name: "Copy command: pnpm test" }));
 
@@ -520,7 +517,7 @@ describe("AgentTimelinePanel", () => {
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
     expect(screen.queryByRole("region", { name: "Activity digest" })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Activity" })).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(screen.getByRole("region", { name: "Activity" })).getAllByRole("listitem")).toHaveLength(4);
     expect(screen.getByRole("region", { name: "Location" }).querySelector("dl")).toBeNull();
   });
 
@@ -534,7 +531,7 @@ describe("AgentTimelinePanel", () => {
       source: "alfred",
       runtimeId: "runtime-1",
       activityEvents: [
-        { id: "activity-1", kind: "command", title: "Ran command", detail: "pnpm build", at: 100 },
+        { id: "activity-1", kind: "file", title: "File activity", detail: "Edited app.tsx", at: 100 },
         { id: "activity-2", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 120 },
       ],
     };
@@ -548,7 +545,7 @@ describe("AgentTimelinePanel", () => {
     // The approval the session waits on carries the Needs you star; a finished step the done glyph.
     const glyphOf = (text: string) => within(pulse).getByText(text).closest("li")?.querySelector(".session-status-glyph");
     expect(glyphOf("Asked: Allow edit?")).toHaveClass("status-needs-you");
-    expect(glyphOf("Ran pnpm build")).toHaveClass("status-done");
+    expect(glyphOf("Edited app.tsx")).toHaveClass("status-done");
   });
 
   it("shows errors beside routine Activity signals", () => {
@@ -791,7 +788,7 @@ describe("AgentTimelinePanel", () => {
       source: "alfred",
       runtimeId: "runtime-1",
       createdAt: new Date("2026-05-09T11:50:00Z").getTime(),
-      activityEvents: [{ id: "e1", kind: "command", title: "Ran command", detail: "", at: new Date("2026-05-09T11:50:00Z").getTime() }],
+      activityEvents: [{ id: "e1", kind: "prompt", title: "You asked", detail: "Run the tests", at: new Date("2026-05-09T11:50:00Z").getTime() }],
     };
 
     const { rerender } = render(<AgentTimelinePanel now={new Date("2026-05-09T12:00:00Z").getTime()} session={session} />);
