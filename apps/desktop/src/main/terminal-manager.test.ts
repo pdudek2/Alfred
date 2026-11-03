@@ -322,6 +322,41 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("saves a new session while another terminal keeps printing", async () => {
+    vi.useFakeTimers();
+    try {
+      let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+      const store: PersistedDesktopStateStore = {
+        ...persistedStateStoreMethods(() => state),
+        getState: vi.fn(async () => state),
+        setState: vi.fn(async (next) => {
+          state = next;
+          return state;
+        }),
+        updateState: vi.fn(async (updater) => {
+          state = await updater(state);
+          return state;
+        }),
+      };
+      const busy = new FakePty();
+      const spawn = vi.fn(() => new FakePty()).mockReturnValueOnce(busy);
+      configureTerminalPersistence(store, { debounceMs: 250 });
+      registerTerminalIpc({ loadNodePty: async () => ({ spawn }) as never });
+      await invoke(terminalChannels.create, { clientId: "manual-1", command: "zsh", cols: 80, cwd: "/repo", rows: 24 });
+      await invoke(terminalChannels.create, { clientId: "manual-2", command: "zsh", cols: 80, cwd: "/repo", rows: 24 });
+
+      // Output every 100 ms never leaves the 250 ms of quiet a save waited for.
+      for (let tick = 0; tick < 30; tick += 1) {
+        busy.onDataHandler?.(".");
+        await vi.advanceTimersByTimeAsync(100);
+      }
+
+      expect(state.restoredTerminalSessions.map((session) => session.clientId)).toEqual(["manual-1", "manual-2"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the parent a worker was started under and drops one that is not a client id", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {

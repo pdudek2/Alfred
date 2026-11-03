@@ -200,6 +200,9 @@ let persistenceHydrationMutations: Map<string, number> | null = null;
 let persistenceGeneration = 0;
 let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
+// A terminal that never goes quiet must not hold back the save; the whole state file is rewritten, so not every chunk.
+const PERSIST_MAX_WAIT_MS = 2_000;
+let persistDeadline = 0;
 let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
 let privacyClearGeneration = 0;
 let explicitPrivacyPolicy: { clearLaunchData: boolean } | null = null;
@@ -1260,13 +1263,12 @@ function scheduleTerminalPersistence(): void {
     return;
   }
 
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-  }
+  if (persistTimer) clearTimeout(persistTimer);
+  else persistDeadline = Date.now() + PERSIST_MAX_WAIT_MS;
   persistTimer = setTimeout(() => {
     persistTimer = null;
     persistTerminalSnapshotsInBackground();
-  }, persistDebounceMs);
+  }, Math.max(0, Math.min(persistDebounceMs, persistDeadline - Date.now())));
 }
 
 function persistTerminalSnapshotsInBackground(): void {
