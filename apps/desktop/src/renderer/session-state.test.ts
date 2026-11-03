@@ -109,7 +109,7 @@ describe("desktop session state", () => {
 
   it("leaves the workers of a closed orchestrator as sessions of their own", () => {
     let sessions = addAgentSession([], "claude", "/repo");
-    sessions = addAgentSession(sessions, "codex", "/repo", "A", "shared", "Run the typecheck", "claude-1");
+    sessions = addAgentSession(sessions, "codex", "/repo", "A", "Run the typecheck", "claude-1");
     expect(sessions[1]).toMatchObject({ id: "codex-1", parentSessionId: "claude-1" });
 
     const closed = closeSession(sessions, "claude-1");
@@ -119,13 +119,13 @@ describe("desktop session state", () => {
   });
 
   it("names an agent session after its first prompt, but not after a command or a short answer", () => {
-    expect(addAgentSession([], "claude", "/repo", "A", "shared", "Fix the login bug\nand add a test").at(-1)!.title).toBe("Fix the login bug");
-    expect(addAgentSession([], "codex", "/repo", "A", "shared", "/review").at(-1)!.title).toBe("Codex");
-    expect(addAgentSession([], "claude", "/repo", "A", "shared", "").at(-1)!.title).toBe("Claude");
+    expect(addAgentSession([], "claude", "/repo", "A", "Fix the login bug\nand add a test").at(-1)!.title).toBe("Fix the login bug");
+    expect(addAgentSession([], "codex", "/repo", "A", "/review").at(-1)!.title).toBe("Codex");
+    expect(addAgentSession([], "claude", "/repo", "A", "").at(-1)!.title).toBe("Claude");
   });
 
   it("does not give a new session the id of one seen earlier in the run", () => {
-    expect(addAgentSession([], "claude", "/repo", "A", "shared", "", undefined, ["claude-1"]).at(-1)!.id).toBe("claude-2");
+    expect(addAgentSession([], "claude", "/repo", "A", "", undefined, ["claude-1"]).at(-1)!.id).toBe("claude-2");
     expect(addManualSession([], "/repo", "A", undefined, ["manual-1", "claude-3"]).at(-1)!.id).toBe("manual-2");
   });
 
@@ -305,26 +305,6 @@ describe("desktop session state", () => {
     }, "/repo")[0]?.title).toBe("Claude");
   });
 
-  it("adds new Codex sessions in the shared workspace by default", () => {
-    const next = addAgentSession([], "codex", "/repo", "A");
-
-    expect(next).toEqual([
-      {
-        id: "codex-1",
-        title: "Codex",
-        workspaceId: "A",
-        cwd: "/repo",
-        source: "manual",
-        stage: "live",
-        runtimeStatus: "starting",
-        agentKind: "codex",
-        command: "codex",
-        args: [],
-        isolation: "shared",
-      },
-    ]);
-  });
-
   it("adds first-class Codex and Claude sessions", () => {
     const initial = createInitialSessions("/repo");
     const withCodex = addAgentSession(initial, "codex", "/repo", "A");
@@ -342,7 +322,6 @@ describe("desktop session state", () => {
         agentKind: "codex",
         command: "codex",
         args: [],
-        isolation: "shared",
       },
       {
         id: "claude-1",
@@ -355,31 +334,16 @@ describe("desktop session state", () => {
         agentKind: "claude",
         command: "claude",
         args: [],
-        isolation: "shared",
       },
     ]);
   });
 
-  it("can add first-class agent sessions in a shared non-Git workspace", () => {
-    const initial = createInitialSessions("/plain-folder");
-    const withCodex = addAgentSession(initial, "codex", "/plain-folder", "A", "shared");
-
-    expect(withCodex[1]).toMatchObject({
-      id: "codex-1",
-      title: "Codex",
-      cwd: "/plain-folder",
-      agentKind: "codex",
-      command: "codex",
-      isolation: "shared",
-    });
-  });
-
   it("starts a session as the worker of another when New worker names its parent", () => {
     const initial = createInitialSessions("/repo");
-    const withCodex = addAgentSession(initial, "codex", "/repo", "A", "worktree", "", "manual-1");
+    const withCodex = addAgentSession(initial, "codex", "/repo", "A", "", "manual-1");
     const withShell = addManualSession(withCodex, "/repo", "A", "codex-1");
 
-    expect(withShell[1]).toMatchObject({ id: "codex-1", parentSessionId: "manual-1", isolation: "worktree" });
+    expect(withShell[1]).toMatchObject({ id: "codex-1", parentSessionId: "manual-1" });
     expect(withShell[2]).toMatchObject({ id: "manual-2", parentSessionId: "codex-1" });
     expect(addAgentSession(initial, "claude", "/repo")[1]).not.toHaveProperty("parentSessionId");
     expect(addManualSession(initial, "/repo")[1]).not.toHaveProperty("parentSessionId");
@@ -618,37 +582,6 @@ describe("desktop session state", () => {
     ]);
   });
 
-  it("hydrates recovery-only worktree identity without synthetic launch data", () => {
-    const restored = hydratePersistedTerminalSessions([
-      {
-        clientId: "codex-private",
-        title: "Codex recovery",
-        source: "alfred",
-        agentKind: "codex",
-        workspaceId: "A",
-        workspaceRootFingerprint: "0123456789abcdef",
-        isolation: "worktree",
-        branchName: "alfred-codex-private-20260729120000-abcd1234",
-        createdAt: 1,
-      },
-    ]);
-    const [hydrated] = restored;
-
-    expect(hydrated).toMatchObject({
-      id: "codex-private",
-      cwd: "",
-      initialBuffer: "",
-      workspaceRootFingerprint: "0123456789abcdef",
-      isolation: "worktree",
-      branchName: "alfred-codex-private-20260729120000-abcd1234",
-      runtimeStatus: "restored",
-    });
-    for (const field of ["baseCwd", "shell", "command", "args", "resumeTarget", "resumeMode"]) {
-      expect(hydrated).not.toHaveProperty(field);
-    }
-    expect(relaunchRestoredSession(restored, "codex-private")).toEqual(restored);
-  });
-
   it("relaunches a restored transcript in the same tile", () => {
     const restored = hydratePersistedTerminalSessions([
       {
@@ -686,7 +619,7 @@ describe("desktop session state", () => {
       {
         clientId: "alfred-codex",
         title: "Codex audit",
-        cwd: "/repo/.alfred-worktrees/codex-audit",
+        cwd: "/repo",
         source: "alfred",
         agentKind: "codex",
         command: "codex",
@@ -697,7 +630,7 @@ describe("desktop session state", () => {
       {
         clientId: "alfred-claude",
         title: "Claude UI review",
-        cwd: "/repo/.alfred-worktrees/claude-ui",
+        cwd: "/repo",
         source: "alfred",
         agentKind: "claude",
         command: "claude",
@@ -833,7 +766,7 @@ describe("desktop session state", () => {
       {
         clientId: "alfred-codex",
         title: "Codex audit",
-        cwd: "/repo/.alfred-worktrees/codex-audit",
+        cwd: "/repo",
         source: "alfred",
         agentKind: "codex",
         command: "codex",
@@ -903,15 +836,7 @@ describe("desktop session state", () => {
       ...createInitialSessions("", "A")[0]!,
       initialBuffer: "old transcript\n",
       lastOutputAt: 100,
-      launchPreflight: {
-        status: "ready",
-        label: "Worktree ready",
-        detail: "Will create an isolated Git worktree on launch.",
-        isolation: "worktree",
-        branchName: "alfred-codex-codex-1-20260509191530-abc123",
-        baseCwd: "/Users/sample/Desktop/Alfred",
-        cwd: "/Users/sample/Desktop/.alfred-worktrees/Alfred/alfred-codex-codex-1-20260509191530-abc123",
-      } as const,
+      launchPreflight: { status: "ready", label: "Ready", detail: "Will launch in the selected project." } as const,
     }];
     const next = attachRuntimeSession(initial, "manual-1", {
       id: "runtime-1",
@@ -920,9 +845,6 @@ describe("desktop session state", () => {
       source: "manual",
       workspaceId: "A",
       cwd: "/Users/sample/Desktop/Alfred",
-      isolation: "worktree",
-      branchName: "alfred-codex-codex-1-20260509191530-abc123",
-      baseCwd: "/Users/sample/Desktop/Alfred",
       createdAt: 500,
       shell: "/bin/zsh",
     });
@@ -931,9 +853,6 @@ describe("desktop session state", () => {
       runtimeId: "runtime-1",
       runtimeStatus: "live",
       cwd: "/Users/sample/Desktop/Alfred",
-      isolation: "worktree",
-      branchName: "alfred-codex-codex-1-20260509191530-abc123",
-      baseCwd: "/Users/sample/Desktop/Alfred",
       createdAt: 500,
     });
     expect(next[0]?.initialBuffer).toBeUndefined();
@@ -1366,9 +1285,9 @@ describe("staged sessions", () => {
       args: [],
       launchPreflight: {
         status: "blocked",
-        code: "git_not_ready",
-        label: "Git not ready",
-        reason: "Project has uncommitted or untracked changes.",
+        code: "cwd_missing",
+        label: "Folder missing",
+        reason: "apps/review is not a folder in this project.",
       },
     },
   ];
@@ -1394,13 +1313,11 @@ describe("staged sessions", () => {
     expect(staged[2]).toMatchObject({
       id: "alfred-3",
       agentKind: "codex",
-      isolation: "shared",
       safetyNote: "rm -rf detected",
     });
     expect(staged[3]).toMatchObject({
       id: "alfred-4",
       agentKind: "claude",
-      isolation: "shared",
       launchPreflight: expect.objectContaining({ status: "blocked" }),
     });
   });
@@ -1441,15 +1358,7 @@ describe("staged sessions", () => {
           args: [],
           cwd: "/repo",
           safetyNote: "review command",
-          launchPreflight: {
-            status: "ready",
-            label: "Worktree ready",
-            detail: "Will create an isolated Git worktree on launch.",
-            isolation: "worktree",
-            branchName: "alfred-codex-review",
-            baseCwd: "/repo",
-            cwd: "/.alfred-worktrees/repo/alfred-codex-review",
-          },
+          launchPreflight: { status: "ready", label: "Ready", detail: "Will launch in the selected project." },
         },
       ],
     };
@@ -1476,17 +1385,8 @@ describe("staged sessions", () => {
         command: "codex",
         args: [],
         agentKind: "codex",
-        isolation: "worktree",
         safetyNote: "review command",
-        launchPreflight: {
-          status: "ready",
-          label: "Worktree ready",
-          detail: "Will create an isolated Git worktree on launch.",
-          isolation: "worktree",
-          branchName: "alfred-codex-review",
-          baseCwd: "/repo",
-          cwd: "/.alfred-worktrees/repo/alfred-codex-review",
-        },
+        launchPreflight: { status: "ready", label: "Ready", detail: "Will launch in the selected project." },
       },
     ]);
   });
@@ -1508,30 +1408,6 @@ describe("staged sessions", () => {
     ];
     const next = addStagedSessions(initial, planWithoutCwd, "/some/default");
     expect(next[1]?.cwd).toBe("/some/default");
-  });
-
-  it("keeps staged coding agents shared when preflight falls back from Git worktrees", () => {
-    const initial = createInitialSessions("/plain-folder");
-    const next = addStagedSessions(initial, [
-      {
-        kind: "codex",
-        title: "Codex in plain folder",
-        command: "codex",
-        args: [],
-        launchPreflight: {
-          status: "ready",
-          label: "Shared project",
-          detail: "Project is not Git; will launch in the selected folder.",
-          isolation: "shared",
-        },
-      },
-    ], "/plain-folder");
-
-    expect(next[1]).toMatchObject({
-      agentKind: "codex",
-      isolation: "shared",
-      launchPreflight: expect.objectContaining({ status: "ready", isolation: "shared" }),
-    });
   });
 
   it("addStagedSessions assigns staged tiles to the active workspace", () => {
@@ -1599,15 +1475,7 @@ describe("staged sessions", () => {
           title: "Codex task",
           command: "codex",
           args: [],
-          launchPreflight: {
-            status: "ready",
-            label: "Worktree ready",
-            detail: "Will create an isolated Git worktree on launch.",
-            isolation: "worktree",
-            branchName: "alfred-codex-task",
-            baseCwd: "/repo",
-            cwd: "/.alfred-worktrees/repo/alfred-codex-task",
-          },
+          launchPreflight: { status: "ready", label: "Ready", detail: "Will launch in the selected project." },
         },
       ],
       "/repo",

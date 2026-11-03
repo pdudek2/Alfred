@@ -40,25 +40,23 @@ it("submits with command Enter but allows a plain newline", async () => {
   fireEvent.keyDown(screen.getByLabelText("First prompt"), { key: "Enter" });
   expect(props.onStart).not.toHaveBeenCalled();
   fireEvent.keyDown(screen.getByLabelText("First prompt"), { key: "Enter", metaKey: true });
-  await waitFor(() => expect(props.onStart).toHaveBeenCalledWith(false));
+  await waitFor(() => expect(props.onStart).toHaveBeenCalledOnce());
   expect(props.onClose).toHaveBeenCalledOnce();
 });
-it("hides prompt and isolation for Terminal and submits Enter elsewhere", async () => {
+it("hides the prompt for Terminal and submits Enter elsewhere", async () => {
   const { props } = setup({ kind: "terminal" });
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   fireEvent.keyDown(screen.getByRole("radio", { name: /Terminal/ }), { key: "Enter" });
-  await waitFor(() => expect(props.onStart).toHaveBeenCalledWith(false));
+  await waitFor(() => expect(props.onStart).toHaveBeenCalledOnce());
 });
-it("disables missing projects and sends isolation through Start", async () => {
+it("disables missing projects and starts through Start", async () => {
   const { props } = setup();
   await userEvent.click(screen.getByRole("button", { name: "Choose project" }));
   expect(screen.getByRole("menuitemradio", { name: "Missing" })).toBeDisabled();
   await userEvent.keyboard("{Escape}");
   expect(props.onClose).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("checkbox"));
   await userEvent.click(screen.getByRole("button", { name: "Start" }));
-  expect(props.onStart).toHaveBeenCalledWith(true);
+  expect(props.onStart).toHaveBeenCalledOnce();
 });
 it("keeps the sheet open while thinking and after a failed request", async () => {
   let finish!: (result: boolean) => void;
@@ -85,11 +83,10 @@ it("cycles native radios with arrows and traps Tab inside the dialog", async () 
   expect(screen.getByRole("button", { name: "Start" })).toHaveFocus();
 });
 
-it("blocks a missing target and hides isolation without a root", () => {
+it("blocks a missing target and allows a project without a root", () => {
   const { props, rerender } = setup({ projectId: "unknown" });
   expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   rerender(<NewSessionSheet {...props} projects={[{ id: "alpha", label: "Scratch" }]} projectId="alpha" />);
-  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
 });
 

@@ -172,9 +172,6 @@ describe("buildSessionsProjection", () => {
       cwd: "",
       source: "alfred",
       runtimeStatus: "restored",
-      workspaceRootFingerprint: "0123456789abcdef",
-      isolation: "worktree",
-      branchName: "alfred-codex-private-20260729120000-abcd1234",
     });
 
     const projection = buildSessionsProjection({
@@ -268,16 +265,16 @@ describe("buildSessionsProjection", () => {
     const sessions = Array.from({ length: 82 }, (_, index) => managedSession({
       id: `managed-${index}`,
       title: `Codex · issue ${index}`,
-      branchName: index === 81 ? "needle-branch" : "main",
+      cwd: index === 81 ? "/repo/needle-folder" : "/repo",
       createdAt: index,
     }));
 
     const firstPage = buildSessionsProjection({ sessions, workspaces, externalSessions: [] });
-    const branchSearch = buildSessionsProjection({
+    const locationSearch = buildSessionsProjection({
       sessions,
       workspaces,
       externalSessions: [],
-      query: "needle-branch",
+      query: "needle-folder",
     });
     const secondPage = buildSessionsProjection({
       sessions,
@@ -288,8 +285,8 @@ describe("buildSessionsProjection", () => {
 
     expect(firstPage.items).toHaveLength(80);
     expect(firstPage.total).toBe(82);
-    expect(branchSearch.items).toHaveLength(1);
-    expect(branchSearch.items[0]?.branch).toBe("needle-branch");
+    expect(locationSearch.items).toHaveLength(1);
+    expect(locationSearch.items[0]?.locationLabel).toBe("needle-folder");
     expect(secondPage.items).toHaveLength(2);
     expect(secondPage.total).toBe(82);
   });

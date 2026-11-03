@@ -13,7 +13,7 @@ import {
   updateStagedPlanSession,
 } from "./staged-plan-store.js";
 import { createPersistedDesktopStateStore, DEFAULT_DESKTOP_STATE } from "./persisted-desktop-state.js";
-import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc.js";
+import type { AlfredStagedPlanSnapshot, AlfredStagedSessionPatch } from "../shared/alfred-ipc.js";
 
 const createPlan = (): AlfredStagedPlanSnapshot => ({
   id: "plan-1",
@@ -32,7 +32,6 @@ const createPlan = (): AlfredStagedPlanSnapshot => ({
         status: "ready",
         label: "Ready",
         detail: "Will launch in the selected project.",
-        isolation: "shared",
       },
     },
     {
@@ -281,113 +280,26 @@ describe("staged-plan-store", () => {
       command: "pnpm",
       args: ["--filter", "@alfred/desktop", "test"],
       cwd: "apps/desktop",
-      launchPreflight: {
-        status: "ready",
-        isolation: "shared",
-      },
+      launchPreflight: { status: "ready" },
     });
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
       expect.objectContaining({ stagedPlans: { A: response.plan } }),
     );
   });
 
-  it.each(["codex", "claude"] as const)("persists %s isolation updates and recomputes worktree preflight", async (kind) => {
-    const plan = createPlan();
-    if (plan.sessions[0]) {
-      plan.sessions[0] = { ...plan.sessions[0], kind, command: kind, args: [] };
-    }
-    await setStagedPlanSnapshot(plan);
-    const preflightAgentWorktree = vi.fn().mockResolvedValue({
-      ok: true,
-      branchName: `alfred-${kind}-isolated`,
-      baseCwd: "/repo",
-      cwd: `/repo/.alfred-worktrees/alfred-${kind}-isolated`,
-    });
-
-    const response = await updateStagedPlanSession(
-      {
-        planId: "plan-1",
-        sessionId: "alfred-1",
-        patch: { isolation: "worktree" },
-        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
-      },
-      { preflightOptions: { commandExists: async () => true, preflightAgentWorktree } },
-    );
-
-    expect(response).toMatchObject({ ok: true });
-    if (!response.ok) throw new Error(response.error.message);
-    expect(preflightAgentWorktree).toHaveBeenCalled();
-    expect(response.plan.sessions[0]).toMatchObject({
-      id: "alfred-1",
-      kind,
-      isolation: "worktree",
-      launchPreflight: {
-        status: "ready",
-        isolation: "worktree",
-        branchName: `alfred-${kind}-isolated`,
-      },
-    });
-  });
-
-  it.each(["shell", "dev-server"] as const)("rejects %s worktree isolation patches", async (kind) => {
-    const plan = createPlan();
-    if (plan.sessions[0]) {
-      plan.sessions[0] = { ...plan.sessions[0], kind };
-    }
-    await setStagedPlanSnapshot(plan);
-
-    await expect(
-      updateStagedPlanSession({
-        planId: "plan-1",
-        sessionId: "alfred-1",
-        patch: { isolation: "worktree" },
-        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
-      }),
-    ).resolves.toEqual({
-      ok: false,
-      error: {
-        code: "malformed",
-        message: "Staged session worktree isolation requires a codex or claude session.",
-      },
-    });
-  });
-
-  it.each(["codex", "claude"] as const)("rejects %s worktree isolation patches without a workspace root", async (kind) => {
-    const plan = createPlan();
-    if (plan.sessions[0]) {
-      plan.sessions[0] = { ...plan.sessions[0], kind, command: kind, args: [] };
-    }
-    await setStagedPlanSnapshot(plan);
-
-    await expect(
-      updateStagedPlanSession({
-        planId: "plan-1",
-        sessionId: "alfred-1",
-        patch: { isolation: "worktree" },
-        workspace: { id: "A", label: "Alfred" },
-      }),
-    ).resolves.toEqual({
-      ok: false,
-      error: {
-        code: "malformed",
-        message: "Staged session worktree isolation requires a workspace root.",
-      },
-    });
-  });
-
-  it("rejects invalid isolation patches", async () => {
+  it("rejects a patch to a field a draft cannot edit", async () => {
     await setStagedPlanSnapshot(createPlan());
 
     await expect(
       updateStagedPlanSession({
         planId: "plan-1",
         sessionId: "alfred-1",
-        patch: { isolation: "detached" as "worktree" },
+        patch: { isolation: "worktree" } as AlfredStagedSessionPatch,
         workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
       }),
     ).resolves.toEqual({
       ok: false,
-      error: { code: "malformed", message: "Staged session isolation must be shared or worktree." },
+      error: { code: "malformed", message: 'Staged session field "isolation" cannot be patched.' },
     });
   });
 
@@ -413,7 +325,6 @@ describe("staged-plan-store", () => {
   it("blocks launch preflight when an edited cwd leaves the workspace", async () => {
     const plan = createPlan();
     await setStagedPlanSnapshot(plan);
-    const preflightAgentWorktree = vi.fn();
 
     const response = await updateStagedPlanSession(
       {
@@ -422,12 +333,11 @@ describe("staged-plan-store", () => {
         patch: { cwd: "/other/repo" },
         workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
       },
-      { preflightOptions: { commandExists: async () => true, preflightAgentWorktree } },
+      { preflightOptions: { commandExists: async () => true } },
     );
 
     expect(response).toMatchObject({ ok: true });
     if (!response.ok) throw new Error(response.error.message);
-    expect(preflightAgentWorktree).not.toHaveBeenCalled();
     expect(response.plan.sessions[1]).toMatchObject({
       id: "alfred-2",
       cwd: "/other/repo",

@@ -226,7 +226,6 @@ function normalizeManagedSession(
     ),
     project,
     locationLabel: displayLocation(session),
-    ...(session.branchName?.trim() ? { branch: session.branchName } : {}),
     updatedAt: meaningfulActivityAt(session),
     lifecycle: managedLifecycle(session),
   };
@@ -274,7 +273,6 @@ function managedLifecycle(session: SessionTile): SessionLifecycle {
 }
 
 function displayLocation(session: SessionTile): string {
-  if (session.branchName?.trim()) return session.branchName;
   const segments = session.cwd.split("/").filter(Boolean);
   return segments.at(-1) ?? "local project";
 }

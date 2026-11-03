@@ -223,16 +223,12 @@ if (!hasSingleInstanceLock) {
     app.on("will-quit", () => void agentEvents?.close());
     registerDesktopStateIpc(persistedDesktopStateStore, { clearAgentEvents: () => agentEvents?.clear() });
     const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
-    const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
     const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
     const workspaceStore = createWorkspaceStore({
       persistedStateStore: persistedDesktopStateStore,
       defaultRootPath: defaultWorkspaceRootPath,
     });
-    registerSessionsIpc({
-      managedWorktreeRootPath,
-      workspaceStore,
-    });
+    registerSessionsIpc({ workspaceStore });
     const agentSignals = await createAgentSignalBridge({
       dir: path.join(app.getPath("userData"), "agent-signals"),
       execPath: process.execPath,
@@ -245,17 +241,12 @@ if (!hasSingleInstanceLock) {
       agentEvents,
       agentSignals,
       appOnlyEnvKeys,
-      allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
+      allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { scratchRootPath }),
       isStagedCommandAllowed: isStagedSessionLaunchAllowed,
-      managedWorktreeRootPath,
-      resolveWorkspaceRoot: async (workspaceId) => {
-        const state = await workspaceStore.getWorkspaceState();
-        return state.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath;
-      },
       requireLaunchTickets: true,
       scratchRootPath,
     });
-    registerWorkspaceIpc(workspaceStore, { managedWorktreeRootPath, scratchRootPath });
+    registerWorkspaceIpc(workspaceStore, { scratchRootPath });
     await createWindow(persistedDesktopStateStore);
 
     app.on("activate", () => {

@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
 import { createExternalSessionsReader } from "./external-sessions.js";
-import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { sessionsChannels } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
@@ -86,7 +85,7 @@ describe("sessions IPC", () => {
     const reader = {
       ...readerDefaults(),
       listExternalSessions: vi.fn(),
-      resolveExternalSession: vi.fn(async () => ({ kind: "resume" as const, projectId: "A", cwd: "/authoritative/root/.alfred-worktrees/feature", sessionId: "stale", agentKind: "codex" as const })),
+      resolveExternalSession: vi.fn(async () => ({ kind: "resume" as const, projectId: "A", cwd: "/authoritative/root/.worktrees/feature", sessionId: "stale", agentKind: "codex" as const })),
     };
     registerSessionsIpc({
       reader,
@@ -96,23 +95,21 @@ describe("sessions IPC", () => {
     await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "stale" })).resolves.toEqual({ kind: "add-project" });
   });
 
-  it("authorizes resume targets inside the configured managed worktree root", async () => {
+  it("authorizes resume targets in an agent's own worktree inside the project", async () => {
     const projectRoot = path.join(tmpdir(), "authoritative-root");
-    const managedWorktreeRootPath = path.join(tmpdir(), "alfred-user-data", "worktrees");
-    const managedCwd = path.join(managedProjectWorktreeRoot(managedWorktreeRootPath, projectRoot), "feature-a");
+    const checkoutCwd = path.join(projectRoot, ".claude", "worktrees", "feature-a");
     const reader = {
       ...readerDefaults(),
       listExternalSessions: vi.fn(),
       resolveExternalSession: vi.fn(async () => ({
         kind: "resume" as const,
         projectId: "A",
-        cwd: managedCwd,
+        cwd: checkoutCwd,
         sessionId: "managed-session",
         agentKind: "codex" as const,
       })),
     };
     registerSessionsIpc({
-      managedWorktreeRootPath,
       reader,
       workspaceStore: fakeWorkspaceStore([{ id: "A", label: "Authoritative", shortLabel: "AU", rootPath: projectRoot }]),
     });
@@ -120,7 +117,7 @@ describe("sessions IPC", () => {
     await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "managed" })).resolves.toEqual({
       kind: "resume",
       projectId: "A",
-      cwd: managedCwd,
+      cwd: checkoutCwd,
       sessionId: "managed-session",
       agentKind: "codex" as const,
     });

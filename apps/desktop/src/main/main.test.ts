@@ -494,7 +494,7 @@ describe("main quit persistence", () => {
     }
   });
 
-  it("wires authoritative workspace-root resolution into terminal IPC", async () => {
+  it("wires the agent event log and state signals into terminal IPC", async () => {
     mocks.app.whenReady.mockResolvedValueOnce(undefined);
 
     await import("./main.js");
@@ -503,17 +503,8 @@ describe("main quit persistence", () => {
     expect(mocks.registerTerminalIpc).toHaveBeenCalledWith(expect.objectContaining({
       agentEvents: expect.objectContaining({ log: "agent-events" }),
       agentSignals: expect.objectContaining({ bridge: "agent-signals" }),
-      resolveWorkspaceRoot: expect.any(Function),
     }));
     expect(mocks.registerDesktopStateIpc).toHaveBeenCalledWith(expect.anything(), { clearAgentEvents: expect.any(Function) });
-    const options = mocks.registerTerminalIpc.mock.calls[0]?.[0] as
-      | { resolveWorkspaceRoot?: (workspaceId: string) => Promise<string | undefined> }
-      | undefined;
-    await expect(options?.resolveWorkspaceRoot?.("A")).resolves.toBe("/repo");
-    await expect(options?.resolveWorkspaceRoot?.("missing")).resolves.toBeUndefined();
-    expect(mocks.registerSessionsIpc).toHaveBeenCalledWith(expect.objectContaining({
-      managedWorktreeRootPath: "/tmp/alfred-user-data/worktrees",
-    }));
   });
 
   it("keeps only keys added by the repo .env out of terminal sessions", async () => {

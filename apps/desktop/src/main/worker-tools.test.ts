@@ -78,9 +78,9 @@ describe("worker tools", () => {
   it("starts a worker for a top-level agent and lists it as starting", async () => {
     const { host, workers } = fakeHost();
     const tools = createWorkerTools(host);
-    await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: " Run the typecheck ", isolated: true }))
+    await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: " Run the typecheck " }))
       .resolves.toEqual({ worker_id: "codex-1", title: "Codex", state: "starting" });
-    expect(host.startWorker).toHaveBeenCalledWith("claude-1", { agent: "codex", prompt: "Run the typecheck", isolated: true });
+    expect(host.startWorker).toHaveBeenCalledWith("claude-1", { agent: "codex", prompt: "Run the typecheck" });
     expect(workers).toHaveLength(1);
     await expect(tools.call("lead-session", "list_workers", {})).resolves.toEqual({
       workers: [{ worker_id: "codex-1", title: "Codex", agent: "codex", state: "starting" }],
@@ -211,7 +211,7 @@ describe("worker tools", () => {
     const tools = createWorkerTools(host);
     await expect(tools.call("lead-session", "start_worker", { agent: "codex", prompt: "x", model: "gpt-6.1-sol", effort: "medium" }))
       .resolves.toMatchObject({ model: "gpt-6.1-sol", effort: "medium" });
-    expect(host.startWorker).toHaveBeenLastCalledWith("claude-1", { agent: "codex", prompt: "x", isolated: false, model: "gpt-6.1-sol", effort: "medium" });
+    expect(host.startWorker).toHaveBeenLastCalledWith("claude-1", { agent: "codex", prompt: "x", model: "gpt-6.1-sol", effort: "medium" });
     await expect(tools.call("lead-session", "start_worker", { agent: "claude", prompt: "x", model: "claude-opus-5-5[1m]", effort: "max" }))
       .resolves.toMatchObject({ model: "claude-opus-5-5[1m]", effort: "max" });
     // Codex has no "max", Claude no "minimal"; a model name cannot carry an option.

@@ -67,7 +67,7 @@ describe("desktop-state IPC", () => {
     mocks.applyTerminalPrivacyPolicyInMemory.mockClear();
     const store = createMemoryStore({
       ...DEFAULT_DESKTOP_STATE,
-      restoredTerminalSessions: [sensitiveIsolatedSession("settings-session")],
+      restoredTerminalSessions: [sensitiveSession("settings-session")],
     });
     registerDesktopStateIpc(store);
 
@@ -87,19 +87,7 @@ describe("desktop-state IPC", () => {
     expect(mocks.applyTerminalPrivacyPolicyInMemory).toHaveBeenCalledWith({
       terminalScrollbackRetention: "off",
     });
-    expect((await store.getState()).restoredTerminalSessions).toEqual([
-      {
-        clientId: "settings-session",
-        title: "Isolated settings-session",
-        source: "alfred",
-        agentKind: "codex",
-        workspaceId: "workspace-a",
-        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-        isolation: "worktree",
-        branchName: "alfred-codex-settings-session",
-        createdAt: 123,
-      },
-    ]);
+    expect((await store.getState()).restoredTerminalSessions).toEqual([]);
   });
 
   it("clears all persisted terminal launch, transcript, and activity data", async () => {
@@ -115,7 +103,7 @@ describe("desktop-state IPC", () => {
     });
     const store = createMemoryStore({
       ...DEFAULT_DESKTOP_STATE,
-      restoredTerminalSessions: [sensitiveIsolatedSession("clear-session")],
+      restoredTerminalSessions: [sensitiveSession("clear-session")],
     });
     registerDesktopStateIpc(store);
 
@@ -125,19 +113,7 @@ describe("desktop-state IPC", () => {
       DEFAULT_DESKTOP_STATE.privacySettings,
       true,
     ]);
-    expect((await store.getState()).restoredTerminalSessions).toEqual([
-      {
-        clientId: "clear-session",
-        title: "Isolated clear-session",
-        source: "alfred",
-        agentKind: "codex",
-        workspaceId: "workspace-a",
-        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
-        isolation: "worktree",
-        branchName: "alfred-codex-clear-session",
-        createdAt: 123,
-      },
-    ]);
+    expect((await store.getState()).restoredTerminalSessions).toEqual([]);
   });
 
   const planWithSecret = {
@@ -250,18 +226,15 @@ describe("desktop-state IPC", () => {
   });
 });
 
-function sensitiveIsolatedSession(clientId: string) {
+function sensitiveSession(clientId: string) {
   return {
     clientId,
-    title: `Isolated ${clientId}`,
+    title: `Codex ${clientId}`,
     source: "alfred" as const,
     agentKind: "codex" as const,
     workspaceId: "workspace-a",
-    isolation: "worktree" as const,
-    branchName: `alfred-codex-${clientId}`,
     createdAt: 123,
-    cwd: `/alfred/userData/worktrees/${clientId}`,
-    baseCwd: "/repo",
+    cwd: "/repo",
     shell: "codex",
     command: "codex",
     args: ["resume", "secret"],

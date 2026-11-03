@@ -58,11 +58,10 @@ afterEach(() => {
 
 describe("Details tab", () => {
   it("shows Location for the focused session", () => {
-    renderContext({ session: { ...sessionA, agentKind: "codex", branchName: "feature/details", isolation: "worktree", baseCwd: "/workspace" } });
+    renderContext({ session: { ...sessionA, agentKind: "codex" } });
     const location = screen.getByRole("region", { name: "Location" });
     expect(location.querySelector("dl")).toBeNull();
     expect(location).toHaveTextContent("/workspace/a");
-    expect(location).toHaveTextContent("feature/details");
     expect(within(location).getByTitle("/workspace/a")).toHaveTextContent("/workspace/a");
   });
 

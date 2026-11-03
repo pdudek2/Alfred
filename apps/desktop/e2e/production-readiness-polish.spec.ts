@@ -8,7 +8,6 @@ import { openDetails, openNewTerminalSheet, sessionTree, surfaceButton } from ".
 test.use({
   fixtureOptions: {
     externalSessionFixture: "mixed",
-    handoffDiff: true,
     stagedItems: 1,
     waitingStagedItem: 1,
     restoredSessions: 1,
@@ -82,23 +81,9 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(needsYou).toBeHidden();
 
   await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
-  const asleep = page.getByRole("region", { name: "History" });
-  await asleep.getByRole("listbox", { name: "Session results" })
-    .getByRole("option", { name: /Fixture diff handoff/ }).click();
-  await asleep.getByRole("toolbar", { name: "Asleep worktree actions" })
-    .getByRole("button", { name: "Review diff" }).click();
-  const diff = page.getByRole("region", { name: "Worktree diff" });
-  await expect(diff).toBeVisible();
-  await expectNoDocumentOrBodyOverflow(page);
-  await expectWithinViewport(diff, "Worktree diff");
-  await expectSans(diff.locator("code").first());
-  await expectSans(diff.locator(".worktree-diff-panel__line").first());
-  await captureAuditScreenshot(page, "worktree-diff-wide");
-  await diff.getByRole("button", { name: "Close diff" }).click();
-
-  await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
+  await expectNoDocumentOrBodyOverflow(page);
   // Browsing asleep sessions above left History scoped to this project and to what Alfred ran.
   await sessions.getByRole("combobox", { name: "Project scope" }).selectOption("all");
   await sessions.getByRole("tab", { name: "All" }).click();

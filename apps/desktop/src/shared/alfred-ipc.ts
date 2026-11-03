@@ -9,14 +9,10 @@ export type AlfredLaunchPreflight =
       status: "ready";
       label: string;
       detail: string;
-      isolation?: "shared" | "worktree";
-      branchName?: string;
-      baseCwd?: string;
-      cwd?: string;
     }
   | {
       status: "blocked";
-      code: "command_missing" | "cwd_missing" | "cwd_outside_workspace" | "git_not_ready" | "no_workspace";
+      code: "command_missing" | "cwd_missing" | "cwd_outside_workspace" | "no_workspace";
       label: string;
       reason: string;
       detail?: string;
@@ -51,7 +47,6 @@ export type AlfredPlanSession = {
   cwd?: string;
   command: string;
   args: string[];
-  isolation?: "shared" | "worktree";
   safetyNote?: string;
   launchPreflight?: AlfredLaunchPreflight;
 };
@@ -112,7 +107,6 @@ export type AlfredStagedSessionPatch = {
   cwd?: string;
   command?: string;
   args?: string[];
-  isolation?: "shared" | "worktree";
 };
 
 export type AlfredStagedPlanSessionUpdateRequest = {

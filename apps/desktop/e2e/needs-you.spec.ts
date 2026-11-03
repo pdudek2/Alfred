@@ -13,7 +13,6 @@ const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwrigh
 test.use({
   fixtureOptions: {
     blockedStagedItem: 1,
-    handoffDiff: true,
     stagedItems: 2,
     projectShell: true,
   },
@@ -103,40 +102,6 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await expect(context).toBeVisible();
   await expect(context.getByRole("heading", { name: "Details" })).toBeFocused();
   await expectSameNode(xtermHostBefore, xtermHost, "Needs you Edit replaced the connected xterm host");
-});
-
-test("reviews the real diff of an asleep checkout without replacing the live xterm", async ({ harness }) => {
-  const { app, page } = harness;
-  await setWindowSize(app, page, 1440, 900);
-
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Codex/ }).click();
-  await page.getByRole("button", { name: "Start" }).click();
-  const xtermHost = page.locator('[data-session-id="codex-1"] [data-testid="xterm-host"]');
-  await expect(xtermHost).toBeAttached();
-  const xtermHostBefore = await requiredHandle(xtermHost, "connected Codex xterm host");
-
-  await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
-  const sessions = page.getByRole("region", { name: "History" });
-  await expect(sessions).toBeVisible();
-  await sessions.getByRole("listbox", { name: "Session results" })
-    .getByRole("option", { name: /Fixture diff handoff/ }).click();
-  await sessions.getByRole("toolbar", { name: "Asleep worktree actions" })
-    .getByRole("button", { name: "Review diff" }).click();
-
-  const diff = page.getByRole("region", { name: "Worktree diff" });
-  await expect(diff).toBeVisible();
-  await expectRealDiff(diff);
-  await expectSameNode(xtermHostBefore, xtermHost, "the diff replaced the connected xterm host");
-  expect(await documentOverflow(page)).toBe(0);
-  await page.screenshot({
-    path: path.join(evidenceDir, "asleep-real-diff-wide-1440x900.png"),
-    style: privacySafeScreenshotStyle,
-  });
-
-  await diff.getByRole("button", { name: "Close diff" }).click();
-  await expect(diff).toBeHidden();
-  await expectSameNode(xtermHostBefore, xtermHost, "closing the diff replaced the connected xterm host");
 });
 
 const mixedFixture = {
@@ -319,15 +284,6 @@ async function documentOverflow(page: Page): Promise<number> {
 
 async function terminalOwnsFocus(page: Page): Promise<boolean> {
   return page.evaluate(() => document.activeElement?.closest('[data-testid="terminal-tile"]') !== null);
-}
-
-async function expectRealDiff(diff: Locator): Promise<void> {
-  await expect(diff.getByText("1 changed file", { exact: true })).toBeVisible();
-  await expect(diff.locator(".worktree-diff-panel__additions")).toHaveText("+1");
-  await expect(diff.locator(".worktree-diff-panel__deletions")).toHaveText("−1");
-  await expect(diff.getByRole("list", { name: "Changed files" })).toContainText("handoff-status.txt");
-  await expect(diff.locator(".kind-add")).toContainText("+handoff status: ready");
-  await expect(diff.locator(".kind-remove")).toContainText("-handoff status: pending");
 }
 
 async function expectSameNode(

@@ -45,7 +45,6 @@ export type WorkerRecord = {
 export type WorkerStartRequest = {
   agent: WorkerAgent;
   prompt: string;
-  isolated: boolean;
   title?: string;
   model?: string;
   effort?: string;
@@ -59,7 +58,7 @@ export type WorkerHost = {
   startWorker(parentClientId: string, request: WorkerStartRequest): Promise<{ clientId: string; title: string }>;
   /** Types the text into the worker's terminal and presses Enter. */
   send(clientId: string, text: string): void;
-  /** Ends the worker's process; its worktree stays. */
+  /** Ends the worker's process; its files stay. */
   stop(clientId: string): void;
   /** The orchestrator has read these workers' current state, so Alfred need not wake it about them. */
   markSeen(parentClientId: string, workerClientIds: string[]): void;
@@ -109,16 +108,13 @@ export const WORKER_TOOL_DEFINITIONS = [
       + "worker thread here: it runs in its own terminal under you in Alfred's session tree, where the user can watch it. "
       + `You can run up to ${MAX_LIVE_WORKERS} live workers. Give each one a self-contained task: it does not see your `
       + "conversation. When a worker you started finishes a turn while you wait for the user, Alfred sends you a message "
-      + "saying so, so you can end your turn instead of waiting.",
+      + "saying so, so you can end your turn instead of waiting. When several workers edit files at once, tell each one in "
+      + "its prompt to do its work in its own git worktree and branch.",
     inputSchema: {
       type: "object",
       properties: {
         agent: { type: "string", enum: ["claude", "codex"], description: "Which agent runs the worker." },
         prompt: { type: "string", description: "The worker's first message: the whole task, with what done looks like." },
-        isolated: {
-          type: "boolean",
-          description: "Run it in its own git worktree. Use this when several workers edit files at once. Default: the shared project folder.",
-        },
         title: { type: "string", description: "A short name for the worker in the session tree." },
         model: { type: "string", description: "The model to run it on, as the agent's --model takes it. Default: the agent's own." },
         effort: {
@@ -166,7 +162,7 @@ export const WORKER_TOOL_DEFINITIONS = [
   },
   {
     name: "stop_worker",
-    description: "Stop a worker: its process ends, and its files and worktree stay as they are.",
+    description: "Stop a worker: its process ends, and its files stay as they are.",
     inputSchema: { type: "object", properties: { worker_id: workerId }, required: ["worker_id"], additionalProperties: false },
   },
 ] as const;
@@ -203,7 +199,6 @@ export function createWorkerTools(host: WorkerHost) {
             const started = await host.startWorker(caller.clientId, {
               agent,
               prompt,
-              isolated: input.isolated === true,
               ...(title ? { title } : {}),
               ...(model ? { model } : {}),
               ...(effort ? { effort } : {}),

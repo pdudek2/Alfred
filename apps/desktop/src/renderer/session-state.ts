@@ -14,7 +14,6 @@ import type {
   PersistedTerminalSessionSnapshot,
   TerminalSessionSnapshot,
   TerminalSessionId,
-  TerminalSessionIsolation,
   TerminalResumeTarget,
 } from "../shared/terminal-ipc";
 import { normalizeSessionTitle, titleFromPrompt } from "../shared/session-title";
@@ -25,11 +24,7 @@ export type SessionTile = {
   runtimeId?: TerminalSessionId;
   title: string;
   workspaceId: string;
-  workspaceRootFingerprint?: string;
   cwd: string;
-  isolation?: TerminalSessionIsolation;
-  branchName?: string;
-  baseCwd?: string;
   createdAt?: number;
   endedAt?: number;
   source: "manual" | "alfred";
@@ -144,7 +139,6 @@ export function addAgentSession(
   kind: Extract<AgentKind, "claude" | "codex">,
   cwd: string,
   workspaceId = "A",
-  isolation: TerminalSessionIsolation = "shared",
   prompt = "",
   parentSessionId?: string,
   reservedIds: Iterable<string> = [],
@@ -165,7 +159,6 @@ export function addAgentSession(
       agentKind: kind,
       command: kind,
       args: prompt ? ["--", prompt] : [],
-      isolation,
       ...(parentSessionId ? { parentSessionId } : {}),
     },
   ];
@@ -181,19 +174,8 @@ export function closeSession(sessions: SessionTile[], sessionId: string): Sessio
   });
 }
 
-export function sessionInstanceKey(
-  session: Pick<
-    SessionTile,
-    "baseCwd" | "branchName" | "createdAt" | "id" | "runtimeId"
-  >,
-): string {
-  return [
-    session.id,
-    session.runtimeId ?? "",
-    session.createdAt ?? "",
-    session.branchName ?? "",
-    session.baseCwd ?? "",
-  ].join("\u001f");
+export function sessionInstanceKey(session: Pick<SessionTile, "createdAt" | "id" | "runtimeId">): string {
+  return [session.id, session.runtimeId ?? "", session.createdAt ?? ""].join("\u001f");
 }
 
 export function renameSession(sessions: SessionTile[], sessionId: string, title: string): SessionTile[] {
@@ -233,9 +215,6 @@ export function attachRuntimeSession(
       runtimeStatus: exitedBeforeAttachStatus ?? "live",
       title: normalizeSessionTitle(runtime.title) || session.title,
       cwd: runtime.cwd,
-      ...(runtime.isolation === undefined ? {} : { isolation: runtime.isolation }),
-      ...(runtime.branchName === undefined ? {} : { branchName: runtime.branchName }),
-      ...(runtime.baseCwd === undefined ? {} : { baseCwd: runtime.baseCwd }),
       ...(runtime.createdAt === undefined ? {} : { createdAt: runtime.createdAt }),
       ...(runtime.command === undefined ? {} : { command: runtime.command }),
       ...(runtime.args === undefined ? {} : { args: runtime.args }),
@@ -350,12 +329,6 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...titleForForegroundCommand({ title: normalizedSessionTitleWithFallback(snapshot.title, snapshot) }, snapshot),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
-    ...(snapshot.workspaceRootFingerprint === undefined
-      ? {}
-      : { workspaceRootFingerprint: snapshot.workspaceRootFingerprint }),
-    ...(snapshot.isolation === undefined ? {} : { isolation: snapshot.isolation }),
-    ...(snapshot.branchName === undefined ? {} : { branchName: snapshot.branchName }),
-    ...(snapshot.baseCwd === undefined ? {} : { baseCwd: snapshot.baseCwd }),
     ...(snapshot.createdAt === undefined ? {} : { createdAt: snapshot.createdAt }),
     source: snapshot.source,
     stage: "live",
@@ -384,12 +357,6 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     title: normalizedSessionTitleWithFallback(snapshot.title, snapshot),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd ?? "",
-    ...(snapshot.workspaceRootFingerprint === undefined
-      ? {}
-      : { workspaceRootFingerprint: snapshot.workspaceRootFingerprint }),
-    ...(snapshot.isolation === undefined ? {} : { isolation: snapshot.isolation }),
-    ...(snapshot.branchName === undefined ? {} : { branchName: snapshot.branchName }),
-    ...(snapshot.baseCwd === undefined ? {} : { baseCwd: snapshot.baseCwd }),
     ...(snapshot.createdAt === undefined ? {} : { createdAt: snapshot.createdAt }),
     source: snapshot.source,
     stage: "live",
@@ -412,23 +379,19 @@ export function hydrateStagedPlanSessions(
   defaultCwd: string,
 ): SessionTile[] {
   if (!plan) return [];
-  return plan.sessions.map((session) => {
-    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
-    return {
-      id: session.id,
-      title: normalizedSessionTitleWithFallback(session.title, session),
-      workspaceId: plan.workspaceId,
-      cwd: session.cwd ?? defaultCwd,
-      source: "alfred",
-      stage: "staged",
-      command: session.command,
-      args: session.args,
-      agentKind: session.kind,
-      ...(isolation === undefined ? {} : { isolation }),
-      ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
-      ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
-    };
-  });
+  return plan.sessions.map((session) => ({
+    id: session.id,
+    title: normalizedSessionTitleWithFallback(session.title, session),
+    workspaceId: plan.workspaceId,
+    cwd: session.cwd ?? defaultCwd,
+    source: "alfred",
+    stage: "staged",
+    command: session.command,
+    args: session.args,
+    agentKind: session.kind,
+    ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+    ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
+  }));
 }
 
 function resumeLaunchForRestoredAgent(
@@ -496,20 +459,6 @@ function restoredAgentKind(
   return session.agentKind ?? (session.command === "codex" || session.command === "claude" ? session.command : undefined);
 }
 
-function plannedSessionIsolation(
-  kind: AgentKind,
-  launchPreflight: AlfredLaunchPreflight | undefined,
-  explicitIsolation?: TerminalSessionIsolation,
-): TerminalSessionIsolation | undefined {
-  if (launchPreflight?.status === "ready") return launchPreflight.isolation;
-  if (explicitIsolation) return explicitIsolation;
-  return kind === "codex" || kind === "claude" ? "shared" : undefined;
-}
-
-function planSessionIsolation(session: AlfredPlanSession): TerminalSessionIsolation | undefined {
-  return session.isolation;
-}
-
 // ponytail: names the shell zsh whatever $SHELL is, as titles always have; the created session's resolved shell
 // would name bash or fish, with a rename so the next list does not bring "zsh" back.
 const SHELL_TITLE = "zsh";
@@ -564,7 +513,6 @@ export function addStagedSessions(
 ): SessionTile[] {
   let nextIndex = nextPrefixedSessionIndex(sessions, ALFRED_SESSION_PREFIX, reservedIds);
   const staged: SessionTile[] = planSessions.map((session) => {
-    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     const tile: SessionTile = {
       id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
       title: normalizedSessionTitleWithFallback(session.title, session),
@@ -575,7 +523,6 @@ export function addStagedSessions(
       command: session.command,
       args: session.args,
       agentKind: session.kind,
-      ...(isolation === undefined ? {} : { isolation }),
       ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
       ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
     };

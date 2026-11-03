@@ -14,19 +14,6 @@ export function deckFocusSession(sessions: readonly SessionTile[], selectedSessi
   return sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
 }
 
-export function isReviewableWorktreeSession(
-  session: Pick<
-    SessionTile,
-    "baseCwd" | "branchName" | "isolation" | "workspaceId" | "workspaceRootFingerprint"
-  > | null | undefined,
-): boolean {
-  if (session?.isolation === "shared") return false;
-  return Boolean(
-    session?.branchName
-    && (session.baseCwd || (session.workspaceId && session.workspaceRootFingerprint)),
-  );
-}
-
 export function isNavigableLiveSession(session: SessionTile): boolean {
   return session.stage === "live"
     && session.runtimeStatus !== "restored"

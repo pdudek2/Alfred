@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { preflightAlfredPlan } from "./alfred-launch-preflight.js";
 
 describe("preflightAlfredPlan", () => {
-  it("marks shared utility sessions ready when the command is available", async () => {
+  it("marks sessions ready when the command is available", async () => {
     const result = await preflightAlfredPlan(
       {
         sessions: [{ kind: "shell", title: "Logs", command: "tail", args: ["-f", "app.log"] }],
@@ -18,7 +18,6 @@ describe("preflightAlfredPlan", () => {
       status: "ready",
       label: "Ready",
       detail: "Will launch in the selected project.",
-      isolation: "shared",
     });
   });
 
@@ -60,104 +59,6 @@ describe("preflightAlfredPlan", () => {
     await rm(root, { force: true, recursive: true });
   });
 
-  it("preflights plain coding agents in Git workspaces as shared", async () => {
-    const preflightAgentWorktree = vi.fn();
-
-    const result = await preflightAlfredPlan(
-      {
-        sessions: [{ kind: "codex", title: "Refactor", command: "codex", args: [], cwd: "apps/desktop" }],
-      },
-      { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        directoryExists: async () => true,
-        preflightAgentWorktree,
-      },
-    );
-
-    expect(preflightAgentWorktree).not.toHaveBeenCalled();
-    expect(result.sessions[0]?.launchPreflight).toEqual({
-      status: "ready",
-      label: "Ready",
-      detail: "Will launch in the selected project.",
-      isolation: "shared",
-    });
-  });
-
-  it("preflights coding agents into a future isolated worktree when explicitly requested", async () => {
-    const preflightAgentWorktree = vi.fn(async () => ({
-      baseCwd: "/repo",
-      branchName: "alfred-codex-refactor",
-      cwd: "/.alfred-worktrees/repo/alfred-codex-refactor",
-    }));
-
-    const session = {
-      kind: "codex",
-      title: "Refactor",
-      command: "codex",
-      args: [],
-      cwd: "apps/desktop",
-      isolation: "worktree",
-    } satisfies Parameters<typeof preflightAlfredPlan>[0]["sessions"][number];
-
-    const result = await preflightAlfredPlan(
-      {
-        sessions: [session],
-      },
-      { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        directoryExists: async () => true,
-        preflightAgentWorktree,
-      },
-    );
-
-    expect(preflightAgentWorktree).toHaveBeenCalledWith({
-      agentKind: "codex",
-      clientId: "Refactor",
-      cwd: "/repo/apps/desktop",
-    });
-    expect(result.sessions[0]?.launchPreflight).toEqual({
-      status: "ready",
-      label: "Worktree ready",
-      detail: "Will create an isolated Git worktree on launch.",
-      isolation: "worktree",
-      branchName: "alfred-codex-refactor",
-      baseCwd: "/repo",
-      cwd: "/.alfred-worktrees/repo/alfred-codex-refactor",
-    });
-  });
-
-  it("ignores worktree isolation requests for shared utility sessions", async () => {
-    const preflightAgentWorktree = vi.fn();
-
-    const result = await preflightAlfredPlan(
-      {
-        sessions: [{
-          kind: "shell",
-          title: "Logs",
-          command: "tail",
-          args: ["-f", "app.log"],
-          cwd: "/repo",
-          isolation: "worktree",
-        }],
-      },
-      { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        preflightAgentWorktree,
-      },
-    );
-
-    expect(preflightAgentWorktree).not.toHaveBeenCalled();
-    expect(result.sessions[0]?.launchPreflight).toEqual({
-      status: "ready",
-      label: "Ready",
-      detail: "Will launch in the selected project.",
-      isolation: "shared",
-    });
-  });
-
   it("normalizes unsupported prompt flags before launch preflight", async () => {
     const result = await preflightAlfredPlan(
       {
@@ -179,14 +80,7 @@ describe("preflightAlfredPlan", () => {
         ],
       },
       { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        preflightAgentWorktree: async ({ agentKind }) => ({
-          baseCwd: "/repo",
-          branchName: `alfred-${agentKind}-review`,
-          cwd: `/.alfred-worktrees/repo/alfred-${agentKind}-review`,
-        }),
-      },
+      { commandExists: async () => true },
     );
 
     expect(result.sessions[0]?.args).toEqual(["--model", "gpt-5.5", "Review the backend"]);
@@ -194,19 +88,14 @@ describe("preflightAlfredPlan", () => {
   });
 
   it("blocks coding agents that ask to launch outside the selected project", async () => {
-    const preflightAgentWorktree = vi.fn();
     const result = await preflightAlfredPlan(
       {
         sessions: [{ kind: "codex", title: "Codex", command: "codex", args: [], cwd: "/other/repo" }],
       },
       { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        preflightAgentWorktree,
-      },
+      { commandExists: async () => true },
     );
 
-    expect(preflightAgentWorktree).not.toHaveBeenCalled();
     expect(result.sessions[0]?.launchPreflight).toMatchObject({
       status: "blocked",
       code: "cwd_outside_workspace",
@@ -214,7 +103,7 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
-  it("falls back to a shared scratch launch when no workspace folder is bound", async () => {
+  it("falls back to a scratch launch when no workspace folder is bound", async () => {
     const result = await preflightAlfredPlan(
       {
         sessions: [{ kind: "claude", title: "Review", command: "claude", args: [] }],
@@ -225,97 +114,7 @@ describe("preflightAlfredPlan", () => {
 
     expect(result.sessions[0]?.launchPreflight).toMatchObject({
       status: "ready",
-      isolation: "shared",
       label: "Scratch project",
-    });
-  });
-
-  it("blocks coding agents when Git worktree preparation is not ready", async () => {
-    const result = await preflightAlfredPlan(
-      {
-        sessions: [{
-          kind: "claude",
-          title: "Review",
-          command: "claude",
-          args: [],
-          cwd: "/repo",
-          isolation: "worktree",
-        }],
-      },
-      { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        preflightAgentWorktree: async () => {
-          throw new Error("Workspace has uncommitted or untracked changes.");
-        },
-      },
-    );
-
-    expect(result.sessions[0]?.launchPreflight).toMatchObject({
-      status: "blocked",
-      code: "git_not_ready",
-      reason: "Workspace has uncommitted or untracked changes.",
-    });
-  });
-
-  it("says a checkout starts from the last commit when the project has uncommitted files", async () => {
-    const result = await preflightAlfredPlan(
-      {
-        sessions: [{
-          kind: "codex",
-          title: "Review",
-          command: "codex",
-          args: [],
-          cwd: "/repo",
-          isolation: "worktree",
-        }],
-      },
-      { id: "A", label: "Alfred", rootPath: "/repo" },
-      {
-        commandExists: async () => true,
-        preflightAgentWorktree: async () => ({
-          baseCwd: "/repo",
-          branchName: "alfred-codex-review",
-          cwd: "/.alfred-worktrees/repo/alfred-codex-review",
-          uncommittedFiles: 3,
-        }),
-      },
-    );
-
-    expect(result.sessions[0]?.launchPreflight).toMatchObject({
-      status: "ready",
-      label: "Worktree ready",
-      detail: "Will create an isolated Git worktree from the last commit; 3 uncommitted files stay in the project.",
-      isolation: "worktree",
-      branchName: "alfred-codex-review",
-    });
-  });
-
-  it("falls back to shared workspace for coding agents in non-Git folders", async () => {
-    const result = await preflightAlfredPlan(
-      {
-        sessions: [{
-          kind: "codex",
-          title: "Codex",
-          command: "codex",
-          args: [],
-          isolation: "worktree",
-        }],
-      },
-      { id: "A", label: "Alfred", rootPath: "/plain-folder" },
-      {
-        commandExists: async () => true,
-        preflightAgentWorktree: async () => {
-          throw new Error("Project is not a Git repository. fatal: not a Git repository");
-        },
-      },
-    );
-
-    expect(result.sessions[0]?.launchPreflight).toEqual({
-      status: "ready",
-      label: "Shared project",
-      detail: "Project is not Git; will launch in the selected folder.",
-      isolation: "shared",
     });
   });
 });

@@ -34,7 +34,6 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
     expect(privacySafeScreenshotStyle).toContain(".plan-line__sub");
     expect(privacySafeScreenshotStyle).toContain(".agent-activity-list");
-    expect(privacySafeScreenshotStyle).toContain(".details-section[aria-label='Changes'] > :not(.details-section-heading)");
     expect(privacySafeScreenshotStyle).not.toContain(".agent-session-pulse");
     expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
     expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
@@ -58,12 +57,6 @@ describe("CSS layout evidence support", () => {
       <p class="details-location-path" data-private>/private/project</p>
       <section class="details-section" aria-label="Activity">
         <ol class="agent-activity-list"><li><span class="details-activity-text" data-private>Private activity</span></li></ol>
-      </section>
-      <section class="details-section" aria-label="Changes">
-        <header class="details-section-heading"><h2>Changes</h2></header>
-        <ul class="details-files"><li><span data-private>private-file.ts</span><span>+1</span></li></ul>
-        <p class="details-empty" data-private>Error in /private/project</p>
-        <div class="details-actions"><button data-private>Apply to Private project</button></div>
       </section>
       <button class="workspace-title-trigger"><small>/fixture/workspace</small></button>
       <span class="project-row-label">Fixture project</span>

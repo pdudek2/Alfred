@@ -254,7 +254,6 @@ test.describe("New session sheet layout", () => {
       await page.evaluate((value) => { document.documentElement.style.colorScheme = value; }, scheme);
       await expect(sheet).toHaveCSS("color-scheme", scheme);
       await expect(sheet.getByRole("radio").first()).toHaveCSS("color-scheme", scheme);
-      await expect(sheet.getByRole("checkbox")).toHaveCSS("color-scheme", scheme);
     }
     await page.evaluate(() => document.documentElement.style.removeProperty("color-scheme"));
   });
@@ -396,11 +395,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const { app, marker, page, paths } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
   const states: CssStateEvidence[] = [];
-  // Details shows Changes only for an isolated worktree, which this fixture has none of; the evidence unit test
-  // checks that mask on a checkout's Details.
-  const checkoutOnlySelectors = new Set([".details-section[aria-label='Changes'] > :not(.details-section-heading)"]);
-  const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors]
-    .filter((selector) => !checkoutOnlySelectors.has(selector));
+  const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors];
   const privacySelectorRuntimeMatches = new Map(privacySelectors.map((selector) => [selector, false]));
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);

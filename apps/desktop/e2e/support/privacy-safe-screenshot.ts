@@ -8,9 +8,8 @@ export const privacySafeScreenshotSelectors = [
   ".agent-timeline-header > strong",
   ".details-location-name",
   ".details-location-path",
-  // Mask the containers so empty logs and conditional file rows are covered too.
+  // Mask the container so an empty log is covered too.
   ".agent-activity-list",
-  ".details-section[aria-label='Changes'] > :not(.details-section-heading)",
   ".workspace-title-trigger small",
   ".project-row-label",
   ".workbench-breadcrumb-parent",
