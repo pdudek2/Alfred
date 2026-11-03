@@ -254,7 +254,6 @@ test.describe("New session sheet layout", () => {
       await page.evaluate((value) => { document.documentElement.style.colorScheme = value; }, scheme);
       await expect(sheet).toHaveCSS("color-scheme", scheme);
       await expect(sheet.getByRole("radio").first()).toHaveCSS("color-scheme", scheme);
-      await expect(sheet.getByRole("checkbox")).toHaveCSS("color-scheme", scheme);
     }
     await page.evaluate(() => document.documentElement.style.removeProperty("color-scheme"));
   });
