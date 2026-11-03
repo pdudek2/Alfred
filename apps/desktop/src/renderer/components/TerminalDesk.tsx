@@ -43,7 +43,7 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { sessionPresentationTitle } from "../../shared/session-presentation";
 import { deckFocusSession, deckSessions, isWorkSession } from "../session-scope";
-import { pathsReferToSameLocation } from "../workspace-path-matching";
+import { pathsReferToSameLocation, workTreeFolderLabel } from "../workspace-path-matching";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder, titleFromPrompt } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
@@ -269,6 +269,7 @@ export function TerminalDesk({
                 workspaceId={session.workspaceId}
                 workspaceGitBranch={workspaceGitBranch}
                 workspaceRootPath={workspaceRootPath}
+                workTree={session.workTree}
                 title={session.title}
                 layoutHidden={layoutHidden}
                 workspaceHidden={workspaceHidden}
@@ -583,6 +584,7 @@ function ManualTerminalTile({
   workspaceId,
   workspaceGitBranch,
   workspaceRootPath,
+  workTree,
   title,
   layoutHidden = false,
   workspaceHidden,
@@ -638,6 +640,7 @@ function ManualTerminalTile({
   workspaceId: string;
   workspaceGitBranch?: string | undefined;
   workspaceRootPath?: string | undefined;
+  workTree?: SessionTile["workTree"];
   title: string;
   layoutHidden?: boolean;
   workspaceHidden: boolean;
@@ -748,12 +751,15 @@ function ManualTerminalTile({
   const kindLabel = kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Terminal";
   const locationMatchesWorkspaceRoot = pathsReferToSameLocation(cwd, workspaceRootPath)
     && pathsReferToSameLocation(resolvedCwd, workspaceRootPath);
-  // Where the session works: a folder other than the project root, or the project's branch.
-  const locationLabel = locationMatchesWorkspaceRoot
-    ? workspaceGitBranch ?? null
-    : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
-  const locationTitle = locationMatchesWorkspaceRoot ? workspaceRootPath : resolvedCwd ?? "runtime cwd";
-  const externalTerminalCwd = resolvedCwd || cwd;
+  // Where the session works: the agent's worktree and branch, a folder other than the project root, or the project's branch.
+  const workTreeFolder = workTree ? workTreeFolderLabel(workTree.root, workspaceRootPath) : undefined;
+  const locationLabel = workTree
+    ? (workTreeFolder ? workTree.branch : workspaceGitBranch ?? workTree.branch) ?? null
+    : locationMatchesWorkspaceRoot
+      ? workspaceGitBranch ?? null
+      : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const locationTitle = workTree ? workTree.root : locationMatchesWorkspaceRoot ? workspaceRootPath : resolvedCwd ?? "runtime cwd";
+  const externalTerminalCwd = workTree?.root || resolvedCwd || cwd;
   const closeActionLabel = discardableSession ? "Discard" : "Close";
   const closeActionTitle = discardableSession ? "Discard this session" : "Close terminal";
   const runtimeBindingKey = runtimeId
@@ -1483,6 +1489,9 @@ function ManualTerminalTile({
                 <span className="session-strip-kind">{kindLabel}</span>
                 {locationLabel && (
                   <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
+                )}
+                {workTreeFolder && (
+                  <span className="session-location-value" title={locationTitle}>{workTreeFolder}</span>
                 )}
                 <span className="session-strip-spacer" />
                 {stripLabel && (

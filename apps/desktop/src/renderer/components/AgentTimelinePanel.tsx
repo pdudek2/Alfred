@@ -4,6 +4,7 @@ import { activitySentence, presentActivityEvents } from "../../shared/activity-p
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
+import { pathMatchesWorkspace, workTreeFolderLabel } from "../workspace-path-matching";
 import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 
@@ -61,7 +62,11 @@ export function AgentTimelinePanel({
     limit: activityEvents.length,
   });
   const locationName = projectName || session.workspaceId;
-  const handoffActions = sessionHandoffActions(session);
+  // The session starts in the project; an agent that made its own worktree works there instead.
+  const folder = session.workTree && !pathMatchesWorkspace(session.cwd, session.workTree.root) ? session.workTree.root : session.cwd;
+  const handoffActions = sessionHandoffActions(session, folder);
+  const workTreeLabel = folder === session.cwd ? undefined : workTreeFolderLabel(folder, session.cwd);
+  const locationTitle = workTreeLabel && pathMatchesWorkspace(folder, session.cwd) ? `${locationName}/${workTreeLabel}` : workTreeLabel ?? locationName;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   // Why a draft cannot launch, as its plan row says it.
   const blockLabel = session.launchPreflight?.status === "blocked" ? session.launchPreflight.label : undefined;
@@ -299,8 +304,8 @@ export function AgentTimelinePanel({
         </section>
         <section className="details-section" aria-label="Location">
           <header className="details-section-heading"><h2>Location</h2></header>
-          <p className="details-location-name">{locationName}</p>
-          <p className="details-location-path" title={session.cwd}>{session.cwd || "Default project folder"}</p>
+          <p className="details-location-name">{locationTitle}</p>
+          <p className="details-location-path" title={folder}>{folder || "Default project folder"}</p>
         {handoffActions.length > 0 && (
           <div
             className="details-location-actions"
@@ -398,13 +403,13 @@ function HandoffActionButton({
   );
 }
 
-function sessionHandoffActions(session: SessionTile): SessionHandoffAction[] {
-  if (!session.cwd) return [];
+function sessionHandoffActions(session: SessionTile, folder: string): SessionHandoffAction[] {
+  if (!folder) return [];
   const terminalLabel = externalTerminalLabel();
   return [
-    { id: "open-terminal", kind: "open-terminal", label: terminalLabel, ariaLabel: `${terminalLabel} for ${session.title}`, cwd: session.cwd },
-    { id: "reveal-folder", kind: "reveal-folder", label: "Show in Finder", ariaLabel: `Show in Finder for ${session.title}`, cwd: session.cwd },
-    { id: "copy-cwd", kind: "copy", label: "Copy path", ariaLabel: `Copy path for ${session.title}`, value: session.cwd },
+    { id: "open-terminal", kind: "open-terminal", label: terminalLabel, ariaLabel: `${terminalLabel} for ${session.title}`, cwd: folder },
+    { id: "reveal-folder", kind: "reveal-folder", label: "Show in Finder", ariaLabel: `Show in Finder for ${session.title}`, cwd: folder },
+    { id: "copy-cwd", kind: "copy", label: "Copy path", ariaLabel: `Copy path for ${session.title}`, value: folder },
   ];
 }
 

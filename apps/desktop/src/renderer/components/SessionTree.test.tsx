@@ -114,6 +114,7 @@ describe("SessionTree", () => {
         session("long", {
           title: "Refuse Apply when the worktree changed after review",
           agentKind: "claude",
+          workTree: { root: "/repo/alfred/.worktrees/refuse-apply", branch: "refuse-apply" },
           changeStats: { additions: 341, deletions: 33 },
           agentSignal: { state: "your-turn", source: "hook", at: now },
           activityEvents: [
@@ -135,6 +136,7 @@ describe("SessionTree", () => {
       const card = screen.getByRole("tooltip");
       expect(card).toHaveTextContent("Refuse Apply when the worktree changed after review");
       expect(card).toHaveTextContent("Alfred");
+      expect(card).toHaveTextContent("refuse-apply");
       expect(card).toHaveTextContent("Claude");
       expect(card).toHaveTextContent("+341−33in this conversation");
       expect([...within(card).getByRole("region", { name: "Latest" }).querySelectorAll("li > span:first-child")].map((item) => item.textContent))

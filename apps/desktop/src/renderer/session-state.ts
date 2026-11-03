@@ -9,6 +9,7 @@ import type {
   TerminalAgentSignal,
   TerminalChangeStats,
   TerminalCreateResult,
+  TerminalWorkTree,
   TerminalDataEvent,
   TerminalExitEvent,
   PersistedTerminalSessionSnapshot,
@@ -56,6 +57,8 @@ export type SessionTile = {
   /** You have sent this session a message (the main process saw Enter). */
   promptSubmitted?: boolean;
   changeStats?: TerminalChangeStats;
+  /** The git worktree the agent last worked in, from its transcript. */
+  workTree?: TerminalWorkTree;
   /** Started as a worker of this session ("New worker" on its rail row). */
   parentSessionId?: string;
 };
@@ -343,6 +346,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...servingUrlOnScreen(snapshot),
     ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(snapshot.changeStats === undefined ? {} : { changeStats: snapshot.changeStats }),
+    ...(snapshot.workTree === undefined ? {} : { workTree: snapshot.workTree }),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
@@ -601,7 +605,8 @@ export function recordSessionOutputActivity(
       ? item.lastActivityAt
       : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
     const outputAt = event.at ?? acceptedLastActivityAt ?? now;
-    const { agentSignal: _previousSignal, shellTitle: _shellTitle, servingUrl: _servingUrl, ...withoutSignal } = item;
+    const { agentSignal: _previousSignal, shellTitle: _shellTitle, servingUrl: _servingUrl, workTree: _workTree, ...withoutSignal } = item;
+    const workTree = event.workTree === undefined ? item.workTree : event.workTree;
     const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
     const named = event.agentTitle ? { title: event.agentTitle } : titleForForegroundCommand(item, event);
     // An address a shell echoes as you type it is not served; only one printed while a program runs is.
@@ -619,6 +624,7 @@ export function recordSessionOutputActivity(
       ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
       ...(event.changeStats ? { changeStats: event.changeStats } : {}),
+      ...(workTree == null ? {} : { workTree }),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
       ...(servingUrl === undefined ? {} : { servingUrl }),

@@ -14,6 +14,7 @@ import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
+import { worktreesOf } from "./git-work-tree.js";
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;
@@ -90,10 +91,8 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
 
 export async function allowedWorkspaceRoots(store: WorkspaceStore, options: WorkspaceIpcOptions = {}): Promise<string[]> {
   const state = await store.getWorkspaceState();
-  const workspaceRoots = state.workspaces.flatMap((workspace) => {
-    if (!workspace.rootPath) return [];
-    return [path.resolve(workspace.rootPath)];
-  });
+  const projectRoots = state.workspaces.flatMap((workspace) => workspace.rootPath ? [path.resolve(workspace.rootPath)] : []);
+  const workspaceRoots = [...projectRoots, ...(await Promise.all(projectRoots.map(worktreesOf))).flat()];
   const scratchRoot = options.scratchRootPath?.trim();
   const scratchWorkspaceRoots = scratchRoot
     ? [

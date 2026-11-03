@@ -149,15 +149,16 @@ describe("AgentTimelinePanel", () => {
       runtimeId: "runtime-1",
     };
 
-    render(
+    const panel = (shown: SessionTile) => (
       <AgentTimelinePanel
         now={Date.now()}
-        session={session}
+        session={shown}
         onCopyActivityText={onCopyActivityText}
         onOpenExternalTerminal={onOpenExternalTerminal}
         onRevealActivityFile={onRevealActivityFile}
-      />,
+      />
     );
+    const { rerender } = render(panel({ ...session, workTree: { root: "/repo/alfred", branch: "main" } }));
 
     const handoff = screen.getByRole("group", { name: "Session actions for codex — feature" });
 
@@ -168,6 +169,19 @@ describe("AgentTimelinePanel", () => {
     expect(onRevealActivityFile).toHaveBeenCalledWith(".", "/repo/alfred");
     expect(onOpenExternalTerminal).toHaveBeenCalledWith("/repo/alfred");
     expect(onCopyActivityText).toHaveBeenCalledWith("/repo/alfred");
+
+    const worktree = "/home/.codex/worktrees/a1f3/alfred";
+    rerender(panel({ ...session, workTree: { root: worktree, branch: "fix" } }));
+    expect(screen.getByTitle(worktree)).toHaveTextContent(worktree);
+    const locationName = () => screen.getByRole("region", { name: "Location" }).querySelector(".details-location-name");
+    expect(locationName()).toHaveTextContent(/^alfred$/);
+    rerender(panel({ ...session, workTree: { root: "/repo/alfred/.worktrees/fix", branch: "fix" } }));
+    expect(locationName()).toHaveTextContent(/^w1\/\.worktrees\/fix$/);
+    rerender(panel({ ...session, workTree: { root: worktree, branch: "fix" } }));
+    await user.click(within(handoff).getByRole("button", { name: "Show in Finder for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Open in external terminal for codex — feature" }));
+    expect(onRevealActivityFile).toHaveBeenLastCalledWith(".", worktree);
+    expect(onOpenExternalTerminal).toHaveBeenLastCalledWith(worktree);
   });
 
   it("preserves a full worktree path in title and copy action", async () => {

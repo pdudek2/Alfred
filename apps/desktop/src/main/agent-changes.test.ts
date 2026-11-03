@@ -2,7 +2,7 @@ import { appendFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { tallyTranscriptChanges } from "./agent-changes.js";
+import { tallyTranscriptChanges, workingFolder } from "./agent-changes.js";
 
 const line = (record: unknown) => `${JSON.stringify(record)}\n`;
 const claudeEdit = (lines: string[]) => ({ type: "user", toolUseResult: { structuredPatch: [{ lines }] } });
@@ -56,5 +56,33 @@ describe("tallyTranscriptChanges", () => {
     const other = path.join(dir, "other.jsonl");
     await writeFile(other, line(claudeEdit(["-only"])));
     await expect(tallyTranscriptChanges(other, partial)).resolves.toMatchObject({ additions: 0, deletions: 1, transcriptPath: other });
+  });
+
+  it("follows Claude Code's cwd and ignores its lagging gitBranch", async () => {
+    const claude = (cwd: string, gitBranch: string) => line({ type: "assistant", cwd, gitBranch, message: { content: [] } });
+    await writeFile(transcript, [
+      claude("/repo", "main"),
+      claude("/repo/.worktrees/fix", "main"),
+      line({ type: "user", cwd: "/elsewhere", isSidechain: true }),
+    ].join(""));
+    const inWorktree = await tallyTranscriptChanges(transcript);
+    expect(workingFolder(inWorktree)).toBe("/repo/.worktrees/fix");
+
+    await appendFile(transcript, [claude("/repo", "fix"), line({ type: "file-history-snapshot" })].join(""));
+    expect(workingFolder(await tallyTranscriptChanges(transcript, inWorktree))).toBe("/repo");
+  });
+
+  it("takes the folder of Codex's latest file change, else the turn's folder", async () => {
+    const turn = (cwd: string) => line({ type: "turn_context", payload: { cwd } });
+    const command = line({ type: "event_msg", payload: { type: "exec_command_end", cwd: "/tmp" } });
+    await writeFile(transcript, [line({ type: "session_meta", payload: { cwd: "/repo" } }), turn("/repo"), command].join(""));
+    const unchanged = await tallyTranscriptChanges(transcript);
+    expect(workingFolder(unchanged)).toBe("/repo");
+
+    await appendFile(transcript, [
+      line(codexChange({ "/home/.codex/worktrees/a1/repo/src/app.ts": { type: "add", content: "x\n" } })),
+      turn("/repo"),
+    ].join(""));
+    expect(workingFolder(await tallyTranscriptChanges(transcript, unchanged))).toBe("/home/.codex/worktrees/a1/repo/src");
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -46,6 +47,35 @@ describe("workspace IPC allowed roots", () => {
     const roots = await allowedWorkspaceRoots(fakeWorkspaceStore([alfredRoot, otherRoot, undefined]));
 
     expect(roots).toEqual([alfredRoot, otherRoot]);
+  });
+
+  it("allows the worktrees git lists for a project's repository and nothing beside them", async () => {
+    const temporaryDirectory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "alfred-workspace-ipc-")));
+    const project = path.join(temporaryDirectory, "project");
+    const worktree = path.join(temporaryDirectory, "codex-worktree");
+    const otherRepo = path.join(temporaryDirectory, "other");
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-C", cwd, ...args], { stdio: "pipe" });
+    await fs.mkdir(project);
+    await fs.mkdir(otherRepo);
+    git(project, "init", "-b", "main");
+    git(project, "commit", "--allow-empty", "-m", "first");
+    git(project, "worktree", "add", "-b", "fix", worktree);
+    git(otherRepo, "init", "-b", "main");
+    await fs.writeFile(path.join(worktree, "notes.txt"), "notes\n");
+    await fs.writeFile(path.join(otherRepo, "notes.txt"), "notes\n");
+
+    try {
+      const roots = await allowedWorkspaceRoots(fakeWorkspaceStore([project]));
+
+      expect(roots).toContain(worktree);
+      await expect(resolveWorkspacePathForReveal({ cwd: worktree, path: "notes.txt" }, { allowedRoots: roots }))
+        .resolves.toMatchObject({ ok: true });
+      await expect(resolveWorkspacePathForReveal({ cwd: otherRepo, path: "notes.txt" }, { allowedRoots: roots }))
+        .resolves.toMatchObject({ ok: false });
+    } finally {
+      await fs.rm(temporaryDirectory, { recursive: true, force: true });
+    }
   });
 
   it("allows app-owned scratch paths for reveal and external terminal actions", async () => {

@@ -17,6 +17,15 @@ export function pathsReferToSameLocation(
   return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
 }
 
+/** How a worktree reads beside its project: nothing for the project itself, its path inside it, else its folder name. */
+export function workTreeFolderLabel(root: string, projectRoot: string | undefined): string | undefined {
+  const tree = normalizePosixPath(root);
+  const project = normalizePosixPath(projectRoot);
+  if (!tree || tree === project) return undefined;
+  if (project && isSameOrChildPath(tree, project)) return tree.slice(project.length + 1);
+  return tree.split("/").filter(Boolean).at(-1) ?? tree;
+}
+
 function isSameOrChildPath(candidate: string, root: string): boolean {
   return candidate === root || candidate.startsWith(`${root}/`);
 }
