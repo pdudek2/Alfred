@@ -26,6 +26,11 @@ describe("redactArgs", () => {
     expect(redactText(`Wrote ${homedir()}/Downloads/note.md`)).toBe("Wrote ~/Downloads/note.md");
   });
 
+  it("redacts the value after a prefixed secret flag", () => {
+    expect(redactArgs(["gh", "--auth-token", "abc", "--no-password", "keep"]))
+      .toEqual(["gh", "--auth-token", "[redacted]", "--no-password", "keep"]);
+  });
+
   it("preserves argument boundaries and does not consume a value after an inline secret", () => {
     expect(redactArgs(["--password=hunter2", "keep me", "two words", "--tokenizer", "ordinary"]))
       .toEqual(["--password=[redacted]", "keep me", "two words", "--tokenizer", "ordinary"]);
@@ -333,6 +338,121 @@ describe("redactPayload", () => {
     const output = redactText(input);
 
     expect(output === expected).toBe(true);
+  });
+
+  it("redacts across terminal control sequences and leaves them intact", () => {
+    const esc = "\x1b";
+    expect(redactText(`${esc}[1mMY_API_TOKEN${esc}[0m=hunter2-SYNTHETIC\r\n`)).toBe(
+      `${esc}[1mMY_API_TOKEN${esc}[0m=[redacted]\r\n`,
+    );
+    expect(redactText(`.env:${esc}[01;31m${esc}[KMY_API_TOKEN${esc}[m${esc}[K=hunter2-SYNTHETIC\r\n`)).toBe(
+      `.env:${esc}[01;31m${esc}[KMY_API_TOKEN${esc}[m${esc}[K=[redacted]\r\n`,
+    );
+    expect(redactText(`${esc}[32mghp_1234567890abcdef${esc}[0m`)).toBe(`${esc}[32m[redacted]${esc}[0m`);
+    expect(redactText(`DB_PASSWORD=hunter2${esc}[0m ok`)).toBe(`DB_PASSWORD=[redacted]${esc}[0m ok`);
+    expect(redactText(`TOKEN=abc${esc}[0mdef ok`)).toBe(`TOKEN=[redacted]${esc}[0m ok`);
+    expect(redactText("TOKEN=ab\b\babcd ok")).toBe("TOKEN=[redacted] ok");
+    expect(redactText(`deploy --token abc${esc}[1mdef ok`)).toBe(`deploy --token [redacted]${esc}[1m ok`);
+    expect(redactText(`Authorization: Bearer abc${esc}[0mdef\r\nnext`)).toBe(`Authorization: [redacted]${esc}[0m\r\nnext`);
+    expect(redactText(`Cookie: session=abc${esc}[0mdef; csrf=x\r\nnext`)).toBe(`Cookie: [redacted]${esc}[0m\r\nnext`);
+    expect(redactText(`redis://:ab${esc}[0mcd@db`)).toBe(`redis://[redacted]${esc}[0m@db`);
+    const pathMarker = /\[redacted-path:[a-f0-9]{8}\]/g;
+    expect(redactText(`${esc}]8;;file:///Users/x/a.png\x07[Image #1]${esc}]8;;\x07`).replace(pathMarker, "P"))
+      .toBe(`${esc}]8;;file://P\x07[Image #1]${esc}]8;;\x07`);
+    expect(redactText(`${esc}[35m/Users/x/a.ts${esc}[0m:12`).replace(pathMarker, "P")).toBe(`${esc}[35mP${esc}[0m:12`);
+  });
+
+  it.each([
+    {
+      name: "PEM key cut before its END line",
+      input: "$ head -3 key.pem\r\n-----BEGIN RSA PRIVATE KEY-----\r\nMIIEpAIBAAKCAQEA1SYNTHETIC\r\nAbCdEfGhSYNTHETIC2\r\n$ ls\r\n",
+      expected: "$ head -3 key.pem\r\n[redacted]\r\n$ ls\r\n",
+    },
+    {
+      name: "PGP private key block",
+      input: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: GnuPG v2\n\nlQOYBFSYNTHETIC\n=AbCd\n-----END PGP PRIVATE KEY BLOCK-----\ndone",
+      expected: "[redacted]\ndone",
+    },
+    { name: "URI password without a user", input: "redis://:hunter2SYNTHETIC@db:6379/0", expected: "redis://[redacted]@db:6379/0" },
+    { name: "prefixed CLI secret flag", input: "gh auth --auth-token abc123SYNTHETIC --verbose", expected: "gh auth --auth-token [redacted] --verbose" },
+    { name: "Authorization token scheme", input: "Authorization: token abc123SYNTHETIC\r\nnext", expected: "Authorization: [redacted]\r\nnext" },
+    { name: "JSON token key", input: '{"token":"abc123SYNTHETIC"}', expected: '{"token":"[redacted]"}' },
+    {
+      name: "escaped JSON token key",
+      input: String.raw`{"body":"{\"token\":\"abc123SYNTHETIC\",\"ok\":1}"}`,
+      expected: String.raw`{"body":"{\"token\":\"[redacted]\",\"ok\":1}"}`,
+    },
+    {
+      name: "PEM key whose body lines carry escape codes",
+      input: "-----BEGIN RSA PRIVATE KEY-----\r\nMIIE AbC \r\n\x1b[0mXyZ\r\n-----END RSA PRIVATE KEY-----\r\nok",
+      expected: "[redacted]\r\nok",
+    },
+    {
+      name: "PEM key cut short before a whole one",
+      input: "-----BEGIN RSA PRIVATE KEY-----\nMIIEab\n$ ls\nkeep me\n-----BEGIN RSA PRIVATE KEY-----\nCD\n-----END RSA PRIVATE KEY-----",
+      expected: "[redacted]\n$ ls\nkeep me\n[redacted]",
+    },
+    {
+      name: "PEM key inside a JSON string",
+      input: String.raw`"-----BEGIN RSA PRIVATE KEY-----\nMIIEab\nCD\n-----END RSA PRIVATE KEY-----"`,
+      expected: '"[redacted]"',
+    },
+    {
+      name: "PEM key cut short inside a JSON string",
+      input: String.raw`{"key":"x","out":"-----BEGIN RSA PRIVATE KEY-----\nMIIEab\nCD"}`,
+      expected: String.raw`{"key":"x","out":"[redacted]"}`,
+    },
+    { name: "long secret-named variable", input: `${"A".repeat(100)}_TOKEN=abc ok`, expected: `${"A".repeat(100)}_TOKEN=[redacted] ok` },
+    { name: "hyphenated secret key", input: "X-API-KEY=abc ok", expected: "X-API-KEY=[redacted] ok" },
+    { name: "CLI secret with ; and ,",input: "deploy --password a,b;c --token x", expected: "deploy --password [redacted] --token [redacted]" },
+    { name: "Hugging Face token", input: "hf hf_AbCdEfGhIjKlMnOpQrStUvWx", expected: "hf [redacted]" },
+    { name: "Stripe test key", input: "stripe sk_test_1234567890abcdef", expected: "stripe [redacted]" },
+    { name: "Groq key", input: "groq gsk_AbCdEfGhIjKlMnOpQrStUvWx", expected: "groq [redacted]" },
+  ])("redacts $name", ({ input, expected }) => {
+    expect(redactText(input)).toBe(expected);
+  });
+
+  it.each([
+    { name: "token prefixes", input: `x${"ghp_".repeat(50_000)}` },
+    { name: "dashed words", input: `x${"sk-".repeat(66_000)}` },
+    { name: "Bearer words", input: "xBearer a".repeat(22_000) },
+    { name: "key headers", input: "-----BEGIN RSA PRIVATE KEY-----\n".repeat(6_000) },
+    { name: "escape openers", input: "\x1b[".repeat(100_000) },
+    { name: "secret-named words", input: "TOKEN".repeat(40_000) },
+    { name: "hyphenated words", input: "a-".repeat(100_000) },
+    { name: "secret names with escapes", input: "A_TOKEN=\x1b[m".repeat(18_000) },
+    { name: "open quotes", input: 'TOKEN="'.repeat(28_000) },
+  ])("redacts 200k characters of repeated $name in linear time", ({ input }) => {
+    const started = performance.now();
+    redactText(input);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it.each([
+    { input: "Authorization: Bearer [redacted] realsecret", expected: "Authorization: [redacted]" },
+    { input: "TOKEN=x[redacted]y ok", expected: "TOKEN=[redacted] ok" },
+    { input: "deploy --token x[redacted]y ok", expected: "deploy --token [redacted] ok" },
+  ])("redacts a real value next to a marker in $input", ({ input, expected }) => {
+    expect(redactText(input)).toBe(expected);
+  });
+
+  it.each([
+    "curl -H 'X-Api-Key: abc123' -H 'Cookie: a=b' https://example.test",
+    "Authorization: Bearer abc\x1b[0m\r\nDB_PASSWORD=hunter2 --token=x redis://:p@db",
+    '{"token":"abc"} {\\"password\\":\\"x\\"} ghp_1234567890abcdef',
+  ])("redacts already redacted text to itself: %j", (input) => {
+    const once = redactText(input);
+    expect(redactText(once)).toBe(once);
+  });
+
+  it.each([
+    { name: "port URL", input: "http://localhost:3000/x" },
+    { name: "ssh remote", input: "ssh://git@github.com:22/a/b.git" },
+    { name: "negated secret flag", input: "pnpm --no-password install" },
+    { name: "public key block", input: "-----BEGIN PUBLIC KEY-----\nMIIBIjAN\n-----END PUBLIC KEY-----" },
+    { name: "short hf word", input: "hf_hub download" },
+  ])("does not redact ordinary $name", ({ input }) => {
+    expect(redactText(input)).toBe(input);
   });
 
   it("keeps only minimal keys in minimal mode", () => {
