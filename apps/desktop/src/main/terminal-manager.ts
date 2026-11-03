@@ -20,6 +20,7 @@ import {
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
+import { tallyTranscriptChanges, type ChangeTally } from "./agent-changes.js";
 import { agentConversationTitle } from "./agent-titles.js";
 import { createCodexImageIndex } from "./codex-images.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
@@ -27,6 +28,7 @@ import {
   terminalChannels,
   type PersistedTerminalSessionSnapshot,
   type TerminalAgentSignal,
+  type TerminalChangeStats,
   type TerminalCodexImagesRequest,
   type TerminalCodexImagesResult,
   type TerminalCreateRequest,
@@ -166,6 +168,8 @@ type TerminalSession = {
   agentSignal?: TerminalAgentSignal | undefined;
   /** The agent's transcript, as its last hook named it. */
   transcriptPath?: string;
+  changeTally?: ChangeTally;
+  tallyingChanges?: boolean;
   namedByYou?: true;
   oscCarry: string;
   shellBusy?: boolean | undefined;
@@ -321,7 +325,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     const applied = applyAgentSignal(session, update, "hook", Date.now());
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal, ...(resumeTarget ? { resumeTarget } : {}) });
     if (resumeTarget) rememberSessionSnapshot(session);
-    if (update.state === "your-turn") void adoptAgentTitle(session);
+    if (update.state === "your-turn") readAgentRecord(session);
   });
 
   const workerReplies = new Map<string, (reply: TerminalWorkerReply) => void>();
@@ -668,7 +672,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
               const applied = applyAgentSignal(session, update, "osc9", now);
               agentSignal = applied.signal;
               activities.push(...applied.activities);
-              if (update.state === "your-turn") void adoptAgentTitle(session);
+              if (update.state === "your-turn") readAgentRecord(session);
             }
           }
         }
@@ -1107,6 +1111,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...(session.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
+    ...(session.changeTally ? { changeStats: changeStats(session.changeTally) } : {}),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
 }
@@ -1914,6 +1919,33 @@ function newConversation(session: TerminalSession, conversationId: string | unde
   return { agentKind, sessionId: conversationId, source: "agent-hook" };
 }
 
+/** At a turn's end the agent's own record of the conversation is up to date. */
+function readAgentRecord(session: TerminalSession): void {
+  void adoptAgentTitle(session);
+  void tallyAgentChanges(session);
+}
+
+async function tallyAgentChanges(session: TerminalSession): Promise<void> {
+  // The next turn's end catches up on whatever a read in flight does not reach.
+  if (!session.transcriptPath || session.tallyingChanges) return;
+  session.tallyingChanges = true;
+  try {
+    const { additions, deletions } = session.changeTally ?? { additions: 0, deletions: 0 };
+    session.changeTally = await tallyTranscriptChanges(session.transcriptPath, session.changeTally);
+    if (session.changeTally.additions !== additions || session.changeTally.deletions !== deletions) {
+      sendSignalUpdate(session, { changeStats: changeStats(session.changeTally) });
+    }
+  } catch {
+    // The agent moved or removed its transcript; the row keeps what it last read.
+  } finally {
+    session.tallyingChanges = false;
+  }
+}
+
+function changeStats({ additions, deletions }: ChangeTally): TerminalChangeStats {
+  return { additions, deletions };
+}
+
 /** The agents name a conversation early in its first turn and on /rename, so a turn's end finds any new name. */
 async function adoptAgentTitle(session: TerminalSession): Promise<void> {
   if (!session.resumeTarget || session.namedByYou) return;
@@ -2003,6 +2035,7 @@ function sendSignalUpdate(
     promptSubmitted?: true;
     resumeTarget?: TerminalResumeTarget;
     agentTitle?: string;
+    changeStats?: TerminalChangeStats;
   },
 ): void {
   sendToSessionWindow(session, terminalChannels.data, {
@@ -2018,6 +2051,7 @@ function sendSignalUpdate(
     ...(update.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(update.resumeTarget ? { resumeTarget: update.resumeTarget } : {}),
     ...(update.agentTitle ? { agentTitle: update.agentTitle } : {}),
+    ...(update.changeStats ? { changeStats: update.changeStats } : {}),
   });
 }
 

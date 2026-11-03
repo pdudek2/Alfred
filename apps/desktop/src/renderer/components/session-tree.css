@@ -114,6 +114,19 @@
   text-overflow: ellipsis;
 }
 
+.session-tree-changes {
+  display: inline-flex;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-tree-age {
+  flex: none;
+  margin-left: auto;
+  padding-left: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
 .session-tree-count {
   display: inline-flex;
   align-items: center;

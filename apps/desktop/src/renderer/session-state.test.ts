@@ -199,6 +199,10 @@ describe("desktop session state", () => {
     const [, agentNamed] = recordSessionOutputActivity([other, { ...shell, title: "pnpm dev", shellTitle: "zsh 2" }], event({ agentTitle: "Fix the retry loop" }));
     expect(agentNamed).toMatchObject({ title: "Fix the retry loop" });
     expect(agentNamed).not.toHaveProperty("shellTitle");
+    const [, changed] = recordSessionOutputActivity([other, agentNamed!], event({ changeStats: { additions: 2, deletions: 1 } }));
+    expect(changed?.changeStats).toEqual({ additions: 2, deletions: 1 });
+    const [, unchanged] = recordSessionOutputActivity([other, changed!], event({}));
+    expect(unchanged?.changeStats).toEqual({ additions: 2, deletions: 1 });
     const [, kept] = recordSessionOutputActivity([other, renamed!], event({ foregroundCommand: "vitest --watch" }));
     expect(kept?.title).toBe("Dev server");
     expect(recordSessionOutputActivity([other, kept!], event({ shellBusy: false }))[1]?.title).toBe("Dev server");

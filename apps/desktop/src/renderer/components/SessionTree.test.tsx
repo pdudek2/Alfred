@@ -75,6 +75,37 @@ describe("SessionTree", () => {
     expect(screen.getByRole("button", { name: /^finished build/ }).querySelector(".session-tree-meta")).toBeNull();
   });
 
+  it("leads with the question or the work mid-turn and with the changes once the turn is over", () => {
+    const changeStats = { additions: 341, deletions: 33 };
+    const activityEvents = [{ id: "e1", kind: "output", title: "Progress reported", detail: "reading the docs", at: now }] as const;
+    const agent = (id: string, state: "needs-you" | "working" | "your-turn" | null, overrides: Partial<SessionTile> = {}) => session(id, {
+      agentKind: "claude",
+      activityEvents: [...activityEvents],
+      lastActivityAt: now - 12 * 60_000,
+      ...(state ? { agentSignal: { state, source: "hook", at: now } } : {}),
+      ...overrides,
+    });
+    renderTree([
+      agent("asking", "needs-you", { changeStats }),
+      agent("busy", "working", { changeStats }),
+      agent("finished", "your-turn", { changeStats }),
+      agent("idle edits", null, { changeStats }),
+      agent("idle reader", null),
+      agent("silent", null, { activityEvents: [] }),
+      session("idle shell", { shellBusy: false, changeStats }),
+    ]);
+
+    const meta = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}`) }).querySelector(".session-tree-meta");
+    expect(meta("asking")).toHaveTextContent("reading the docs12m");
+    expect(meta("busy")).toHaveTextContent("reading the docs12m");
+    expect(meta("finished")).toHaveTextContent("+341−3312m");
+    expect(meta("finished")).not.toHaveTextContent("reading the docs");
+    expect(meta("idle edits")).toHaveTextContent("+341−3312m");
+    expect(meta("idle reader")).toHaveTextContent("reading the docs12m");
+    expect(meta("silent")).toBeNull();
+    expect(meta("idle shell")).toBeNull();
+  });
+
   it("hangs workers under their parent and says whose worker each one is", () => {
     renderTree([
       session("Redesign History", { agentKind: "claude" }),

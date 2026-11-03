@@ -7,6 +7,7 @@ import {
 } from "../shared/session-activity";
 import type {
   TerminalAgentSignal,
+  TerminalChangeStats,
   TerminalCreateResult,
   TerminalDataEvent,
   TerminalExitEvent,
@@ -59,6 +60,7 @@ export type SessionTile = {
   servingUrl?: string;
   /** You have sent this session a message (the main process saw Enter). */
   promptSubmitted?: boolean;
+  changeStats?: TerminalChangeStats;
   /** Started as a worker of this session ("New worker" on its rail row). */
   parentSessionId?: string;
 };
@@ -367,6 +369,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
     ...servingUrlOnScreen(snapshot),
     ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
+    ...(snapshot.changeStats === undefined ? {} : { changeStats: snapshot.changeStats }),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
@@ -668,6 +671,7 @@ export function recordSessionOutputActivity(
       ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
       ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
+      ...(event.changeStats ? { changeStats: event.changeStats } : {}),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
       ...(servingUrl === undefined ? {} : { servingUrl }),

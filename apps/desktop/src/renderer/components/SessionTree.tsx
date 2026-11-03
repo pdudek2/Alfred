@@ -3,6 +3,7 @@ import { useId, type CSSProperties } from "react";
 import { activitySentence, pendingApproval, waitingSentence } from "../../shared/activity-presentation";
 import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
+import { sessionAgeLabel } from "../session-time";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
@@ -17,8 +18,10 @@ const TREE_RANKS: ReadonlyArray<readonly SessionStateKind[]> = [
   ["idle"],
   ["failed", "done", "unavailable"],
 ];
-// Rows that wait for you or are busy say what they do on a second line; idle and ended rows are one line.
+// A shell says what it does while it is busy; an agent's row has a second line whenever there is something to say.
 const PREVIEW_KINDS: ReadonlySet<SessionStateKind> = new Set(["needs-you", "your-turn", "working", "running"]);
+// Mid-turn the row says what is happening: the question has to be read, and the counts only move at a turn's end.
+const ACTIVITY_FIRST_KINDS: ReadonlySet<SessionStateKind> = new Set(["needs-you", "working"]);
 // A collapsed parent counts its workers by these states, in this order.
 const COUNTED_KINDS: readonly SessionStateKind[] = ["needs-you", "your-turn", "working", "running", "failed", "done"];
 // Widths of the hover actions in session-tree.css: 24px icon buttons, Pin as text, 2px apart.
@@ -82,7 +85,7 @@ export function SessionTree({
   onToggleWorkers,
 }: SessionTreeProps) {
   const roots = sessionTree(sessions, now);
-  const rowProps = { focusSessionId, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
+  const rowProps = { focusSessionId, now, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
   if (roots.length === 0 && asleepCount === 0) return null;
   return (
     <div className="session-tree">
@@ -110,6 +113,7 @@ function TreeItem({
   node,
   parentTitle,
   focusSessionId,
+  now,
   pinnedSessionId,
   collapsedParentIds,
   onFocusSession,
@@ -120,6 +124,7 @@ function TreeItem({
   node: TreeNode;
   parentTitle?: string;
   focusSessionId: string | null;
+  now: number;
   pinnedSessionId: string | null;
   collapsedParentIds: ReadonlySet<string>;
   onFocusSession: (sessionId: string) => void;
@@ -136,14 +141,18 @@ function TreeItem({
   const kind = sessionTileKind(session);
   const canPin = !focused && session.id !== pinnedSessionId;
   const canAddWorker = parentTitle === undefined && (kind === "claude" || kind === "codex");
-  const preview = PREVIEW_KINDS.has(status.kind) ? sessionPreviewLine(session, status) : null;
-  const meta = collapsed ? <WorkerCounts workers={workers} /> : preview && <span className="session-tree-preview">{preview}</span>;
+  const agent = kind === "claude" || kind === "codex";
+  const preview = agent || PREVIEW_KINDS.has(status.kind) ? sessionPreviewLine(session, status) : null;
+  const changes = agent && !ACTIVITY_FIRST_KINDS.has(status.kind) ? session.changeStats : undefined;
+  const lead = changes ? <ChangeCounts {...changes} /> : preview && <span className="session-tree-preview">{preview}</span>;
+  const age = agent && lead ? sessionAgeLabel(session.lastActivityAt, now) : null;
+  const meta = collapsed ? <WorkerCounts workers={workers} /> : lead && <>{lead}{age && <span className="session-tree-age">{age}</span>}</>;
   const describedBy = [meta ? metaId : null, parentTitle === undefined ? null : parentId].filter(Boolean).join(" ");
   const actions = (workers.length > 0 ? 1 : 0) + (canPin ? 1 : 0) + (canAddWorker ? 1 : 0);
   // The title makes room for the row's actions on hover instead of running under them.
   const actionsWidth = (workers.length > 0 ? ICON_ACTION_WIDTH : 0) + (canPin ? PIN_ACTION_WIDTH : 0)
     + (canAddWorker ? ICON_ACTION_WIDTH : 0) + Math.max(0, actions - 1) * ACTION_GAP;
-  const childProps = { focusSessionId, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
+  const childProps = { focusSessionId, now, pinnedSessionId, collapsedParentIds, onFocusSession, onNewWorker, onPinSession, onToggleWorkers };
 
   return (
     <li className={`session-tree-item${parentTitle === undefined ? "" : " is-worker"}`}>
@@ -196,6 +205,15 @@ function TreeItem({
         </ul>
       )}
     </li>
+  );
+}
+
+function ChangeCounts({ additions, deletions }: NonNullable<SessionTile["changeStats"]>) {
+  return (
+    <span className="session-tree-changes">
+      <span className="details-additions">+{additions}</span>
+      <span className="details-deletions">−{deletions}</span>
+    </span>
   );
 }
 
