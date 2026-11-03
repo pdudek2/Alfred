@@ -1094,7 +1094,7 @@ function consumeAgentCommandInput(buffer: string, data: string): {
       submitted = true;
     } else if (character === "\x7f") {
       nextBuffer = nextBuffer.slice(0, -1);
-    } else if (character === "\x15") {
+    } else if (character === "\x15" || character === "\x03") {
       nextBuffer = "";
     } else if (character >= " ") {
       nextBuffer += character;
