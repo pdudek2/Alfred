@@ -152,8 +152,8 @@ type TerminalSession = {
   lastPromptSeq?: number | undefined;
   lastTurnEndSeq?: number | undefined;
   lastAnswer?: string | undefined;
-  /** You typed into this session since its last turn ended: a draft Alfred's Enter must not send. */
-  typedSinceTurnEnd?: boolean | undefined;
+  /** Text you typed and have not sent with Enter or cleared with Ctrl-C, even across a turn end: Alfred's Enter must not send it. */
+  typingDraft?: boolean | undefined;
   /** Its orchestrator stopped it, so its end is no news to wake that orchestrator with. */
   stoppedByOrchestrator?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
@@ -315,7 +315,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       const session = findLiveSessionByClientId(clientId);
       if (!session) throw new WorkerToolError("The worker has ended.");
       // Pasted after the user's half-typed message, it would reach the worker as one message with theirs.
-      if (session.typedSinceTurnEnd) {
+      if (session.typingDraft) {
         throw new WorkerToolError(
           "The user is typing in this worker's terminal. Wait for its turn to end with wait_for_worker, or ask the user.",
         );
@@ -690,7 +690,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     // Moving the mouse over or clicking into a waiting Codex terminal sends mouse and focus reports; only your own
     // input answers it.
     if (!isTerminalReport(request.data)) {
-      session.typedSinceTurnEnd = true;
+      session.typingDraft = !(request.data.endsWith("\r") || request.data === "\x03");
       const cleared = clearWaitingSignal(session);
       const answered = answerApproval(session);
       // Until Enter sends your first message, an agent waits for it, whatever it draws.
@@ -1530,7 +1530,7 @@ function deliverWake(parentClientId: string): void {
     return;
   }
   const waitsForMessage = orchestrator.hooksLive && workerState(workerRecord(orchestrator).turn) === "your turn";
-  if (!waitsForMessage || orchestrator.typedSinceTurnEnd) return;
+  if (!waitsForMessage || orchestrator.typingDraft) return;
   pendingWakes.delete(parentClientId);
   typeIntoAgent(orchestrator, alfredNotice(wakeText(news)));
 }
@@ -1636,7 +1636,7 @@ function typeIntoAgent(session: TerminalSession, message: string): void {
     if (sessions.get(session.id) === session && session.agentSignal?.state !== "needs-you") session.pty.write("\r");
   }, PASTE_SUBMIT_DELAY_MS).unref();
   session.lastPromptSeq = ++turnSeq;
-  session.typedSinceTurnEnd = false;
+  session.typingDraft = false;
   if (!session.promptSubmitted) {
     session.promptSubmitted = true;
     sendSignalUpdate(session, { promptSubmitted: true });
@@ -1728,7 +1728,6 @@ function applyAgentSignal(
   if (update.state === "your-turn") {
     session.lastTurnEndSeq = ++turnSeq;
     session.lastAnswer = update.answer ?? update.detail;
-    session.typedSinceTurnEnd = false;
     queueWake(session, false);
     // Its own turn just ended: news that waited for it can go now.
     if (session.clientId && pendingWakes.get(session.clientId)?.size) scheduleWake(session.clientId);
