@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionActivityEvent } from "../../shared/session-activity";
@@ -104,6 +104,65 @@ describe("SessionTree", () => {
     expect(meta("idle reader")).toHaveTextContent("reading the docs12m");
     expect(meta("silent")).toBeNull();
     expect(meta("idle shell")).toBeNull();
+  });
+
+  it("shows a row's card after the pointer rests, the next row's at once, and one reached from the keyboard", () => {
+    vi.useFakeTimers();
+    try {
+      const at = (minutes: number) => now - minutes * 60_000;
+      renderTree([
+        session("long", {
+          title: "Refuse Apply when the worktree changed after review",
+          agentKind: "claude",
+          branchName: "alfred/refuse-apply",
+          changeStats: { additions: 341, deletions: 33 },
+          agentSignal: { state: "your-turn", source: "hook", at: now },
+          activityEvents: [
+            { id: "a1", kind: "command", title: "Ran command", detail: "pnpm lint", at: at(9) },
+            { id: "a2", kind: "command", title: "Ran command", detail: "pnpm typecheck", at: at(4) },
+            { id: "a3", kind: "file", title: "Edited", detail: "app.tsx", at: at(2), payload: { type: "file", operation: "edited", path: "src/app.tsx" } },
+            { id: "a4", kind: "lifecycle", title: "Resuming session", detail: "Resumed", at: at(1) },
+            { id: "a5", kind: "command", title: "Ran command", detail: "pnpm test", at: at(0) },
+          ],
+        }),
+        session("zsh"),
+      ]);
+      const row = screen.getByRole("button", { name: /^Refuse Apply/ });
+      const entry = row.parentElement!;
+
+      fireEvent.mouseEnter(entry);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      act(() => { vi.advanceTimersByTime(500); });
+      const card = screen.getByRole("tooltip");
+      expect(card).toHaveTextContent("Refuse Apply when the worktree changed after review");
+      expect(card).toHaveTextContent("Alfred");
+      expect(card).toHaveTextContent("alfred/refuse-apply");
+      expect(card).toHaveTextContent("Claude");
+      expect(card).toHaveTextContent("+341−33in this conversation");
+      expect([...within(card).getByRole("region", { name: "Latest" }).querySelectorAll("li > span:first-child")].map((item) => item.textContent))
+        .toEqual(["Ran pnpm test", "Edited app.tsx", "Ran pnpm typecheck"]);
+      expect(row.getAttribute("aria-describedby")).toContain(card.id);
+      expect(row).not.toHaveAttribute("title");
+
+      fireEvent.mouseLeave(entry);
+      fireEvent.mouseEnter(screen.getByRole("button", { name: /^zsh/ }).parentElement!);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Terminal");
+      expect(screen.getByRole("tooltip")).not.toHaveTextContent("Latest");
+      fireEvent.mouseLeave(screen.getByRole("button", { name: /^zsh/ }).parentElement!);
+      act(() => { vi.advanceTimersByTime(100); });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+
+      fireEvent.focus(row);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Refuse Apply");
+      fireEvent.keyDown(row, { key: "Escape" });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      fireEvent.blur(row);
+      fireEvent.pointerDown(row);
+      fireEvent.focus(row);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("hangs workers under their parent and says whose worker each one is", () => {
