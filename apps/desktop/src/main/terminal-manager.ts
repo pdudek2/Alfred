@@ -20,7 +20,8 @@ import {
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
-import { tallyTranscriptChanges, type ChangeTally } from "./agent-changes.js";
+import { tallyTranscriptChanges, workingFolder, type ChangeTally } from "./agent-changes.js";
+import { resolveWorkTree } from "./git-work-tree.js";
 import { agentConversationTitle } from "./agent-titles.js";
 import { createCodexImageIndex } from "./codex-images.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
@@ -29,6 +30,7 @@ import {
   type PersistedTerminalSessionSnapshot,
   type TerminalAgentSignal,
   type TerminalChangeStats,
+  type TerminalWorkTree,
   type TerminalCodexImagesRequest,
   type TerminalCodexImagesResult,
   type TerminalCreateRequest,
@@ -134,6 +136,9 @@ type TerminalSession = {
   transcriptPath?: string;
   changeTally?: ChangeTally;
   tallyingChanges?: boolean;
+  /** The folder `workTree` was resolved from. */
+  workTreeFolder?: string;
+  workTree?: TerminalWorkTree;
   namedByYou?: true;
   oscCarry: string;
   shellBusy?: boolean | undefined;
@@ -946,6 +951,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.changeTally ? { changeStats: changeStats(session.changeTally) } : {}),
+    ...(session.workTree ? { workTree: { ...session.workTree } } : {}),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
 }
@@ -1647,6 +1653,16 @@ async function tallyAgentChanges(session: TerminalSession): Promise<void> {
     if (session.changeTally.additions !== additions || session.changeTally.deletions !== deletions) {
       sendSignalUpdate(session, { changeStats: changeStats(session.changeTally) });
     }
+    const folder = workingFolder(session.changeTally);
+    if (folder && folder !== session.workTreeFolder) {
+      session.workTreeFolder = folder;
+      const workTree = await resolveWorkTree(folder);
+      if (workTree?.root !== session.workTree?.root || workTree?.branch !== session.workTree?.branch) {
+        if (workTree) session.workTree = workTree;
+        else delete session.workTree;
+        sendSignalUpdate(session, { workTree: workTree ?? null });
+      }
+    }
   } catch {
     // The agent moved or removed its transcript; the row keeps what it last read.
   } finally {
@@ -1748,6 +1764,7 @@ function sendSignalUpdate(
     resumeTarget?: TerminalResumeTarget;
     agentTitle?: string;
     changeStats?: TerminalChangeStats;
+    workTree?: TerminalWorkTree | null;
   },
 ): void {
   sendToSessionWindow(session, terminalChannels.data, {
@@ -1764,6 +1781,7 @@ function sendSignalUpdate(
     ...(update.resumeTarget ? { resumeTarget: update.resumeTarget } : {}),
     ...(update.agentTitle ? { agentTitle: update.agentTitle } : {}),
     ...(update.changeStats ? { changeStats: update.changeStats } : {}),
+    ...(update.workTree === undefined ? {} : { workTree: update.workTree }),
   });
 }
 
