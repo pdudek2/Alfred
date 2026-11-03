@@ -3347,8 +3347,8 @@ describe("terminal-manager IPC", () => {
     it("sends nothing to a worker whose terminal you started typing in", async () => {
       const { fire, callTool, lead, workers, workerPtys } = await orchestratorWithWorkers(1);
       fire(workers[0]!.id, { state: "working" });
-      fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
       emit(terminalChannels.write, { id: workers[0]!.id, data: "half a sent" });
+      fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
 
       // Pasted after your half sentence, its message would go to the worker as one with yours.
       await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now run the lint" }))
@@ -3360,6 +3360,13 @@ describe("terminal-manager IPC", () => {
       fire(workers[0]!.id, { state: "working" });
       fire(workers[0]!.id, { state: "your-turn", detail: "Answered." });
       await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now run the lint" }))
+        .resolves.toMatchObject({ sent: true });
+
+      // Ctrl-C clears what you typed, so nothing of yours is left to send with it.
+      fire(workers[0]!.id, { state: "your-turn", detail: "Linted." });
+      emit(terminalChannels.write, { id: workers[0]!.id, data: "never mind" });
+      emit(terminalChannels.write, { id: workers[0]!.id, data: "\x03" });
+      await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Now run the tests" }))
         .resolves.toMatchObject({ sent: true });
     });
 
@@ -3507,8 +3514,10 @@ describe("terminal-manager IPC", () => {
       vi.useFakeTimers();
       try {
         const { fire, callTool, lead, leadPty, workers } = await orchestratorWithWorkers(1);
-        // You started typing to it: Alfred's Enter would send your half-written message.
+        // You started typing to it while it worked: Alfred's Enter would send your half-written message.
+        fire(lead.id, { state: "working" });
         emit(terminalChannels.write, { id: lead.id, data: "plea" });
+        fire(lead.id, { state: "your-turn", detail: "Done for now." });
         fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
         await vi.advanceTimersByTimeAsync(3_000);
         expect(leadPty.writes).toEqual(["plea"]);
