@@ -3732,6 +3732,16 @@ describe("terminal-manager IPC", () => {
       pty.onDataHandler?.("prompt % ");
       expect(lastDataEvent()).toMatchObject({ shellBusy: false });
 
+      // The shell at its prompt echoes the line you sent; the step is that command, not the prompt's echo.
+      emit(terminalChannels.write, { id: created.id, data: "printf 'Ready at 5173\\n'\r" });
+      pty.onDataHandler?.("p\bprintf 'Ready at 5173\\n'\r\r\nReady at 5173\r\nprompt % ");
+      expect(lastDataEvent()).toMatchObject({
+        activities: [
+          expect.objectContaining({ kind: "command", detail: "printf 'Ready at 5173\\n'" }),
+          expect.objectContaining({ kind: "output", detail: "Ready at 5173" }),
+        ],
+      });
+
       pty.process = "sleep";
       emit(terminalChannels.write, { id: created.id, data: "sleep 5\r" });
       await new Promise((resolve) => setTimeout(resolve, 250));

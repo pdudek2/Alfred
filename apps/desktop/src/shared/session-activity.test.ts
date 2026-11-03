@@ -28,6 +28,32 @@ describe("session activity classifier", () => {
     expect(third.activities).toEqual([]);
   });
 
+  // zsh's echo as a PTY sends it: the typed-ahead "p", a backspace, then the line editor's redraw.
+  const echoed = "p\bprintf 'Ready at port 5173\\n'\u001b[?2004l\r\r\nReady at port 5173\r\n";
+
+  it("reads a shell's echo of the line you sent as that command, without the prompt", () => {
+    const result = classifyTerminalOutputChunk({ carry: "alfred % ", echo: "printf 'Ready at port 5173\\n'" }, echoed);
+    expect(result.activities).toEqual([
+      {
+        kind: "command",
+        title: "Ran command",
+        detail: "printf 'Ready at port 5173\\n'",
+        payload: { type: "command", command: "printf 'Ready at port 5173\\n'" },
+      },
+      { kind: "output", title: "Progress reported", detail: "Ready at port 5173" },
+    ]);
+    expect(result.state).toEqual({ carry: "" });
+  });
+
+  it("takes back a backspaced letter, and never reads a shell's echo as output", () => {
+    const echo = { carry: "alfred % ", echo: "fc -e - printf" };
+    for (const state of [{ carry: "alfred % " }, echo]) {
+      const details = classifyTerminalOutputChunk(state, echoed).activities.map((activity) => activity.detail);
+      expect(details.join("\n")).not.toContain("pprintf");
+    }
+    expect(classifyTerminalOutputChunk(echo, echoed).activities.map((activity) => activity.detail)).toEqual(["Ready at port 5173"]);
+  });
+
   it("does not leak fragmented OSC payloads into streamed activity details", () => {
     const belStart = classifyTerminalOutputChunk({ carry: "" }, "\u001b]0;spoof");
     expect(belStart).toEqual({
