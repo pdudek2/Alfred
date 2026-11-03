@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 import { redactArgs, redactPayload, redactText } from "../src/redactor.js";
@@ -22,6 +23,7 @@ describe("redactArgs", () => {
     ]);
     expect(args[4]).toBe("/tmp/secret");
     expect(redactText("/Users/x/repo")).toMatch(/^\[redacted-path:[a-f0-9]{8}\]$/);
+    expect(redactText(`Wrote ${homedir()}/Downloads/note.md`)).toBe("Wrote ~/Downloads/note.md");
   });
 
   it("preserves argument boundaries and does not consume a value after an inline secret", () => {
