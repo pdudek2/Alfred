@@ -923,13 +923,24 @@ describe("App integration", () => {
         stage: "live",
         runtimeStatus: "live",
       },
+      ...([
+        ["agent-in-root", { root: "/Users/sample/Desktop/Alfred", branch: "fix-in-place" }],
+        ["agent-in-worktree", { root: "/Users/sample/Desktop/Alfred/.worktrees/rail-long-names", branch: "rail-long-names" }],
+        ["agent-outside", { root: "/Users/sample/.codex/worktrees/a1f3/Alfred" }],
+      ] as const).map(([id, workTree]): SessionTile => ({
+        id, title: id, workspaceId: "A", cwd: "/Users/sample/Desktop/Alfred", source: "alfred", stage: "live", runtimeStatus: "live", agentKind: "claude", workTree,
+      })),
     ]);
 
     expect(screen.getByRole("article", { name: "Root session" }).querySelector(".session-location-value")).toBeNull();
     // Only the focused tile is exposed; the others stay mounted but hidden.
-    const nestedTile = document.querySelector<HTMLElement>('[data-testid="terminal-tile"][data-session-id="nested-session"]');
-    expect(nestedTile).toHaveAttribute("aria-hidden", "true");
-    expect(nestedTile!.querySelector(".session-location-value")).toHaveTextContent(/apps\/desktop$/);
+    const tile = (id: string) => document.querySelector<HTMLElement>(`[data-testid="terminal-tile"][data-session-id="${id}"]`)!;
+    const labels = (id: string) => [...tile(id).querySelectorAll(".session-location-value")].map((label) => label.textContent);
+    expect(tile("nested-session")).toHaveAttribute("aria-hidden", "true");
+    expect(tile("nested-session").querySelector(".session-location-value")).toHaveTextContent(/apps\/desktop$/);
+    expect(labels("agent-in-root")).toEqual(["fix-in-place"]);
+    expect(labels("agent-in-worktree")).toEqual(["rail-long-names", ".worktrees/rail-long-names"]);
+    expect(labels("agent-outside")).toEqual(["Alfred"]);
   });
 
   it("keeps drafts out of the terminal grid beside a live terminal in normal Work", () => {

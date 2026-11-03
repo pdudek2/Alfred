@@ -203,6 +203,10 @@ describe("desktop session state", () => {
     expect(changed?.changeStats).toEqual({ additions: 2, deletions: 1 });
     const [, unchanged] = recordSessionOutputActivity([other, changed!], event({}));
     expect(unchanged?.changeStats).toEqual({ additions: 2, deletions: 1 });
+    const workTree = { root: "/repo/.worktrees/fix", branch: "fix" };
+    const [, moved] = recordSessionOutputActivity([other, changed!], event({ workTree }));
+    expect(recordSessionOutputActivity([other, moved!], event({}))[1]?.workTree).toEqual(workTree);
+    expect(recordSessionOutputActivity([other, moved!], event({ workTree: null }))[1]).not.toHaveProperty("workTree");
     const [, kept] = recordSessionOutputActivity([other, renamed!], event({ foregroundCommand: "vitest --watch" }));
     expect(kept?.title).toBe("Dev server");
     expect(recordSessionOutputActivity([other, kept!], event({ shellBusy: false }))[1]?.title).toBe("Dev server");
