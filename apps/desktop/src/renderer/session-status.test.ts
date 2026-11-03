@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextApprovalRevealAt, sessionState } from "./session-status";
+import { isRestartable, nextApprovalRevealAt, sessionState } from "./session-status";
 import type { SessionActivityEvent, SessionTile } from "./session-state";
 
 function liveSession(overrides: Partial<SessionTile> = {}): SessionTile {
@@ -114,6 +114,11 @@ describe("sessionState", () => {
       .toEqual({ kind: "needs-you", label: "needs you", reason: "runtime-blocker" });
     expect(sessionState(liveSession({ runtimeStatus: "error", activityEvents: [blocker, exited, failed] }), "ready", 2_000))
       .toEqual({ kind: "needs-you", label: "needs you", reason: "runtime-blocker" });
+    // Only an ended one offers Resume; a live process cannot resume, so its strip names the blocker instead.
+    const blocked = sessionState(liveSession({ activityEvents: [blocker] }), "ready", 2_000);
+    expect(isRestartable(blocked, "live")).toBe(false);
+    expect(isRestartable(blocked, "exited")).toBe(true);
+    expect(isRestartable(blocked, "error")).toBe(true);
     // Without a blocker the exit is Done or Failed, and resuming answers the blocker.
     const progress: SessionActivityEvent = { id: "progress", kind: "output", title: "Progress reported", detail: "Build complete", at: 1_000 };
     expect(sessionState(liveSession({ runtimeStatus: "exited", activityEvents: [progress, exited] }), "ready", 2_000).kind).toBe("done");

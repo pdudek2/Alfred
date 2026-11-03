@@ -511,7 +511,7 @@ function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspa
 }
 
 function isRestartableSession(session: SessionTile): boolean {
-  return isRestartable(sessionState(session));
+  return isRestartable(sessionState(session), session.runtimeStatus);
 }
 
 function trapDialogFocus(event: ReactKeyboardEvent, panel: HTMLElement | null): void {

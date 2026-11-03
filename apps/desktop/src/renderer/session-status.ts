@@ -160,9 +160,10 @@ function awaitsFirstMessage(session: Pick<SessionTile, "agentKind" | "args" | "c
   return launched && !launchedWithMessage && !session.promptSubmitted;
 }
 
-/** Ended sessions and runtime blockers offer Restart; a blocker may outlive its process. */
-export function isRestartable(status: SessionDisplayStatus): boolean {
+/** Ended sessions offer Resume, also one whose runtime blocker outlived its process; a live one cannot resume. */
+export function isRestartable(status: SessionDisplayStatus, runtimeStatus: SessionTile["runtimeStatus"]): boolean {
   return status.kind === "done"
     || status.kind === "failed"
-    || (status.kind === "needs-you" && status.reason === "runtime-blocker");
+    || (status.kind === "needs-you" && status.reason === "runtime-blocker"
+      && (runtimeStatus === "exited" || runtimeStatus === "error"));
 }

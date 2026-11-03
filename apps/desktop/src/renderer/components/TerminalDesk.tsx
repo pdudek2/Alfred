@@ -724,7 +724,7 @@ function ManualTerminalTile({
     ...(startScreen === undefined ? {} : { startScreen }),
   } satisfies Parameters<typeof sessionState>[0];
   const displayStatus = sessionState(displaySession, tileStatus, now);
-  const restartable = isRestartable(displayStatus);
+  const restartable = isRestartable(displayStatus, runtimeStatus);
   const discardableSession = displayStatus.kind === "asleep" || restartable;
   const relaunchCapable = canRelaunchRestoredSession({
     cwd,
