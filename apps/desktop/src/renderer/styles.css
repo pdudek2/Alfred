@@ -1529,11 +1529,12 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   list-style: none;
 }
 
+/* One line per row (v4 Fresh): the age follows the title, a long title shortens, Resume keeps the right edge. */
 .terminal-empty-asleep li {
   min-height: 40px;
   padding: 6px 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content) minmax(max-content, 1fr) auto;
   align-items: center;
   column-gap: 10px;
   border-top: 1px solid var(--border);
@@ -1544,8 +1545,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-empty-asleep-title {
-  /* The age follows the title (v4 Fresh); a long title shortens instead of pushing Resume onto a second line. */
-  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
@@ -1555,7 +1554,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-empty-asleep-meta {
-  flex: 0 0 auto;
   color: var(--text-faint);
   font: 400 12px/16px var(--sans);
   font-variant-numeric: tabular-nums;
@@ -1575,17 +1573,13 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   cursor: pointer;
 }
 
-.terminal-empty-asleep li button {
-  margin-left: auto;
-}
-
 .terminal-empty-asleep li button:hover {
   background: var(--surface-control-hover);
 }
 
 .terminal-empty-asleep-warning {
-  flex-basis: 100%;
-  padding: 0 0 4px 23px;
+  grid-column: 2 / -1;
+  padding: 0 0 4px;
   color: var(--text-muted);
   font: 400 12px/16px var(--sans);
 }
