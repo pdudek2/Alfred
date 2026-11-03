@@ -680,7 +680,7 @@ async function openSavedSessions(user: ReturnType<typeof userEvent.setup>) {
 
 // Drafts live in the plan line's list, which starts closed.
 async function openPlan(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: /\d+ ready$/, expanded: false }));
+  await user.click(await screen.findByRole("button", { name: /\d+ ready(, \d+ blocked)?$/, expanded: false }));
   return screen.getByRole("list", { name: /^Drafts in / });
 }
 
@@ -1605,7 +1605,7 @@ describe("App integration", () => {
 
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.queryByRole("listitem", { name: /Draft to clear/i })).not.toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
   });
 
   it("shows a state-not-saved warning and retries the failed save", async () => {
@@ -4254,10 +4254,10 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "new terminal");
     const palette = screen.getByRole("dialog", { name: "Command palette" });
-    expect(within(palette).getByText("New terminal")).toBeInTheDocument();
-    expect(within(palette).getByText("Start a shell in the scratch project")).toBeInTheDocument();
-    // The key is quiet text beside the label, not part of the sentence.
-    expect(within(within(palette).getByRole("option", { name: /New terminal/ })).getByText("Ctrl T").tagName).toBe("KBD");
+    // One line: the label and the key, with no second line repeating what the label says.
+    const newTerminal = within(palette).getByRole("option", { name: /New terminal/ });
+    expect(newTerminal).toHaveTextContent(/^New terminalCtrl T$/);
+    expect(within(newTerminal).getByText("Ctrl T").tagName).toBe("KBD");
     await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
@@ -4385,7 +4385,7 @@ describe("App integration", () => {
     const emptyState = await screen.findByRole("status", { name: "Unavailable project folder" });
     expect(emptyState).toHaveTextContent("Draft work stays parked until you reconnect this project.");
     expect(screen.queryByRole("listitem", { name: /Draft Prepared task/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Launch Prepared task" })).not.toBeInTheDocument();
 
     await openNeedsYouFromCommandPalette(user);
@@ -4531,7 +4531,7 @@ describe("App integration", () => {
 
     await user.click(trigger);
     await user.click(
-      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Reveal/ }),
+      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Show in Finder/ }),
     );
 
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
@@ -4578,7 +4578,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await user.click(screen.getByRole("button", { name: "Project menu for Alfred" }));
     await user.click(
-      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Reveal/ }),
+      within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Show in Finder/ }),
     );
 
     const alert = await screen.findByRole("alert", { name: "Shell action failed" });
@@ -6658,6 +6658,9 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("zsh 9 is now failed.");
     });
+    // The strip says why, beside Resume.
+    expect(screen.getByText("Failed with exit code 1.")).toBeInTheDocument();
+    expect(screen.queryByText("This session failed.")).not.toBeInTheDocument();
   });
 
   it("surfaces the latest important activity on the terminal tile", async () => {
@@ -7041,7 +7044,7 @@ describe("App integration", () => {
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "reveal focused session");
+    await submitCommandPalette(user, "show focused session in finder");
 
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred", path: "." });
   });
@@ -7606,7 +7609,7 @@ describe("App integration", () => {
     await openPlan(user);
     await user.click(screen.getByRole("button", { name: "Discard Discard locally" }));
     await waitFor(() => expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-a-discard"] }));
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /ClientApp project/ }));
     expect(screen.getByRole("button", { name: /Client work.*1 ready$/ })).toBeInTheDocument();
@@ -8651,7 +8654,7 @@ describe("App integration", () => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-7"] });
     });
     expect(screen.queryByRole("listitem", { name: /Draft Restored shell/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Resolve the current Alfred plan")).not.toBeInTheDocument();
   });
 
@@ -8696,7 +8699,7 @@ describe("App integration", () => {
     expect(screen.queryAllByTestId("terminal-tile")).toHaveLength(0);
     expect(screen.queryByText("stale restored output")).not.toBeInTheDocument();
     expect(screen.queryByRole("listitem", { name: /Draft Actionable draft command/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Launch Actionable draft command/i })).not.toBeInTheDocument();
   });
 
@@ -8765,7 +8768,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("listitem", { name: "Draft Task A" })).not.toBeInTheDocument();
     await user.click(within(screen.getByRole("listitem", { name: /Draft Task B/i })).getByRole("button", { name: "Discard Task B" }));
     expect(screen.queryByRole("listitem", { name: "Draft Task B" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
     await openNewPlan(user);
     await user.type(screen.getByLabelText("Goal"), "second after reject");
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -8991,13 +8994,15 @@ describe("App integration", () => {
 
     // The plan line sits above the terminals whenever drafts exist, a live focus or not.
     const terminals = screen.getByRole("region", { name: /terminals/i });
-    expect(await within(terminals).findByRole("button", { name: "Launch 2 ready drafts" })).toBeInTheDocument();
+    expect(await within(terminals).findByRole("button", { name: "Launch 2 ready drafts" })).toHaveTextContent(/^Launch 2$/);
+    expect(screen.getByRole("button", { name: /Mixed plan/ })).toHaveTextContent(/2 ready, 1 blocked$/);
 
     await user.click(await screen.findByRole("button", { name: "Launch 2 ready drafts" }));
 
     await waitFor(() => expect(createTerminal.mock.calls.length - createsBefore).toBe(2));
-    expect(await screen.findByRole("button", { name: /Mixed plan.*0 ready/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Mixed plan.*0 ready, 1 blocked$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Launch ready drafts" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Launch ready drafts" })).toHaveTextContent(/^Launch$/);
     const drafts = await openPlan(user);
     expect(within(drafts).getAllByRole("listitem").map((item) => item.getAttribute("aria-label"))).toEqual([
       "Draft Wipe dist",

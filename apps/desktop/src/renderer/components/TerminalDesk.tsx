@@ -10,7 +10,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type ReactNode,
 } from "react";
-import { activitySentence, pendingApproval, waitingSentence } from "../../shared/activity-presentation";
+import { activitySentence, pendingApproval, sessionExitSentence, waitingSentence } from "../../shared/activity-presentation";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import { droppedPathsText } from "../dropped-paths";
 import { codexSentMessagesAt, imagePathFromLink, imagePathsInLine, imagePlaceholdersInLine } from "../terminal-image-links";
@@ -48,6 +48,7 @@ import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder, titl
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 import { SESSION_VIEW_IDS } from "../tab-keys";
 
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -260,6 +261,7 @@ export function TerminalDesk({
                 cwd={session.cwd}
                 createdAt={session.createdAt}
                 endedAt={session.endedAt}
+                exitCode={session.exitCode}
                 key={session.id}
                 now={now}
                 sessionKey={session.id}
@@ -547,6 +549,7 @@ function ManualTerminalTile({
   cwd,
   createdAt,
   endedAt,
+  exitCode,
   now,
   agentKind,
   detectedAgentKind,
@@ -600,6 +603,7 @@ function ManualTerminalTile({
   cwd: string;
   createdAt?: number | undefined;
   endedAt?: number | undefined;
+  exitCode?: number | undefined;
   now: number;
   agentKind?: SessionTile["agentKind"];
   detectedAgentKind?: SessionTile["detectedAgentKind"];
@@ -897,7 +901,9 @@ function ManualTerminalTile({
       ? {
           copy: displayStatus.kind === "done"
             ? "This session ended."
-            : displayStatus.kind === "failed" ? "This session failed." : attentionCopy ?? "This session is blocked.",
+            : displayStatus.kind === "failed"
+              ? exitCode === undefined ? "This session failed." : `${sessionExitSentence(exitCode)}.`
+              : attentionCopy ?? "This session is blocked.",
           label: resumeButtonLabel(relaunchNeedsReview, relaunchArmed),
           run: onRestartSession,
           title: "Resume this session",
@@ -911,7 +917,7 @@ function ManualTerminalTile({
     ...(externalTerminalCwd
       ? [{
           id: "external-terminal",
-          label: "Open in external terminal",
+          label: externalTerminalLabel(),
           detail: shortenPath(externalTerminalCwd),
           run: () => void onOpenExternalTerminal(externalTerminalCwd),
         } satisfies ChromeMenuItem]

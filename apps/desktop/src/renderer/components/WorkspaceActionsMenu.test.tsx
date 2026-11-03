@@ -52,7 +52,7 @@ describe("WorkspaceActionsMenu", () => {
 
   it.each([
     ["Open in Ghostty", "onOpenExternalTerminal"],
-    ["Reveal in Finder", "onRevealFolder"],
+    ["Show in Finder", "onRevealFolder"],
   ] as const)("runs %s once and closes the menu", async (label, callbackName) => {
     const user = userEvent.setup();
     const menuProps = props();
@@ -62,6 +62,20 @@ describe("WorkspaceActionsMenu", () => {
 
     expect(menuProps[callbackName]).toHaveBeenCalledTimes(1);
     expect(menuProps.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("names its actions as the session menu does, with a path only on the ones that open the folder", () => {
+    render(<WorkspaceActionsMenu {...props({ missionBrief: { goal: "Ship the shell", doneWhen: [], guardrails: [] } })} />);
+
+    const actions = screen.getByRole("dialog", { name: "Project actions" });
+    expect([...actions.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "Open in Ghostty…/Desktop/Alfred",
+      "Show in Finder…/Desktop/Alfred",
+      "Rename project...",
+      "Edit mission brief...",
+      "Close project",
+    ]);
+    expect(actions.querySelector("svg")).not.toBeInTheDocument();
   });
 
   it("starts rename, focuses the input, and submits the draft once", async () => {

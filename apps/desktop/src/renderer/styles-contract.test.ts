@@ -338,7 +338,6 @@ describe("renderer CSS contracts", () => {
       ".plan-line__sub code",
       ".workbench-actions kbd",
       ".sessions-run-details dd.technical",
-      ".workspace-preview-fallback code",
     ]) {
       const bodies = allRulesIn(productStyles).filter(({ selectors }) => selectors.includes(selector));
       expect(bodies.length, selector).toBeGreaterThan(0);

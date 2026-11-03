@@ -5,8 +5,8 @@
   /* Above dragged tiles (6), below the Work toolbar's menus (10). */
   z-index: 9;
   flex: none;
-  /* The grid's own 8px top padding keeps it off the focused terminal's frame. */
-  margin: 10px 10px 0;
+  /* Its edges are the terminal box's edges; the column's 8px gap keeps it off the box. */
+  margin: 10px 0 0;
   font: 400 13px/18px var(--sans);
 }
 

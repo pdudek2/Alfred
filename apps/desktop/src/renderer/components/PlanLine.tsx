@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { isLaunchableStagedSession, type SessionTile } from "../session-state";
+import { isLaunchableStagedSession, isLaunchBlocked, type SessionTile } from "../session-state";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import "./plan-line.css";
@@ -22,6 +22,7 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
   const triggerRef = useRef<HTMLButtonElement>(null);
   const focusedIndexRef = useRef(0);
   const readyIds = drafts.filter(isLaunchableStagedSession).map((draft) => draft.id);
+  const blockedCount = drafts.filter((draft) => draft.stagedReviewStatus !== "checking" && isLaunchBlocked(draft)).length;
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +79,7 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
         >
           <DraftGlyph />
           <span className="plan-line__name">{name}</span>
-          <span className="plan-line__count">{readyIds.length} ready</span>
+          <span className="plan-line__count">{`${readyIds.length} ready${blockedCount > 0 ? `, ${blockedCount} blocked` : ""}`}</span>
           <ChevronDown className="plan-line__chevron" size={13} aria-hidden="true" />
         </button>
         <button
@@ -89,7 +90,7 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
           aria-label={readyIds.length === 0 ? "Launch ready drafts" : `Launch ${readyIds.length} ready draft${readyIds.length === 1 ? "" : "s"}`}
           onClick={() => onLaunchAll(readyIds)}
         >
-          Launch
+          {readyIds.length > 0 && readyIds.length < drafts.length ? `Launch ${readyIds.length}` : "Launch"}
         </button>
       </div>
       {open && (

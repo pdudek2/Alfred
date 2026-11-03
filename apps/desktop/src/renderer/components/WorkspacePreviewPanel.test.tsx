@@ -45,7 +45,10 @@ describe("WorkspacePreviewPanel", () => {
     render(<WorkspacePreviewPanel {...panelProps()} />);
 
     expect(await screen.findByText("Preview is offline")).toBeInTheDocument();
-    expect(screen.getByText("The local app is no longer responding.")).toBeInTheDocument();
+    // One sentence naming the address, and a plain Retry: no icon, no table of checks.
+    const offline = screen.getByRole("status");
+    expect(offline).toHaveTextContent("Preview is offlinehttp://127.0.0.1:5173/ stopped responding.Retry");
+    expect(offline.querySelector("svg")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:5173/",
       expect.objectContaining({ mode: "no-cors", cache: "no-store" }),
@@ -81,7 +84,8 @@ describe("WorkspacePreviewPanel", () => {
 
     expect(await screen.findByText("Preview is offline")).toBeInTheDocument();
     expect(screen.queryByTitle("Preview of http://127.0.0.1:5173/")).not.toBeInTheDocument();
-    expect(screen.getByText("Earlier")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+    expect(props.onRefresh).toHaveBeenCalledOnce();
   });
 
   it("draws the canvas address row: Reload, the address with its source, and Open in browser", async () => {
