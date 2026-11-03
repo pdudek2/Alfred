@@ -641,10 +641,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       });
       pendingPtyExits.add(ptyExit);
       session.ptyExited = ptyExit;
-      session.pty.onExit(({ exitCode, signal }) => {
+      session.pty.onExit(({ exitCode: reportedCode, signal }) => {
         pendingPtyExits.delete(ptyExit);
         reportPtyExit();
         if (!sessions.has(session.id)) return;
+        // node-pty reports a death by signal as code 0; the shell's 128 + signal keeps it Failed.
+        const exitCode = signal && !session.stoppedByOrchestrator ? reportedCode || 128 + signal : reportedCode;
         const identity = {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
