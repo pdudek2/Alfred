@@ -7,6 +7,7 @@ import {
   type MessageBoxSyncOptions,
 } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { homedir } from "node:os";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { applicationMenuTemplate } from "./app-menu.js";
@@ -223,7 +224,8 @@ if (!hasSingleInstanceLock) {
     app.on("will-quit", () => void agentEvents?.close());
     registerDesktopStateIpc(persistedDesktopStateStore, { clearAgentEvents: () => agentEvents?.clear() });
     const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
-    const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
+    // Electron's documents path ignores HOME, which the smoke tests point at a temp folder.
+    const scratchRootPath = codexScratchRootPath(path.join(homedir(), "Documents"));
     const workspaceStore = createWorkspaceStore({
       persistedStateStore: persistedDesktopStateStore,
       defaultRootPath: defaultWorkspaceRootPath,
