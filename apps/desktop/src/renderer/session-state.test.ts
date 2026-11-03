@@ -239,6 +239,14 @@ describe("desktop session state", () => {
     const renamed = renameSession(initial, "manual-1", "  Spec   reviewer  ");
 
     expect(renamed[0]?.title).toBe("Spec reviewer");
+    expect(renamed[0]).not.toHaveProperty("namedByYou");
+    expect(renameSession(initial, "manual-1", "Spec reviewer", true)[0]).toMatchObject({ title: "Spec reviewer", namedByYou: true });
+    expect(hydrateLiveTerminalSessions([{
+      id: "pty-a", clientId: "manual-1", title: "Spec reviewer", cwd: "/repo", source: "manual", shell: "/bin/zsh", buffer: "", namedByYou: true,
+    }])[0]).toMatchObject({ namedByYou: true });
+    expect(hydratePersistedTerminalSessions([{
+      clientId: "manual-1", title: "Spec reviewer", source: "manual", cwd: "/repo", shell: "/bin/zsh", namedByYou: true,
+    }])[0]).toMatchObject({ namedByYou: true });
   });
 
   it("sanitizes titles from live, restored, staged, and attached runtime ingress", () => {

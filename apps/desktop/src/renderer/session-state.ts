@@ -63,6 +63,8 @@ export type SessionTile = {
   workTree?: TerminalWorkTree;
   /** Started as a worker of this session ("New worker" on its rail row). */
   parentSessionId?: string;
+  /** You renamed this session, so the agent's name for the conversation stays out. */
+  namedByYou?: true;
 };
 
 export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInput } from "../shared/session-activity";
@@ -183,7 +185,7 @@ export function sessionInstanceKey(session: Pick<SessionTile, "createdAt" | "id"
   return [session.id, session.runtimeId ?? "", session.createdAt ?? ""].join("\u001f");
 }
 
-export function renameSession(sessions: SessionTile[], sessionId: string, title: string): SessionTile[] {
+export function renameSession(sessions: SessionTile[], sessionId: string, title: string, byYou = false): SessionTile[] {
   const normalizedTitle = normalizeSessionTitle(title);
   if (!normalizedTitle) return sessions;
 
@@ -191,7 +193,7 @@ export function renameSession(sessions: SessionTile[], sessionId: string, title:
     if (session.id !== sessionId) return session;
     // Your name outlasts the program it was renamed under.
     const { shellTitle: _shellTitle, ...renamed } = session;
-    return { ...renamed, title: normalizedTitle };
+    return { ...renamed, title: normalizedTitle, ...(byYou ? { namedByYou: true as const } : {}) };
   });
 }
 
@@ -351,6 +353,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.changeStats === undefined ? {} : { changeStats: snapshot.changeStats }),
     ...(snapshot.workTree === undefined ? {} : { workTree: snapshot.workTree }),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
+    ...(snapshot.namedByYou ? { namedByYou: true as const } : {}),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
@@ -374,6 +377,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...resumeModeForRestoredAgent(snapshot),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
+    ...(snapshot.namedByYou ? { namedByYou: true as const } : {}),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),

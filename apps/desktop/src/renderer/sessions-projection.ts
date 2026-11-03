@@ -125,7 +125,7 @@ export function buildSessionsProjection({
       projected.summary = {
         ...projected.summary,
         contentSessionKey: existing.externalContentSessionKey,
-        title: existing.summary.title,
+        ...(session.namedByYou ? {} : { title: existing.summary.title }),
         updatedAt: Math.max(projected.summary.updatedAt, existing.externalUpdatedAt ?? 0),
       };
       projected.externalContentSessionKey = existing.externalContentSessionKey;

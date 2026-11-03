@@ -153,16 +153,29 @@ describe("buildSessionsProjection", () => {
     expect(rows("external-codex").map(([, title]) => title)).toEqual(["Only in Codex"]);
   });
 
-  it("shows a Codex session Alfred started and its Codex CLI transcript as one row once its hooks named the conversation", () => {
+  it("shows a Codex session Alfred started and its Codex CLI transcript as one row once its hooks named the conversation, under the name you gave it", () => {
     const conversation = "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b";
-    const page = buildSessionsProjection({
-      sessions: [managedSession({ resumeTarget: { agentKind: "codex", sessionId: conversation, source: "agent-hook" } })],
-      workspaces,
-      externalSessions: [externalSession(conversation, { title: "Fix the flaky test" })],
-    });
+    const named = "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7c";
+    const sessions = [
+      managedSession({ resumeTarget: { agentKind: "codex", sessionId: conversation, source: "agent-hook" } }),
+      managedSession({
+        id: "managed-named",
+        title: "Release prep",
+        namedByYou: true,
+        resumeTarget: { agentKind: "codex", sessionId: named, source: "agent-hook" },
+      }),
+    ];
+    const externalSessions = [
+      externalSession(conversation, { title: "Fix the flaky test" }),
+      externalSession(named, { title: "Bump the version" }),
+    ];
+    const page = buildSessionsProjection({ sessions, workspaces, externalSessions });
 
-    expect(page.items).toHaveLength(1);
-    expect(page.items[0]).toMatchObject({ source: "managed", title: "Fix the flaky test", contentSessionKey: `external-codex:${conversation}` });
+    expect(page.items).toHaveLength(2);
+    expect(page.items).toContainEqual(expect.objectContaining({ sessionKey: "managed:managed-codex", title: "Fix the flaky test", contentSessionKey: `external-codex:${conversation}` }));
+    expect(page.items).toContainEqual(expect.objectContaining({ sessionKey: "managed:managed-named", title: "Release prep", contentSessionKey: `external-codex:${named}` }));
+    expect(buildSessionsProjection({ sessions, workspaces, externalSessions, query: "release" }).items.map((item) => item.sessionKey))
+      .toEqual(["managed:managed-named"]);
   });
 
   it("projects recovery-only Codex as read-only without a Resume action", () => {

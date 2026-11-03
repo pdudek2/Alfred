@@ -1119,7 +1119,7 @@ export function App() {
   const handleRenameSession = useCallback((sessionId: string, title: string, byYou = false) => {
     const normalizedTitle = normalizeSessionTitle(title);
     if (!normalizedTitle) return;
-    setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle));
+    setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle, byYou));
     void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle, ...(byYou ? { byYou: true } : {}) });
   }, []);
 
