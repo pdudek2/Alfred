@@ -17,6 +17,9 @@ export type TerminalResumeTarget = {
   source: "codex-session-index" | "external-session-index" | "agent-hook";
 };
 
+/** Lines the agent's own edits added and removed in this conversation, read from its transcript at each turn's end. */
+export type TerminalChangeStats = { additions: number; deletions: number };
+
 export type TerminalCreateRequest = {
   clientId?: string;
   launchTicketId?: string;
@@ -72,6 +75,7 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   /** The program holding a plain shell's foreground, as a title ("pnpm dev"). */
   foregroundCommand?: string;
   /** You have sent this session a message. */
+  changeStats?: TerminalChangeStats;
   promptSubmitted?: boolean;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
@@ -230,6 +234,7 @@ export type TerminalDataEvent = {
   promptSubmitted?: true;
   /** Sent when the agent's hooks name a conversation other than the one known. */
   resumeTarget?: TerminalResumeTarget;
+  changeStats?: TerminalChangeStats;
   /** The agent's own name for the conversation, sent when it replaces the session's title. */
   agentTitle?: string;
 };

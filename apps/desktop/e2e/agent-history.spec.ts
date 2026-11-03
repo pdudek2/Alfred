@@ -47,7 +47,7 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   }
   await expect(activity).not.toContainText("tail -40");
   const row = treeRow(page, sessionId);
-  await expect(row.locator(".session-tree-meta")).toHaveText("Fixed the build.");
+  await expect(row.locator(".session-tree-preview")).toHaveText("Fixed the build.");
   const items = activity.getByRole("listitem");
   // Newest first, in the order the hooks came, even within one millisecond.
   await expect.poll(async () => (await items.allTextContents()).map((text) => order.findIndex((line) => text.includes(line))).filter((index) => index >= 0))
@@ -70,6 +70,6 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   await page.waitForTimeout(500);
   await expect(items).toHaveCount(count);
   await expect(activity).not.toContainText("old failure");
-  await expect(row.locator(".session-tree-meta")).toHaveText("Fixed the build.");
+  await expect(row.locator(".session-tree-preview")).toHaveText("Fixed the build.");
   await page.screenshot({ path: testInfo.outputPath("agent-history-1440x900.png") });
 });

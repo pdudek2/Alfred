@@ -4664,6 +4664,21 @@ describe("terminal-manager IPC", () => {
         await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ agentTitle: "Retry work" }));
       });
 
+      it("counts the conversation's edits at the end of a turn", async () => {
+        await fs.appendFile(transcriptPath, `${JSON.stringify({ toolUseResult: { structuredPatch: [{ lines: ["-old", "+new", "+newer"] }] } })}\n`);
+        const { bridge, fire } = fakeBridge();
+        const { id } = await startClaude(bridge);
+
+        fire(id, { state: "working" }, transcriptPath, conversationId);
+        expect(sentEvents.some((event) => (event.payload as Record<string, unknown>).changeStats)).toBe(false);
+
+        fire(id, { state: "your-turn" }, transcriptPath, conversationId);
+        await vi.waitFor(() => expect(sentEvents.map((event) => (event.payload as Record<string, unknown>).changeStats))
+          .toContainEqual({ additions: 2, deletions: 1 }));
+        const { sessions } = await invoke<{ sessions: Array<{ changeStats?: unknown }> }>(terminalChannels.list);
+        expect(sessions[0]?.changeStats).toEqual({ additions: 2, deletions: 1 });
+      });
+
       it("reads a Codex conversation's latest name from its index", async () => {
         await fs.mkdir(path.join(home, "codex"), { recursive: true });
         await fs.writeFile(path.join(home, "codex", "session_index.jsonl"), [
