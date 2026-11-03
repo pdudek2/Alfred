@@ -2310,15 +2310,15 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   font: 400 12px/16px var(--sans);
 }
 
+/* Rows and group names share one 36px pitch, so the list always ends on a whole row. */
 .command-palette-list {
-  max-height: min(460px, 58vh);
+  max-height: calc(round(down, min(460px, 58vh) - 12px, 36px) + 12px);
   overflow: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-control-hover) transparent;
   padding: 6px;
   display: grid;
-  gap: 4px;
 }
 
 .command-palette-list::-webkit-scrollbar {
@@ -2338,8 +2338,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .command-palette-group {
-  min-height: 24px;
-  padding: 9px 10px 3px;
+  height: 36px;
+  padding: 16px 10px 4px;
   color: var(--text-muted);
   font: 500 12px/16px var(--sans);
 }
@@ -2349,27 +2349,32 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   min-width: 0;
   border: 0;
   border-radius: 10px;
-  padding: 10px 11px;
+  padding: 0 11px;
   background: transparent;
-  display: grid;
-  gap: 3px;
   text-align: left;
 }
 
+.command-palette-empty {
+  padding-block: 10px;
+}
+
 .command-palette-list button {
-  min-height: 40px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 12px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--text-secondary);
   cursor: pointer;
 }
 
 .command-palette-list button small {
-  grid-column: 1 / -1;
+  flex: 1 1 0;
 }
 
 /* A key hint is quiet text, not a key cap. */
 .command-palette-shortcut {
+  flex: none;
+  margin-left: auto;
   color: var(--text-faint);
   font: 400 12px/18px var(--sans);
 }
@@ -2396,6 +2401,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .command-palette-list button span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2404,6 +2410,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .command-palette-list button small,
 .command-palette-empty {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

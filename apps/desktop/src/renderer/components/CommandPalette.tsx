@@ -19,7 +19,8 @@ import { externalTerminalApp } from "./WorkspaceActionsMenu";
 type CommandPaletteItem = {
   id: string;
   label: string;
-  detail: string;
+  /** Only what the label does not already say: a reason, a path, a state. */
+  detail?: string;
   /** The key that runs it outside the palette, shown as quiet text beside the label. */
   shortcut?: string;
   disabled?: boolean;
@@ -141,12 +142,7 @@ export function CommandPalette({
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
   const activeWorkspaceAvailable = activeWorkspace?.rootStatus !== "missing";
-  const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath) && activeWorkspaceAvailable;
-  const launchDetail = activeWorkspaceAvailable
-    ? activeWorkspaceBound
-      ? "this project"
-      : "the scratch project"
-    : "Choose the project folder first";
+  const launchBlocked = activeWorkspaceAvailable ? undefined : "Choose the project folder first";
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -167,9 +163,7 @@ export function CommandPalette({
       {
         id: "new-terminal",
         label: "New terminal",
-        detail: activeWorkspaceAvailable
-          ? `Start a shell in ${activeWorkspaceBound ? "this project" : "the scratch project"}`
-          : "Choose the project folder first",
+        ...(launchBlocked && { detail: launchBlocked }),
         ...(activeWorkspaceAvailable ? { shortcut: shortcutKey(shortcutModifier, "T") } : {}),
         disabled: !activeWorkspaceAvailable,
         run: onAddManualSession,
@@ -177,28 +171,27 @@ export function CommandPalette({
       {
         id: "new-codex-session",
         label: "New Codex session",
-        detail: activeWorkspaceAvailable ? `Start Codex in ${launchDetail}` : launchDetail,
+        ...(launchBlocked && { detail: launchBlocked }),
         disabled: !activeWorkspaceAvailable,
         run: () => onAddAgentSession("codex"),
       },
       {
         id: "new-claude-session",
         label: "New Claude session",
-        detail: activeWorkspaceAvailable ? `Start Claude in ${launchDetail}` : launchDetail,
+        ...(launchBlocked && { detail: launchBlocked }),
         disabled: !activeWorkspaceAvailable,
         run: () => onAddAgentSession("claude"),
       },
-      ...(onOpenPlan ? [{ id: "new-plan", label: "Plan with Alfred", detail: "Describe a goal and get drafts to launch", run: onOpenPlan }] : []),
+      ...(onOpenPlan ? [{ id: "new-plan", label: "Plan with Alfred", run: onOpenPlan }] : []),
       {
         id: "add-project",
         label: "Add project…",
-        detail: "Choose a folder to work in",
         run: onAddProject,
       },
       {
         id: "new-workspace",
         label: "New scratch project",
-        detail: "Create an empty project without choosing a folder",
+        detail: "Without a folder",
         run: onAddWorkspace,
       },
       {
@@ -265,13 +258,11 @@ export function CommandPalette({
         .map((session) => ({
           id: `pin-session-${session.id}`,
           label: `Pin ${session.title} under the focus`,
-          detail: "Keep it in view under the session you work in",
           run: () => onPinSession(session.id),
         })),
       ...sessions.filter((session) => session.id === pinnedSessionId).map((session) => ({
         id: `unpin-session-${session.id}`,
         label: `Unpin ${session.title}`,
-        detail: "Hide it again; it stays in the rail",
         run: () => onPinSession(null),
       })),
       {
@@ -283,7 +274,6 @@ export function CommandPalette({
       {
         id: "open-context",
         label: "Details",
-        detail: "Inspect the focused session",
         run: onOpenContext,
       },
       {
@@ -348,7 +338,6 @@ export function CommandPalette({
       {
         id: "next-session",
         label: "Next session",
-        detail: "Move focus forward",
         shortcut: shortcutKey(shortcutModifier, "Shift ]"),
         disabled: sessions.length < 2,
         run: onFocusNextSession,
@@ -356,7 +345,6 @@ export function CommandPalette({
       {
         id: "previous-session",
         label: "Previous session",
-        detail: "Move focus back",
         shortcut: shortcutKey(shortcutModifier, "Shift ["),
         disabled: sessions.length < 2,
         run: onFocusPreviousSession,
@@ -366,8 +354,7 @@ export function CommandPalette({
       activeWorkspaceId,
       activeWorkspace,
       activeWorkspaceAvailable,
-      activeWorkspaceBound,
-      launchDetail,
+      launchBlocked,
       canCloseWorkspace,
       now,
       hasSavedSessions,
@@ -495,8 +482,8 @@ export function CommandPalette({
                 onMouseEnter={() => setActiveCommandId(row.command.id)}
               >
                 <span>{row.command.label}</span>
+                {row.command.detail && <small>{row.command.detail}</small>}
                 {row.command.shortcut && <kbd className="command-palette-shortcut">{row.command.shortcut}</kbd>}
-                <small>{row.command.detail}</small>
               </button>
             ),
           )}
@@ -559,7 +546,7 @@ function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string)
   const labelMatches = commands.filter((command) => command.label.toLowerCase().includes(normalizedQuery));
   const labelMatchIds = new Set(labelMatches.map((command) => command.id));
   const detailMatches = commands.filter(
-    (command) => !labelMatchIds.has(command.id) && command.detail.toLowerCase().includes(normalizedQuery),
+    (command) => !labelMatchIds.has(command.id) && Boolean(command.detail?.toLowerCase().includes(normalizedQuery)),
   );
 
   return [...labelMatches, ...detailMatches];

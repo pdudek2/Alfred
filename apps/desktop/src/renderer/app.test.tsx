@@ -4253,10 +4253,10 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "new terminal");
     const palette = screen.getByRole("dialog", { name: "Command palette" });
-    expect(within(palette).getByText("New terminal")).toBeInTheDocument();
-    expect(within(palette).getByText("Start a shell in the scratch project")).toBeInTheDocument();
-    // The key is quiet text beside the label, not part of the sentence.
-    expect(within(within(palette).getByRole("option", { name: /New terminal/ })).getByText("Ctrl T").tagName).toBe("KBD");
+    // One line: the label and the key, with no second line repeating what the label says.
+    const newTerminal = within(palette).getByRole("option", { name: /New terminal/ });
+    expect(newTerminal).toHaveTextContent(/^New terminalCtrl T$/);
+    expect(within(newTerminal).getByText("Ctrl T").tagName).toBe("KBD");
     await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));

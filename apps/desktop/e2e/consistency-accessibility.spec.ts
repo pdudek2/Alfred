@@ -86,7 +86,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   expect(await palette.locator(".command-palette-list").evaluate((node) => (
     getComputedStyle(node).scrollbarColor
   ))).not.toBe("auto");
-  await expectMinimumHeight(palette.getByRole("option").first(), 40);
+  await expectMinimumHeight(palette.getByRole("option").first(), 36);
   await expectSansFont(palette.locator("[role='option'] span").first(), "13px");
   await expectSansFont(palette.locator("kbd").first());
   await palette.getByRole("textbox", { name: "Search commands" }).fill("no-such-command");
