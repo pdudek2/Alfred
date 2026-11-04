@@ -14,6 +14,9 @@ export function checkSafety(
   command: string,
   args: string[],
 ): { unsafe: true; reason: string } | { unsafe: false } {
+  if ([command, ...args].some((part) => part.includes("[redacted]"))) {
+    return { unsafe: true, reason: "a secret was removed when this was saved; edit it back in" };
+  }
   if (SHELL_METACHARS.test(command)) {
     return { unsafe: true, reason: "shell metacharacters in command (use single executable)" };
   }

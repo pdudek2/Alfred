@@ -163,6 +163,11 @@ function stateWithRestoredSessions(
   };
 }
 
+function expectIdentityOnly(session: object | undefined): void {
+  expect(session).toBeDefined();
+  for (const key of ["buffer", "command", "args", "activityEvents", "shell"]) expect(session).not.toHaveProperty(key);
+}
+
 function staleHydrationSessions(prefix: string): PersistedTerminalSessionSnapshot[] {
   return [
     {
@@ -595,7 +600,7 @@ describe("terminal-manager IPC", () => {
     expect(restored?.buffer).toBe(rawBuffer);
   });
 
-  it("drops persisted terminal sessions when retention is off", async () => {
+  it("saves only the identity of a session started while retention is off", async () => {
     let state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
       privacySettings: {
@@ -631,7 +636,10 @@ describe("terminal-manager IPC", () => {
     pty.onDataHandler?.("Server ready\nBash(\"pnpm test\")\n");
     await flushTerminalPersistence();
 
-    expect(state.restoredTerminalSessions).toEqual([]);
+    expect(state.restoredTerminalSessions).toEqual([
+      expect.objectContaining({ clientId: "manual-no-retention", title: "Manual terminal", cwd: "/repo" }),
+    ]);
+    expectIdentityOnly(state.restoredTerminalSessions[0]);
   });
 
   it("applies retention off immediately without killing live terminals or permanently disabling new runtimes", async () => {
@@ -697,7 +705,8 @@ describe("terminal-manager IPC", () => {
     const cleared = applyTerminalPrivacyPolicyInMemory(state.privacySettings);
     const immediateList = await invoke<TerminalListResult>(terminalChannels.list);
 
-    expect(immediateList.restoredSessions).toEqual([]);
+    expect(immediateList.restoredSessions?.map(({ clientId }) => clientId)).toEqual(["shared-restored"]);
+    expectIdentityOnly(immediateList.restoredSessions?.[0]);
     expect(immediateList.sessions).toHaveLength(1);
     expect(cleared).toBe(2);
     expect(oldPty.killed).toBe(false);
@@ -712,8 +721,11 @@ describe("terminal-manager IPC", () => {
     oldPty.onDataHandler?.("fresh output\n");
     await flushTerminalPersistence();
 
-    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "shared-restored")).toBeUndefined();
-    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "live-runtime")).toBeUndefined();
+    expectIdentityOnly(state.restoredTerminalSessions.find(({ clientId }) => clientId === "shared-restored"));
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "live-runtime")).toEqual(
+      expect.objectContaining({ resumeTarget: expect.objectContaining({ sessionId: "live-secret" }) }),
+    );
+    expectIdentityOnly(state.restoredTerminalSessions.find(({ clientId }) => clientId === "live-runtime"));
 
     await invoke(terminalChannels.create, {
       agentKind: "codex",
@@ -783,7 +795,8 @@ describe("terminal-manager IPC", () => {
     applyTerminalPrivacyPolicyInMemory(state.privacySettings);
     await flushTerminalPersistence();
 
-    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "created-off")).toBeUndefined();
+    expectIdentityOnly(state.restoredTerminalSessions.find(({ clientId }) => clientId === "created-off"));
+    expect(JSON.stringify(state)).not.toMatch(/off-secret/);
     expect(pty.killed).toBe(false);
   });
 
@@ -827,7 +840,7 @@ describe("terminal-manager IPC", () => {
     pty.onDataHandler?.("fresh output\n");
     await flushTerminalPersistence();
 
-    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "cross-clear")).toBeUndefined();
+    expectIdentityOnly(state.restoredTerminalSessions.find(({ clientId }) => clientId === "cross-clear"));
     expect(pty.killed).toBe(false);
   });
 
@@ -856,7 +869,8 @@ describe("terminal-manager IPC", () => {
     ]));
 
     const listed = await pendingList;
-    expect(listed.restoredSessions).toEqual([]);
+    expect(listed.restoredSessions?.map(({ clientId }) => clientId)).toEqual(["stale-shared"]);
+    expectIdentityOnly(listed.restoredSessions?.[0]);
   });
 
   it("keeps explicit Off authoritative when later hydration returns stale redactedTail data", async () => {
@@ -887,7 +901,8 @@ describe("terminal-manager IPC", () => {
     hydration.resolve(stateWithRestoredSessions(staleHydrationSessions("after-off")));
     const listed = await pendingList;
 
-    expect(listed.restoredSessions).toEqual([]);
+    expect(listed.restoredSessions?.map(({ clientId }) => clientId)).toEqual(["after-off-shared", "after-off-agent"]);
+    for (const session of listed.restoredSessions ?? []) expectIdentityOnly(session);
 
     await invoke(terminalChannels.create, {
       agentKind: "codex",
@@ -905,7 +920,7 @@ describe("terminal-manager IPC", () => {
     applyTerminalPrivacyPolicyInMemory(state.privacySettings);
     await flushTerminalPersistence();
 
-    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "after-explicit-off")).toBeUndefined();
+    expectIdentityOnly(state.restoredTerminalSessions.find(({ clientId }) => clientId === "after-explicit-off"));
   });
 
   it("sanitizes hydration started after explicit Clear even when disk still returns raw records", async () => {

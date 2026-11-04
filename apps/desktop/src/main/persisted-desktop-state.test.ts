@@ -268,12 +268,11 @@ describe("persisted-desktop-state", () => {
   it.each([
     { args: ["--password", "hunter2"], expected: ["--password", "[redacted]"] },
     { args: ["gh", "--token", "ghp_…"], expected: ["gh", "--token", "[redacted]"] },
-    { args: ["mysql", "-p", "x"], expected: ["mysql", "-p", "x"] },
     { args: ["curl", "-u", "user:pass"], expected: ["curl", "-u", "[redacted]"] },
     ...["--token", "--api-key", "--apikey", "--secret", "--client-secret", "--access-token", "--refresh-token", "--PASSWORD"].map((flag) => ({
       args: [flag, "opaque value with spaces"], expected: [flag, "[redacted]"],
     })),
-  ])("saves CLI args $args with only secret values redacted in sessions and plans", async ({ args, expected }) => {
+  ])("drops a session's launch and holds a plan's when CLI args $args carry a secret", async ({ args, expected }) => {
     const filePath = await temporaryStateFile();
     await createPersistedDesktopStateStore({ filePath }).setState({
       ...DEFAULT_DESKTOP_STATE,
@@ -285,13 +284,33 @@ describe("persisted-desktop-state", () => {
     });
 
     const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
-    expect(saved.restoredTerminalSessions[0]?.args).toEqual(expected);
-    expect(saved.stagedPlans.A?.sessions[0]?.args).toEqual(expected);
+    expect(saved.restoredTerminalSessions[0]).not.toHaveProperty("command");
+    expect(saved.restoredTerminalSessions[0]).not.toHaveProperty("args");
+    expect(saved.stagedPlans.A?.sessions[0]).toMatchObject({ args: expected, safetyNote: expect.stringMatching(/secret/) });
+  });
+
+  it("drops a launch an older build saved with a redacted argument", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(filePath, JSON.stringify({
+      version: DESKTOP_STATE_VERSION,
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", command: "cli", args: ["--token", "[redacted]"] }],
+      stagedPlans: { A: {
+        id: "plan", workspaceId: "A", prompt: "Run CLI",
+        sessions: [{ id: "draft", kind: "shell", title: "CLI", command: "cli", args: ["--token", "[redacted]"] }],
+      } },
+    }));
+
+    const state = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("args");
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("command");
+    const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
+    expect(saved.stagedPlans.A?.sessions[0]?.safetyNote).toMatch(/secret/);
   });
 
   it("keeps ordinary args, case-sensitive short flags and secret flags without a value", async () => {
     const filePath = await temporaryStateFile();
-    const args = ["--tokenizer", "ordinary", "-P", "3306", "--password"];
+    const args = ["--tokenizer", "ordinary", "-P", "3306", "-p", "x", "--password"];
     await createPersistedDesktopStateStore({ filePath }).setState({
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [{ clientId: "manual", title: "CLI", source: "manual", args }],
@@ -306,7 +325,7 @@ describe("persisted-desktop-state", () => {
     const store = createPersistedDesktopStateStore({ filePath });
     const command = "/Users/x/bin/codex";
     const cwd = "/Users/x/repo";
-    const args = ["--add-dir", cwd, "--password=hunter2", "--token", "opaque-token"];
+    const args = ["--add-dir", cwd];
     const state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [{ clientId: "manual", title: "Codex", source: "manual", command, args, cwd }],
@@ -322,7 +341,7 @@ describe("persisted-desktop-state", () => {
       await store.setState(state);
     }
 
-    const launch = { command, cwd, args: ["--add-dir", cwd, "--password=[redacted]", "--token", "[redacted]"] };
+    const launch = { command, cwd, args };
     const saved = JSON.parse(await readFile(filePath, "utf8")) as DesktopStateSnapshot;
     expect(saved.restoredTerminalSessions[0]).toMatchObject(launch);
     expect(saved.stagedPlans.A?.sessions[0]).toMatchObject(launch);
@@ -774,7 +793,7 @@ describe("persisted-desktop-state", () => {
     expect(rewritten.restoredTerminalSessions.map((session) => session.title)).toEqual(titles);
   });
 
-  it("removes restored terminal records when retention is off", async () => {
+  it("keeps only a session's identity when retention is off", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -790,8 +809,16 @@ describe("persisted-desktop-state", () => {
             clientId: "manual-off",
             title: "Manual",
             source: "manual",
+            agentKind: "codex",
+            workspaceId: "A",
+            namedByYou: true,
+            createdAt: 100,
+            lastActivityAt: 120,
             cwd: "/repo",
             shell: "/bin/zsh",
+            command: "codex",
+            args: ["resume", "conversation-1"],
+            resumeTarget: { agentKind: "codex", sessionId: "conversation-1", source: "codex-session-index" },
             buffer: "secret sk-proj-1234567890abcdef",
             activityEvents: [
               {
@@ -814,8 +841,19 @@ describe("persisted-desktop-state", () => {
       privacySettings: {
         terminalScrollbackRetention: "off",
       },
-      restoredTerminalSessions: [],
     });
+    expect((await store.getState()).restoredTerminalSessions).toEqual([{
+      clientId: "manual-off",
+      title: "Manual",
+      source: "manual",
+      agentKind: "codex",
+      workspaceId: "A",
+      namedByYou: true,
+      createdAt: 100,
+      lastActivityAt: 120,
+      cwd: "/repo",
+      resumeTarget: { agentKind: "codex", sessionId: "conversation-1", source: "codex-session-index" },
+    }]);
   });
 
   it("rewrites a valid legacy privacy state once without a migration backup", async () => {
@@ -854,12 +892,16 @@ describe("persisted-desktop-state", () => {
     );
 
     const firstState = await createPersistedDesktopStateStore({ filePath }).getState();
-    expect(firstState.restoredTerminalSessions).toEqual([]);
+    expect(firstState.restoredTerminalSessions).toEqual([
+      expect.objectContaining({ clientId: "codex-1", resumeTarget: saved.resumeTarget }),
+      expect.objectContaining({ clientId: "codex-2", resumeTarget: saved.resumeTarget }),
+    ]);
     expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
 
     const migratedContents = await readFile(filePath, "utf8");
     const migratedFile = JSON.parse(migratedContents) as { restoredTerminalSessions: unknown[] };
-    expect(migratedFile.restoredTerminalSessions).toEqual([]);
+    expect(migratedFile.restoredTerminalSessions).toEqual(firstState.restoredTerminalSessions);
+    expect(migratedContents).not.toMatch(/secret customer prompt|Authorization|"shell"|"buffer"/);
     await createPersistedDesktopStateStore({ filePath }).getState();
     expect(await readFile(filePath, "utf8")).toBe(migratedContents);
   });
@@ -911,7 +953,8 @@ describe("persisted-desktop-state", () => {
       bounds: { x: 64, y: 48, width: 1600, height: 1000 },
       maximized: true,
     });
-    expect(state.restoredTerminalSessions).toEqual([]);
+    expect(state.restoredTerminalSessions).toEqual([expect.objectContaining({ clientId: "codex-concurrent" })]);
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("buffer");
     expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({
       windowState: state.windowState,
       restoredTerminalSessions: state.restoredTerminalSessions,
@@ -938,6 +981,22 @@ describe("persisted-desktop-state", () => {
     expect(await readFile(path.join(path.dirname(filePath), quarantineName!), "utf8")).toBe(invalidContents);
     await expect(readFile(filePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect(warnings).toEqual(["Failed to parse desktop state; preserved invalid file."]);
+  });
+
+  it.each([
+    { name: "is torn", damage: (filePath: string) => writeFile(filePath, '{"version":', "utf8") },
+    { name: "is missing between the two renames of a save", damage: (filePath: string) => rm(filePath) },
+  ])("opens the previous save when the state file $name", async ({ damage }) => {
+    const filePath = await temporaryStateFile();
+    const writer = createPersistedDesktopStateStore({ filePath });
+    const previous = { ...DEFAULT_DESKTOP_STATE, activeWorkspaceId: "A", railWidth: 300 };
+    await writer.setState(previous);
+    await writer.setState({ ...previous, railWidth: 320 });
+    await damage(filePath);
+
+    const state = await createPersistedDesktopStateStore({ filePath, onWarning: () => undefined }).getState();
+    expect(state.railWidth).toBe(300);
+    expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({ railWidth: 300 });
   });
 
   it("rejects transient read failures and retries without replacing the existing state", async () => {
@@ -1039,16 +1098,18 @@ describe("persisted-desktop-state", () => {
     const store = createPersistedDesktopStateStore({ filePath, onWarning: () => undefined });
 
     try {
+      const identityOnly = [{ clientId: "legacy-1", title: "Shell", source: "alfred", workspaceId: "A" }];
       await expect(store.getState()).resolves.toMatchObject({
         privacySettings: { terminalScrollbackRetention: "off" },
-        restoredTerminalSessions: [],
+        restoredTerminalSessions: identityOnly,
       });
       expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed" });
+      await chmod(path.dirname(filePath), 0o700);
+      await expect(store.retrySave()).resolves.toMatchObject({ restoredTerminalSessions: identityOnly });
     } finally {
       await chmod(path.dirname(filePath), 0o700);
     }
 
-    await expect(store.retrySave()).resolves.toMatchObject({ restoredTerminalSessions: [] });
     expect(store.getSaveStatus()).toEqual({ status: "saved" });
     expect(await readFile(filePath, "utf8")).not.toContain("secret");
   });
@@ -1104,11 +1165,12 @@ describe("persisted-desktop-state", () => {
     const filePath = await temporaryStateFile();
     const store = createPersistedDesktopStateStore({ filePath });
     await store.getState();
-    // A folder where the state file goes lets the copy be written, then fails the rename over it.
+    // Folders where the state file and its previous save go let the copy be written, then fail the renames.
     await mkdir(path.join(filePath, "blocker"), { recursive: true });
+    await mkdir(path.join(`${filePath}.bak`, "blocker"), { recursive: true });
 
     await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
-    expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
+    expect((await readdir(path.dirname(filePath))).sort()).toEqual(["desktop-state.json", "desktop-state.json.bak"]);
   });
 
   it("removes the copies earlier saves left unfinished, and nothing else", async () => {

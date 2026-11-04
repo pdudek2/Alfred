@@ -24,6 +24,14 @@ describe("checkSafety", () => {
     });
 
     it.each([
+      ["gh", ["--token", "[redacted]"]],
+      ["/Users/x/bin/cli --token=[redacted]", []],
+      ["codex", ["--", "deploy with [redacted]"]],
+    ])("flags %s %j, which lost a secret when saved", (command, args) => {
+      expect(checkSafety(command, args)).toMatchObject({ unsafe: true, reason: expect.stringMatching(/secret/) });
+    });
+
+    it.each([
       ["sh -c 'rm -rf /'"],
       ["bash -c 'echo $HOME'"],
       ["evil; rm -rf /"],

@@ -1,7 +1,8 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
+import { REDACTED, redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
+import { checkSafety } from "../shared/terminal-command-safety.js";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import { clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
@@ -138,7 +139,8 @@ export function createPersistedDesktopStateStore(
       if (result.rewrite) {
         // A failed migration write must not block startup: the state was read fine,
         // persistState already records saveFailed and retrySave can write it again.
-        await persistState(result.state).catch(() => undefined);
+        // The file it replaces predates this build's redaction, so it is not kept as the previous save.
+        await persistState(result.state, false).catch(() => undefined);
       }
     });
     hydrationPromise = hydration;
@@ -157,12 +159,12 @@ export function createPersistedDesktopStateStore(
     return result;
   };
 
-  const persistState = async (state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> => {
+  const persistState = async (state: DesktopStateSnapshot, keepPrevious = true): Promise<DesktopStateSnapshot> => {
     const nextState = normalizeDesktopState(state);
     const diskState = { ...nextState, stagedPlans: redactStagedPlansForDisk(nextState) };
 
     try {
-      await writeDesktopStateFile(filePath, diskState);
+      await writeDesktopStateFile(filePath, diskState, keepPrevious);
     } catch (error) {
       failedState = nextState;
       setSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: Date.now() });
@@ -516,10 +518,8 @@ function normalizeRestoredTerminalSessions(
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
       ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
     }, privacySettings);
-    if (session) {
-      seenClientIds.add(clientId);
-      sessions.push(session);
-    }
+    seenClientIds.add(clientId);
+    sessions.push(session);
   }
 
   return sessions;
@@ -552,26 +552,17 @@ export function sanitizePersistedTerminalSession(
   session: PersistedTerminalSessionSnapshot,
   privacySettings: DesktopPrivacySettings,
   clearLaunchData = false,
-): PersistedTerminalSessionSnapshot | null {
-  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") return null;
+): PersistedTerminalSessionSnapshot {
+  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") return persistedSessionIdentity(session);
+  // A launch that lost a secret would relaunch with the marker as a real argument, so it is not kept at all.
+  const keepsLaunch = ![redactSecrets(session.command ?? ""), ...redactArgs(session.args ?? [])]
+    .some((part) => part.includes(REDACTED));
 
   return {
-    clientId: session.clientId.trim(),
-    title: currentGeneratedTitle(redactText(session.title)),
-    source: session.source,
-    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
-    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
-    ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
-    ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
-    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
-    ...(session.namedByYou ? { namedByYou: true as const } : {}),
-    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...persistedSessionIdentity(session),
     ...(session.shell === undefined ? {} : { shell: session.shell }),
-    ...(session.command === undefined || redactSecrets(session.command) !== session.command
-      ? {}
-      : { command: session.command }),
-    ...(session.args === undefined ? {} : { args: redactArgs(session.args) }),
-    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
+    ...(session.command === undefined || !keepsLaunch ? {} : { command: session.command }),
+    ...(session.args === undefined || !keepsLaunch ? {} : { args: [...session.args] }),
     ...(session.buffer === undefined
       ? {}
       : {
@@ -583,6 +574,23 @@ export function sanitizePersistedTerminalSession(
     ...(session.activityEvents === undefined
       ? {}
       : { activityEvents: redactActivityEvents(session.activityEvents) }),
+  };
+}
+
+/** What a session keeps while terminal data is not saved: enough to list it asleep and resume its conversation. */
+export function persistedSessionIdentity(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {
+  return {
+    clientId: session.clientId.trim(),
+    title: currentGeneratedTitle(redactText(session.title)),
+    source: session.source,
+    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
+    ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
+    ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
+    ...(session.namedByYou ? { namedByYou: true as const } : {}),
+    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
@@ -656,12 +664,15 @@ function redactStagedPlansForDisk(state: DesktopStateSnapshot): Record<string, A
   return Object.fromEntries(Object.entries(state.stagedPlans).map(([workspaceId, plan]) => [workspaceId, {
     ...plan,
     prompt: redactText(plan.prompt),
-    sessions: plan.sessions.map((session) => ({
-      ...session,
-      command: redactSecrets(session.command),
-      args: redactArgs(session.args),
-      ...(session.safetyNote === undefined ? {} : { safetyNote: redactText(session.safetyNote) }),
-    })),
+    sessions: plan.sessions.map((session) => {
+      const command = redactSecrets(session.command);
+      const args = redactArgs(session.args);
+      const safety = checkSafety(command, args);
+      const safetyNote = session.safetyNote === undefined
+        ? safety.unsafe ? safety.reason : undefined
+        : redactText(session.safetyNote);
+      return { ...session, command, args, ...(safetyNote === undefined ? {} : { safetyNote }) };
+    }),
   }]));
 }
 
@@ -669,48 +680,56 @@ async function readDesktopStateFile(
   filePath: string,
   onWarning: PersistedDesktopStateStoreOptions["onWarning"],
 ): Promise<DesktopStateReadResult> {
-  let raw: string;
-
-  try {
-    raw = await readFile(filePath, "utf8");
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
-    }
-
+  const current = await readDesktopStateCopy(filePath).catch((error: unknown) => {
     onWarning?.("Failed to read desktop state.", error);
     throw new Error("Failed to read desktop state.", { cause: error });
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch (error) {
-    await quarantineDesktopStateFile(
-      filePath,
-      "Failed to parse desktop state; preserved invalid file.",
-      error,
-      onWarning,
-    );
+  });
+  if ("invalid" in current) await quarantineDesktopStateFile(filePath, current.invalid, current.cause, onWarning);
+  if (!("parsed" in current)) {
+    const previous = await readDesktopStateCopy(previousSavePath(filePath)).catch(() => ({ missing: true as const }));
+    if ("parsed" in previous) {
+      onWarning?.("Opened the previous save of desktop state.", undefined);
+      return { state: normalizeDesktopState(previous.parsed), rewrite: true };
+    }
+    // shortcut: a reset to defaults reaches only onWarning (the console); show it once the renderer has a startup notice.
     return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
   }
 
-  if (!isRecord(parsed) || parsed.version !== DESKTOP_STATE_VERSION) {
-    await quarantineDesktopStateFile(
-      filePath,
-      "Unsupported desktop state version; preserved invalid file.",
-      parsed,
-      onWarning,
-    );
-    return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
-  }
-
+  const { parsed } = current;
   const normalized = normalizeDesktopState(parsed);
   const normalizedFile = { version: DESKTOP_STATE_VERSION, ...normalized, stagedPlans: redactStagedPlansForDisk(normalized) };
   return {
     state: normalized,
     rewrite: JSON.stringify(parsed) !== JSON.stringify(normalizedFile),
   };
+}
+
+async function readDesktopStateCopy(
+  filePath: string,
+): Promise<{ parsed: Record<string, unknown> } | { missing: true } | { invalid: string; cause: unknown }> {
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return { missing: true };
+    throw error;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch (error) {
+    return { invalid: "Failed to parse desktop state; preserved invalid file.", cause: error };
+  }
+  if (!isRecord(parsed) || parsed.version !== DESKTOP_STATE_VERSION) {
+    return { invalid: "Unsupported desktop state version; preserved invalid file.", cause: parsed };
+  }
+  return { parsed };
+}
+
+/** The state file as the save before the last one left it, opened when the state file is torn or missing. */
+function previousSavePath(filePath: string): string {
+  return `${filePath}.bak`;
 }
 
 async function quarantineDesktopStateFile(
@@ -735,7 +754,9 @@ async function quarantineDesktopStateFile(
   onWarning?.(message, cause);
 }
 
-export async function removeQuarantinedDesktopStateFiles(filePath: string): Promise<void> {
+/** Older copies of the state file: the previous save and quarantined invalid files. */
+export async function removeDesktopStateCopies(filePath: string): Promise<void> {
+  await rm(previousSavePath(filePath), { force: true });
   const directory = path.dirname(filePath);
   const extension = path.extname(filePath);
   const prefix = `${path.basename(filePath, extension)}.invalid-`;
@@ -750,7 +771,7 @@ export async function removeQuarantinedDesktopStateFiles(filePath: string): Prom
     .map((name) => rm(path.join(directory, name), { force: true })));
 }
 
-async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapshot): Promise<void> {
+async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapshot, keepPrevious: boolean): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
 
   const fileState: DesktopStateFile = {
@@ -760,8 +781,12 @@ async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapsh
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
 
   try {
-    await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, "utf8");
+    await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, { encoding: "utf8", flush: true });
+    await rename(filePath, previousSavePath(filePath)).catch((error: unknown) => {
+      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+    });
     await rename(temporaryPath, filePath);
+    if (!keepPrevious) await rm(previousSavePath(filePath), { force: true });
   } catch (error) {
     // The copy holds scrollback and commands, which Clear saved transcripts would not reach.
     await rm(temporaryPath, { force: true }).catch(() => undefined);

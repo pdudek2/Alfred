@@ -12,7 +12,7 @@ import {
 } from "./terminal-manager.js";
 import {
   normalizeDesktopPrivacySettings,
-  removeQuarantinedDesktopStateFiles,
+  removeDesktopStateCopies,
   sanitizePersistedTerminalSession,
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
@@ -43,11 +43,10 @@ export function registerDesktopStateIpc(
         privacySettings,
         // Plans keep full launch arguments, so they follow the same policy as saved sessions.
         ...(privacySettings.terminalScrollbackRetention === "off" ? { stagedPlans: {} } : {}),
-        restoredTerminalSessions: current.restoredTerminalSessions.flatMap((session) => {
-          const sanitized = sanitizePersistedTerminalSession(session, privacySettings);
-          return sanitized ? [sanitized] : [];
-        }),
+        restoredTerminalSessions: current.restoredTerminalSessions.map((session) =>
+          sanitizePersistedTerminalSession(session, privacySettings)),
       }));
+      if (privacySettings.terminalScrollbackRetention === "off") await removeDesktopStateCopies(store.getFilePath());
       return state.privacySettings;
     },
   );
@@ -68,7 +67,7 @@ export function registerDesktopStateIpc(
           stagedPlans: {},
           restoredTerminalSessions: [],
         }));
-        await removeQuarantinedDesktopStateFiles(store.getFilePath());
+        await removeDesktopStateCopies(store.getFilePath());
         await options.clearAgentEvents?.();
         return {
           ok: true,
