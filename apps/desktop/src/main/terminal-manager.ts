@@ -957,6 +957,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...(session.changeTally ? { changeStats: changeStats(session.changeTally) } : {}),
     ...(session.workTree ? { workTree: { ...session.workTree } } : {}),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
+    ...(session.namedByYou ? { namedByYou: true as const } : {}),
   };
 }
 

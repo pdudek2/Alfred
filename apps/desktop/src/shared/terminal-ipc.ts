@@ -73,6 +73,7 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
   lastOutputAt?: number;
+  namedByYou?: true;
 };
 
 export type PersistedTerminalSessionSnapshot = {
