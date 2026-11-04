@@ -3786,6 +3786,16 @@ describe("terminal-manager IPC", () => {
         ],
       });
 
+      // Ctrl-C drops the half-typed line: the step is the command Enter sent after it.
+      emit(terminalChannels.write, { id: created.id, data: "git st" });
+      emit(terminalChannels.write, { id: created.id, data: "\x03" });
+      pty.onDataHandler?.("git st^C\r\nprompt % ");
+      emit(terminalChannels.write, { id: created.id, data: "ls\r" });
+      pty.onDataHandler?.("ls\r\nREADME.md\r\nprompt % ");
+      expect(lastDataEvent()).toMatchObject({
+        activities: [expect.objectContaining({ kind: "command", detail: "ls" })],
+      });
+
       pty.process = "sleep";
       emit(terminalChannels.write, { id: created.id, data: "sleep 5\r" });
       await new Promise((resolve) => setTimeout(resolve, 250));
