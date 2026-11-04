@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { NewSessionSheet, type NewSessionSheetProps } from "./NewSessionSheet";
 
 afterEach(cleanup);
-const project = { id: "alpha", label: "Alpha", rootPath: "/alpha" };
+const project = { id: "alpha", label: "Alpha", rootPath: "/alpha", gitBranch: "main" };
 function setup(overrides: Partial<NewSessionSheetProps> = {}) {
   const props: NewSessionSheetProps = { projects: [project, { id: "missing", label: "Missing", rootStatus: "missing" }], projectId: project.id, kind: "codex", draft: "", onProjectChange: vi.fn(), onKindChange: vi.fn(), onDraftChange: vi.fn(), onStart: vi.fn().mockResolvedValue(true), onClose: vi.fn(), ...overrides };
   return { ...render(<NewSessionSheet {...props} />), props };
@@ -123,4 +123,21 @@ it("names the parent of a worker and offers only sessions, not a plan", () => {
   rerender(<NewSessionSheet {...props} parentTitle={undefined} />);
   expect(screen.queryByText("Worker of", { exact: false })).not.toBeInTheDocument();
   expect(screen.getByRole("radio", { name: /^Plan with Alfred/ })).toBeInTheDocument();
+});
+it("starts an agent in a new worktree when asked, never a terminal", async () => {
+  const { props, rerender } = setup({ initialWorktree: true });
+  const worktree = screen.getByRole("checkbox", { name: /Work in a new worktree/ });
+  expect(worktree).toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Start" }));
+  expect(props.onStart).toHaveBeenLastCalledWith(true);
+  await userEvent.click(worktree);
+  await userEvent.click(screen.getByRole("button", { name: "Start" }));
+  expect(props.onStart).toHaveBeenLastCalledWith(false);
+
+  rerender(<NewSessionSheet {...props} kind="terminal" />);
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+});
+it("offers no worktree in a folder that is not a git repository", () => {
+  setup({ projects: [{ id: "alpha", label: "Alpha", rootPath: "/alpha" }], initialWorktree: true });
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });

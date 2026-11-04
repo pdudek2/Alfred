@@ -9381,7 +9381,7 @@ describe("App integration", () => {
     const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/project-a" },
-        { id: "B", label: "Beta", shortLabel: "B", rootPath: "/project-b" },
+        { id: "B", label: "Beta", shortLabel: "B", rootPath: "/project-b", gitBranch: "main" },
       ], activeWorkspaceId: "A",
     });
     render(<App />);
@@ -9397,6 +9397,15 @@ describe("App integration", () => {
     })));
     expect(screen.getByRole("button", { name: "Beta project" })).toHaveAttribute("aria-current", "location");
     expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
+
+    // With an agent already at work in the project, the next one starts in a worktree of its own unless you say no.
+    await user.click(screen.getByRole("button", { name: "New" }));
+    await user.click(screen.getByRole("radio", { name: new RegExp(`^${kind}`) }));
+    expect(screen.getByRole("checkbox", { name: /Work in a new worktree/ })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({
+      agentKind: kind.toLowerCase(), workspaceId: "B", args: ["--worktree"],
+    })));
   });
 
   it("plans for the picked project and keeps the sheet open until drafts arrive", async () => {

@@ -86,6 +86,8 @@ export type PersistedTerminalSessionSnapshot = {
   /** Names this session in the agent event log, across resumes; its client id can return for a later session. */
   eventLogKey?: string;
   cwd?: string;
+  /** The worktree the agent last worked in, where a Codex resume returns. */
+  workTree?: TerminalWorkTree;
   shell?: string;
   command?: string;
   args?: string[];

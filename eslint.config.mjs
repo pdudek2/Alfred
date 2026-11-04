@@ -16,6 +16,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.turbo/**",
       "**/.worktrees/**",
+      "**/.claude/worktrees/**",
       "**/output/**",
       ".agent-memory/**",
       "docs/audits/**",

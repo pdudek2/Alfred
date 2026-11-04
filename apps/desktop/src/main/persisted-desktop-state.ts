@@ -503,6 +503,9 @@ function normalizeRestoredTerminalSessions(
       ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
       ...(typeof item.eventLogKey === "string" ? { eventLogKey: item.eventLogKey } : {}),
       ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
+      ...(isRecord(item.workTree) && typeof item.workTree.root === "string"
+        ? { workTree: { root: item.workTree.root, ...(typeof item.workTree.branch === "string" ? { branch: item.workTree.branch } : {}) } }
+        : {}),
       ...(typeof item.shell === "string" ? { shell: item.shell } : {}),
       ...(typeof item.command === "string"
         ? { command: item.command }
@@ -590,6 +593,7 @@ export function persistedSessionIdentity(session: PersistedTerminalSessionSnapsh
     ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
     ...(session.namedByYou ? { namedByYou: true as const } : {}),
     ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...(session.workTree === undefined ? {} : { workTree: { ...session.workTree } }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
@@ -877,6 +881,7 @@ function cloneRestoredTerminalSession(session: PersistedTerminalSessionSnapshot)
   return {
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.workTree === undefined ? {} : { workTree: { ...session.workTree } }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
   };

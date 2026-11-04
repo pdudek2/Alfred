@@ -122,6 +122,9 @@ describe("desktop session state", () => {
     expect(addAgentSession([], "claude", "/repo", "A", "Fix the login bug\nand add a test").at(-1)!.title).toBe("Fix the login bug");
     expect(addAgentSession([], "codex", "/repo", "A", "/review").at(-1)!.title).toBe("Codex");
     expect(addAgentSession([], "claude", "/repo", "A", "").at(-1)!.title).toBe("Claude");
+    // The agent makes its own worktree; the flag goes before the prompt, which follows --.
+    expect(addAgentSession([], "codex", "/repo", "A", "Fix it", undefined, [], true).at(-1)!.args).toEqual(["--worktree", "--", "Fix it"]);
+    expect(addAgentSession([], "claude", "/repo", "A", "", undefined, [], true).at(-1)!.args).toEqual(["--worktree"]);
   });
 
   it("does not give a new session the id of one seen earlier in the run", () => {
@@ -705,7 +708,9 @@ describe("desktop session state", () => {
         source: "alfred",
         agentKind: "claude",
         command: "claude",
-        args: [],
+        // Claude returns to the worktree it made by itself; a second --worktree would make another.
+        args: ["--worktree", "--", "Fix the login bug"],
+        workTree: { root: "/repo/.claude/worktrees/login", branch: "worktree-login" },
         resumeTarget: { agentKind: "claude", sessionId: conversation, source: "agent-hook" },
         shell: "claude",
         buffer: "asleep\n",
@@ -757,6 +762,21 @@ describe("desktop session state", () => {
     expect(relaunchRestoredSession([claude], "claude-2")[0]!.args).toEqual(claude.args);
     expect(relaunchRestoredSession(restored, "codex-2")[1]!.args)
       .toEqual(["resume", "-m", "gpt-6.1-sol", "-c", "model_reasoning_effort=\"xhigh\"", "--last"]);
+  });
+
+  it("resumes Codex in the worktree it made, not in the project folder", () => {
+    const codex = (clientId: string, cwd: string, root: string) => ({
+      clientId, title: "Codex", cwd, source: "manual" as const, agentKind: "codex" as const, command: "codex",
+      args: ["--worktree", "--", "Fix it"], workTree: { root }, shell: "codex", buffer: "",
+    });
+    const restored = hydratePersistedTerminalSessions([
+      codex("codex-1", "/repo", "/home/.codex/worktrees/ab12/repo"),
+      // A session started in a subfolder of its repository stays there.
+      codex("codex-2", "/repo/apps/web", "/repo"),
+    ]);
+
+    expect(relaunchRestoredSession(restored, "codex-1")[0]!.args).toEqual(["resume", "-C", "/home/.codex/worktrees/ab12/repo", "--last"]);
+    expect(relaunchRestoredSession(restored, "codex-2")[1]!.args).toEqual(["resume", "--last"]);
   });
 
   it("resumes exact Codex target when resumeTarget is present", () => {

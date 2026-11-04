@@ -64,7 +64,7 @@ import {
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
-import { nextApprovalRevealAt, sessionState } from "./session-status";
+import { isAgentSession, nextApprovalRevealAt, sessionState } from "./session-status";
 import type { HistorySelection } from "./history-presentation";
 import { createInitialSessionsViewState } from "./sessions-view-state";
 import {
@@ -400,7 +400,7 @@ export function App() {
     });
   }, [showTerminalInWorkspace]);
 
-  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string) => {
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string, worktree = false) => {
     if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addAgentSession(
@@ -411,6 +411,7 @@ export function App() {
         prompt,
         parentSessionId,
         seenSessionIdsRef.current,
+        worktree,
       ),
     );
   }, [
@@ -1364,7 +1365,7 @@ export function App() {
     return true;
   }, [alfredStatus]);
 
-  const handleStartNewSession = async () => {
+  const handleStartNewSession = async (worktree: boolean) => {
     const workspace = workspaces.find((item) => item.id === newSessionProjectId);
     if (!workspace || workspace.rootStatus === "missing") return false;
     const draft = newSessionDraftsByWorkspace[workspace.id] ?? "";
@@ -1378,7 +1379,7 @@ export function App() {
     } else if (newSessionKind === "terminal") {
       handleAddManualSession(workspace, parentSessionId);
     } else {
-      handleAddAgentSession(newSessionKind, workspace, draft.trim(), parentSessionId);
+      handleAddAgentSession(newSessionKind, workspace, draft.trim(), parentSessionId, worktree);
     }
     setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, workspace.id));
     return true;
@@ -2479,6 +2480,7 @@ export function App() {
             planAvailable={planAvailable}
             parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
             draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
+            initialWorktree={terminalSessions.some((session) => session.workspaceId === newSessionProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
             disabled={commandPaletteOpen || privacyPanelOpen}
             blockedReason={composerBlockedReason}
             requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
