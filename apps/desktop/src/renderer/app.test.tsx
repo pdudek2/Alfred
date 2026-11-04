@@ -6172,6 +6172,22 @@ describe("App integration", () => {
     }
   });
 
+  it("gives an agent's tile the breadcrumb's state once you have sent it a message", async () => {
+    const bridge = installDesktopBridge(undefined, null, [
+      { ...manualLiveSnapshot("cx", "Codex worker"), agentKind: "codex", command: "codex", args: [], promptSubmitted: true },
+    ]);
+    render(<App />);
+    const tile = await screen.findByRole("article", { name: /Codex worker/i });
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+
+    act(() => {
+      bridge.emitDataNow({ id: "runtime-cx", data: "Reading files\n", at: Date.now(), activities: [] });
+    });
+    expect(within(breadcrumb).getByLabelText("status working")).toBeInTheDocument();
+    expect(tile).toHaveClass("session-working");
+  });
+
   it("routes approval output by client id before terminal creation resolves", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(

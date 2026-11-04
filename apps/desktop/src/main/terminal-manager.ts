@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import {
   appendActivityEvent,
   classifyTerminalOutputChunk,
+  pendingRuntimeBlocker,
   runtimeBlockerReason,
   type SessionActivityEvent,
   type TerminalOutputActivityChunkResult,
@@ -641,10 +642,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       });
       pendingPtyExits.add(ptyExit);
       session.ptyExited = ptyExit;
-      session.pty.onExit(({ exitCode, signal }) => {
+      session.pty.onExit(({ exitCode: reportedCode, signal }) => {
         pendingPtyExits.delete(ptyExit);
         reportPtyExit();
         if (!sessions.has(session.id)) return;
+        // node-pty reports a death by signal as code 0; the shell's 128 + signal keeps it Failed.
+        const exitCode = signal && !session.stoppedByOrchestrator ? reportedCode || 128 + signal : reportedCode;
         const identity = {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
@@ -1761,11 +1764,12 @@ function clearWaitingSignal(session: TerminalSession): boolean {
 }
 
 /**
- * Your input settles the prompt the session last asked, so the quiet after a declined prompt does not read as one still
- * waiting. Details leaves this event out, as it does every lifecycle event it does not name.
+ * Your input settles the prompt or runtime blocker the session last showed, so the quiet after it does not read as one
+ * still waiting. Details leaves this event out, as it does every lifecycle event it does not name.
  */
 function answerApproval(session: TerminalSession): SessionActivityEvent | null {
-  if (session.activityEvents?.at(-1)?.kind !== "approval") return null;
+  const events = session.activityEvents;
+  if (events?.at(-1)?.kind !== "approval" && !pendingRuntimeBlocker(events)) return null;
   return recordSessionActivity(session, { kind: "lifecycle", title: "Prompt answered", detail: "You answered in the terminal." });
 }
 
