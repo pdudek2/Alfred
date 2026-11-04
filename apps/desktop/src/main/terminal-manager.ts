@@ -1249,6 +1249,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(agentKind === undefined ? {} : { agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     cwd: session.cwd,
+    ...(session.workTree === undefined ? {} : { workTree: { ...session.workTree } }),
     createdAt: session.createdAt,
     ...(session.eventLogKey === undefined ? {} : { eventLogKey: session.eventLogKey }),
     shell: session.shell,
@@ -1308,6 +1309,7 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
   return {
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.workTree === undefined ? {} : { workTree: { ...session.workTree } }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
   };
@@ -1685,6 +1687,7 @@ async function tallyAgentChanges(session: TerminalSession): Promise<void> {
         if (workTree) session.workTree = workTree;
         else delete session.workTree;
         sendSignalUpdate(session, { workTree: workTree ?? null });
+        rememberSessionSnapshot(session);
       }
     }
   } catch {

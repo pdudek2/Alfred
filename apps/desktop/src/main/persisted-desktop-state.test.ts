@@ -724,8 +724,8 @@ describe("persisted-desktop-state", () => {
     const state = normalizeDesktopState({
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [
-        { clientId: "codex-2", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d", namedByYou: true },
-        { clientId: "codex-3", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: 7 },
+        { clientId: "codex-2", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d", namedByYou: true, workTree: { root: "/wt/repo", branch: "fix" } },
+        { clientId: "codex-3", title: "Codex", source: "manual", agentKind: "codex", cwd: "/repo", parentClientId: 7, workTree: { branch: "no-root" } },
         // Saved before workers existed.
         { clientId: "claude-1", title: "Claude", source: "manual", agentKind: "claude", cwd: "/repo" },
       ],
@@ -733,8 +733,12 @@ describe("persisted-desktop-state", () => {
 
     expect(state.restoredTerminalSessions.map((session) => [session.clientId, session.parentClientId]))
       .toEqual([["codex-2", "claude-1"], ["codex-3", undefined], ["claude-1", undefined]]);
+    expect(state.restoredTerminalSessions[1]).not.toHaveProperty("workTree");
     expect(sanitizePersistedTerminalSession(state.restoredTerminalSessions[0]!, DEFAULT_PRIVACY_SETTINGS))
-      .toMatchObject({ clientId: "codex-2", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d", namedByYou: true });
+      .toMatchObject({ clientId: "codex-2", parentClientId: "claude-1", eventLogKey: "codex-2.0a1b2c3d", namedByYou: true, workTree: { root: "/wt/repo", branch: "fix" } });
+    // Where a Codex resume returns is part of the session's identity, kept while terminal data is not saved.
+    expect(sanitizePersistedTerminalSession(state.restoredTerminalSessions[0]!, { ...DEFAULT_PRIVACY_SETTINGS, terminalScrollbackRetention: "off" }))
+      .toMatchObject({ workTree: { root: "/wt/repo", branch: "fix" } });
   });
 
   it("loads a session saved in an Alfred worktree as an ordinary session in its saved folder", () => {

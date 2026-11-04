@@ -149,6 +149,7 @@ export function addAgentSession(
   prompt = "",
   parentSessionId?: string,
   reservedIds: Iterable<string> = [],
+  worktree = false,
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`, reservedIds);
   // A first prompt names the session; without one it keeps a generated title until you type one.
@@ -165,7 +166,7 @@ export function addAgentSession(
       runtimeStatus: "starting",
       agentKind: kind,
       command: kind,
-      args: prompt ? ["--", prompt] : [],
+      args: [...(worktree ? ["--worktree"] : []), ...(prompt ? ["--", prompt] : [])],
       ...(parentSessionId ? { parentSessionId } : {}),
     },
   ];
@@ -376,6 +377,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     ...(snapshot.resumeTarget === undefined ? {} : { resumeTarget: snapshot.resumeTarget }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...resumeModeForRestoredAgent(snapshot),
+    ...(snapshot.workTree === undefined ? {} : { workTree: snapshot.workTree }),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.namedByYou ? { namedByYou: true as const } : {}),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
@@ -406,12 +408,15 @@ export function hydrateStagedPlanSessions(
 }
 
 function resumeLaunchForRestoredAgent(
-  session: Pick<SessionTile, "agentKind" | "args" | "command" | "resumeTarget">,
+  session: Pick<SessionTile, "agentKind" | "args" | "command" | "cwd" | "resumeTarget" | "workTree">,
 ): Pick<SessionTile, "command" | "args" | "resumeMode"> {
   const agentKind = restoredAgentKind(session);
 
   if (agentKind === "codex") {
-    const flags = modelAndEffortArgs("codex", session.args);
+    // Claude's resume returns to its worktree by itself; Codex's resumes wherever it is started.
+    const root = session.workTree?.root;
+    const workRoot = root && session.cwd !== root && !session.cwd.startsWith(`${root}/`) ? ["-C", root] : [];
+    const flags = [...workRoot, ...modelAndEffortArgs("codex", session.args)];
     if (session.resumeTarget?.agentKind === "codex") {
       return { command: "codex", args: ["resume", ...flags, session.resumeTarget.sessionId], resumeMode: "exact" };
     }
