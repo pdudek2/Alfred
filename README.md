@@ -1,103 +1,92 @@
 # Alfred
 
-Alfred is an Electron desktop command center for working with coding agents.
+Alfred is a macOS desktop app for running several Claude Code and Codex CLI sessions across projects. Each session is the agent's own CLI in a terminal inside the window. Around the terminals Alfred shows which session is working, which one waits for you, and where each agent is making its changes.
 
-## Product model
+## What it does
 
-Alfred is terminal-first. The desktop app keeps agent terminals at the center of
-the workspace, lets the user switch between projects and sessions, and makes
-session state visible without replacing the underlying command-line tools.
+- **Projects and sessions.** The rail lists your projects. Under the active one you see its live sessions as a tree, with a state glyph and the latest step for each. Codex, Claude and plain shell sessions run side by side.
+- **Needs you.** Sessions waiting on an approval, a question or a runtime blocker such as a failed login are collected in one list and counted in the top bar.
+- **Details (⌘I).** For the focused session: the folder and git branch it actually works in, and its recent activity.
+- **History.** Past sessions started in Alfred, plus Claude Code and Codex CLI sessions found on the machine. You can read a transcript or resume a session.
+- **Preview.** A tab that shows a local dev server a session started, inside that session's box.
+- **Workers.** A top-level Claude or Codex session gets MCP tools (`start_worker`, `list_workers`, `read_worker`, `wait_for_worker`, `send_to_worker`, `stop_worker`) to hand tasks to up to four worker sessions. Workers appear under their parent in the rail.
+- **Worktrees.** In a git project, the New session sheet can start Claude or Codex with its own `--worktree` flag. The agent creates and manages the worktree; Alfred only shows where the session works. The option is checked by default when another agent session is already running in the project.
+- **Plan with Alfred.** Describe a goal and get draft sessions to review and launch. It needs an `OPENROUTER_API_KEY` and is hidden without one.
 
-Needs you lists only the sessions that are blocked on the user. History is a
-secondary surface for finding and reading local or external agent sessions, not
-the primary place to operate agents. There is no supported standalone browser
-client.
+Session state comes from Claude Code hooks and Codex hooks and notifications. Codex asks you to trust Alfred's hooks once (`/hooks` in Codex). Without them Alfred falls back to reading the terminal output.
+
+## Data and privacy
+
+Everything stays on the Mac. Alfred has no account, server or sync.
+
+- State is saved in `~/Library/Application Support/Alfred/desktop-state.json`, with the previous save kept as `desktop-state.json.bak`.
+- Saved terminal output can be turned off or cleared in Settings. When it is off, a session keeps only its name, folder and conversation, so it can still be resumed.
+- Before anything is written to disk, detected secrets (tokens, keys, passwords in URLs and arguments) are replaced with `[redacted]`.
+- While saved terminal output is on, agent telemetry events are also logged per day under `agent-events/` in the same folder.
 
 ## Architecture
 
-The desktop runtime has three layers:
+- `apps/desktop` holds the Electron main process, the preload bridge and the React/Vite renderer.
+  - The main process owns terminals (node-pty), projects, saved state, agent hooks and the worker tools.
+  - The renderer draws the window. It reaches the main process only through the typed IPC API that the preload bridge exposes, with context isolation on and Node integration off.
+- `packages/schema` holds the shared Zod contracts and the redactor.
 
-- The React/Vite renderer presents projects, sessions, the terminal deck, the
-  Needs you list, and History.
-- The Electron main process owns trusted operating-system work: terminal
-  processes, workspaces, persisted desktop state, session orchestration, and
-  external navigation.
-- The preload bridge exposes narrow typed IPC APIs to the renderer. Electron
-  runs with context isolation enabled and Node integration disabled in the
-  renderer.
+## Setup
 
-Everything runs locally on the Mac. There is no cloud sync, hosted API or
-background service.
-
-## Workspace
-
-```text
-apps/desktop/      Electron main process, preload bridge, and React renderer
-packages/schema/   shared Zod contracts and the privacy redactor
-```
-
-## Local setup
-
-Run commands from the repository root.
+You need Node 22 and pnpm 10, as pinned in `package.json`.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 cp .env.example .env
 ```
 
-## Desktop development
+`.env` sets `DESKTOP_PORT` (4310 by default) for the renderer dev server. Add `OPENROUTER_API_KEY` to use Plan with Alfred, and optionally `ALFRED_LLM_MODEL` to choose its model.
 
-Start Electron and its renderer:
-
-```bash
-pnpm --filter @alfred/desktop dev:electron
-```
-
-The desktop renderer development server listens on `127.0.0.1:4310`; it exists
-to serve the Electron window during development and is not a separate supported
-client.
-
-Start the normal development loop:
+Start the app in development:
 
 ```bash
 pnpm dev:alfred
 ```
 
-This starts the Electron desktop app with its renderer. Output is prefixed with
-`[desktop]`.
+This runs Electron with the renderer served from `127.0.0.1:4310`. Output lines are prefixed with `[desktop]`.
 
-## Validation
-
-Run the repository checks:
+## Checks
 
 ```bash
-pnpm test
-pnpm typecheck
-pnpm lint
-pnpm build
+pnpm verify:quality
 ```
 
-When the desktop test suite needs to run serially, use:
+This runs ESLint, typecheck, unit tests and the build.
+
+```bash
+pnpm smoke:electron
+```
+
+This runs the Playwright scenarios against the built Electron app. Build it first with `pnpm --filter @alfred/desktop... build`. The smoke run uses temporary home, user-data and project folders and fake `claude` and `codex` commands. It never reads your real Codex or Claude state.
+
+`pnpm verify` runs both. Set `TURBO_FORCE=true` for a run that skips Turbo's cache.
+
+To run the desktop unit tests one file at a time:
 
 ```bash
 pnpm --filter @alfred/desktop test --no-file-parallelism --maxWorkers=1
 ```
 
-## Release gate
+On Linux the smoke run needs a display, a session bus and a UTF-8 locale:
 
-Run the complete local release gate:
+```bash
+LANG=C.UTF-8 dbus-run-session -- xvfb-run -a pnpm smoke:electron
+```
 
-    pnpm verify
+Linux is supported only for running these tests.
 
-It runs ESLint, typecheck, tests, build, and the Playwright Electron scenarios against a built app. Runtime assertions are the acceptance gate; privacy-safe screenshots, hashes, traces, and CSS captures are diagnostic evidence. The Electron smoke uses temporary HOME, user-data, agent-home, and workspace directories; it does not read the normal Codex or Claude state.
+## CI
 
-For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron. On Linux it needs a display, a session bus and a UTF-8 locale: LANG=C.UTF-8 dbus-run-session -- xvfb-run -a pnpm smoke:electron.
+GitHub Actions runs:
 
-GitHub Actions runs the same quality gate on Linux, the Electron smoke and the script tests on macOS, the path-security tests on Windows, and the Electron smoke on Linux under Xvfb. Branch protection on `main` requires the first three checks.
+- `quality` (`pnpm verify:quality`) on Ubuntu;
+- `electron-smoke` (script tests and the Electron smoke) on macOS;
+- `electron-smoke-linux` under Xvfb;
+- `windows-path-security`, the path-handling tests, on Windows.
 
-## Current boundaries
-
-Electron is the only user client. Remote browser access is not part of the first
-version, and there is no supported standalone browser client. The former cloud sync stack (runner, API, database and Vercel
-deployment) was removed; Git history archives it, along with the deleted
-browser client, if an earlier implementation ever needs to be inspected.
+Branch protection on `main` requires `quality`, `electron-smoke` and `windows-path-security`.
