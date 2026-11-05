@@ -3110,7 +3110,7 @@ describe("terminal-manager IPC", () => {
         const worktree = await fs.realpath(await fs.mkdtemp(path.join(home, "worktree-")));
         execFileSync("git", ["-C", worktree, "init", "-b", "fix"]);
         execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-C", worktree, "commit", "--allow-empty", "-m", "first"]);
-        await fs.appendFile(transcriptPath, `${JSON.stringify({ cwd: worktree, gitBranch: "main", toolUseResult: { structuredPatch: [{ lines: ["-old", "+new", "+newer"] }] } })}\n`);
+        await fs.appendFile(transcriptPath, `${JSON.stringify({ cwd: worktree, gitBranch: "main", toolUseResult: { filePath: `${worktree}/a.ts`, structuredPatch: [{ lines: ["-old", "+new", "+newer"] }] } })}\n`);
         const { bridge, fire } = fakeBridge();
         const { id } = await startClaude(bridge);
 
@@ -3121,8 +3121,14 @@ describe("terminal-manager IPC", () => {
         await vi.waitFor(() => expect(sentEvents.map((event) => (event.payload as Record<string, unknown>).changeStats))
           .toContainEqual({ additions: 2, deletions: 1 }));
         await vi.waitFor(() => expect(lastDataEvent()).toMatchObject({ workTree: { root: worktree, branch: "fix" } }));
+        expect(sentEvents.map((event) => (event.payload as Record<string, unknown>).changedFiles))
+          .toContainEqual([{ path: `${worktree}/a.ts`, additions: 2, deletions: 1 }]);
         const { sessions } = await invoke<{ sessions: Array<{ changeStats?: unknown; workTree?: unknown }> }>(terminalChannels.list);
-        expect(sessions[0]).toMatchObject({ changeStats: { additions: 2, deletions: 1 }, workTree: { root: worktree, branch: "fix" } });
+        expect(sessions[0]).toMatchObject({
+          changeStats: { additions: 2, deletions: 1 },
+          changedFiles: [{ path: `${worktree}/a.ts`, additions: 2, deletions: 1 }],
+          workTree: { root: worktree, branch: "fix" },
+        });
       });
 
       it("reads a Codex conversation's latest name from its index", async () => {
