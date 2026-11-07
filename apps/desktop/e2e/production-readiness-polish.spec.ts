@@ -148,8 +148,7 @@ test.describe("captures protective empty and missing project evidence", () => {
     // A session gives it something to describe; below 1200 px it still waits for ⌘I.
     await addTerminal(page);
     await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
-    await page.keyboard.press("ControlOrMeta+i");
-    await expect(page.getByTestId("context-column")).toHaveClass(/\bopen\b/);
+    await openDetails(page);
     await harness.closeActiveTerminals();
   });
 });
