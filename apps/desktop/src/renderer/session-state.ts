@@ -9,6 +9,7 @@ import type {
   TerminalAgentSignal,
   TerminalChangeStats,
   TerminalCreateResult,
+  TerminalFileChange,
   TerminalWorkTree,
   TerminalDataEvent,
   TerminalExitEvent,
@@ -59,6 +60,8 @@ export type SessionTile = {
   /** You have sent this session a message (the main process saw Enter). */
   promptSubmitted?: boolean;
   changeStats?: TerminalChangeStats;
+  /** The same edits per file, from the agent's transcript. */
+  changedFiles?: TerminalFileChange[];
   /** The git worktree the agent last worked in, from its transcript. */
   workTree?: TerminalWorkTree;
   /** Started as a worker of this session ("New worker" on its rail row). */
@@ -352,6 +355,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...servingUrlOnScreen(snapshot),
     ...(snapshot.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(snapshot.changeStats === undefined ? {} : { changeStats: snapshot.changeStats }),
+    ...(snapshot.changedFiles === undefined ? {} : { changedFiles: snapshot.changedFiles }),
     ...(snapshot.workTree === undefined ? {} : { workTree: snapshot.workTree }),
     ...(snapshot.parentClientId === undefined ? {} : { parentSessionId: snapshot.parentClientId }),
     ...(snapshot.namedByYou ? { namedByYou: true as const } : {}),
@@ -636,6 +640,7 @@ export function recordSessionOutputActivity(
       ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
       ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
       ...(event.changeStats ? { changeStats: event.changeStats } : {}),
+      ...(event.changedFiles ? { changedFiles: event.changedFiles } : {}),
       ...(workTree == null ? {} : { workTree }),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
