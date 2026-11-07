@@ -233,6 +233,7 @@ function installDesktopBridge(
   imageThumbnail: ReturnType<typeof vi.fn>;
   quickLookImage: ReturnType<typeof vi.fn>;
   revealPath: ReturnType<typeof vi.fn>;
+  claudeTrustsProject: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setWorkspaceViewState: ReturnType<typeof vi.fn>;
@@ -350,6 +351,7 @@ function installDesktopBridge(
     return () => saveStatusListeners.delete(callback);
   });
   const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/sample/Desktop/Alfred/app.tsx" });
+  const claudeTrustsProject = vi.fn().mockResolvedValue(true);
   const imageThumbnail = vi.fn().mockResolvedValue({ ok: true, dataUrl: "data:image/png;base64,thumb" });
   const quickLookImage = vi.fn().mockResolvedValue({ ok: true });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
@@ -453,6 +455,7 @@ function installDesktopBridge(
     terminal,
     workspace: {
       bindFolderToWorkspace,
+      claudeTrustsProject,
       createWorkspaceFromFolder,
       getWorkspaceState,
       openExternalTerminal,
@@ -481,6 +484,7 @@ function installDesktopBridge(
     imageThumbnail,
     quickLookImage,
     revealPath,
+    claudeTrustsProject,
     requestPlan,
     resolveStagedPlan,
     setStagedPlan,
@@ -9384,7 +9388,7 @@ describe("App integration", () => {
 
   it.each(["Codex", "Claude"])("launches %s in the picked project with a literal first prompt", async (kind) => {
     const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
+    const { claudeTrustsProject, createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/project-a" },
         { id: "B", label: "Beta", shortLabel: "B", rootPath: "/project-b", gitBranch: "main" },
@@ -9408,6 +9412,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("radio", { name: new RegExp(`^${kind}`) }));
     expect(screen.getByRole("checkbox", { name: /Work in a new worktree/ })).toBeChecked();
+    // Claude asks only for a worktree of a folder it trusts.
+    if (kind === "Claude") expect(claudeTrustsProject).toHaveBeenLastCalledWith({ workspaceId: "B" });
+    else expect(claudeTrustsProject).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({
       agentKind: kind.toLowerCase(), workspaceId: "B", args: ["--worktree"],

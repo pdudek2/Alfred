@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   workspaceChannels,
   type WorkspaceBindFolderRequest,
+  type WorkspaceClaudeTrustRequest,
   type WorkspaceImageThumbnailResult,
   type WorkspaceQuickLookImageResult,
   type WorkspaceStateSetRequest,
@@ -15,6 +16,7 @@ import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import { worktreesOf } from "./git-work-tree.js";
+import { claudeTrustsFolder } from "./claude-trust.js";
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;
@@ -82,6 +84,11 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
       shell.showItemInFolder(result.resolvedPath);
     }
     return result;
+  });
+  trustedIpc.handle(workspaceChannels.claudeTrust, async (_event, request: WorkspaceClaudeTrustRequest) => {
+    const { workspaces } = await store.getWorkspaceState();
+    const rootPath = workspaces.find((workspace) => workspace.id === request?.workspaceId)?.rootPath;
+    return rootPath ? claudeTrustsFolder(rootPath) : true;
   });
   trustedIpc.handle(
     workspaceChannels.set,

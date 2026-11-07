@@ -11,6 +11,8 @@ export type NewSessionSheetProps = {
   kind: NewSessionKind;
   draft: string;
   initialWorktree?: boolean;
+  /** False when Claude Code has not been told to trust the project's folder yet; unknown counts as trusted. */
+  claudeTrusted?: boolean | undefined;
   /** Set when the session starts as a worker of another ("New worker" on its rail row). */
   parentTitle?: string | undefined;
   /** Plan with Alfred needs an OpenRouter key; without one it is not offered. */
@@ -32,10 +34,10 @@ const kinds = [
   ["plan", "Plan with Alfred", "Describe a goal and get drafts to launch"],
 ] as const;
 
-export function NewSessionSheet({ projects, projectId, kind, draft, initialWorktree = false, parentTitle, planAvailable = true, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
+export function NewSessionSheet({ projects, projectId, kind, draft, initialWorktree = false, claudeTrusted = true, parentTitle, planAvailable = true, triggerRef, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: NewSessionSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
-  const [worktree, setWorktree] = useState(initialWorktree);
+  const [worktreeChoice, setWorktree] = useState<boolean>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const submitting = useRef(false);
@@ -48,6 +50,9 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialWorkt
   const project = projects.find((item) => item.id === projectId);
   // The agent makes the worktree, which needs the project to be a git repository on a branch.
   const worktreeOffered = (kind === "codex" || kind === "claude") && Boolean(project?.rootPath && project.gitBranch);
+  // `claude --worktree` exits at once in a folder Claude does not trust yet, where plain `claude` asks.
+  const needsClaudeTrust = kind === "claude" && !claudeTrusted;
+  const worktree = worktreeChoice ?? (initialWorktree && !needsClaudeTrust);
   const reason = project?.rootStatus === "missing" ? "Reconnect the project folder first." : kind === "plan" ? blockedReason : undefined;
   const invalid = disabled || busy || !project || Boolean(reason) || (kind === "plan" && !draft.trim());
   const close = () => {
@@ -125,7 +130,7 @@ export function NewSessionSheet({ projects, projectId, kind, draft, initialWorkt
           {kind !== "terminal" && <div className="new-session-prompt"><label htmlFor="new-session-prompt">{kind === "plan" ? "Goal" : "First prompt"}</label>
             <textarea id="new-session-prompt" rows={3} required={kind === "plan"} value={draft} disabled={busy || disabled} onChange={(event) => onDraftChange(event.target.value)} />
           </div>}
-          {worktreeOffered && <label className="new-session-worktree"><input type="checkbox" checked={worktree} disabled={busy || disabled} onChange={(event) => setWorktree(event.target.checked)} /><span>Work in a new worktree<small>{project?.label} stays untouched until you merge</small></span></label>}
+          {worktreeOffered && <label className="new-session-worktree"><input type="checkbox" checked={worktree} disabled={busy || disabled} onChange={(event) => setWorktree(event.target.checked)} /><span>Work in a new worktree<small>{needsClaudeTrust ? `Claude asks to trust ${project?.label} first. Start it here once without a worktree` : `${project?.label} stays untouched until you merge`}</small></span></label>}
           <div className="new-session-status" role="status">{busy ? "Thinking…" : error ?? (kind === "plan" ? requestError : undefined) ?? reason ?? (disabled ? "New session paused while another Alfred panel is active." : "")}</div>
           <footer><button type="button" disabled={disabled} onClick={close}>Cancel <kbd aria-hidden="true">esc</kbd></button><button type="submit" className="new-session-start" disabled={invalid}>Start <kbd aria-hidden="true">↩</kbd></button></footer>
         </form>

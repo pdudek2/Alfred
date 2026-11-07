@@ -137,6 +137,21 @@ it("starts an agent in a new worktree when asked, never a terminal", async () =>
   rerender(<NewSessionSheet {...props} kind="terminal" />);
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
+it("leaves a worktree unticked, and says why, while Claude does not trust the folder", async () => {
+  const { props, rerender } = setup({ kind: "claude", initialWorktree: true, claudeTrusted: false });
+  const worktree = screen.getByRole("checkbox", { name: /Work in a new worktree/ });
+  expect(worktree).not.toBeChecked();
+  expect(screen.getByText(/Claude asks to trust Alpha first/)).toBeVisible();
+  // Codex asks for trust itself, so only Claude's worktree waits for it.
+  rerender(<NewSessionSheet {...props} kind="codex" />);
+  expect(worktree).toBeChecked();
+  expect(screen.getByText("Alpha stays untouched until you merge")).toBeVisible();
+
+  rerender(<NewSessionSheet {...props} />);
+  await userEvent.click(worktree);
+  await userEvent.click(screen.getByRole("button", { name: "Start" }));
+  expect(props.onStart).toHaveBeenLastCalledWith(true);
+});
 it("offers no worktree in a folder that is not a git repository", () => {
   setup({ projects: [{ id: "alpha", label: "Alpha", rootPath: "/alpha" }], initialWorktree: true });
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();

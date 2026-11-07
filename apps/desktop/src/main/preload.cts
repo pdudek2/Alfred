@@ -62,6 +62,7 @@ const layoutChannels = {
 
 const workspaceChannels = {
   bindFolder: "alfred:workspace:bind-folder",
+  claudeTrust: "alfred:workspace:claude-trust",
   createFromFolder: "alfred:workspace:create-from-folder",
   get: "alfred:workspace:get",
   openExternalUrl: "alfred:workspace:open-external-url",
@@ -167,6 +168,8 @@ const workspace: WorkspaceApi = {
     ipcRenderer.invoke(workspaceChannels.quickLookImage, request) as ReturnType<WorkspaceApi["quickLookImage"]>,
   revealPath: (request) =>
     ipcRenderer.invoke(workspaceChannels.revealPath, request) as ReturnType<WorkspaceApi["revealPath"]>,
+  claudeTrustsProject: (request) =>
+    ipcRenderer.invoke(workspaceChannels.claudeTrust, request) as ReturnType<WorkspaceApi["claudeTrustsProject"]>,
   setWorkspaceState: (request) =>
     ipcRenderer.invoke(workspaceChannels.set, request) as ReturnType<WorkspaceApi["setWorkspaceState"]>,
 };
