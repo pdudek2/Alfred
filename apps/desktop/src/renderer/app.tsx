@@ -85,7 +85,7 @@ import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
 import { deckSessions, isFreeChatScope, isWorkSession } from "./session-scope";
-import type { CodexStartScreen } from "./codex-start-screen";
+import type { AgentStartScreen } from "./agent-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
@@ -1313,7 +1313,7 @@ export function App() {
     );
   }, []);
 
-  const handleRuntimeSessionStartScreen = useCallback((sessionId: string, startScreen: CodexStartScreen | null) => {
+  const handleRuntimeSessionStartScreen = useCallback((sessionId: string, startScreen: AgentStartScreen | null) => {
     setTerminalSessions((sessions) => {
       const current = sessions.find((session) => session.id === sessionId);
       if (!current || (current.startScreen ?? null) === startScreen) return sessions;

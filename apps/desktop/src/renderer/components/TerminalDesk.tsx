@@ -24,11 +24,11 @@ import {
 import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle, sessionStripLabel } from "../session-time";
 import {
-  codexStartScreen,
-  codexStartScreenSentence,
-  watchesCodexStartScreen,
-  type CodexStartScreen,
-} from "../codex-start-screen";
+  agentStartScreen,
+  agentStartScreenSentence,
+  watchesAgentStartScreen,
+  type AgentStartScreen,
+} from "../agent-start-screen";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
@@ -119,7 +119,7 @@ type TerminalDeskProps = {
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
-  onRuntimeSessionStartScreen: (sessionId: string, startScreen: CodexStartScreen | null) => void;
+  onRuntimeSessionStartScreen: (sessionId: string, startScreen: AgentStartScreen | null) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
@@ -277,7 +277,7 @@ export function TerminalDesk({
                 source={session.source}
                 agentKind={session.agentKind}
                 detectedAgentKind={session.detectedAgentKind}
-                watchesStartScreen={watchesCodexStartScreen(session)}
+                watchesStartScreen={watchesAgentStartScreen(session)}
                 startScreen={session.startScreen}
                 launchPreflight={session.launchPreflight}
                 command={session.command}
@@ -580,7 +580,7 @@ function ManualTerminalTile({
   agentKind?: SessionTile["agentKind"];
   detectedAgentKind?: SessionTile["detectedAgentKind"];
   watchesStartScreen: boolean;
-  startScreen?: CodexStartScreen | undefined;
+  startScreen?: AgentStartScreen | undefined;
   launchPreflight?: SessionTile["launchPreflight"];
   activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
@@ -596,7 +596,7 @@ function ManualTerminalTile({
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
-  onRuntimeSessionStartScreen: (sessionId: string, startScreen: CodexStartScreen | null) => void;
+  onRuntimeSessionStartScreen: (sessionId: string, startScreen: AgentStartScreen | null) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
@@ -864,7 +864,7 @@ function ManualTerminalTile({
       ? pendingRuntimeBlocker(activityEvents)
       : latestActivity;
   const attentionCopy = displayStatus.kind === "needs-you" && displayStatus.reason === "start-screen" && startScreen
-    ? codexStartScreenSentence(startScreen)
+    ? agentStartScreenSentence(startScreen)
     : displayStatus.kind === "needs-you" && waitingOn
       ? waitingSentence(waitingOn, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
       : null;
@@ -1076,7 +1076,7 @@ function ManualTerminalTile({
     const readStartScreen = () => {
       const page = terminal.buffer.active;
       const rows = Array.from({ length: terminal.rows }, (_, row) => page.getLine(page.baseY + row)?.translateToString(true) ?? "");
-      const screen = codexStartScreen(rows);
+      const screen = agentStartScreen(rows);
       if (screen !== (startScreenRef.current ?? null)) runtimeCallbacksRef.current.onRuntimeSessionStartScreen(sessionKey, screen);
     };
     const writeAndRepaint = (data: string) => {
@@ -1230,7 +1230,7 @@ function ManualTerminalTile({
       }
 
       if (sessionId) {
-        terminalApi.write({ id: sessionId, data });
+        terminalApi.write({ id: sessionId, data, ...(startScreenRef.current ? { answersStartScreen: true } : {}) });
       }
     });
 

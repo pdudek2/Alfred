@@ -3753,12 +3753,19 @@ describe("terminal-manager IPC", () => {
 
     it("tells the window once that you sent the session a message, not when the terminal reports", async () => {
       const { bridge } = fakeBridge();
-      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+      const pty = new FakePty();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
       const created = await invoke<{ id: string }>(terminalChannels.create, {
         agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
       });
       const promptEvents = () =>
         sentEvents.filter((event) => event.channel === terminalChannels.data && (event.payload as Record<string, unknown>).promptSubmitted);
+
+      // Enter on a start screen answers the screen; what the agent draws after it is still not history.
+      emit(terminalChannels.write, { id: created.id, data: "\r", answersStartScreen: true });
+      pty.onDataHandler?.('❯ Try "how do I log an error?"\n');
+      expect(promptEvents()).toEqual([]);
+      expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions[0]?.activityEvents ?? []).toEqual([]);
 
       // A focus report and a colour reply are the terminal talking, and typing alone sends nothing yet.
       emit(terminalChannels.write, { id: created.id, data: "\x1b[I" });
