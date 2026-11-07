@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle } from "./support/app-state";
-import { addManualTerminal, surfaceButton, treeRow } from "./support/work-layout";
+import { addManualTerminal, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -161,8 +161,8 @@ test("runs a dozen terminals without one IPC listener per terminal", async ({ ha
 test("starts a new agent right after you close one of its kind", async ({ harness }) => {
   const { page } = harness;
   const startClaude = async () => {
-    await page.getByRole("button", { name: "New", exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+    await openNewSession(page);
+    const sheet = page.getByRole("form", { name: "New session", exact: true });
     await sheet.getByRole("radio", { name: /^Claude/ }).click();
     await sheet.getByRole("button", { name: "Start", exact: true }).click();
   };

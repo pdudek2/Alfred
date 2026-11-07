@@ -32,7 +32,7 @@ test("wakes the asleep Alfred session that holds a conversation resumed from His
   await setWindowSize(app, page, 1440, 900);
 
   await openNewTerminalSheet(page);
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const tile = page.locator('[data-testid="terminal-tile"]:visible');

@@ -25,7 +25,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 import { openPlan } from "./support/plan-line";
-import { addManualTerminal, openDetails, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
+import { addManualTerminal, openDetails, sessionTree, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -95,10 +95,10 @@ const contextProbes: CssOwnerProbe[] = [
 ];
 
 const newSessionProbes: CssOwnerProbe[] = [
-  { name: "new-session", selector: ".new-session-sheet", required: true,
-    properties: ["display", "width", "min-width", "max-width", "background-color", "border-radius"] },
-  { name: "new-session-form", selector: ".new-session-sheet form", required: true,
-    properties: ["display", "grid-template-columns", "grid-template-rows", "min-height", "padding", "gap", "background-color"] },
+  { name: "new-session", selector: ".new-session-dock", required: true,
+    properties: ["position", "height", "min-width", "background-color", "border-top-width"] },
+  { name: "new-session-form", selector: ".new-session-composer", required: true,
+    properties: ["display", "position", "bottom", "background-color", "border-radius", "box-shadow"] },
 ];
 
 const sessionsProbes: CssOwnerProbe[] = [
@@ -221,25 +221,19 @@ test.describe("draft plan layout", () => {
   });
 });
 
-test.describe("New session sheet layout", () => {
+test.describe("New session composer layout", () => {
   test.use({ fixtureOptions: {} });
 
   test("aligns the picker and inherits native control schemes", async ({ harness }) => {
     const { page } = harness;
-    await page.getByRole("button", { name: "New", exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+    const sheet = await openNewSession(page);
     const title = sheet.locator("header > span");
     const picker = sheet.getByRole("button", { name: "Choose project", exact: true });
-    for (const label of [title, picker]) {
-      await expect(label).toHaveCSS("font-size", "15px");
-      await expect(label).toHaveCSS("line-height", "20px");
-      await expect(label).toHaveCSS("font-weight", "500");
-    }
     const titleBounds = await title.boundingBox();
     const labelBounds = await picker.locator("span").boundingBox();
     const chevronBounds = await picker.locator("svg").boundingBox();
     expect(titleBounds && labelBounds && chevronBounds).toBeTruthy();
-    expect(Math.abs(titleBounds!.y - labelBounds!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(titleBounds!.y + titleBounds!.height / 2 - (labelBounds!.y + labelBounds!.height / 2))).toBeLessThanOrEqual(1);
     expect(chevronBounds!.x).toBeGreaterThanOrEqual(labelBounds!.x + labelBounds!.width);
     await expect(sheet).toHaveCSS("color-scheme", "dark");
     // The app currently ships a dark palette; verify inheritance for a light-theme owner too.
@@ -251,42 +245,20 @@ test.describe("New session sheet layout", () => {
     await page.evaluate(() => document.documentElement.style.removeProperty("color-scheme"));
   });
 
-  test("keeps three prompt rows and scrolls beyond them", async ({ harness }, testInfo) => {
+  test("opens over the terminal without resizing it", async ({ harness }) => {
     const { page } = harness;
-    await page.getByRole("button", { name: "New", exact: true }).click();
-    await page.getByRole("radio", { name: /^Claude/ }).click();
-    const prepareWork = page.getByRole("dialog", { name: "New session" });
-    const input = prepareWork.getByRole("textbox", { name: "First prompt" });
-    const readControlHeights = () => prepareWork.evaluate((node) => ({
-      prepare: node.querySelector<HTMLElement>(".new-session-start")?.getBoundingClientRect().height,
-      target: node.querySelector<HTMLElement>(".chrome-menu-trigger")?.getBoundingClientRect().height,
-    }));
-    await expect(input).toHaveCSS("overflow-y", "auto");
-    await expect(input).toHaveCSS("resize", "none");
-    const initialHeight = await input.evaluate((node) => node.clientHeight);
-    const initialControlHeights = await readControlHeights();
-
-    await input.fill("first prompt line\nsecond prompt line\nthird prompt line");
-    const threeLines = await input.evaluate((node) => ({
-      clientHeight: node.clientHeight,
-      scrollHeight: node.scrollHeight,
-    }));
-    expect(threeLines.clientHeight).toBe(initialHeight);
-    expect(threeLines.scrollHeight).toBeLessThanOrEqual(threeLines.clientHeight + 1);
-    expect(await readControlHeights()).toEqual(initialControlHeights);
-
-    await input.fill("first prompt line\nsecond prompt line\nthird prompt line\nfourth prompt line");
-    const fourLines = await input.evaluate((node) => ({
-      clientHeight: node.clientHeight,
-      scrollHeight: node.scrollHeight,
-    }));
-    expect(fourLines.clientHeight).toBe(threeLines.clientHeight);
-    expect(fourLines.scrollHeight).toBeGreaterThan(fourLines.clientHeight);
-    expect(await readControlHeights()).toEqual(initialControlHeights);
-    await page.screenshot({
-      path: testInfo.outputPath("new-session-four-lines.png"),
-      style: privacySafeScreenshotStyle,
-    });
+    await addManualTerminal(page);
+    const host = page.locator('[data-testid="terminal-tile"]:visible').getByTestId("xterm-host");
+    await expect(host).toBeVisible();
+    await expect(page.getByRole("form", { name: "New session", exact: true })).toHaveCount(0);
+    const closed = await host.boundingBox();
+    const composer = await openNewSession(page);
+    await composer.getByRole("radio", { name: /^Claude/ }).click();
+    await composer.getByRole("textbox", { name: "First prompt" }).fill("first line\nsecond line\nthird line\nfourth line");
+    expect(await host.boundingBox()).toEqual(closed);
+    await page.keyboard.press("Escape");
+    await expect(composer).toHaveCount(0);
+    expect(await host.boundingBox()).toEqual(closed);
   });
 });
 
@@ -297,7 +269,7 @@ test.describe("work session and project identity", () => {
     const { app, page, paths } = harness;
     await setWindowSize(app, page, 1800, 900);
 
-    await page.getByRole("button", { name: "New", exact: true }).click();
+    await openNewSession(page);
     await page.getByRole("radio", { name: /^Codex/ }).click();
     await page.getByRole("button", { name: "Start" }).click();
     for (let index = 0; index < 4; index += 1) await addManualTerminal(page);
@@ -436,12 +408,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
 
   await capture("work-deck", [...frameProbes, ...terminalProbes]);
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Claude/ }).click();
-  await expect(page.getByRole("dialog", { name: "New session" })).toBeVisible();
+  await expect(page.getByRole("form", { name: "New session" })).toBeVisible();
   await capture("new-session", [...frameProbes, ...terminalProbes, ...newSessionProbes]);
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
+  // The composer is not modal: Escape closes it only while it holds the keyboard.
+  await page.getByRole("textbox", { name: "First prompt" }).press("Escape");
+  await expect(page.getByRole("form", { name: "New session" })).toHaveCount(0);
 
   await treeRow(page, "manual-1").click();
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
