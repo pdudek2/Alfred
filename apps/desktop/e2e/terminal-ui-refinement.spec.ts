@@ -1,5 +1,5 @@
 import { expect, test } from "./support/electron-app";
-import { treeRow } from "./support/work-layout";
+import { openDetails, treeRow } from "./support/work-layout";
 
 test("each session names its kind in the top bar and the deck keeps one terminal beside Details", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -30,11 +30,11 @@ test("each session names its kind in the top bar and the deck keeps one terminal
       BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, ...bounds });
     }, { width, height });
     await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
-    // Below 1200 px Details starts hidden; ⌘I shows it beside the terminal. The wide window keeps it open.
+    // Below 1200 px Details starts hidden and opens beside the terminal on request. The wide window keeps it open.
     const column = page.getByTestId("context-column");
     if (width < 1200) {
       await expect(column).toHaveClass(/\bclosed\b/);
-      await page.keyboard.press("ControlOrMeta+i");
+      await openDetails(page);
     }
     await expect(column).toHaveClass(/\bopen\b/);
     const [focus] = await tileGeometry(page.locator('[data-testid="terminal-tile"]:visible'));
