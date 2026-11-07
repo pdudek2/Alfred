@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { openNewSession } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
@@ -14,7 +15,7 @@ test("pastes the path of a file dropped on a live Claude terminal", async ({ har
   const file = path.join(dir, "Screenshot 11.52.png");
   await writeFile(file, "not really a png");
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Claude/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
   const host = page.locator('[data-session-id="claude-1"] [data-testid="xterm-host"]');

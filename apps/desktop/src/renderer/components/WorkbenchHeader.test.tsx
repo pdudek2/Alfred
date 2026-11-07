@@ -32,7 +32,6 @@ const baseProps = {
   selectedSession: liveA,
   shortcutModifier: "Cmd",
   onOpenCommandPalette: vi.fn(),
-  onOpenNewSession: vi.fn(),
   onTogglePreview: vi.fn(),
   needsYouCount: 0,
   needsYouOpen: false,
@@ -144,13 +143,11 @@ describe("WorkbenchHeader", () => {
     expect(screen.getByRole("tab", { name: "Terminal" })).toHaveFocus();
   });
 
-  it("exposes search and New, and leaves Details to the side column", async () => {
-    const user = userEvent.setup();
+  it("exposes search and leaves New session to the deck and Details to the side column", () => {
     renderHeader();
     expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New" })).toBeNull();
     expect(screen.getByRole("button", { name: "Open command palette" })).toHaveTextContent("⌘K");
-    await user.click(screen.getByRole("button", { name: "New" }));
-    expect(baseProps.onOpenNewSession).toHaveBeenCalledOnce();
   });
 
   it("hides the Needs you count at zero and toggles the popover from it", async () => {

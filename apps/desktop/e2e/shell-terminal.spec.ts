@@ -99,7 +99,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   };
   expect(identityTransitions["R0→zsh 2→tree→zsh 1"]).toBe(true);
 
-  const launchTrigger = page.getByRole("button", { name: "New", exact: true });
+  const launchTrigger = page.getByRole("button", { name: "New session", exact: true });
   await launchTrigger.focus();
   await page.keyboard.press("Enter");
   const prepareWorkItem = page.getByRole("radio", { name: /^Claude/ });
@@ -108,7 +108,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await dispatchInput.focus();
   await expect(dispatchInput).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
+  await expect(page.getByRole("form", { name: "New session" })).toHaveCount(0);
   await expect(launchTrigger).toBeFocused();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   const focusRestoration = {

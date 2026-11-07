@@ -19,8 +19,8 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await setWindowSize(app, page, 1440, 900);
 
   await openNewTerminalSheet(page);
-  await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
-  await page.getByRole("dialog", { name: "New session", exact: true })
+  await expect(page.getByRole("form", { name: "New session", exact: true })).toBeVisible();
+  await page.getByRole("form", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
   const workScreen = page.locator(".xterm-screen").first();
   await expect(workScreen).toBeAttached();
@@ -54,8 +54,8 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     path: testInfo.outputPath("sans-xterm-1440x900.png"),
   });
   await openNewTerminalSheet(page);
-  await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
-  await page.getByRole("dialog", { name: "New session", exact: true })
+  await expect(page.getByRole("form", { name: "New session", exact: true })).toBeVisible();
+  await page.getByRole("form", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
   // The new terminal claims focus once it starts; let that settle before driving menus.
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')
@@ -70,12 +70,13 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await page.keyboard.press("Escape");
   await expect(workspaceTrigger).toBeFocused();
 
-  const launchTrigger = page.getByRole("button", { name: "New", exact: true });
-  await launchTrigger.click();
+  const launchTrigger = page.getByRole("button", { name: "New session", exact: true });
+  await launchTrigger.focus();
+  await page.keyboard.press("Enter");
   await page.getByRole("radio", { name: /^Claude/ }).click();
-  const prepareWork = page.getByRole("dialog", { name: "New session" });
+  const prepareWork = page.getByRole("form", { name: "New session" });
   await expect(prepareWork).toBeVisible();
-  await expectSansFont(prepareWork.getByRole("button").first(), "15px");
+  await expectSansFont(prepareWork.getByRole("button").first(), "12px");
   await page.keyboard.press("Escape");
   await expect(launchTrigger).toBeFocused();
 

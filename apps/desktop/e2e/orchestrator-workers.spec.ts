@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state";
 import { expect, test } from "./support/electron-app";
 import { launchedAgent, sendHook } from "./support/fixture-agents";
-import { sessionTree, treeRow } from "./support/work-layout";
+import { sessionTree, treeRow, openNewSession } from "./support/work-layout";
 
 type McpServerConfig = { command: string; args: string[]; env: Record<string, string> };
 type ToolResult = { text: string; isError: boolean };
@@ -13,8 +13,8 @@ test("an orchestrator starts, reads, waits for and messages its workers through 
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1440, height: 900 }));
   await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440);
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const leadTile = page.locator('[data-testid="terminal-tile"]:visible');
@@ -116,8 +116,8 @@ test("closing an orchestrator leaves its workers to themselves, and a new one st
   await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440);
 
   const startClaude = async (clientId: string) => {
-    await page.getByRole("button", { name: "New", exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+    await openNewSession(page);
+    const sheet = page.getByRole("form", { name: "New session", exact: true });
     await sheet.getByRole("radio", { name: /^Claude/ }).click();
     await sheet.getByRole("button", { name: "Start", exact: true }).click();
     const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${clientId}"]`);
@@ -159,8 +159,8 @@ test("closing an orchestrator leaves its workers to themselves, and a new one st
 test("a resumed worker runs on the model and effort its orchestrator gave it", async ({ harness }) => {
   const { app, page, paths } = harness;
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1440, height: 900 }));
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const lead = await launchedAgent(paths.root, "claude", () => true);

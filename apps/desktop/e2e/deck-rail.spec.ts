@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
+import { openNewSession } from "./support/work-layout";
 
 // Fixture item 1 is a blocked draft in Alpha (Needs you); Beta gets a Codex session kept busy;
 // the five folderless projects fold into Sandboxes.
@@ -93,8 +94,8 @@ test("the rail shows one state glyph per project and folds rootless projects int
 });
 
 async function startSession(page: Page, kind: RegExp): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("radio", { name: kind }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();

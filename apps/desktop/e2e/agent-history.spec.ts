@@ -2,15 +2,15 @@ import { appendFile, readdir, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { expect, test } from "./support/electron-app";
-import { treeRow } from "./support/work-layout";
+import { treeRow, openNewSession } from "./support/work-layout";
 
 test("builds a hooked agent's history from its hooks and ignores the old screen it redraws", async ({ harness }, testInfo) => {
   const { app, page, paths } = harness;
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1440, height: 900 }));
   await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440);
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const tile = page.locator('[data-testid="terminal-tile"]:visible');
