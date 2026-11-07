@@ -30,9 +30,9 @@
 }
 
 .sessions-navigator__search {
-  flex: none;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 32px;
-  margin: 0 2px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -78,15 +78,20 @@
   box-shadow: inset 0 0 0 1px var(--focus-border);
 }
 
-/* With a tab per tool the scope may not fit beside the tabs; it then takes its own line instead of an ellipsis. */
+/* The count and project scope end the search row: four source tabs leave no room for them beside the tabs. */
 .sessions-navigator__filters {
   flex: none;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  padding: 14px 10px 0;
+  gap: 10px;
+  margin: 0 2px;
+}
+
+/* The bottom padding keeps the tabs' pulled-in targets off the results list. */
+.sessions-navigator__tabs {
+  flex: none;
+  padding: 12px 10px 4px;
 }
 
 /* The tabs sit in an 18px line on the canvas; the shared 24px click target is pulled back in. */
@@ -97,7 +102,6 @@
 /* The canvas reads "41 in Alfred": the count, then the project the list is scoped to. */
 .sessions-navigator__scope {
   flex: none;
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -111,18 +115,19 @@
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   color: var(--text-muted);
 }
 
+/* The select keeps a 24px target; the chevron is drawn over its right padding. */
 .sessions-navigator__project select {
   appearance: none;
   field-sizing: content;
   min-width: 0;
   max-width: 128px;
+  height: 24px;
   border: 0;
-  border-radius: 4px;
-  padding: 0;
+  border-radius: 6px;
+  padding: 0 16px 0 2px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -132,6 +137,7 @@
 
 .sessions-navigator__project svg {
   flex: none;
+  margin-left: -14px;
   pointer-events: none;
 }
 
@@ -143,7 +149,7 @@
   flex: none;
   width: 24px;
   height: 24px;
-  margin: -4px -6px -4px 0;
+  margin-left: 2px;
   display: grid;
   place-items: center;
   border: 0;
@@ -394,8 +400,8 @@
 .sessions-transcript h1 {
   margin: 0;
   color: var(--text-primary);
-  font: 600 22px/28px var(--sans);
-  letter-spacing: -0.018em;
+  font: 600 17px/22px var(--sans);
+  letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 
@@ -618,7 +624,8 @@
   padding: 12px 0;
   overflow-x: auto;
   color: var(--text-secondary);
-  font: 400 12px/18px var(--sans);
+  font-size: 13px;
+  line-height: 18px;
   white-space: pre;
 }
 

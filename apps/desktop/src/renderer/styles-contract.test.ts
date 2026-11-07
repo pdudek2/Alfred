@@ -20,6 +20,7 @@ const productCssPaths = [
   "components/workspace-preview.css",
   "components/plan-line.css",
   "components/history.css",
+  "components/settings-page.css",
   "components/new-session-sheet.css",
 ].map((relativePath) => [
   resolve(process.cwd(), "src/renderer", relativePath),
@@ -31,6 +32,7 @@ const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8"))
 const previewStylesPath = productCssPaths[2]!;
 const previewStyles = readFileSync(productCssPaths[2]!, "utf8");
 const historyStyles = readFileSync(productCssPaths[4]!, "utf8");
+const settingsStyles = readFileSync(productCssPaths[5]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -51,7 +53,7 @@ function isLiveShellSelector(selector: string): boolean {
     ".workspace-layout", ".project-navigator", ".project-", ".free-chat-",
     ".alfred-mark", ".workbench-", ".work-surface-", ".chrome-menu", ".prepare-work-popover",
     ".desktop-save-", ".shell-action-", ".recovery-",
-    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form", ".session-strip",
+    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form", ".session-strip", ".session-meta",
     ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
   ].some((prefix) => selector.includes(prefix));
 }
@@ -409,10 +411,7 @@ describe("renderer CSS contracts", () => {
       [".chrome-menu-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
-      // The session strip is the one raised card in the deck, with hairlines on its controls (v4 canvas).
-      [".session-strip"],
-      [".session-strip .continue-button"],
-      [".session-strip-menu .chrome-menu-popover"],
+      [".session-meta-menu .chrome-menu-popover"],
       [".session-rename-form input"],
       [".session-rename-form input:focus-visible"],
       // The hairline of the drop overlay over a dragged-on terminal (v4 Drop board).
@@ -422,7 +421,7 @@ describe("renderer CSS contracts", () => {
       [".workspace-rename-form input", ".workspace-mission-form textarea"],
       [".workspace-rename-form input:focus-visible", ".workspace-mission-form textarea:focus-visible"],
     ]));
-    expect(materialShadows).toHaveLength(12);
+    expect(materialShadows).toHaveLength(10);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -776,7 +775,7 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(sheet, ".new-session-sheet .chrome-menu-trigger > svg")).toContain("opacity: 0.7");
   });
 
-  it("keeps the New sheet prompt at three rows with a hairline and the standard focus ring", () => {
+  it("keeps the New sheet prompt at three rows with a hairline and a one-pixel focus ring", () => {
     const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
     const prompt = singleTopLevelRuleBodyIn(sheet, ".new-session-prompt textarea");
     expect(prompt).toContain("resize: none");
@@ -785,8 +784,7 @@ describe("renderer CSS contracts", () => {
     expect(prompt).toContain("box-shadow: inset 0 0 0 1px var(--border)");
     const focus = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet textarea:focus-visible");
     expect(focus).toContain("outline: none");
-    expect(focus).toContain("var(--border-focus)");
-    expect(focus).toContain("var(--focus-border)");
+    expect(focus).toContain("box-shadow: inset 0 0 0 1px var(--focus-border)");
   });
 
   it("keeps the New sheet on the medium weight of the type scale", () => {
@@ -849,30 +847,21 @@ describe("renderer CSS contracts", () => {
     expect(commandPalette).toContain("background-image: none");
   });
 
-  it("keeps Privacy as one flat settings list", () => {
-    const panel = singleTopLevelRuleBodyIn(styles, ".privacy-panel");
-    const body = singleTopLevelRuleBodyIn(styles, ".privacy-panel-body");
-    const rows = blockFor(".privacy-control-row,\n.privacy-action-row");
+  it("keeps Settings as one flat list on the canvas", () => {
+    const page = singleTopLevelRuleBodyIn(settingsStyles, ".settings-page");
+    const rows = singleTopLevelRuleBodyIn(settingsStyles, ".settings-row");
 
-    // The New sheet's shell: one panel surface, rows divided by hairlines, no nested cards.
-    expect(panel).toContain("background: var(--surface-panel)");
-    expect(body).toContain("overflow-y: auto");
-    expect(body).not.toContain("background:");
+    // Rows divided by hairlines on the canvas, no panel and no nested cards.
+    expect(page).toContain("overflow-y: auto");
+    expect(page).not.toContain("background");
+    expect(singleTopLevelRuleBodyIn(settingsStyles, ".settings-section")).toContain("max-width: 640px");
     expect(rows).toContain("border-bottom: 1px solid var(--border)");
-    expect(rows).toContain("border-radius: 0");
-    expect(rows).toContain("background: transparent");
-    const controls = blockFor(
-      ".privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button,\n.privacy-panel-done",
-    );
+    expect(rows).not.toContain("background");
+    expect(singleTopLevelRuleBodyIn(settingsStyles, ".settings-segmented")).not.toContain("background");
+    const controls = singleTopLevelRuleBodyIn(settingsStyles, ".settings-button");
     expect(controls).toContain("height: 30px");
     expect(controls).toContain("font: 400 13px/18px var(--sans)");
-    const privacyRuleBodies = allRulesIn(styles)
-      .filter((rule) => rule.selectors.some((selector) =>
-        selector.startsWith(".privacy-"),
-      ))
-      .map((rule) => rule.body)
-      .join("\n");
-    expect(privacyRuleBodies).not.toContain(`font-family: ${["var(--", "mono)"].join("")}`);
+    expect(settingsStyles).not.toContain(`font-family: ${["var(--", "mono)"].join("")}`);
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );

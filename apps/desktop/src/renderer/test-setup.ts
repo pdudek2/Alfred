@@ -12,6 +12,13 @@ let consoleErrors: string[];
 
 beforeEach(() => {
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  // jsdom has no matchMedia; the tests run as a wide window with no motion preference.
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    matches: false,
+    media,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
   consoleErrors = [];
   console.error = (...args: unknown[]) => {
     consoleErrors.push(args.map(String).join(" "));

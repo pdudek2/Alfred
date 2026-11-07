@@ -5,7 +5,7 @@ import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
-import { sessionTree, surfaceButton, treeRow } from "./support/work-layout";
+import { openDetails, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult>; rename(request: { clientId: string; title: string }): Promise<unknown> } };
@@ -160,8 +160,10 @@ test("widens the rail by dragging its edge, within its range, and remembers the 
   await dragBy(500);
   await expect(rail).toHaveCSS("width", "392px");
 
-  // The widest rail leaves the terminal and Details inside the smallest window.
+  // The widest rail leaves the terminal and Details, shown with ⌘I below 1200 px, inside the smallest window.
   await setWindowSize(app, page, 1120, 720);
+  await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
+  await openDetails(page);
   const details = (await page.getByTestId("context-column").boundingBox())!;
   expect(details.x + details.width).toBeLessThanOrEqual(1120);
   expect((await page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])').boundingBox())!.width).toBeGreaterThanOrEqual(400);

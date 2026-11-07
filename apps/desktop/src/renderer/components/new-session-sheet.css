@@ -54,7 +54,7 @@
 .new-session-sheet .chrome-menu-popover { right: 0; max-width: min(400px, 80vw); }
 .new-session-kinds { margin: 0; padding: 0 12px; border: 0; display: flex; flex-direction: column; gap: 2px; }
 .new-session-kinds label { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
-.new-session-kinds label.selected { background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.new-session-kinds label.selected,
 .new-session-kinds label:hover { background: var(--surface-control-hover); }
 .new-session-sheet input { margin: 0; accent-color: var(--text-primary); }
 .new-session-kinds label span, .new-session-worktree span { display: flex; flex-direction: column; gap: 1px; }
@@ -85,9 +85,7 @@
 .new-session-sheet :focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 .new-session-sheet textarea:focus-visible {
   outline: none;
-  box-shadow:
-    0 0 0 1px var(--border-focus),
-    0 0 0 4px color-mix(in oklab, var(--focus-border) 11%, transparent);
+  box-shadow: inset 0 0 0 1px var(--focus-border);
 }
 
 .new-session-backdrop[data-suspended="true"] { z-index: 35; pointer-events: none; }

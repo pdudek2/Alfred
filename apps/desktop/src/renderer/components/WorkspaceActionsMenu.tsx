@@ -260,7 +260,7 @@ export function WorkspaceActionsMenu({
                 <span><strong>{terminalLabel}</strong><small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small></span>
               </button>
               <button type="button" disabled={!rootPath} onClick={() => { onRevealFolder(); onClose(); }}>
-                <span><strong>Show in Finder</strong><small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small></span>
+                <span><strong>Show in Finder</strong></span>
               </button>
               <hr />
               <button type="button" onClick={onStartRename}>

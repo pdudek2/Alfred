@@ -10,8 +10,8 @@ export async function settleTerminalTileAnimations(page: Page): Promise<void> {
 }
 
 /** Deck, History and Settings live in the rail. */
-export function surfaceButton(page: Page, surface: "Work" | "History" | "Local Data & Privacy"): Locator {
-  const name = surface === "Work" ? "Deck" : surface === "Local Data & Privacy" ? "Settings" : surface;
+export function surfaceButton(page: Page, surface: "Work" | "History" | "Settings"): Locator {
+  const name = surface === "Work" ? "Deck" : surface;
   return page.getByTestId("project-navigator").getByRole("button", { name, exact: true });
 }
 
@@ -25,10 +25,15 @@ export function treeRow(page: Page, sessionId: string): Locator {
   return sessionTree(page).locator(`.session-tree-row[data-session-id="${sessionId}"]`);
 }
 
-/** Details holds the right column and starts open; this reopens it with ⌘I when a test has hidden it. */
+/** Details holds the right column; it starts open only above 1200 px. This shows it from the palette when it is hidden. */
 export async function openDetails(page: Page): Promise<void> {
   const column = page.getByTestId("context-column");
-  if (await column.evaluate((node) => node.classList.contains("closed"))) await page.keyboard.press("ControlOrMeta+i");
+  if (await column.evaluate((node) => node.classList.contains("closed"))) {
+    // Ctrl+I off macOS is Tab for a focused terminal, so the palette is the shortcut-free way in.
+    await page.getByRole("button", { name: "Open command palette" }).click();
+    await page.getByRole("textbox", { name: "Search commands" }).fill("Details");
+    await page.getByRole("option", { name: /^Details/ }).click();
+  }
   await expect(column).toHaveClass(/(^| )open( |$)/);
 }
 

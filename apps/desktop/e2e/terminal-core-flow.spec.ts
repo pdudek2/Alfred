@@ -41,11 +41,11 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
   await expect.poll(async () => page.evaluate(() => {
     const owner = document.querySelector(".terminal-grid-column");
-    const header = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"] .session-strip');
-    if (!(owner instanceof HTMLElement) || !(header instanceof HTMLElement)) return false;
+    const tile = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"]');
+    if (!(owner instanceof HTMLElement) || !(tile instanceof HTMLElement)) return false;
     const ownerRect = owner.getBoundingClientRect();
-    const headerRect = header.getBoundingClientRect();
-    return headerRect.top >= ownerRect.top && headerRect.bottom <= ownerRect.bottom;
+    const tileRect = tile.getBoundingClientRect();
+    return tileRect.top >= ownerRect.top && tileRect.bottom <= ownerRect.bottom;
   })).toBe(true);
   await expectTerminalNodes(survivorNodes, page, "deck membership 2→3", 3);
   await captureReviewScreenshot(page, testInfo, "deck-3-1440x920");
@@ -169,7 +169,7 @@ test("starts a new agent right after you close one of its kind", async ({ harnes
   await startClaude();
   const closed = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]');
   await expect(closed).toContainText("claude fixture ready");
-  await closed.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByTestId("workbench-header").getByRole("button", { name: /^More actions for / }).click();
   await page.getByRole("menuitem", { name: "Close" }).click();
   await expect(closed).toHaveCount(0);
 

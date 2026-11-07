@@ -13,8 +13,8 @@ export const cssEvidenceStateNames = [
   "narrow",
   "narrow-reduced-motion",
   "command-palette",
-  "privacy-wide",
-  "privacy-narrow",
+  "settings-wide",
+  "settings-narrow",
 ] as const;
 
 export type CssEvidenceStateName = (typeof cssEvidenceStateNames)[number];

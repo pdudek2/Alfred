@@ -29,7 +29,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(screen).toBeAttached();
   const screenBefore = await requiredHandle(screen, "launched fixture xterm");
   await expectFixedCellFont(page.locator(".xterm-rows").first());
-  await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".session-strip-kind"));
+  await expectSans(page.getByTestId("workbench-header").locator(".session-meta-kind"));
 
   // The deck always shows one terminal; every added session lands in focus and joins the rail's tree.
   const tree = sessionTree(page);
@@ -109,12 +109,11 @@ test("keeps the production Work story trustworthy across every utility surface",
   await captureAuditScreenshot(page, "new-session-wide");
   await page.keyboard.press("Escape");
 
-  await selectSurface(page, "Local Data & Privacy");
-  const privacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
+  await selectSurface(page, "Settings");
+  const privacy = page.getByRole("region", { name: "Settings" });
   await expect(privacy).toBeVisible();
   await expectSans(privacy);
-  await captureAuditScreenshot(page, "privacy-wide");
-  await privacy.getByRole("button", { name: "Done" }).click();
+  await captureAuditScreenshot(page, "settings-wide");
 
   await selectSurface(page, "Work");
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
@@ -146,8 +145,10 @@ test.describe("captures protective empty and missing project evidence", () => {
     // Nothing runs here, so Details has nothing to describe and the empty deck takes its width (Fresh board).
     await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
     await captureAuditScreenshot(page, "empty-workspace-narrow");
-    // A session to describe brings it back.
+    // A session gives it something to describe; below 1200 px it still waits for ⌘I.
     await addTerminal(page);
+    await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
+    await page.keyboard.press("ControlOrMeta+i");
     await expect(page.getByTestId("context-column")).toHaveClass(/\bopen\b/);
     await harness.closeActiveTerminals();
   });
@@ -199,7 +200,7 @@ async function appendFixtureAgentOutput(root: string, agent: "claude" | "codex",
   await appendFile(join(root, marker), message, "utf8");
 }
 
-async function selectSurface(page: Page, surface: "Work" | "History" | "Details" | "Local Data & Privacy"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "History" | "Details" | "Settings"): Promise<void> {
   if (surface === "Details") await openDetails(page);
   else await surfaceButton(page, surface).click();
 }

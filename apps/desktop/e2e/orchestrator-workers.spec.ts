@@ -134,7 +134,10 @@ test("closing an orchestrator leaves its workers to themselves, and a new one st
   await expect(sessionTree(page).getByRole("list", { name: /^Workers of / }).locator(".session-tree-row")).toHaveCount(1);
   orchestrator.close();
 
-  await leadTile.getByRole("button", { name: /^More actions for / }).click();
+  // The menu in the top bar belongs to the focused session.
+  await treeRow(page, "claude-1").click();
+  await expect(leadTile).not.toHaveAttribute("aria-hidden", "true");
+  await page.getByTestId("workbench-header").getByRole("button", { name: /^More actions for / }).click();
   await page.getByRole("menuitem", { name: "Close" }).click();
   await expect(leadTile).toHaveCount(0);
   // Its worker keeps running, as a session of its own.

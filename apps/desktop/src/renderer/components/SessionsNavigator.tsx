@@ -116,34 +116,19 @@ export function SessionsNavigator({
     <aside className="sessions-navigator" aria-label="History">
       {showControls && (
         <>
-          <label className="sessions-navigator__search">
-            <Search aria-hidden="true" size={13} />
-            <input
-              ref={searchRef}
-              type="search"
-              aria-label="Search sessions"
-              placeholder="Search sessions"
-              value={state.query}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
-              onFocus={() => onFocusTargetChange("search")}
-            />
-          </label>
           <div className="sessions-navigator__filters">
-            <div className="sessions-navigator__tabs text-tabs" role="tablist" aria-label="Source" onKeyDown={moveTabFocus}>
-              {SOURCE_TABS.map((tab) => (
-                <button
-                  type="button"
-                  role="tab"
-                  key={tab.id}
-                  aria-selected={state.source === tab.id}
-                  aria-controls={RESULTS_DOM_ID}
-                  tabIndex={state.source === tab.id ? 0 : -1}
-                  onClick={() => onStatePatch({ source: tab.id, pageIndex: 0 })}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <label className="sessions-navigator__search">
+              <Search aria-hidden="true" size={13} />
+              <input
+                ref={searchRef}
+                type="search"
+                aria-label="Search sessions"
+                placeholder="Search sessions"
+                value={state.query}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
+                onFocus={() => onFocusTargetChange("search")}
+              />
+            </label>
             {/* The canvas reads "41 in Alfred": the count, then the project the list is scoped to. */}
             <div className="sessions-navigator__scope" role="group" aria-label="Session scope controls">
               <span aria-label="Session count" aria-live="polite" aria-atomic="true" role="status">{resultStatus}</span>
@@ -172,6 +157,21 @@ export function SessionsNavigator({
                 <RefreshCcw aria-hidden="true" size={12} />
               </button>
             </div>
+          </div>
+          <div className="sessions-navigator__tabs text-tabs" role="tablist" aria-label="Source" onKeyDown={moveTabFocus}>
+            {SOURCE_TABS.map((tab) => (
+              <button
+                type="button"
+                role="tab"
+                key={tab.id}
+                aria-selected={state.source === tab.id}
+                aria-controls={RESULTS_DOM_ID}
+                tabIndex={state.source === tab.id ? 0 : -1}
+                onClick={() => onStatePatch({ source: tab.id, pageIndex: 0 })}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </>
       )}

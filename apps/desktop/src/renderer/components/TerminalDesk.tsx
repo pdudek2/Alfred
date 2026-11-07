@@ -10,6 +10,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { activitySentence, pendingApproval, sessionExitSentence, waitingSentence } from "../../shared/activity-presentation";
 import { pendingRuntimeBlocker } from "../../shared/session-activity";
 import { getDesktopPathForFile, getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
@@ -133,6 +134,8 @@ type TerminalDeskProps = {
   planLine?: ReactNode;
   /** The project preview, when the Preview tab is selected. It takes the terminal's place in the focused box. */
   previewPane?: ReactNode;
+  /** The top bar's place beside the breadcrumb, where the focused session shows who runs it and its menu. */
+  sessionMetaSlot?: HTMLElement | null;
 };
 
 export function TerminalDesk({
@@ -171,6 +174,7 @@ export function TerminalDesk({
   onSelectSession,
   planLine,
   previewPane,
+  sessionMetaSlot = null,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
@@ -278,6 +282,7 @@ export function TerminalDesk({
                 workspaceHidden={workspaceHidden}
                 pinned={pinned}
                 preview={workspaceHidden || layoutHidden || pinned ? null : previewPane}
+                sessionMetaSlot={sessionMetaSlot}
                 source={session.source}
                 agentKind={session.agentKind}
                 detectedAgentKind={session.detectedAgentKind}
@@ -594,6 +599,7 @@ function ManualTerminalTile({
   layoutHidden = false,
   workspaceHidden,
   preview,
+  sessionMetaSlot,
   command,
   args,
   promptSubmitted,
@@ -652,6 +658,7 @@ function ManualTerminalTile({
   layoutHidden?: boolean;
   workspaceHidden: boolean;
   preview?: ReactNode;
+  sessionMetaSlot: HTMLElement | null;
   command?: string | undefined;
   args?: string[] | undefined;
   promptSubmitted?: boolean | undefined;
@@ -871,7 +878,7 @@ function ManualTerminalTile({
     onRuntimeSessionUnavailable,
   ]);
 
-  // The rename field replaces the strip's menu, so hand focus back to the terminal when it closes.
+  // The rename field replaces the session's menu in the top bar, so hand focus back to the terminal when it closes.
   const endRename = () => {
     setRenaming(false);
     requestAnimationFrame(() => terminalRef.current?.focus());
@@ -917,10 +924,8 @@ function ManualTerminalTile({
           title: "Resume this session",
         }
       : null;
-  // With nothing to press, the strip still says in words why the session is not simply running.
-  const stripNote = resumeAction
-    ? null
-    : displayStatus.kind === "unavailable" ? "This session is unavailable." : attentionCopy;
+  // With nothing to press, the strip still says in words why the session cannot run.
+  const stripNote = !resumeAction && displayStatus.kind === "unavailable" ? "This session is unavailable." : null;
   const actionItems: ChromeMenuItem[] = [
     ...(externalTerminalCwd
       ? [{
@@ -1438,8 +1443,7 @@ function ManualTerminalTile({
         if (focusEnteredTile(event)) onSelectSession();
       }}
     >
-      {/* The v4 canvas strip: at most one action row, then who runs here, where, since when, and the menu.
-          It is drawn under the terminal but comes first in the DOM: the terminal keeps Tab for the shell,
+      {/* The strip is drawn under the terminal but comes first in the DOM: the terminal keeps Tab for the shell,
           so anything after it could not be reached by tabbing forward. */}
       {pinned ? (
         <header className="terminal-pinned-head">
@@ -1448,7 +1452,7 @@ function ManualTerminalTile({
           <span className="terminal-pinned-kind">{kindLabel}</span>
           <button type="button" className="terminal-pinned-unpin" aria-label={`Unpin ${title}`} onClick={onUnpin}>Unpin</button>
         </header>
-      ) : (
+      ) : (stripNote || resumeAction) && (
         <footer className="session-strip">
           {stripNote && <p className="session-strip-note" role="note">{stripNote}</p>}
           {resumeAction && (
@@ -1465,61 +1469,63 @@ function ManualTerminalTile({
               </button>
             </div>
           )}
-          <div className="session-strip-info">
-            {renaming ? (
-              <form
-                className="session-rename-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  submitRename();
-                }}
-              >
-                <input
-                  aria-label={`Rename ${title}`}
-                  value={renameDraft}
-                  maxLength={80}
-                  onChange={(event) => setRenameDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      submitRename();
-                      return;
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      endRename();
-                    }
-                  }}
-                  autoFocus
-                />
-                <button type="submit" aria-label={`Save title for ${title}`} disabled={!renameDraft.trim()}>
-                  <Check size={12} />
-                </button>
-              </form>
-            ) : (
-              <>
-                <span className="session-strip-kind">{kindLabel}</span>
-                {locationLabel && (
-                  <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
-                )}
-                {workTreeFolder && (
-                  <span className="session-location-value" title={locationTitle}>{workTreeFolder}</span>
-                )}
-                <span className="session-strip-spacer" />
-                {stripLabel && (
-                  <span className="session-strip-age" title={sessionAgeTitle(createdAt)}>{stripLabel}</span>
-                )}
-                <div className="session-strip-menu">
-                  <ChromeMenu label={`More actions for ${title}`} title={`${title} actions`} items={actionItems}>
-                    <Ellipsis size={14} />
-                  </ChromeMenu>
-                </div>
-              </>
-            )}
-          </div>
         </footer>
+      )}
+      {focusBox && sessionMetaSlot && createPortal(
+        <div className="session-meta">
+          {renaming ? (
+            <form
+              className="session-rename-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitRename();
+              }}
+            >
+              <input
+                aria-label={`Rename ${title}`}
+                value={renameDraft}
+                maxLength={80}
+                onChange={(event) => setRenameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    submitRename();
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    endRename();
+                  }
+                }}
+                autoFocus
+              />
+              <button type="submit" aria-label={`Save title for ${title}`} disabled={!renameDraft.trim()}>
+                <Check size={12} />
+              </button>
+            </form>
+          ) : (
+            <>
+              <span className="session-meta-kind">{kindLabel}</span>
+              {locationLabel && (
+                <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
+              )}
+              {workTreeFolder && (
+                <span className="session-location-value" title={locationTitle}>{workTreeFolder}</span>
+              )}
+              {stripLabel && (
+                <span className="session-meta-age" title={sessionAgeTitle(createdAt)}>{stripLabel}</span>
+              )}
+              <div className="session-meta-menu">
+                <ChromeMenu label={`More actions for ${title}`} title={`${title} actions`} items={actionItems}>
+                  <Ellipsis size={14} />
+                </ChromeMenu>
+              </div>
+            </>
+          )}
+        </div>,
+        sessionMetaSlot,
       )}
       {/* Preview covers the terminal's cell. The terminal stays mounted and keeps its size underneath. */}
       {preview && (

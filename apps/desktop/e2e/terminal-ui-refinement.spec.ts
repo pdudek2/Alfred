@@ -1,16 +1,17 @@
 import { expect, test } from "./support/electron-app";
-import { treeRow } from "./support/work-layout";
+import { openDetails, treeRow } from "./support/work-layout";
 
-test("each session names its kind in the strip and the deck keeps one terminal beside Details", async ({ harness }, testInfo) => {
+test("each session names its kind in the top bar and the deck keeps one terminal beside Details", async ({ harness }, testInfo) => {
   const { app, page } = harness;
   await addSession(page, "New Codex session");
   await addSession(page, "New Claude session");
 
   const tiles = page.getByTestId("terminal-tile");
   await expect(tiles).toHaveCount(3);
-  // The focused session names its kind in the strip; the other two wait in the rail's tree and keep theirs while hidden.
-  await expect(page.locator('[data-testid="terminal-tile"]:visible .session-strip-kind')).toHaveText("Claude");
-  await expect(page.locator(".terminal-tile.kind-codex .session-strip-kind")).toHaveText("Codex");
+  // The focused session names its kind in the top bar; the other two wait in the rail's tree and keep theirs while hidden.
+  const kind = page.getByTestId("workbench-header").locator(".session-meta-kind");
+  await expect(kind).toHaveText("Claude");
+  await expect(page.locator(".terminal-tile.kind-codex")).toHaveCount(1);
 
   const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
   await treeRow(page, "manual-1").click();
@@ -18,7 +19,7 @@ test("each session names its kind in the strip and the deck keeps one terminal b
   const manualInput = manualTile.getByRole("textbox", { name: "Terminal input" });
   await manualInput.fill("codex");
   await manualInput.press("Enter");
-  await expect(manualTile.locator(".session-strip-kind")).toHaveText("Codex");
+  await expect(kind).toHaveText("Codex");
   await expect.poll(() => tiles.evaluateAll(
     (nodes) => nodes.every((node) => node.classList.contains("ready")),
   )).toBe(true);
@@ -29,6 +30,13 @@ test("each session names its kind in the strip and the deck keeps one terminal b
       BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, ...bounds });
     }, { width, height });
     await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
+    // Below 1200 px Details starts hidden and opens beside the terminal on request. The wide window keeps it open.
+    const column = page.getByTestId("context-column");
+    if (width < 1200) {
+      await expect(column).toHaveClass(/\bclosed\b/);
+      await openDetails(page);
+    }
+    await expect(column).toHaveClass(/\bopen\b/);
     const [focus] = await tileGeometry(page.locator('[data-testid="terminal-tile"]:visible'));
     const detailsBox = await page.getByTestId("context-column").boundingBox();
     expect(detailsBox).not.toBeNull();
@@ -106,9 +114,6 @@ test("scrolls the focused terminal, not the deck column, under the wheel", async
     (element) => Number.parseFloat((element as HTMLElement).style.top),
   )).toBe(terminalBottomPosition);
 
-  await terminalTile.locator(".session-strip").hover();
-  await page.mouse.wheel(0, 120);
-  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
 test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {
@@ -119,7 +124,7 @@ test("manual terminal adopts the Claude runtime identity", async ({ harness }, t
   await manualInput.fill("claude");
   await manualInput.press("Enter");
 
-  await expect(manualTile.locator(".session-strip-kind")).toHaveText("Claude");
+  await expect(page.getByTestId("workbench-header").locator(".session-meta-kind")).toHaveText("Claude");
   await page.screenshot({ path: testInfo.outputPath("manual-claude-runtime-identity.png") });
 });
 

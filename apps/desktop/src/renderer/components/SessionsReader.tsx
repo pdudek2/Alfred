@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import type { SessionSummary, TranscriptBlock, TranscriptPage } from "../../shared/sessions-ipc";
 import { EXTERNAL_SOURCE_LABELS, type HistorySummarySentence } from "../history-presentation";
 import type { SessionsPrimaryAction } from "../sessions-projection";
+import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 
 export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "error";
 
@@ -340,7 +341,7 @@ function TranscriptBlocks({ blocks }: { blocks: TranscriptBlock[] }) {
           if (renderedTerminal) return null;
           renderedTerminal = true;
           return (
-            <pre role="document" aria-label="Terminal transcript" key="terminal-transcript">
+            <pre role="document" aria-label="Terminal transcript" key="terminal-transcript" style={{ fontFamily: ghosttyVesperTerminalProfile.fontFamily }}>
               {terminalBlocks.map((terminalBlock) => (
                 <span data-testid="transcript-block" key={terminalBlock.id}>{terminalBlock.text}{"\n"}</span>
               ))}

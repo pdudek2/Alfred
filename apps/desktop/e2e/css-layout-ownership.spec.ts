@@ -136,27 +136,20 @@ const sessionsProbes: CssOwnerProbe[] = [
   },
 ];
 
-const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
+const overlayProbes: Record<"command-palette" | "settings", CssOwnerProbe[]> = {
   "command-palette": [
     { name: "command-palette-backdrop", selector: ".command-palette-backdrop", required: true,
       properties: ["display", "position", "inset", "padding-top", "background-color"] },
     { name: "command-palette", selector: ".command-palette", required: true,
       properties: ["display", "width", "max-height", "overflow", "background-color", "border-radius"] },
   ],
-  privacy: [
-    { name: "privacy-backdrop", selector: ".privacy-backdrop", required: true,
-      properties: ["display", "position", "inset", "padding", "background-color"] },
-    { name: "privacy-panel", selector: ".privacy-panel", required: true,
-      properties: ["display", "width", "max-height", "overflow", "background-color", "border-radius"] },
+  settings: [
+    { name: "settings-page", selector: ".settings-page", required: true,
+      properties: ["display", "min-height", "overflow-x", "overflow-y", "padding", "background-color"] },
+    { name: "settings-section", selector: ".settings-section", required: true, properties: ["max-width"] },
     {
-      name: "privacy-body",
-      selector: ".privacy-panel-body",
-      required: true,
-      properties: ["display", "min-height", "overflow-x", "overflow-y", "padding"],
-    },
-    {
-      name: "privacy-row",
-      selector: ".privacy-control-row",
+      name: "settings-row",
+      selector: ".settings-row",
       required: true,
       properties: [
         "display",
@@ -503,7 +496,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }],
   }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
-  // Details stays open beside the deck for the narrow captures.
+  // Below 1200 px Details starts hidden so the terminal keeps its width; ⌘I brings it back for the context captures.
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
   await expectDeck(page);
@@ -512,7 +505,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const narrowWorkEvidence = await capture("narrow", [...frameProbes, ...terminalProbes]);
   expect(narrowWorkEvidence.documentOverflowX, "Narrow Work must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  await expectDeck(page);
+  await expectDeck(page, { details: false });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const reducedMotionEvidence = await capture("narrow-reduced-motion", [...frameProbes, ...terminalProbes]);
   expect(reducedMotionEvidence.documentOverflowX, "Reduced-motion Work must not create horizontal document overflow")
@@ -584,14 +577,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
   // Details comes back with the deck, as it was left.
   await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
 
-  await selectSurface(page, "Local Data & Privacy");
-  const narrowPrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
+  await selectSurface(page, "Settings");
+  const narrowPrivacy = page.getByRole("region", { name: "Settings" });
   await expect(narrowPrivacy).toBeVisible();
-  const narrowPrivacyEvidence = await capture("privacy-narrow", [...frameProbes, ...overlayProbes.privacy]);
-  expect(narrowPrivacyEvidence.documentOverflowX, "Narrow Privacy must not create horizontal document overflow")
+  const narrowPrivacyEvidence = await capture("settings-narrow", [...frameProbes, ...overlayProbes.settings]);
+  expect(narrowPrivacyEvidence.documentOverflowX, "Narrow Settings must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const narrowPrivacyControls = [
-    narrowPrivacy.getByRole("button", { name: "Done" }),
     narrowPrivacy.getByRole("button", { name: "Keep recent" }),
     narrowPrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     narrowPrivacy.getByRole("button", { name: "Reveal in Finder" }),
@@ -600,14 +592,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(30);
   }
   expect(await collectControlOverflowEvidence(page, {
-    controlSelector: ".privacy-panel button:not(:disabled)",
+    controlSelector: ".settings-page button:not(:disabled)",
     verticalScrollOwners: [{
-      id: "privacy-body",
-      label: "Privacy body",
-      selector: ".privacy-panel-body",
+      id: "settings-page",
+      label: "Settings page",
+      selector: ".settings-page",
     }],
-  }), "Narrow Privacy controls must remain within their scroll owner").toEqual([]);
-  await narrowPrivacy.getByRole("button", { name: "Done" }).click();
+  }), "Narrow Settings controls must remain within their scroll owner").toEqual([]);
+  await selectSurface(page, "Work");
   await expect(narrowPrivacy).toHaveCount(0);
 
   await setWindowSize(app, page, 1440, 900);
@@ -617,14 +609,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
-  await selectSurface(page, "Local Data & Privacy");
-  const widePrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
+  await selectSurface(page, "Settings");
+  const widePrivacy = page.getByRole("region", { name: "Settings" });
   await expect(widePrivacy).toBeVisible();
-  const widePrivacyEvidence = await capture("privacy-wide", [...frameProbes, ...overlayProbes.privacy]);
-  expect(widePrivacyEvidence.documentOverflowX, "Wide Privacy must not create horizontal document overflow")
+  const widePrivacyEvidence = await capture("settings-wide", [...frameProbes, ...overlayProbes.settings]);
+  expect(widePrivacyEvidence.documentOverflowX, "Wide Settings must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const widePrivacyControls = [
-    widePrivacy.getByRole("button", { name: "Done" }),
     widePrivacy.getByRole("button", { name: "Keep recent" }),
     widePrivacy.getByRole("button", { name: "Clear asleep sessions…" }),
     widePrivacy.getByRole("button", { name: "Reveal in Finder" }),
@@ -633,14 +624,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(30);
   }
   expect(await collectControlOverflowEvidence(page, {
-    controlSelector: ".privacy-panel button:not(:disabled)",
+    controlSelector: ".settings-page button:not(:disabled)",
     verticalScrollOwners: [{
-      id: "privacy-body",
-      label: "Privacy body",
-      selector: ".privacy-panel-body",
+      id: "settings-page",
+      label: "Settings page",
+      selector: ".settings-page",
     }],
-  }), "Wide Privacy controls must remain within their scroll owner").toEqual([]);
-  await widePrivacy.getByRole("button", { name: "Done" }).click();
+  }), "Wide Settings controls must remain within their scroll owner").toEqual([]);
+  await selectSurface(page, "Work");
   await expect(widePrivacy).toHaveCount(0);
 
   // A cwd matching the project is intentionally omitted from tile headers. Exercise a nested cwd too.
@@ -662,7 +653,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await busyInput.press("Enter");
   await expect(busyTile.getByTestId("xterm-host")).toContainText("Build complete");
   await treeRow(page, "nested-location").click();
-  await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="nested-location"]')).not.toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByTestId("workbench-header").locator(".session-location-value")).toBeVisible();
   await expect(page.locator(".session-tree-meta").first()).toBeVisible();
   await expect(page.getByRole("group", { name: "Free Chats" }).locator(".project-session-title")).toBeVisible();
   await recordPrivacyMaskCoverage();
@@ -709,7 +701,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "History" | "Details" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Details" | "Settings",
 ): Promise<void> {
   if (surface === "Details") {
     await openDetails(page);
@@ -753,7 +745,7 @@ async function readShellOwnerGeometry(page: Page): Promise<{
   });
 }
 
-async function expectDeck(page: Page): Promise<void> {
+async function expectDeck(page: Page, { details: detailsShown = true } = {}): Promise<void> {
   const geometry = await page.getByTestId("terminal-grid").evaluate((grid) => {
     const gridBounds = grid.getBoundingClientRect();
     const tiles = Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
@@ -762,7 +754,8 @@ async function expectDeck(page: Page): Promise<void> {
         const bounds = tile.getBoundingClientRect();
         return { height: bounds.height, right: bounds.right, width: bounds.width };
       });
-    const details = document.querySelector<HTMLElement>("[data-testid='context-column']")?.getBoundingClientRect() ?? null;
+    const column = document.querySelector<HTMLElement>("[data-testid='context-column'].open");
+    const details = column?.getBoundingClientRect() ?? null;
     return {
       documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       grid: { height: gridBounds.height, width: gridBounds.width },
@@ -771,11 +764,15 @@ async function expectDeck(page: Page): Promise<void> {
     };
   });
 
-  // One focused terminal fills the deck; Details sits beside it.
+  // One focused terminal fills the deck; Details, when shown, sits beside it.
   expect(geometry.tiles).toHaveLength(1);
   expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
   expect(geometry.tiles[0]!.width).toBeGreaterThan(geometry.grid.width * 0.9);
   expect(geometry.tiles[0]!.height).toBeGreaterThan(geometry.grid.height * 0.7);
+  if (!detailsShown) {
+    expect(geometry.details).toBeNull();
+    return;
+  }
   expect(geometry.details).not.toBeNull();
   expect(geometry.tiles[0]!.right).toBeLessThanOrEqual(geometry.details!.left);
 }

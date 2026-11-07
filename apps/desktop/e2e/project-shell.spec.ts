@@ -45,7 +45,7 @@ type NarrowProjectShell = {
   navigatorRight: number;
   orchestratorX: number;
   visibleTileCount: number;
-  visibleStripHeights: number[];
+  visibleMetaHeights: number[];
 };
 
 test.use({
@@ -142,6 +142,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
 
   const wideScreenshotSha256 = await captureEvidence(page, "project-shell-1440x900.png");
   await setWindowSize(app, page, 1120, 720);
+  // Below 1200 px Details starts hidden so the terminal keeps its width; ⌘I shows it beside the terminal.
+  await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
+  await openContext(page);
   await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
     Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
       .flatMap((tile) => tile.getAnimations())
@@ -157,8 +160,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
   ).toEqual([]);
   expect(narrow.visibleTileCount).toBe(1);
-  expect(narrow.visibleStripHeights.length).toBeGreaterThan(0);
-  expect(narrow.visibleStripHeights).toHaveLength(narrow.visibleTileCount);
+  expect(narrow.visibleMetaHeights.length).toBeGreaterThan(0);
+  expect(narrow.visibleMetaHeights).toHaveLength(narrow.visibleTileCount);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
 
   const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
@@ -350,9 +353,8 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
     const visibleTiles = Array.from(
       document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
     );
-    const visibleStrips = visibleTiles.flatMap((tile) =>
-      Array.from(tile.querySelectorAll<HTMLElement>(".session-strip")),
-    );
+    // The focused tile's agent, age and menu sit in the top bar beside its title.
+    const visibleMetas = Array.from(document.querySelectorAll<HTMLElement>(".workbench-header .session-meta"));
     const controls = Array.from(
       document.querySelectorAll<HTMLElement>(
         'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [role="tab"], [role="menuitem"]',
@@ -388,7 +390,7 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
       navigatorRight: navigatorRect.right,
       orchestratorX: orchestratorRect.x,
       visibleTileCount: visibleTiles.length,
-      visibleStripHeights: visibleStrips.map((header) => header.getBoundingClientRect().height),
+      visibleMetaHeights: visibleMetas.map((meta) => meta.getBoundingClientRect().height),
     };
   });
 }

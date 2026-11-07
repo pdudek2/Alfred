@@ -152,9 +152,10 @@ it("hangs under its trigger and marks the action Enter runs", async () => {
   const popover = screen.getByRole("dialog", { name: "Needs you" });
   expect(popover.style.top).toBe("46px");
   expect(popover.style.right).toBe("150px");
-  // The first row's action is the one focus starts on, so Enter runs it.
+  // The whole row is the action; focus starts on the first, so Enter runs it.
   const [first, second] = screen.getAllByRole("button", { name: /^(?:Open|Edit) / });
-  expect(first).toHaveClass("is-default");
-  expect(first).toHaveTextContent("↩");
-  expect(second).not.toHaveClass("is-default");
+  await waitFor(() => expect(first).toHaveFocus());
+  expect(first).toHaveTextContent(approval.sessionTitle);
+  expect(first).toHaveTextContent("⏎");
+  expect(second).toHaveTextContent(blocked.sessionTitle);
 });

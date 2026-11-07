@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type Ref } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { deckFocusSession, deckSessions, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
@@ -22,7 +22,7 @@ export type ProjectNavigatorWorkspace = {
   missionBrief?: WorkspaceMissionBrief;
 };
 
-export type ProjectNavigatorSurface = "work" | "sessions";
+export type ProjectNavigatorSurface = "work" | "sessions" | "settings";
 
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
@@ -36,7 +36,6 @@ export type ProjectNavigatorProps = {
   pinnedSessionId: string | null;
   railResizer?: ReactNode;
   sessions: SessionTile[];
-  settingsTriggerRef?: Ref<HTMLButtonElement>;
   workspaces: ProjectNavigatorWorkspace[];
   workspaceActions: ReactNode;
   onAddWorkspace: () => void;
@@ -112,7 +111,6 @@ export function ProjectNavigator({
   pinnedSessionId,
   railResizer,
   sessions,
-  settingsTriggerRef,
   workspaces,
   workspaceActions,
   onAddWorkspace,
@@ -328,7 +326,12 @@ export function ProjectNavigator({
           </section>
         )}
       </div>
-      <button ref={settingsTriggerRef} type="button" className="project-navigator-settings" onClick={onOpenSettings}>
+      <button
+        type="button"
+        className="project-navigator-settings"
+        aria-current={activeSurface === "settings" ? "page" : undefined}
+        onClick={onOpenSettings}
+      >
         Settings
       </button>
       {railResizer}

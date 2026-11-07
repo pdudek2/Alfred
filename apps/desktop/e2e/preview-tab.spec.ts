@@ -51,12 +51,12 @@ test("Preview takes the terminal's place, keeps Details beside it, and preserves
     await expectSameNode(xtermHandle, xterm);
 
     // Preview covers exactly the terminal's cell. The terminal keeps its size underneath, so the shell is not
-    // resized, and Details and the session strip stay where they were.
+    // resized, and Details and the session's top-bar details stay where they were.
     expect(await preview.boundingBox()).toEqual(terminalBox);
     expect(await xterm.boundingBox()).toEqual(terminalBox);
     await expect(xterm).toHaveAttribute("inert", "");
     expect(await details.boundingBox()).toEqual(detailsBox);
-    await expect(page.locator('[data-testid="terminal-tile"]:visible .session-strip')).toBeVisible();
+    await expect(page.getByTestId("workbench-header").locator(".session-meta")).toBeVisible();
     await expect(page.getByRole("separator", { name: "Resize Preview" })).toHaveCount(0);
 
     // Details stays beside Preview instead of giving way to it.
@@ -79,7 +79,9 @@ test("Preview takes the terminal's place, keeps Details beside it, and preserves
       return bounds ? { width: bounds.width, height: bounds.height } : null;
     })).toEqual({ width: 1120, height: 720 });
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "264px");
-    // At the minimum window Preview has the whole focus column and Details is still there.
+    // At the minimum window Details starts hidden; ⌘I puts it back beside Preview.
+    await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
+    await page.keyboard.press("ControlOrMeta+i");
     await expect(details).toBeVisible();
     expect(await page.locator(".terminal-grid-column").evaluate((node) => node.getBoundingClientRect().width))
       .toBeGreaterThanOrEqual(420);

@@ -1,4 +1,4 @@
-import { ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import type { Ref } from "react";
 import type { HistorySelection } from "../history-presentation";
 import type { SessionTile } from "../session-state";
@@ -7,7 +7,7 @@ import { moveTabFocus, SESSION_VIEW_IDS } from "../tab-keys";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
-export type PrimarySurface = "work" | "sessions";
+export type PrimarySurface = "work" | "sessions" | "settings";
 
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
@@ -24,6 +24,8 @@ export type WorkbenchHeaderProps = {
   projectDetail: string;
   projectLabel: string;
   selectedSession: SessionTile | null;
+  /** Where the focused terminal puts who runs it, since when, and its menu. */
+  sessionMetaRef?: Ref<HTMLDivElement>;
   shortcutModifier: "Cmd" | "Ctrl";
   onOpenCommandPalette: () => void;
   onOpenNewSession: () => void;
@@ -45,6 +47,7 @@ export function WorkbenchHeader({
   projectDetail,
   projectLabel,
   selectedSession,
+  sessionMetaRef,
   shortcutModifier,
   onOpenCommandPalette,
   onOpenNewSession,
@@ -68,7 +71,7 @@ export function WorkbenchHeader({
               <span className="workbench-session-title">{session.title}</span>
             </span>
           </>
-        ) : !onDeck && historySelection ? (
+        ) : activeSurface === "sessions" && historySelection ? (
           <>
             <span className="workbench-breadcrumb-parent">History</span>
             <ChevronRight aria-hidden="true" size={12} />
@@ -79,10 +82,11 @@ export function WorkbenchHeader({
           </>
         ) : (
           <span className="workbench-breadcrumb-current" title={onDeck ? projectDetail : undefined}>
-            <span className="workbench-surface-title">{onDeck ? projectLabel : "History"}</span>
+            <span className="workbench-surface-title">{onDeck ? projectLabel : activeSurface === "settings" ? "Settings" : "History"}</span>
           </span>
         )}
       </nav>
+      {onDeck && <div className="workbench-session-meta" ref={sessionMetaRef} />}
       <div className="workbench-actions">
         {onDeck && (session || previewAvailable || previewOpen) && (
           <>
@@ -143,7 +147,7 @@ export function WorkbenchHeader({
         </button>
         <button ref={newSessionTriggerRef} type="button" className="workbench-control workbench-new" aria-label="New"
           aria-haspopup="dialog" title={`New session (${key("N")})`} onClick={onOpenNewSession}>
-          <Plus aria-hidden="true" size={13} /><span>New</span>
+          New
         </button>
       </div>
     </header>
