@@ -33,8 +33,10 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
       offset: "-2px",
     },
     {
-      control: page.getByTestId("workbench-header").getByRole("button", { name: "New", exact: true }),
-      offset: "2px",
+      control: page.getByRole("button", { name: "New session", exact: true }),
+      offset: "-2px",
+      // The terminal before it keeps Tab for the shell, so reach it from the control after it.
+      fromAfter: true,
     },
     {
       control: tileUtility,
@@ -48,9 +50,9 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
 
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
     await setWindowSize(app, page, width, height);
-    for (const [index, { control, offset }] of controls.entries()) {
+    for (const [index, { control, offset, fromAfter }] of controls.entries()) {
       if (index === 2) await page.locator('[data-testid="terminal-tile"]:visible').focus();
-      await focusFromKeyboard(page, control);
+      await focusFromKeyboard(page, control, fromAfter);
       await expect(control).toHaveCSS("outline-style", "solid");
       await expect(control).toHaveCSS("outline-width", "2px");
       // The grey of --text-secondary: focus is not a signal, so it carries no colour.
@@ -64,10 +66,10 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
 
 });
 
-async function focusFromKeyboard(page: Page, control: Locator): Promise<void> {
+async function focusFromKeyboard(page: Page, control: Locator, fromAfter = false): Promise<void> {
   await control.focus();
-  await page.keyboard.press("Shift+Tab");
-  await page.keyboard.press("Tab");
+  await page.keyboard.press(fromAfter ? "Tab" : "Shift+Tab");
+  await page.keyboard.press(fromAfter ? "Shift+Tab" : "Tab");
   await expect(control).toBeFocused();
   expect(await control.evaluate((node) => node.matches(":focus-visible"))).toBe(true);
 }

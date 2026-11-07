@@ -76,7 +76,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(navigator.getByRole("button", { name: `${longProjectLabel} project` })).toBeVisible();
 
   await openNewTerminalSheet(page);
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.locator('article[data-session-id="manual-1"] .xterm-screen')).toBeAttached();

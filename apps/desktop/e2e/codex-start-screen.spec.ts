@@ -2,6 +2,7 @@ import { appendFile } from "node:fs/promises";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
 import { fixtureAgentOutput, paintedScreen } from "./support/fixture-agents";
+import { openNewSession } from "./support/work-layout";
 
 const HOOKS_SCREEN = [
   "  Hooks need review",
@@ -17,8 +18,8 @@ test("asks for you while Codex holds on a start screen, from any project, until 
   await setWindowSize(app, page, 1440, 900);
   const rail = page.getByRole("navigation", { name: "Projects and Free Chats" });
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Codex/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const tile = page.locator('[data-testid="terminal-tile"][data-session-id="codex-1"]');

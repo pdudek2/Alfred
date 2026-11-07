@@ -1,7 +1,7 @@
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
-import { treeRow } from "./support/work-layout";
+import { treeRow, openNewSession } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
@@ -9,7 +9,7 @@ type DesktopTerminalWindow = Window & {
 
 test("pins the shell under a Claude focus 3:2, types into it, and unpins it without remounting", async ({ harness }) => {
   const { page } = harness;
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Claude/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
   const focusTile = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]');

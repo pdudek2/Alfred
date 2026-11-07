@@ -1272,12 +1272,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-muted);
 }
 
-.workbench-actions .workbench-new {
-  padding: 0 10px;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
 .chrome-menu {
   position: relative;
   flex: 0 0 auto;
@@ -1338,7 +1332,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .desk-surface-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .desk-surface-panel.active {
@@ -2352,6 +2346,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 /* One line per step; the full text is in the row's tooltip, and a copy state stays visible past the ellipsis. */
 .details-activity-sentence { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .details-activity-text [role="status"] { flex-shrink: 0; white-space: pre; }
+/* 24 px hit area inside the 28 px row without moving the text. */
+.context-drawer button.details-activity-text { margin: -3px 0; padding: 3px 0; }
 .context-drawer .agent-activity-list time { margin: 0; flex-shrink: 0; padding-top: 1px; color: var(--text-muted); font: 400 12px/16px var(--sans); font-variant-numeric: tabular-nums; }
 .details-location-name { margin: 0; padding: 2px 10px; color: var(--text-secondary); font: 400 13px/18px var(--sans); overflow-wrap: anywhere; }
 .details-location-path { margin: 0; padding: 0 10px 6px; color: var(--text-muted); font: 400 12px/17px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }

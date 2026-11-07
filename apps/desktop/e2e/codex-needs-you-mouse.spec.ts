@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { openNewSession } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
@@ -10,7 +11,7 @@ type DesktopTerminalWindow = Window & {
 
 test("keeps a Codex approval as Needs you while the mouse moves over and clicks its terminal", async ({ harness }) => {
   const { page, paths } = harness;
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Codex/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
   const tile = page.locator('[data-testid="terminal-tile"][data-session-id="codex-1"]');

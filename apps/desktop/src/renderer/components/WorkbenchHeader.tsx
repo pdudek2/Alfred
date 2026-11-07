@@ -17,7 +17,6 @@ export type WorkbenchHeaderProps = {
   needsYouCount: number;
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
-  newSessionTriggerRef?: Ref<HTMLButtonElement>;
   now: number;
   previewAvailable: boolean;
   previewOpen: boolean;
@@ -28,7 +27,6 @@ export type WorkbenchHeaderProps = {
   sessionMetaRef?: Ref<HTMLDivElement>;
   shortcutModifier: "Cmd" | "Ctrl";
   onOpenCommandPalette: () => void;
-  onOpenNewSession: () => void;
   onToggleNeedsYou: () => void;
   onTogglePreview: () => void;
 };
@@ -40,7 +38,6 @@ export function WorkbenchHeader({
   needsYouCount,
   needsYouOpen,
   needsYouTriggerRef,
-  newSessionTriggerRef,
   now,
   previewAvailable,
   previewOpen,
@@ -50,7 +47,6 @@ export function WorkbenchHeader({
   sessionMetaRef,
   shortcutModifier,
   onOpenCommandPalette,
-  onOpenNewSession,
   onToggleNeedsYou,
   onTogglePreview,
 }: WorkbenchHeaderProps) {
@@ -144,10 +140,6 @@ export function WorkbenchHeader({
         >
           <Search aria-hidden="true" size={13} />
           <kbd>{key("K")}</kbd>
-        </button>
-        <button ref={newSessionTriggerRef} type="button" className="workbench-control workbench-new" aria-label="New"
-          aria-haspopup="dialog" title={`New session (${key("N")})`} onClick={onOpenNewSession}>
-          New
         </button>
       </div>
     </header>

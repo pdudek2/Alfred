@@ -5,7 +5,7 @@ import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
-import { openDetails, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
+import { openDetails, sessionTree, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult>; rename(request: { clientId: string; title: string }): Promise<unknown> } };
@@ -27,7 +27,7 @@ test("starts workers from their parent's row and keeps them under the parent acr
   // New worker sits on the parent's row and opens the usual sheet, which says whose worker it starts.
   await parent.hover();
   await page.getByRole("button", { name: `New worker for ${parentTitle}` }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet.getByText(`Worker of ${parentTitle}`)).toBeVisible();
   await expect(sheet.getByRole("radio", { name: /^Plan with Alfred/ })).toHaveCount(0);
   await sheet.getByRole("radio", { name: /^Terminal/ }).click();
@@ -180,8 +180,8 @@ test("widens the rail by dragging its edge, within its range, and remembers the 
 });
 
 async function startSession(page: Page, kind: RegExp): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: kind }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   await expect(sheet).toHaveCount(0);

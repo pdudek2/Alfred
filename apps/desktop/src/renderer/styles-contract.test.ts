@@ -21,7 +21,7 @@ const productCssPaths = [
   "components/plan-line.css",
   "components/history.css",
   "components/settings-page.css",
-  "components/new-session-sheet.css",
+  "components/new-session-composer.css",
 ].map((relativePath) => [
   resolve(process.cwd(), "src/renderer", relativePath),
   resolve(process.cwd(), "apps/desktop/src/renderer", relativePath),
@@ -760,47 +760,13 @@ describe("renderer CSS contracts", () => {
     expect(selectedSession).not.toContain("signal-focus");
   });
 
-  it("keeps the New sheet picker inline and lets native controls inherit the app scheme", () => {
-    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
-    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain("color-scheme: dark");
-    expect(singleTopLevelRuleBodyIn(sheet, ".new-session-sheet")).toContain("color-scheme: inherit");
-    const header = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet header");
-    expect(header).toContain("align-items: baseline");
-    expect(header).toContain("font: 500 15px/20px var(--sans)");
-    const picker = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet .chrome-menu-trigger");
-    expect(picker).toContain("display: inline-flex");
-    expect(picker).toContain("width: auto");
-    expect(picker).toContain("font: 500 15px/20px var(--sans)");
-    expect(picker).toContain("color: var(--text-primary)");
-    expect(singleTopLevelRuleBodyIn(sheet, ".new-session-sheet .chrome-menu-trigger > svg")).toContain("opacity: 0.7");
-  });
-
-  it("keeps the New sheet prompt at three rows with a hairline and a one-pixel focus ring", () => {
-    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
-    const prompt = singleTopLevelRuleBodyIn(sheet, ".new-session-prompt textarea");
-    expect(prompt).toContain("resize: none");
-    expect(prompt).toContain("overflow-y: auto");
-    expect(prompt).toContain("border: 0");
-    expect(prompt).toContain("box-shadow: inset 0 0 0 1px var(--border)");
-    const focus = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet textarea:focus-visible");
-    expect(focus).toContain("outline: none");
-    expect(focus).toContain("box-shadow: inset 0 0 0 1px var(--focus-border)");
-  });
-
-  it("keeps the New sheet on the medium weight of the type scale", () => {
-    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
-    const weights = [...sheet.matchAll(/font(?:-weight)?:\s*(\d{3})/g)].map((match) => Number(match[1]));
-    expect(weights.length).toBeGreaterThan(0);
+  it("keeps the New session composer neutral, medium at most, with its project menu opening upward", () => {
+    const composer = readFileSync(productCssPaths.at(-1)!, "utf8");
+    const weights = [...composer.matchAll(/font(?:-weight)?:\s*(\d{3})/g)].map((match) => Number(match[1]));
     expect(Math.max(...weights)).toBe(500);
-    expect(singleTopLevelRuleBodyIn(sheet, ".new-session-prompt label")).toContain("font: 500 12px/16px var(--sans)");
-  });
-
-  it("keeps the New sheet action neutral and uses the panel surface", () => {
-    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
-    expect(sheet).toContain("background: var(--surface-panel)");
-    expect(sheet).toContain("var(--shadow-panel)");
-    expect(sheet).toContain("background: var(--text-primary)");
-    expect(sheet).not.toMatch(/--signal/);
+    expect(composer).not.toMatch(/--signal/);
+    // The composer sits at the bottom of the deck, so a menu below it would leave the window.
+    expect(singleTopLevelRuleBodyIn(composer, ".new-session-composer .chrome-menu-popover")).toContain("bottom: calc(100% + 6px)");
   });
 
   it("keeps legacy neon success greens from winning the primary action cascade", () => {

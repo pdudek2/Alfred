@@ -12,7 +12,7 @@ import {
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
-import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
+import { NewSessionComposer, type NewSessionKind } from "./components/NewSessionComposer";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { RailResizeHandle } from "./components/RailResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
@@ -84,7 +84,7 @@ import {
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { isFreeChatScope, isWorkSession } from "./session-scope";
+import { deckSessions, isFreeChatScope, isWorkSession } from "./session-scope";
 import type { CodexStartScreen } from "./codex-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
@@ -194,29 +194,32 @@ export function App() {
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionDraftsByWorkspace, setNewSessionDraftsByWorkspace] = useState<Record<string, string>>({});
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const newSessionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const newSessionRestRef = useRef<HTMLButtonElement | null>(null);
   const [newSessionKind, setNewSessionKind] = useState<NewSessionKind>("codex");
   const [newSessionProjectId, setNewSessionProjectId] = useState(DEFAULT_WORKSPACE_ID);
   // "New worker" on a rail row: the session the new one is started under.
   const [newSessionParentId, setNewSessionParentId] = useState<string | null>(null);
   const [newSessionOpening, setNewSessionOpening] = useState(0);
   const newSessionGenerationRef = useRef(0);
+  // An empty deck shows the composer expanded but unfocused; elsewhere it opens only on ⌘N or a click.
+  const composerExpanded = newSessionOpen || (activeSurface === "work" && deckSessions(terminalSessions, activeWorkspaceId).length === 0);
+  const composerProjectId = newSessionOpen ? newSessionProjectId : activeWorkspaceId;
   const [claudeTrustByProject, setClaudeTrustByProject] = useState<Record<string, boolean>>({});
   // Asked on every opening: you may have trusted the folder in Claude since.
   useEffect(() => {
     const workspaceApi = getDesktopWorkspaceApi();
-    if (!newSessionOpen || newSessionKind !== "claude" || !workspaceApi?.claudeTrustsProject) return;
+    if (!composerExpanded || newSessionKind !== "claude" || !workspaceApi?.claudeTrustsProject) return;
     let current = true;
-    void workspaceApi.claudeTrustsProject({ workspaceId: newSessionProjectId }).then(
+    void workspaceApi.claudeTrustsProject({ workspaceId: composerProjectId }).then(
       (trusted) => {
-        if (current) setClaudeTrustByProject((known) => ({ ...known, [newSessionProjectId]: trusted }));
+        if (current) setClaudeTrustByProject((known) => ({ ...known, [composerProjectId]: trusted }));
       },
       () => undefined,
     );
     return () => {
       current = false;
     };
-  }, [newSessionOpen, newSessionOpening, newSessionKind, newSessionProjectId]);
+  }, [composerExpanded, newSessionOpening, newSessionKind, composerProjectId]);
   const closeNewSession = useCallback(() => {
     newSessionGenerationRef.current += 1;
     setNewSessionOpen(false);
@@ -229,6 +232,7 @@ export function App() {
     setNewSessionParentId(null);
     setNewSessionOpen(true);
     setNeedsYouOpen(false);
+    setActiveSurface("work");
   }, [activeWorkspaceId]);
   const openNewWorker = useCallback((parentSessionId: string) => {
     openNewSession();
@@ -285,7 +289,7 @@ export function App() {
   const activePreviewDockOpen = previewVisible && (previewDockOpenByWorkspace[activeWorkspace.id] ?? false);
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activePinnedSessionId = pinnedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
-  const newSessionParent = newSessionParentId === null ? null : terminalSessions.find((session) => session.id === newSessionParentId) ?? null;
+  const newSessionParent = newSessionParentId === null || !newSessionOpen ? null : terminalSessions.find((session) => session.id === newSessionParentId) ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
       ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null
@@ -1391,14 +1395,15 @@ export function App() {
   }, [alfredStatus]);
 
   const handleStartNewSession = async (worktree: boolean) => {
-    const workspace = workspaces.find((item) => item.id === newSessionProjectId);
+    const workspace = workspaces.find((item) => item.id === composerProjectId);
     if (!workspace || workspace.rootStatus === "missing") return false;
     const draft = newSessionDraftsByWorkspace[workspace.id] ?? "";
+    const generation = newSessionGenerationRef.current;
     const parentSessionId = newSessionParent?.workspaceId === workspace.id ? newSessionParent.id : undefined;
     if (newSessionKind === "plan") {
       if (composerBlockedReason) return false;
       const submitted = await handleSubmitPrompt({ kind: "workspace", id: workspace.id, label: workspace.label }, draft, workspace);
-      if (!submitted || newSessionGenerationRef.current !== newSessionOpening) return false;
+      if (!submitted || newSessionGenerationRef.current !== generation) return false;
       handleSelectWorkspace(workspace.id);
       setActiveSurface("work");
     } else if (newSessionKind === "terminal") {
@@ -1894,6 +1899,8 @@ export function App() {
       restoreWorkFocusPendingRef.current = false;
       requestAnimationFrame(() => {
         queueMicrotask(() => {
+          // ⌘N from History lands on the deck with the composer already focused.
+          if (document.activeElement?.closest(".new-session-composer")) return;
           if (workReturnFocusRef.current?.isConnected) {
             workReturnFocusRef.current.focus();
             return;
@@ -1948,9 +1955,9 @@ export function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         if (!newSessionOpen) openNewSession();
+        else document.querySelector<HTMLElement>(".new-session-composer :is(textarea, input:checked)")?.focus();
         return;
       }
-      if (newSessionOpen && !(event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey))) return;
 
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const index = Number.parseInt(event.key, 10) - 1;
@@ -1976,7 +1983,7 @@ export function App() {
 
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "i") {
         event.preventDefault();
-        if (activeSurface === "work" && !newSessionOpen && !workspaceMenuOpen) {
+        if (activeSurface === "work" && !workspaceMenuOpen) {
           handleToggleContextDrawer();
         }
         return;
@@ -2200,8 +2207,10 @@ export function App() {
         }
       }}
       onKeyDownCapture={(event) => {
+        // The composer is not a dialog, so it claims Escape only while it holds the keyboard.
         if (event.key === "Escape" && activeSurface === "work" && armedRecoverySessionIds.size > 0
-          && !activeAccessibleDismissalOwner(event.currentTarget)) {
+          && !activeAccessibleDismissalOwner(event.currentTarget)
+          && !(event.target instanceof Element && event.target.closest(".new-session-composer"))) {
           event.preventDefault();
           event.stopPropagation();
           setArmedRecoverySessionIds(new Set());
@@ -2228,7 +2237,6 @@ export function App() {
           activeSurface={activeSurface}
           activeWorkspaceId={activeWorkspace.id}
           attentionCountsByWorkspace={attentionCountsByWorkspace}
-          inert={newSessionOpen && !commandPaletteOpen}
           now={now}
           pinnedSessionId={activePinnedSessionId}
           railResizer={<RailResizeHandle width={railWidth} onChange={handleRailWidthChange} />}
@@ -2272,7 +2280,7 @@ export function App() {
           onSelectSurface={handleSelectPrimarySurface}
           onSelectWorkspace={handleSelectWorkspaceFromRail}
         />
-        <div className="mission-bar" inert={newSessionOpen && !commandPaletteOpen}>
+        <div className="mission-bar">
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
@@ -2280,7 +2288,6 @@ export function App() {
             needsYouCount={needsYouCount}
             needsYouOpen={needsYouOpen}
             needsYouTriggerRef={needsYouTriggerRef}
-            newSessionTriggerRef={newSessionTriggerRef}
             now={now}
             previewAvailable={previewVisible}
             previewOpen={activePreviewDockOpen}
@@ -2290,7 +2297,6 @@ export function App() {
             sessionMetaRef={setSessionMetaSlot}
             shortcutModifier={shortcutModifier}
             onOpenCommandPalette={handleOpenCommandPalette}
-            onOpenNewSession={() => openNewSession()}
             onToggleNeedsYou={handleToggleNeedsYou}
             onTogglePreview={handleTogglePreviewDock}
           />
@@ -2345,7 +2351,6 @@ export function App() {
             activePreviewDockOpen ? "preview-visible" : "",
             detailsVisible ? "context-visible" : "",
           ].filter(Boolean).join(" ")}
-          inert={newSessionOpen && !commandPaletteOpen}
           data-testid="workbench-shell"
         >
           <div className="orchestrator-surface" data-testid="workbench-surface">
@@ -2381,9 +2386,6 @@ export function App() {
                   workspaceRootPath={activeWorkspace.rootPath}
                   workspaceRootStatus={activeWorkspace.rootStatus}
                   onBindWorkspace={handleBindWorkspaceFromFolder}
-                  onAddAgentSession={(kind) => openNewSession(kind)}
-                  onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
-                  onAddManualSession={() => openNewSession("terminal")}
                   onCloseSession={handleCloseSession}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
@@ -2413,6 +2415,34 @@ export function App() {
                       onLaunchAll={handleLaunchDrafts}
                     />
                   }
+                />
+                <NewSessionComposer
+                  key={newSessionOpening}
+                  expanded={composerExpanded}
+                  autoFocus={newSessionOpen}
+                  restRef={newSessionRestRef}
+                  shortcutLabel={shortcutModifier === "Cmd" ? "⌘N" : "Ctrl N"}
+                  onExpand={() => openNewSession()}
+                  projects={workspaces}
+                  projectId={composerProjectId}
+                  kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
+                  planAvailable={planAvailable}
+                  parentTitle={newSessionParent?.workspaceId === composerProjectId ? newSessionParent.title : undefined}
+                  draft={newSessionDraftsByWorkspace[composerProjectId] ?? ""}
+                  claudeTrusted={claudeTrustByProject[composerProjectId]}
+                  initialWorktree={terminalSessions.some((session) => session.workspaceId === composerProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
+                  disabled={commandPaletteOpen}
+                  blockedReason={composerBlockedReason}
+                  requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
+                  onProjectChange={(id) => {
+                    if (!newSessionOpen) setNewSessionParentId(null);
+                    setNewSessionProjectId(id);
+                    setNewSessionOpen(true);
+                  }}
+                  onKindChange={setNewSessionKind}
+                  onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [composerProjectId]: draft }))}
+                  onStart={handleStartNewSession}
+                  onClose={closeNewSession}
                 />
             </div>
             {activeSurface === "sessions" && (
@@ -2455,7 +2485,6 @@ export function App() {
             contextOpen={detailsVisible}
             dismissalSuspended={
               commandPaletteOpen ||
-              newSessionOpen ||
               workspaceMenuOpen ||
               needsYouOpen
             }
@@ -2480,28 +2509,6 @@ export function App() {
             triggerRef={needsYouTriggerRef}
             onClose={handleCloseNeedsYou}
             onRunAction={handleRunNeedsYouAction}
-          />
-        )}
-        {newSessionOpen && (
-          <NewSessionSheet
-            key={newSessionOpening}
-            triggerRef={newSessionTriggerRef}
-            projects={workspaces}
-            projectId={newSessionProjectId}
-            kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
-            planAvailable={planAvailable}
-            parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
-            draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
-            claudeTrusted={claudeTrustByProject[newSessionProjectId]}
-            initialWorktree={terminalSessions.some((session) => session.workspaceId === newSessionProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
-            disabled={commandPaletteOpen}
-            blockedReason={composerBlockedReason}
-            requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
-            onProjectChange={setNewSessionProjectId}
-            onKindChange={setNewSessionKind}
-            onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [newSessionProjectId]: draft }))}
-            onStart={handleStartNewSession}
-            onClose={closeNewSession}
           />
         )}
         {commandPaletteOpen && (

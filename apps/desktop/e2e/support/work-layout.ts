@@ -37,14 +37,24 @@ export async function openDetails(page: Page): Promise<void> {
   await expect(column).toHaveClass(/(^| )open( |$)/);
 }
 
-/** Starts a plain terminal in the active project through the New session sheet. */
+/** Opens the New session composer under the terminal, from the deck; an empty deck already shows it. */
+export async function openNewSession(page: Page): Promise<Locator> {
+  const composer = page.getByRole("form", { name: "New session", exact: true });
+  const rest = page.getByRole("button", { name: "New session", exact: true });
+  if (!(await composer.isVisible()) && !(await rest.isVisible())) await surfaceButton(page, "Work").click();
+  if (!(await composer.isVisible())) await rest.click();
+  await expect(composer).toBeVisible();
+  return composer;
+}
+
+/** Starts a plain terminal in the active project through the New session composer. */
 export async function addManualTerminal(page: Page): Promise<void> {
   await openNewTerminalSheet(page);
   await page.getByRole("button", { name: "Start" }).click();
 }
 
-/** Opens the New session sheet with Terminal picked; the caller presses Start. */
+/** Opens the New session composer with Terminal picked; the caller presses Start. */
 export async function openNewTerminalSheet(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("dialog", { name: "New session", exact: true }).getByRole("radio", { name: /^Terminal/ }).click();
+  const composer = await openNewSession(page);
+  await composer.getByRole("radio", { name: /^Terminal/ }).click();
 }
