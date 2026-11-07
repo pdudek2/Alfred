@@ -1,4 +1,4 @@
-import { appendFile, readdir, readFile } from "node:fs/promises";
+import { appendFile, readdir, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { expect, test } from "./support/electron-app";
@@ -73,5 +73,16 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   await expect(items).toHaveCount(count);
   await expect(activity).not.toContainText("old failure");
   await expect(row.locator(".session-tree-preview")).toHaveText("Fixed the build.");
+
+  // At a turn's end Alfred reads the edits from the transcript the hook names, per file.
+  const transcript = path.join(paths.root, "conversation.jsonl");
+  await writeFile(transcript, [
+    { toolUseResult: { filePath: "/repo/src/app.tsx", structuredPatch: [{ lines: ["-a", "+b", "+c"] }] } },
+    { toolUseResult: { type: "create", filePath: "/repo/src/new.ts", content: "one\n", structuredPatch: [] } },
+  ].map((record) => `${JSON.stringify(record)}\n`).join(""));
+  await hook("Stop", { last_assistant_message: "Fixed the build.", transcript_path: transcript });
+  const changedFiles = page.getByRole("complementary", { name: "Details" }).getByRole("region", { name: "Changed files" });
+  await expect(changedFiles.getByRole("listitem")).toHaveText(["app.tsx+2−1", "new.ts+1−0"]);
+  await expect(changedFiles.getByTitle("/repo/src/app.tsx")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("agent-history-1440x900.png") });
 });

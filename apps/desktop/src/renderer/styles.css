@@ -2342,6 +2342,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .details-empty { margin: 0; padding: 4px 10px; color: var(--text-muted); font: 400 12px/17px var(--sans); }
 .details-additions { color: var(--diff-added-text); }
 .details-deletions { color: var(--diff-removed-text); }
+.details-file-counts { display: flex; flex-shrink: 0; gap: 6px; font: 400 12px/18px var(--sans); font-variant-numeric: tabular-nums; }
 /* One column as wide as Details, so a long step is cut instead of widening the list. */
 .context-drawer .agent-activity-list { grid-template-columns: minmax(0, 1fr); padding: 0; margin: 0; gap: 0; }
 .context-drawer .agent-activity-list li { display: flex; align-items: flex-start; gap: 9px; padding: 5px 10px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

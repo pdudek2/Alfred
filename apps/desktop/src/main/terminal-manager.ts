@@ -21,7 +21,7 @@ import {
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
-import { tallyTranscriptChanges, workingFolder, type ChangeTally } from "./agent-changes.js";
+import { changedFiles, tallyTranscriptChanges, workingFolder, type ChangeTally } from "./agent-changes.js";
 import { resolveWorkTree } from "./git-work-tree.js";
 import { agentConversationTitle } from "./agent-titles.js";
 import { createCodexImageIndex } from "./codex-images.js";
@@ -31,6 +31,7 @@ import {
   type PersistedTerminalSessionSnapshot,
   type TerminalAgentSignal,
   type TerminalChangeStats,
+  type TerminalFileChange,
   type TerminalWorkTree,
   type TerminalCodexImagesRequest,
   type TerminalCodexImagesResult,
@@ -961,7 +962,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...(session.promptSubmitted ? { promptSubmitted: true } : {}),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
-    ...(session.changeTally ? { changeStats: changeStats(session.changeTally) } : {}),
+    ...(session.changeTally ? { changeStats: changeStats(session.changeTally), changedFiles: changedFiles(session.changeTally) } : {}),
     ...(session.workTree ? { workTree: { ...session.workTree } } : {}),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
     ...(session.namedByYou ? { namedByYou: true as const } : {}),
@@ -1678,7 +1679,7 @@ async function tallyAgentChanges(session: TerminalSession): Promise<void> {
     const { additions, deletions } = session.changeTally ?? { additions: 0, deletions: 0 };
     session.changeTally = await tallyTranscriptChanges(session.transcriptPath, session.changeTally);
     if (session.changeTally.additions !== additions || session.changeTally.deletions !== deletions) {
-      sendSignalUpdate(session, { changeStats: changeStats(session.changeTally) });
+      sendSignalUpdate(session, { changeStats: changeStats(session.changeTally), changedFiles: changedFiles(session.changeTally) });
     }
     const folder = workingFolder(session.changeTally);
     if (folder) {
@@ -1791,6 +1792,7 @@ function sendSignalUpdate(
     resumeTarget?: TerminalResumeTarget;
     agentTitle?: string;
     changeStats?: TerminalChangeStats;
+    changedFiles?: TerminalFileChange[];
     workTree?: TerminalWorkTree | null;
   },
 ): void {
@@ -1808,6 +1810,7 @@ function sendSignalUpdate(
     ...(update.resumeTarget ? { resumeTarget: update.resumeTarget } : {}),
     ...(update.agentTitle ? { agentTitle: update.agentTitle } : {}),
     ...(update.changeStats ? { changeStats: update.changeStats } : {}),
+    ...(update.changedFiles ? { changedFiles: update.changedFiles } : {}),
     ...(update.workTree === undefined ? {} : { workTree: update.workTree }),
   });
 }

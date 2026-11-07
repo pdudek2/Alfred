@@ -280,6 +280,24 @@ export function AgentTimelinePanel({
           </div>
         )}
         </section>
+        {session.changedFiles && session.changedFiles.length > 0 && (
+          <section className="details-section" aria-label="Changed files">
+            <header className="details-section-heading"><h2>Changed files</h2></header>
+            <ul className="agent-activity-list">
+              {session.changedFiles.map((file) => (
+                <li key={file.path}>
+                  <span className="details-activity-text" title={file.path}>
+                    <span className="details-activity-sentence">{file.path.split("/").at(-1)}</span>
+                  </span>
+                  <span className="details-file-counts">
+                    <span className="details-additions">+{file.additions}</span>
+                    <span className="details-deletions">−{file.deletions}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <section className="details-section" aria-label="Activity">
           <header className="details-section-heading"><h2>Activity</h2></header>
               {visibleTimelineEvents.length === 0 && presentedActivity.rawEvents.length === 0 && <p className="details-empty">No activity yet.</p>}

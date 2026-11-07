@@ -2,10 +2,10 @@ import { appendFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { tallyTranscriptChanges, workingFolder } from "./agent-changes.js";
+import { changedFiles, tallyTranscriptChanges, workingFolder } from "./agent-changes.js";
 
 const line = (record: unknown) => `${JSON.stringify(record)}\n`;
-const claudeEdit = (lines: string[]) => ({ type: "user", toolUseResult: { structuredPatch: [{ lines }] } });
+const claudeEdit = (lines: string[], filePath?: string) => ({ type: "user", toolUseResult: { filePath, structuredPatch: [{ lines }] } });
 const codexChange = (changes: unknown, status = "completed") => ({
   type: "event_msg",
   payload: { type: "item_completed", item: { type: "FileChange", status, changes } },
@@ -23,12 +23,18 @@ describe("tallyTranscriptChanges", () => {
 
   it("counts Claude Code's edits and the files it wrote", async () => {
     await writeFile(transcript, [
-      line(claudeEdit([" kept", "-old", "+new", "+newer"])),
-      line({ type: "user", toolUseResult: { type: "create", content: "one\ntwo\n", structuredPatch: [] } }),
+      line(claudeEdit([" kept", "-old", "+new", "+newer"], "/repo/a.ts")),
+      line({ type: "user", toolUseResult: { type: "create", filePath: "/repo/b.md", content: "one\ntwo\n", structuredPatch: [] } }),
       line({ type: "user", message: { content: "text that mentions structuredPatch" } }),
+      line(claudeEdit(["-again"], "/repo/a.ts")),
     ].join(""));
 
-    await expect(tallyTranscriptChanges(transcript)).resolves.toMatchObject({ additions: 4, deletions: 1 });
+    const tally = await tallyTranscriptChanges(transcript);
+    expect(tally).toMatchObject({ additions: 4, deletions: 2 });
+    expect(changedFiles(tally)).toEqual([
+      { path: "/repo/a.ts", additions: 2, deletions: 2 },
+      { path: "/repo/b.md", additions: 2, deletions: 0 },
+    ]);
   });
 
   it("counts Codex's completed file changes", async () => {
@@ -36,22 +42,36 @@ describe("tallyTranscriptChanges", () => {
       line(codexChange({ "a.ts": { type: "update", unified_diff: "@@ -1,2 +1,2 @@\n kept\n-old\n+new\n", move_path: null } })),
       line(codexChange({ "b.md": { type: "add", content: "one\ntwo" }, "c.md": { type: "delete", content: "gone\n" } })),
       line(codexChange({ "d.ts": { type: "add", content: "failed\n" } }, "failed")),
+      line(codexChange(JSON.parse('{"__proto__": {"type": "add", "content": "x\\n"}}'))),
     ].join(""));
 
-    await expect(tallyTranscriptChanges(transcript)).resolves.toMatchObject({ additions: 3, deletions: 2 });
+    const tally = await tallyTranscriptChanges(transcript);
+    expect(tally).toMatchObject({ additions: 4, deletions: 2 });
+    // A file named like an object's prototype is only a name.
+    expect(changedFiles(tally)).toEqual([
+      { path: "a.ts", additions: 1, deletions: 1 },
+      { path: "b.md", additions: 2, deletions: 0 },
+      { path: "c.md", additions: 0, deletions: 1 },
+      { path: "__proto__", additions: 1, deletions: 0 },
+    ]);
+    expect(({} as { additions?: number }).additions).toBeUndefined();
   });
 
   it("reads only what was added, leaves a line being written for later and starts over on another transcript", async () => {
-    await writeFile(transcript, line(claudeEdit(["+first"])));
+    await writeFile(transcript, line(claudeEdit(["+first"], "/repo/a.ts")));
     const first = await tallyTranscriptChanges(transcript);
 
-    const secondLine = line(claudeEdit(["+second", "-third"]));
+    const secondLine = line(claudeEdit(["+second", "-third"], "/repo/a.ts"));
     await appendFile(transcript, secondLine.slice(0, 20));
     const partial = await tallyTranscriptChanges(transcript, first);
     expect(partial).toEqual(first);
 
     await appendFile(transcript, secondLine.slice(20));
-    await expect(tallyTranscriptChanges(transcript, partial)).resolves.toMatchObject({ additions: 2, deletions: 1 });
+    const whole = await tallyTranscriptChanges(transcript, partial);
+    expect(whole).toMatchObject({ additions: 2, deletions: 1 });
+    expect(changedFiles(whole)).toEqual([{ path: "/repo/a.ts", additions: 2, deletions: 1 }]);
+    // The tally a read starts from stays as it was.
+    expect(changedFiles(partial)).toEqual([{ path: "/repo/a.ts", additions: 1, deletions: 0 }]);
 
     const other = path.join(dir, "other.jsonl");
     await writeFile(other, line(claudeEdit(["-only"])));
