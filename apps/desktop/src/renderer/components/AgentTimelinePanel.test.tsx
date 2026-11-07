@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
@@ -29,6 +29,8 @@ describe("AgentTimelinePanel", () => {
       // Sent a message, so its output reads as work.
       promptSubmitted: true,
       lastOutputAt: Date.now(),
+      // The prompt that named the session is its title already.
+      activityEvents: [{ id: "named", kind: "prompt", title: "You asked", detail: "claude — alfred", at: 100 }],
     };
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
     // The breadcrumb names the session and its state; Details names it only for assistive tech.
@@ -38,7 +40,8 @@ describe("AgentTimelinePanel", () => {
 
     expect(screen.queryByText("last output")).not.toBeInTheDocument();
 
-    expect(screen.getByText("No activity yet.")).toBeInTheDocument();
+    // Nothing else happened yet, so there is no Activity section to read.
+    expect(screen.queryByRole("region", { name: "Activity" })).toBeNull();
   });
 
   it("shows Location without kind or fact label layers", () => {
@@ -93,7 +96,7 @@ describe("AgentTimelinePanel", () => {
     const user = userEvent.setup();
     const asked = (id: string, at: number) => ({ id, kind: "prompt" as const, title: "You asked", detail: "Refuse a stale Apply", at });
     const { container } = render(<AgentTimelinePanel now={Date.now()} session={{
-      id: "s1", title: "Refuse a stale Apply", workspaceId: "w1", stage: "live", cwd: "/repo/alfred", source: "manual", agentKind: "claude",
+      id: "s1", title: "Stale Apply guard", workspaceId: "w1", stage: "live", cwd: "/repo/alfred", source: "manual", agentKind: "claude",
       activityEvents: [
         asked("asked", 100),
         { id: "read", kind: "file", title: "File activity", detail: "Read git-worktree.ts", at: 110, payload: { type: "file", operation: "read", path: "src/git-worktree.ts" } },
@@ -163,7 +166,6 @@ describe("AgentTimelinePanel", () => {
     rerender(<AgentTimelinePanel now={Date.now()} session={{ ...baseSession, id: "s2", title: "codex — two", cwd: "/repo/feature-two" }} />);
     expect(screen.getByRole("region", { name: "Location" })).toHaveTextContent("feature-two");
     expect(screen.queryByText("/repo/feature-one")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Activity" })).toBeVisible();
   });
 
   it("offers the three Location path actions", async () => {
@@ -536,12 +538,16 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel now={Date.now()} session={session} />);
+    const onFocusTerminal = vi.fn();
+    render(<AgentTimelinePanel now={Date.now()} session={session} onFocusTerminal={onFocusTerminal} />);
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(pulse.querySelector("details")).toBeNull();
+    // The question is answered in the terminal, so its row hands the keyboard there.
+    fireEvent.click(within(pulse).getByRole("button", { name: "Asked: Allow edit?" }));
+    expect(onFocusTerminal).toHaveBeenCalledOnce();
     // The approval the session waits on carries the Needs you star; a finished step the done glyph.
     const glyphOf = (text: string) => within(pulse).getByText(text).closest("li")?.querySelector(".session-status-glyph");
     expect(glyphOf("Asked: Allow edit?")).toHaveClass("status-needs-you");
@@ -611,11 +617,7 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel now={Date.now()} session={session} />);
 
-    const pulse = screen.getByRole("region", { name: "Activity" });
-    expect(pulse).toBeDefined();
-    if (!pulse) throw new Error("Session pulse not rendered");
-    expect(pulse.querySelector("details")).toBeNull();
-    expect(within(pulse).getByText("No activity yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Activity" })).toBeNull();
   });
 
   it("lets editable staged shell sessions save command changes for re-check", async () => {

@@ -280,7 +280,7 @@ describe("renderer CSS contracts", () => {
       "--text-primary": "#F0F0F2",
       "--text-secondary": "#CACACF",
       "--text-muted": "#96969E",
-      "--text-faint": "#7E7E87",
+      "--text-faint": "#8A8A93",
       "--border": "rgba(255, 255, 255, 0.05)",
       "--border-strong": "rgba(255, 255, 255, 0.082)",
     };
@@ -295,6 +295,8 @@ describe("renderer CSS contracts", () => {
     expect(root).toContain("--radius-panel: 14px");
     expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-canvas"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
+    // Faint hints sit on raised and hovered controls too.
+    expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-control-hover"))).toBeGreaterThanOrEqual(4.5);
     // One grey scale: the canvas tokens above.
     expect(productStyles).not.toMatch(/--ink-\d/);
   });

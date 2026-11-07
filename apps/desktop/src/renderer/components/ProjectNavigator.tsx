@@ -183,8 +183,8 @@ export function ProjectNavigator({
           >
             <RowChevron open={tree} />
             <span className="project-row-label">{workspace.label}</span>
-            {branch
-              ? <span className="project-row-branch">{branch}</span>
+            {tree
+              ? branch && <span className="project-row-branch">{branch}</span>
               : state && <SessionStatusGlyph kind={state} label={SESSION_STATE_LABELS[state]} className="project-row-state" size={12} />}
             {state && <span className="visually-hidden" id={statusId}>{SESSION_STATE_LABELS[state]}</span>}
           </button>

@@ -5332,7 +5332,7 @@ describe("App integration", () => {
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
     // Starting a plain session is not work, so nothing is listed yet.
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("No activity yet.");
+    expect(within(screen.getByLabelText("Agent activity")).queryByRole("region", { name: "Activity" })).toBeNull();
 
     screen.getByRole("heading", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
@@ -6735,7 +6735,7 @@ describe("App integration", () => {
 
     // The tile names what the agent waits for to assistive tech; on screen the terminal itself shows the question.
     expect(within(tile).queryByRole("note")).toBeNull();
-    expect(within(screen.getByTestId("workbench-header")).getByText("Codex", { selector: ".session-meta-kind" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).getByTitle("Codex")).toBeInTheDocument();
   });
 
   it("keeps approval context informational in the focused activity panel", async () => {

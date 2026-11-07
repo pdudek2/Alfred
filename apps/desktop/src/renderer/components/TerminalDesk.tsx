@@ -30,6 +30,7 @@ import {
   type CodexStartScreen,
 } from "../codex-start-screen";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
+import { TileKindIcon } from "../tile-kind-icon";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import type {
@@ -1507,7 +1508,7 @@ function ManualTerminalTile({
             </form>
           ) : (
             <>
-              <span className="session-meta-kind">{kindLabel}</span>
+              <span className={`session-meta-kind kind-${kind}`} title={kindLabel}><TileKindIcon kind={kind} size={14} /><span className="visually-hidden">{kindLabel}</span></span>
               {locationLabel && (
                 <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
               )}
