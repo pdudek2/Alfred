@@ -1,3 +1,4 @@
+import { openNewSession } from "./support/work-layout";
 import { expect, test } from "./support/electron-app";
 
 test.use({
@@ -21,9 +22,9 @@ test("keeps a workspace recoverable when its saved folder is missing", async ({ 
   await page.keyboard.press("Meta+T");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await expect(page.getByRole("button", { name: "Start" })).toBeDisabled();
-  await expect(page.getByRole("dialog", { name: "New session" })).toContainText("Reconnect the project folder first");
+  await expect(page.getByRole("form", { name: "New session" })).toContainText("Reconnect the project folder first");
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Open command palette" }).click();

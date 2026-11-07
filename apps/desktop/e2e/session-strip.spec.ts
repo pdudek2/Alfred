@@ -1,3 +1,4 @@
+import { openNewSession } from "./support/work-layout";
 import { test, expect } from "./support/electron-app";
 
 test("keeps the session's agent, age and menu beside its title at wide and narrow widths", async ({ harness }, testInfo) => {
@@ -5,7 +6,7 @@ test("keeps the session's agent, age and menu beside its title at wide and narro
   await page.emulateMedia({ reducedMotion: "reduce" });
   const header = page.getByTestId("workbench-header");
   for (const count of [2, 3]) {
-    await page.getByRole("button", { name: "New", exact: true }).click();
+    await openNewSession(page);
     await page.getByRole("radio", { name: /^Terminal/ }).click();
     await page.getByRole("button", { name: "Start" }).click();
     await expect(page.getByTestId("terminal-tile")).toHaveCount(count);

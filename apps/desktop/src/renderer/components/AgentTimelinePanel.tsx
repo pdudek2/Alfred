@@ -4,6 +4,7 @@ import { activitySentence, presentActivityEvents } from "../../shared/activity-p
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
+import { normalizeSessionTitle, titleFromPrompt } from "../../shared/session-title";
 import { pathMatchesWorkspace, workTreeFolderLabel } from "../workspace-path-matching";
 import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
@@ -13,6 +14,8 @@ export type AgentTimelinePanelProps = {
   onOpenExternalTerminal?: (cwd: string) => Promise<void> | void;
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
   onUpdateStagedSession?: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
+  /** Hands the keyboard to the session's terminal, where a waiting question is answered. */
+  onFocusTerminal?: () => void;
   session: SessionTile | null;
   /** The app's one session clock, shared with every other surface. */
   now: number;
@@ -24,6 +27,7 @@ export function AgentTimelinePanel({
   onOpenExternalTerminal,
   onRevealActivityFile,
   onUpdateStagedSession,
+  onFocusTerminal,
   session,
   now,
   projectName,
@@ -189,7 +193,9 @@ export function AgentTimelinePanel({
       });
     }, 1600);
   };
-  const visibleTimelineEvents = presentedActivity.visibleEvents;
+  // The prompt that named the session is already its title in the breadcrumb and the rail.
+  const visibleTimelineEvents = presentedActivity.visibleEvents.filter((event) =>
+    !(event.kind === "prompt" && (!event.title || event.title === "You asked") && normalizeSessionTitle(titleFromPrompt(event.detail)) === session.title));
   // The star marks only the approval the session waits on now; an answered one reads as done.
   const waitingApprovalId = displayStatus.kind === "needs-you" && displayStatus.reason === "approval"
     ? visibleTimelineEvents.find((event) => event.kind === "approval")?.id
@@ -298,9 +304,8 @@ export function AgentTimelinePanel({
             </ul>
           </section>
         )}
-        <section className="details-section" aria-label="Activity">
+        {(visibleTimelineEvents.length > 0 || presentedActivity.rawEvents.length > 0) && <section className="details-section" aria-label="Activity">
           <header className="details-section-heading"><h2>Activity</h2></header>
-              {visibleTimelineEvents.length === 0 && presentedActivity.rawEvents.length === 0 && <p className="details-empty">No activity yet.</p>}
               <ol className="agent-activity-list">
                 {visibleTimelineEvents.map((event) => {
                   const payload = activityPayloadView(event);
@@ -310,7 +315,11 @@ export function AgentTimelinePanel({
                       <span className="details-activity-glyph" aria-hidden="true">
                         <SessionStatusGlyph kind={glyph.kind} label={glyph.label} size={12} />
                       </span>
-                      {payload ? (
+                      {event.id === waitingApprovalId && onFocusTerminal ? (
+                        <button className="details-activity-text" type="button" title="Answer in the terminal" onClick={onFocusTerminal}>
+                          <span className="details-activity-sentence">{activitySentence(event)}</span>
+                        </button>
+                      ) : payload ? (
                         <button className="details-activity-text" type="button"
                           title={payload.value}
                           aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
@@ -338,7 +347,7 @@ export function AgentTimelinePanel({
                     : `Show ${presentedActivity.hiddenRawCount} tool ${presentedActivity.hiddenRawCount === 1 ? "call" : "calls"}`}
                 </button>
               )}
-        </section>
+        </section>}
       </div>
     </aside>
   );

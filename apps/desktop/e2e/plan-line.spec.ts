@@ -5,7 +5,7 @@ import { expect, test } from "./support/electron-app";
 import { requiredHandle } from "./support/app-state";
 import { openPlan } from "./support/plan-line";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
-import { settleTerminalTileAnimations } from "./support/work-layout";
+import { settleTerminalTileAnimations, openNewSession } from "./support/work-layout";
 
 const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwright/plan-line");
 
@@ -32,7 +32,7 @@ test("launches and discards drafts from the plan line without touching live term
   await expect(page.locator(".terminal-grid-column > .plan-line")).toHaveCount(1);
   await capture(page, "drafts-only");
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Terminal/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
   const manualId = await page.getByTestId("terminal-tile").first().getAttribute("data-session-id");

@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { terminalChannels } from "../src/shared/terminal-ipc";
 import { openPlan } from "./support/plan-line";
-import { settleTerminalTileAnimations, surfaceButton } from "./support/work-layout";
+import { settleTerminalTileAnimations, surfaceButton, openNewSession } from "./support/work-layout";
 import { expect, test } from "./support/electron-app";
 import { listMainProcessTerminals, requiredHandle, setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
@@ -23,7 +23,7 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Codex/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
   const xtermHost = page.locator('[data-session-id="codex-1"] [data-testid="xterm-host"]');

@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
+import { openNewSession } from "./support/work-layout";
 
 // Fixture item 1 is a blocked draft in Alpha (Needs you); Beta gets a Codex session kept busy;
 // the five folderless projects fold into Sandboxes.
@@ -44,7 +45,8 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await alpha.click();
     await startSession(page, /^Terminal/);
 
-    await expect(alpha.locator(".project-row-state")).toHaveClass(/status-needs-you/);
+    // The open project's tree shows its states; the row keeps the summary for assistive tech only.
+    await expect(alpha.locator(".project-row-state")).toHaveCount(0);
     await expect(alpha).toHaveAccessibleDescription("needs you");
     await expect(beta.locator(".project-row-state")).toHaveClass(/status-working/);
     const sandboxes = rail.getByRole("button", { name: "Sandboxes, 5 projects" });
@@ -75,7 +77,7 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await expect(page.getByLabel("Project preview")).toBeVisible();
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "264px");
     await expect(alpha.locator(".project-row-label")).toBeVisible();
-    await expect(alpha.locator(".project-row-state")).toBeVisible();
+    await expect(alpha.locator(".project-row-state")).toHaveCount(0);
     await expect(beta.locator(".project-row-state")).toBeVisible();
     await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);
     await page.screenshot({ path: testInfo.outputPath("deck-rail-preview-1120x720.png") });
@@ -92,8 +94,8 @@ test("the rail shows one state glyph per project and folds rootless projects int
 });
 
 async function startSession(page: Page, kind: RegExp): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("radio", { name: kind }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();

@@ -30,7 +30,7 @@ import {
   type AgentStartScreen,
 } from "../agent-start-screen";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
-import type { AgentKind } from "../../shared/alfred-ipc";
+import { TileKindIcon } from "../tile-kind-icon";
 import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import type {
   TerminalCreateRequest,
@@ -110,9 +110,6 @@ type TerminalDeskProps = {
   workspaceRootPath?: string | undefined;
   workspaceRootStatus?: WorkspaceRootStatus | undefined;
   onBindWorkspace: () => void;
-  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
-  onAddManualSession: () => void;
-  onOpenPlan?: (() => void) | undefined;
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
@@ -152,9 +149,6 @@ export function TerminalDesk({
   workspaceRootPath,
   workspaceRootStatus,
   onBindWorkspace,
-  onAddAgentSession,
-  onOpenPlan,
-  onAddManualSession,
   onCloseSession,
   onContinueRestoredSession,
   onOpenExternalTerminal,
@@ -245,9 +239,6 @@ export function TerminalDesk({
               armedSessionIds={armedRecoverySessionIds}
               asleepSessions={asleepSessions}
               hasDrafts={hasDrafts}
-              onOpenPlan={onOpenPlan}
-              onAddAgentSession={onAddAgentSession}
-              onAddManualSession={onAddManualSession}
               onBindWorkspace={onBindWorkspace}
               onOpenHistory={onOpenHistory}
               onResumeSession={onContinueRestoredSession}
@@ -336,10 +327,7 @@ function EmptyWorkspaceState({
   armedSessionIds,
   asleepSessions,
   hasDrafts,
-  onAddAgentSession,
   onOpenHistory,
-  onOpenPlan,
-  onAddManualSession,
   onBindWorkspace,
   onResumeSession,
   workspaceLabel,
@@ -349,10 +337,7 @@ function EmptyWorkspaceState({
   armedSessionIds: Set<string>;
   asleepSessions: SessionTile[];
   hasDrafts: boolean;
-  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
-  onAddManualSession: () => void;
   onOpenHistory: () => void;
-  onOpenPlan?: (() => void) | undefined;
   onBindWorkspace: () => void;
   onResumeSession: (sessionId: string) => void;
   workspaceLabel: string;
@@ -365,12 +350,12 @@ function EmptyWorkspaceState({
   const copy = missing
     ? `Folder unavailable${workspaceRootPath ? `: ${shortenPath(workspaceRootPath)}` : ""}. Choose the folder again. Draft work stays parked until you reconnect this project.`
     : hasDrafts
-      ? "Launch the plan above, or start a session in this project."
+      ? "Launch the plan above, or start a session below."
       : asleep.length > 0
-        ? "Start a session in this project, or pick up where you left off."
+        ? "Start a session below, or pick up where you left off."
         : bound
-          ? "Start a session in this project."
-          : "Start a session here, or choose a project folder when repository context matters.";
+          ? "Start a session below. Each one runs in its own terminal here."
+          : "Start a session below, or choose a project folder when repository context matters.";
 
   return (
     <div
@@ -382,35 +367,13 @@ function EmptyWorkspaceState({
         <strong>{missing ? `Reconnect ${workspaceLabel}` : "Nothing is running"}</strong>
         <p>{copy}</p>
       </div>
-      <div className="terminal-empty-actions" role="group" aria-label="New session">
-        {missing ? (
-          <button type="button" className="terminal-empty-primary-action" onClick={onBindWorkspace}>
+      {(missing || !bound) && (
+        <div className="terminal-empty-actions">
+          <button type="button" className={missing ? "terminal-empty-primary-action" : undefined} onClick={onBindWorkspace}>
             Choose folder
           </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="terminal-empty-primary-action"
-              onClick={() => onAddAgentSession("codex")}
-            >
-              Codex
-            </button>
-            <button type="button" onClick={() => onAddAgentSession("claude")}>
-              Claude
-            </button>
-            <button type="button" onClick={onAddManualSession}>
-              Terminal
-            </button>
-            {onOpenPlan && <button type="button" onClick={onOpenPlan}>Plan with Alfred</button>}
-            {!bound && (
-              <button type="button" onClick={onBindWorkspace}>
-                Choose folder
-              </button>
-            )}
-          </>
-        )}
-      </div>
+        </div>
+      )}
       {!missing && (
         <AsleepSessionList
           armedSessionIds={armedSessionIds}
@@ -1507,7 +1470,7 @@ function ManualTerminalTile({
             </form>
           ) : (
             <>
-              <span className="session-meta-kind">{kindLabel}</span>
+              <span className={`session-meta-kind kind-${kind}`} title={kindLabel}><TileKindIcon kind={kind} size={14} /><span className="visually-hidden">{kindLabel}</span></span>
               {locationLabel && (
                 <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
               )}

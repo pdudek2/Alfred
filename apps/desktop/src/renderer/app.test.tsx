@@ -702,10 +702,16 @@ async function openPlan(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByRole("list", { name: /^Drafts in / });
 }
 
+// New session is the composer under the terminal; ⌘N opens it, or focuses it when it is already open.
+async function openComposer(user: ReturnType<typeof userEvent.setup>) {
+  await user.keyboard("{Meta>}n{/Meta}");
+  return screen.getByRole("form", { name: "New session" });
+}
+
 async function openNewPlan(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "New" }));
+  await openComposer(user);
   await user.click(screen.getByRole("radio", { name: /^Plan with Alfred/ }));
-  return screen.getByRole("dialog", { name: "New session" });
+  return screen.getByRole("form", { name: "New session" });
 }
 
 // Deck, History and Settings live in the rail; Details is the side column.
@@ -751,7 +757,7 @@ async function sessionMenuAction(user: ReturnType<typeof userEvent.setup>, title
 }
 
 async function openNewTerminal(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "New" }));
+  await openComposer(user);
   await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
 }
 
@@ -905,7 +911,7 @@ describe("App integration", () => {
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
     await sessionMenuAction(user, "zsh", /^Close/);
     await addScratchProject(user);
-    await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
+    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-2", workspaceId: "W2" }));
@@ -1123,7 +1129,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("button", { name: "Project menu for Alfred" })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Projects" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New session" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /terminals/i })).toBeInTheDocument();
     // Details holds the side column the session stack had, so it starts open.
     expect(screen.getByTestId("context-column")).toHaveClass("open");
@@ -1138,17 +1144,17 @@ describe("App integration", () => {
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(screen.queryByTestId("primary-nav-rail")).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    const trigger = screen.getByRole("button", { name: "New" });
+    expect(screen.getByRole("button", { name: "New session" })).toHaveAttribute("aria-expanded", "false");
     const dispatch = await openNewPlan(user);
     expect(dispatch).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /^Plan with Alfred/ })).toHaveFocus();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New session" })).toHaveFocus();
   });
 
   it("keeps the New session draft after closing and revisiting Work", async () => {
@@ -1176,7 +1182,8 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "History");
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
+    expect(screen.getByRole("textbox", { name: "First prompt" })).toHaveFocus();
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
@@ -1655,7 +1662,6 @@ describe("App integration", () => {
     });
     await screen.findByRole("button", { name: "Alfred project" });
 
-    const launchTrigger = screen.getByRole("button", { name: "New" });
     const dispatch = await openNewPlan(user);
     const composer = within(dispatch).getByRole("textbox", { name: "Goal" });
     await user.type(composer, "keep this draft");
@@ -1675,7 +1681,6 @@ describe("App integration", () => {
     await user.click(search);
     expect(search).toHaveFocus();
     expect(dispatch).toBeInTheDocument();
-    expect(launchTrigger).not.toHaveFocus();
     expect(composer).toBeDisabled();
     expect(composer).toHaveValue("keep this draft");
     expect(createTerminal).toHaveBeenCalledTimes(1);
@@ -1701,13 +1706,12 @@ describe("App integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-      expect(screen.getByRole("dialog", { name: "New session" })).toBeInTheDocument();
+      expect(screen.getByRole("form", { name: "New session" })).toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Goal" })).toBeEnabled();
     });
     const connectedComposer = screen.getByRole("textbox", { name: "Goal" });
     expect(connectedComposer).toHaveFocus();
     expect(connectedComposer).toHaveValue("keep this draft");
-    expect(launchTrigger).not.toHaveFocus();
   });
 
   it("keeps the xterm renderer mounted while moving from Work to History and back", async () => {
@@ -1832,7 +1836,7 @@ describe("App integration", () => {
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await closeDetails(user);
-    const previous = screen.getByRole("button", { name: "New" });
+    const previous = screen.getByRole("button", { name: "Open command palette" });
     previous.focus();
     fireEvent.keyDown(previous, { key: "i", metaKey: true });
     const heading = screen.getByRole("heading", { name: "Details" });
@@ -1902,7 +1906,7 @@ describe("App integration", () => {
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
@@ -2105,7 +2109,7 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i });
@@ -2530,7 +2534,7 @@ describe("App integration", () => {
         }),
       }),
     );
-    expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
@@ -4250,19 +4254,18 @@ describe("App integration", () => {
     expect(emptyState).toHaveTextContent("Nothing is running");
     expect(emptyState).toHaveTextContent("choose a project folder");
     expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
-    const newActions = within(emptyState).getByRole("group", { name: "New session" });
-    expect(within(newActions).getAllByRole("button").map((button) => button.textContent)).toEqual([
+    // An empty deck shows the composer open but leaves the keyboard where it was.
+    const composer = screen.getByRole("form", { name: "New session" });
+    expect(within(composer).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Codex",
       "Claude",
       "Terminal",
       "Plan with Alfred",
-      "Choose folder",
     ]);
-    expect(within(newActions).getByRole("button", { name: "Codex" })).toHaveClass("terminal-empty-primary-action");
+    expect(composer).not.toContainElement(document.activeElement as HTMLElement);
+    expect(within(emptyState).getByRole("button", { name: "Choose folder" })).toBeInTheDocument();
 
-    await act(async () => {
-      within(newActions).getByRole("button", { name: "Terminal" }).click();
-    });
+    await user.click(within(composer).getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ source: "manual", workspaceId: "A" }));
@@ -4340,9 +4343,9 @@ describe("App integration", () => {
     expect(within(emptyState).queryByRole("button", { name: "Codex" })).not.toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
-    expect(screen.getByRole("dialog", { name: "New session" })).toHaveTextContent("Reconnect the project folder first");
+    expect(screen.getByRole("form", { name: "New session" })).toHaveTextContent("Reconnect the project folder first");
     await user.keyboard("{Escape}");
     await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
     expect(bindFolderToWorkspace).toHaveBeenCalledWith({ workspaceId: "A" });
@@ -4430,8 +4433,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const emptyState = await screen.findByRole("status", { name: "Empty project" });
-    await user.click(within(emptyState).getByRole("button", { name: "Terminal" }));
+    await screen.findByRole("status", { name: "Empty project" });
+    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
@@ -4486,7 +4489,7 @@ describe("App integration", () => {
     expect(screen.getByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
 
-    await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
+    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     // Titles are numbered per project, so this project's first terminal is "zsh" too.
     expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toHaveAttribute("data-session-id", "manual-2");
@@ -4829,10 +4832,10 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     const selectedTile = await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i });
@@ -4873,7 +4876,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(terminalList).toHaveBeenCalledTimes(1);
     });
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
@@ -5004,7 +5007,7 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: menuItem.includes("Codex") ? /^Codex/ : /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
@@ -5303,7 +5306,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
@@ -5332,7 +5335,7 @@ describe("App integration", () => {
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
     // Starting a plain session is not work, so nothing is listed yet.
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("No activity yet.");
+    expect(within(screen.getByLabelText("Agent activity")).queryByRole("region", { name: "Activity" })).toBeNull();
 
     screen.getByRole("heading", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
@@ -5674,7 +5677,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
@@ -5699,7 +5702,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Claude/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
@@ -6418,9 +6421,9 @@ describe("App integration", () => {
     await sessionMenuAction(user, "zsh", /^Close/);
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
-    expect(emptyState).toHaveTextContent("Start a session in this project.");
+    expect(emptyState).toHaveTextContent("Start a session below.");
 
-    await user.click(within(emptyState).getByRole("button", { name: "Codex" }));
+    await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toBeInTheDocument();
@@ -6735,7 +6738,7 @@ describe("App integration", () => {
 
     // The tile names what the agent waits for to assistive tech; on screen the terminal itself shows the question.
     expect(within(tile).queryByRole("note")).toBeNull();
-    expect(within(screen.getByTestId("workbench-header")).getByText("Codex", { selector: ".session-meta-kind" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).getByTitle("Codex")).toBeInTheDocument();
   });
 
   it("keeps approval context informational in the focused activity panel", async () => {
@@ -7235,7 +7238,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Codex · lead/i });
     await user.click(within(railSessions()).getByRole("button", { name: "New worker for Codex · lead" }));
 
-    const sheet = screen.getByRole("dialog", { name: "New session" });
+    const sheet = screen.getByRole("form", { name: "New session" });
     expect(sheet).toHaveTextContent("Worker of Codex · lead");
     expect(within(sheet).queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole("radio", { name: /^Terminal/ }));
@@ -7315,7 +7318,7 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     expect(screen.queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
@@ -9336,7 +9339,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     expect(composer).toHaveValue("retry this plan");
-    expect(within(screen.getByRole("dialog", { name: "New session" })).getByRole("status")).toHaveTextContent("OpenRouter is unreachable.");
+    expect(within(screen.getByRole("form", { name: "New session" })).getByRole("status")).toHaveTextContent("OpenRouter is unreachable.");
   });
 
   it("recovers when the plan IPC rejects and allows a successful retry", async () => {
@@ -9360,7 +9363,7 @@ describe("App integration", () => {
     await user.type(composer, "retry this plan");
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(within(screen.getByRole("dialog", { name: "New session" })).getByRole("status")).toHaveTextContent("Alfred runtime request failed. Try again.");
+    expect(within(screen.getByRole("form", { name: "New session" })).getByRole("status")).toHaveTextContent("Alfred runtime request failed. Try again.");
     expect(composer).toBeEnabled();
     expect(composer).toHaveValue("retry this plan");
 
@@ -9382,7 +9385,7 @@ describe("App integration", () => {
     expect(screen.getByRole("radio", { name: /^Claude/ })).toBeChecked();
     await user.keyboard("{Escape}");
     await user.keyboard("{Meta>}t{/Meta}");
-    expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
   });
 
@@ -9396,7 +9399,7 @@ describe("App integration", () => {
     });
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("button", { name: "Choose project" }));
     await user.click(screen.getByRole("menuitemradio", { name: "Beta" }));
     await user.click(screen.getByRole("radio", { name: new RegExp(`^${kind}`) }));
@@ -9406,12 +9409,12 @@ describe("App integration", () => {
       agentKind: kind.toLowerCase(), workspaceId: "B", cwd: "/project-b", args: ["--", "--prompt=keep this literal"],
     })));
     expect(screen.getByRole("button", { name: "Beta project" })).toHaveAttribute("aria-current", "location");
-    expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
 
     // With an agent already at work in the project, the next one starts in a worktree of its own unless you say no.
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     await user.click(screen.getByRole("radio", { name: new RegExp(`^${kind}`) }));
-    expect(screen.getByRole("checkbox", { name: /Work in a new worktree/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /New worktree/ })).toBeChecked();
     // Claude asks only for a worktree of a folder it trusts.
     if (kind === "Claude") expect(claudeTrustsProject).toHaveBeenLastCalledWith({ workspaceId: "B" });
     else expect(claudeTrustsProject).not.toHaveBeenCalled();
@@ -9441,10 +9444,12 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Goal"), "Plan Beta");
     await user.click(screen.getByRole("button", { name: "Start" }));
     expect(requestPlan).toHaveBeenCalledWith(expect.objectContaining({ prompt: "Plan Beta", dispatchTarget: { kind: "workspace", id: "B", label: "Beta" }, workspace: expect.objectContaining({ id: "B", rootPath: "/project-b" }) }));
-    expect(screen.getByRole("dialog", { name: "New session" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("form", { name: "New session" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
     await act(async () => pending.resolve({ ok: true, plan: { sessions: [{ kind: "codex", title: "Beta draft", command: "codex", args: ["Plan Beta"] }] } }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "New session" })).not.toBeInTheDocument());
+    // Beta's deck is empty, so the composer stays in view, done and cleared.
+    await waitFor(() => expect(screen.getByRole("form", { name: "New session" })).not.toHaveAttribute("aria-busy", "true"));
+    expect(screen.getByLabelText("Goal")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Beta project" })).toHaveAttribute("aria-current", "location");
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: /Draft Beta draft/ })).toBeInTheDocument();
@@ -9455,13 +9460,13 @@ describe("App integration", () => {
     const { createTerminal } = installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
-    await user.click(screen.getByRole("button", { name: "New" }));
+    await openComposer(user);
     expect(screen.getByRole("radio", { name: /^Codex/ })).toBeChecked();
     await user.keyboard("{Meta>}k{/Meta}");
     await submitCommandPalette(user, "new claude session");
     expect(screen.getByRole("radio", { name: /^Claude/ })).toBeChecked();
     await user.keyboard("{Escape}");
-    expect(screen.getByRole("button", { name: "New" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "New session" })).toHaveFocus();
     expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
@@ -9482,11 +9487,11 @@ describe("App integration", () => {
     await user.click(screen.getByRole("menuitemradio", { name: "Beta" }));
     await user.type(screen.getByLabelText("Goal"), "Old goal");
     await user.click(screen.getByRole("button", { name: "Start" }));
-    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     await openNewPlan(user);
     await user.type(screen.getByLabelText("Goal"), "New goal");
     await act(async () => pending.resolve({ ok: true, plan: { sessions: [{ kind: "codex", title: "Old draft", command: "codex", args: ["Old goal"] }] } }));
-    expect(screen.getByRole("dialog", { name: "New session" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "New session" })).toBeInTheDocument();
     expect(screen.getByLabelText("Goal")).toHaveValue("New goal");
     expect(screen.getByRole("button", { name: "Alfred project" })).toHaveAttribute("aria-current", "location");
   });

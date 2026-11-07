@@ -13,7 +13,7 @@ test("resumes the Claude conversation its hooks named, after a restart", async (
   await setWindowSize(app, page, 1440, 900);
 
   await openNewTerminalSheet(page);
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const tile = page.locator('[data-testid="terminal-tile"]:visible');
@@ -51,7 +51,7 @@ test("resumes an ended Claude in the conversation its hooks named, without sendi
   await setWindowSize(app, page, 1440, 900);
 
   await openNewTerminalSheet(page);
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.locator("textarea").fill("fix the login bug");
   await sheet.getByRole("button", { name: "Start", exact: true }).click();

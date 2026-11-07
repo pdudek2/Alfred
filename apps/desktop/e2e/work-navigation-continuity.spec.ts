@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
-import { surfaceButton } from "./support/work-layout";
+import { surfaceButton, openNewSession } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: TerminalApi };
@@ -69,7 +69,7 @@ test("reads final scrollback after a managed terminal exits", async ({ harness }
 });
 
 async function openLaunchItem(page: Page, label: string): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: label === "New session" ? /^Claude/ : /^Terminal/ }).click();
   if (label !== "New session") await page.getByRole("button", { name: "Start" }).click();
 }

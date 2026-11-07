@@ -3,7 +3,7 @@ import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle, setWindowSize } from "./support/app-state";
-import { openDetails, openNewTerminalSheet, sessionTree, surfaceButton } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet, sessionTree, surfaceButton, openNewSession } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -101,9 +101,9 @@ test("keeps the production Work story trustworthy across every utility surface",
   await captureAuditScreenshot(page, "command-palette-wide");
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: /^Claude/ }).click();
-  const prepare = page.getByRole("dialog", { name: "New session" });
+  const prepare = page.getByRole("form", { name: "New session" });
   await expect(prepare).toBeVisible();
   await expectSans(prepare.getByRole("button").first());
   await captureAuditScreenshot(page, "new-session-wide");
@@ -167,7 +167,7 @@ test.describe("missing project fixture", () => {
 
 async function addTerminal(page: Page): Promise<void> {
   await openNewTerminalSheet(page);
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
 }
@@ -182,7 +182,7 @@ async function createRuntimeBlockers(page: Page, fixtureRoot: string): Promise<v
 }
 
 async function createFixtureAgentSession(page: Page, menuItem: string, titleInput: string): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await openNewSession(page);
   await page.getByRole("radio", { name: menuItem.includes("Codex") ? /^Codex/ : /^Claude/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
   const input = page.getByRole("textbox", { name: "Terminal input" }).last();

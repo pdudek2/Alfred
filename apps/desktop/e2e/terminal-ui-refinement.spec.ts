@@ -1,5 +1,5 @@
 import { expect, test } from "./support/electron-app";
-import { openDetails, treeRow } from "./support/work-layout";
+import { openDetails, treeRow, openNewSession } from "./support/work-layout";
 
 test("each session names its kind in the top bar and the deck keeps one terminal beside Details", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -129,8 +129,8 @@ test("manual terminal adopts the Claude runtime identity", async ({ harness }, t
 });
 
 async function addSession(page: import("@playwright/test").Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   const kind = name.includes("Codex") ? /^Codex/ : name.includes("Claude") ? /^Claude/ : /^Terminal/;
   const radio = sheet.getByRole("radio", { name: kind });
