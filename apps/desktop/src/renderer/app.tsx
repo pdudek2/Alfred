@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   getDesktopAlfredApi,
@@ -21,6 +21,15 @@ import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
+import { SettingsPage } from "./components/SettingsPage";
+import {
+  initialDetailsColumnState,
+  isDetailsOpen,
+  NARROW_WINDOW_QUERY,
+  withDetailsOpen,
+  withNarrowWindow,
+  withoutWorkspace,
+} from "./details-column";
 import {
   blockingAttentionCountByWorkspace,
   needsYouItems,
@@ -80,12 +89,7 @@ import type { CodexStartScreen } from "./codex-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
-import type {
-  DesktopPrivacySettings,
-  DesktopSaveStatus,
-  DesktopStateClearSavedTerminalDataResult,
-  DesktopStateRevealFileResult,
-} from "../shared/desktop-state-ipc";
+import type { DesktopPrivacySettings, DesktopSaveStatus } from "../shared/desktop-state-ipc";
 import type {
   AgentKind,
   AlfredPlanResponse,
@@ -152,7 +156,6 @@ export function App() {
   const [pendingPlans, setPendingPlans] = useState<Record<string, SquadPlan>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
-  const [privacyPanelOpen, setPrivacyPanelOpen] = useState<boolean>(false);
   const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
@@ -185,7 +188,9 @@ export function App() {
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
   const [previewDockOpenByWorkspace, setPreviewDockOpenByWorkspace] = useState<Record<string, boolean>>({});
-  const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
+  const [detailsColumn, setDetailsColumn] = useState(
+    () => initialDetailsColumnState(window.matchMedia(NARROW_WINDOW_QUERY).matches),
+  );
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionDraftsByWorkspace, setNewSessionDraftsByWorkspace] = useState<Record<string, string>>({});
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -217,8 +222,6 @@ export function App() {
   }, [openNewSession]);
   const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
   const contextReturnFocusRef = useRef<HTMLElement | null>(null);
-  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusLabelRef = useRef<string | null>(null);
   const restoreWorkFocusPendingRef = useRef(false);
@@ -273,8 +276,8 @@ export function App() {
       : activeTerminalSessions[0] ?? null;
   const activeSelectedSession =
     activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
-  // Details holds the column the session stack had, so it starts open; ⌘I hides it.
-  const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? true;
+  // Details holds the column the session stack had, so it starts open in a wide window; ⌘I hides it.
+  const activeContextDrawerOpen = isDetailsOpen(detailsColumn, activeWorkspace.id);
   // Details describes the deck's focused session. History has its own reader and no side column, and a project with
   // nothing running has nothing to describe (v4 Fresh board), so the empty deck takes the whole width.
   const detailsVisible = activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
@@ -563,7 +566,7 @@ export function App() {
     setWorkspaces(remainingWorkspaces);
     setActiveWorkspaceId(nextActiveWorkspaceId);
     setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-    setContextDrawerOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setDetailsColumn((current) => withoutWorkspace(current, activeWorkspace.id));
     setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
@@ -598,12 +601,7 @@ export function App() {
       if (contextReturnFocusRef.current?.isConnected) contextReturnFocusRef.current.focus();
       else setTerminalFocusRequestKey((key) => key + 1);
     }
-    setContextDrawerOpenByWorkspace((current) => {
-      return {
-        ...current,
-        [activeWorkspace.id]: nextOpen,
-      };
-    });
+    setDetailsColumn((current) => withDetailsOpen(current, activeWorkspace.id, nextOpen));
   }, [activeContextDrawerOpen, activeWorkspace.id]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
@@ -611,11 +609,21 @@ export function App() {
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
     setNeedsYouOpen(false);
     contextFocusRequestKeyRef.current += 1;
-    setContextDrawerOpenByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: true,
-    }));
+    setDetailsColumn((current) => withDetailsOpen(current, activeWorkspace.id, true));
   }, [activeWorkspace.id]);
+
+  useEffect(() => {
+    const narrowWindow = window.matchMedia(NARROW_WINDOW_QUERY);
+    const handleChange = () => {
+      // Details turns inert as it hides, so the keyboard goes back to the focused terminal.
+      if (narrowWindow.matches && document.activeElement?.closest(".context-column")) {
+        setTerminalFocusRequestKey((key) => key + 1);
+      }
+      setDetailsColumn((current) => withNarrowWindow(current, narrowWindow.matches));
+    };
+    narrowWindow.addEventListener("change", handleChange);
+    return () => narrowWindow.removeEventListener("change", handleChange);
+  }, []);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
     setNeedsYouOpen(false);
@@ -1469,7 +1477,7 @@ export function App() {
     handleSelectWorkspace(workspaceId);
   }, [activeSurface, armedRecoverySessionIds, handleSelectWorkspace]);
 
-  const handleExitSessionsToWork = useCallback(() => {
+  const handleExitToDeck = useCallback(() => {
     if (armedRecoverySessionIds.size > 0) {
       setArmedRecoverySessionIds(new Set());
       return;
@@ -1559,30 +1567,8 @@ export function App() {
   }, [workspaces]);
 
   const handleOpenCommandPalette = useCallback(() => {
-    setPrivacyPanelOpen(false);
     setCommandQuery("");
     setCommandPaletteOpen(true);
-  }, []);
-
-  const handleOpenPrivacyPanel = useCallback(() => {
-    privacyReturnFocusRef.current = commandPaletteOpen
-      ? commandPaletteTriggerRef.current
-      : document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : settingsTriggerRef.current;
-    setCommandPaletteOpen(false);
-    setCommandQuery("");
-    setPrivacyPanelOpen(true);
-  }, [commandPaletteOpen]);
-
-  const handleClosePrivacyPanel = useCallback(() => {
-    setPrivacyPanelOpen(false);
-    requestAnimationFrame(() => {
-      const target = privacyReturnFocusRef.current;
-      if (target?.isConnected) target.focus();
-      else settingsTriggerRef.current?.focus();
-      privacyReturnFocusRef.current = null;
-    });
   }, []);
 
   const handleCloseCommandPalette = useCallback(() => {
@@ -1732,10 +1718,7 @@ export function App() {
     } else {
       handleFocusSessionInWorkspace(workspaceId, sessionId);
     }
-    setContextDrawerOpenByWorkspace((current) => ({
-      ...current,
-      [workspaceId]: true,
-    }));
+    setDetailsColumn((current) => withDetailsOpen(current, workspaceId, true));
   }, [handleFocusSessionInWorkspace]);
 
   const handleRunNeedsYouAction = useCallback((item: AttentionProjection) => {
@@ -1917,7 +1900,7 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (commandPaletteOpen || privacyPanelOpen) {
+      if (commandPaletteOpen) {
         const shortcutPressed = event.metaKey || event.ctrlKey;
         const key = event.key.toLowerCase();
         const appShortcut =
@@ -2051,7 +2034,6 @@ export function App() {
     handleToggleNeedsYou,
     handleToggleContextDrawer,
     workspaceMenuOpen,
-    privacyPanelOpen,
     workspaces,
   ]);
 
@@ -2230,12 +2212,11 @@ export function App() {
           activeSurface={activeSurface}
           activeWorkspaceId={activeWorkspace.id}
           attentionCountsByWorkspace={attentionCountsByWorkspace}
-          inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
+          inert={newSessionOpen && !commandPaletteOpen}
           now={now}
           pinnedSessionId={activePinnedSessionId}
           railResizer={<RailResizeHandle width={railWidth} onChange={handleRailWidthChange} />}
           sessions={terminalSessions}
-          settingsTriggerRef={settingsTriggerRef}
           workspaces={workspaces}
           workspaceActions={(
             <WorkspaceActionsMenu
@@ -2269,13 +2250,13 @@ export function App() {
           onFocusSession={handleFocusSession}
           onNewWorker={openNewWorker}
           onOpenAsleep={handleOpenSavedSessions}
-          onOpenSettings={handleOpenPrivacyPanel}
+          onOpenSettings={() => handleSelectPrimarySurface("settings")}
           onPinSession={handlePinSession}
           onSelectSessionInWorkspace={handleSelectSessionInWorkspace}
           onSelectSurface={handleSelectPrimarySurface}
           onSelectWorkspace={handleSelectWorkspaceFromRail}
         />
-        <div className="mission-bar" inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}>
+        <div className="mission-bar" inert={newSessionOpen && !commandPaletteOpen}>
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
@@ -2348,7 +2329,7 @@ export function App() {
             activePreviewDockOpen ? "preview-visible" : "",
             detailsVisible ? "context-visible" : "",
           ].filter(Boolean).join(" ")}
-          inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
+          inert={newSessionOpen && !commandPaletteOpen}
           data-testid="workbench-shell"
         >
           <div className="orchestrator-surface" data-testid="workbench-surface">
@@ -2431,7 +2412,7 @@ export function App() {
                   state={sessionsViewState}
                   terminalApi={getDesktopTerminalApi()}
                   workspaces={workspaces}
-                  onBackToWork={handleExitSessionsToWork}
+                  onBackToWork={handleExitToDeck}
                   onDiscardSavedSession={handleCloseSession}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onSelectionChange={handleHistorySelectionChange}
@@ -2440,12 +2421,24 @@ export function App() {
                 />
               </div>
             )}
+            {activeSurface === "settings" && (
+              <div className="surface-panel active">
+                <SettingsPage
+                  saveStatus={desktopSaveStatus}
+                  settings={privacySettings}
+                  onClearSavedTerminalData={handleClearSavedTerminalData}
+                  onLeave={handleExitToDeck}
+                  onRevealStateFile={handleRevealStateFile}
+                  onRetrySave={handleRetryStateSave}
+                  onUpdateSettings={handleUpdatePrivacySettings}
+                />
+              </div>
+            )}
           </div>
           <ContextColumn
             contextOpen={detailsVisible}
             dismissalSuspended={
               commandPaletteOpen ||
-              privacyPanelOpen ||
               newSessionOpen ||
               workspaceMenuOpen ||
               needsYouOpen
@@ -2465,7 +2458,7 @@ export function App() {
         </div>
         {needsYouOpen && (
           <NeedsYouPopover
-            dismissalSuspended={commandPaletteOpen || privacyPanelOpen}
+            dismissalSuspended={commandPaletteOpen}
             items={needsYouAttention}
             shortcutLabel={shortcutModifier === "Cmd" ? "⌘J" : "Ctrl J"}
             triggerRef={needsYouTriggerRef}
@@ -2484,7 +2477,7 @@ export function App() {
             parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
             draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
             initialWorktree={terminalSessions.some((session) => session.workspaceId === newSessionProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
-            disabled={commandPaletteOpen || privacyPanelOpen}
+            disabled={commandPaletteOpen}
             blockedReason={composerBlockedReason}
             requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
             onProjectChange={setNewSessionProjectId}
@@ -2492,17 +2485,6 @@ export function App() {
             onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [newSessionProjectId]: draft }))}
             onStart={handleStartNewSession}
             onClose={closeNewSession}
-          />
-        )}
-        {privacyPanelOpen && (
-          <PrivacyPanel
-            saveStatus={desktopSaveStatus}
-            settings={privacySettings}
-            onClearSavedTerminalData={handleClearSavedTerminalData}
-            onClose={handleClosePrivacyPanel}
-            onRevealStateFile={handleRevealStateFile}
-            onRetrySave={handleRetryStateSave}
-            onUpdateSettings={handleUpdatePrivacySettings}
           />
         )}
         {commandPaletteOpen && (
@@ -2539,7 +2521,7 @@ export function App() {
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
             onOpenNeedsYou={handleOpenNeedsYou}
             onOpenContext={handleOpenContextFromCommandPalette}
-            onOpenPrivacyControls={handleOpenPrivacyPanel}
+            onOpenSettings={() => handleSelectPrimarySurface("settings")}
             onPinSession={handlePinSession}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
@@ -2547,190 +2529,6 @@ export function App() {
         )}
       </section>
     </main>
-  );
-}
-
-function PrivacyPanel({
-  saveStatus,
-  settings,
-  onClearSavedTerminalData,
-  onClose,
-  onRevealStateFile,
-  onRetrySave,
-  onUpdateSettings,
-}: {
-  saveStatus: DesktopSaveStatus;
-  settings: DesktopPrivacySettings;
-  onClearSavedTerminalData: () => Promise<DesktopStateClearSavedTerminalDataResult>;
-  onClose: () => void;
-  onRevealStateFile: () => Promise<DesktopStateRevealFileResult>;
-  onRetrySave: () => Promise<void>;
-  onUpdateSettings: (settings: DesktopPrivacySettings) => Promise<void>;
-}) {
-  const [clearArmed, setClearArmed] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const clearActionRef = useRef<HTMLButtonElement | null>(null);
-  const keepDataButtonRef = useRef<HTMLButtonElement | null>(null);
-  const restoreClearFocusRef = useRef(false);
-
-  useLayoutEffect(() => {
-    closeButtonRef.current?.focus();
-  }, []);
-
-  useLayoutEffect(() => {
-    if (clearArmed) {
-      keepDataButtonRef.current?.focus();
-    } else if (restoreClearFocusRef.current) {
-      restoreClearFocusRef.current = false;
-      clearActionRef.current?.focus();
-    }
-  }, [clearArmed]);
-
-  const updateRetention = (terminalScrollbackRetention: DesktopPrivacySettings["terminalScrollbackRetention"]) => {
-    setMessage(null);
-    void onUpdateSettings({ ...settings, terminalScrollbackRetention });
-  };
-
-  const clearSavedTerminalData = async () => {
-    const result = await onClearSavedTerminalData();
-    restoreClearFocusRef.current = true;
-    setClearArmed(false);
-    setMessage(
-      result.ok
-        ? `Cleared saved data for ${result.clearedSessions} session${result.clearedSessions === 1 ? "" : "s"}.`
-        : result.error,
-    );
-  };
-
-  const revealStateFile = async () => {
-    const result = await onRevealStateFile();
-    setMessage(result.ok ? "Local state file revealed." : result.error);
-  };
-
-  const cancelClearSavedTerminalData = () => {
-    restoreClearFocusRef.current = true;
-    setClearArmed(false);
-  };
-
-  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ) ?? [])];
-    if (controls.length === 0) return;
-    const first = controls[0]!;
-    const last = controls[controls.length - 1]!;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
-  return (
-    <div className="privacy-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        ref={panelRef}
-        className="privacy-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Local Data & Privacy"
-        onKeyDown={handleDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="privacy-panel-header">
-          <strong>Local Data & Privacy</strong>
-          <small>Choose what Alfred keeps on this Mac.</small>
-        </header>
-        <div className="privacy-panel-body">
-          <section className="privacy-control-row">
-            <div>
-              <strong>Saved terminal output</strong>
-              <span>{settings.terminalScrollbackRetention === "off" ? "Alfred keeps each session's name, folder and conversation so it can resume, but no terminal output or agent events." : "Alfred keeps the last 80,000 characters of each terminal and the agent events, with detected secrets removed."}</span>
-            </div>
-            <div className="privacy-segmented" role="group" aria-label="Saved terminal output">
-              <button
-                type="button"
-                aria-pressed={settings.terminalScrollbackRetention === "redactedTail"}
-                onClick={() => updateRetention("redactedTail")}
-              >
-                Keep recent
-              </button>
-              <button
-                type="button"
-                aria-pressed={settings.terminalScrollbackRetention === "off"}
-                onClick={() => updateRetention("off")}
-              >
-                Off
-              </button>
-            </div>
-          </section>
-
-          <section className="privacy-action-row">
-            <div>
-              <strong>Asleep sessions</strong>
-              <span>
-                Clear Alfred&apos;s saved terminal output, activity previews, the draft plan, and the agent event log.
-                This can&apos;t be undone.
-              </span>
-            </div>
-            {clearArmed ? (
-              <div className="privacy-confirm-actions">
-                <button ref={keepDataButtonRef} type="button" onClick={cancelClearSavedTerminalData}>
-                  Keep data
-                </button>
-                <button type="button" className="privacy-action-button danger" onClick={() => void clearSavedTerminalData()}>
-                  Clear asleep sessions
-                </button>
-              </div>
-            ) : (
-              <button ref={clearActionRef} type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
-                Clear asleep sessions…
-              </button>
-            )}
-          </section>
-
-          <section className="privacy-action-row">
-            <div>
-              <strong>Local state file</strong>
-              <span>Reveal Alfred's desktop state file in Finder.</span>
-            </div>
-            <button type="button" className="privacy-action-button" onClick={() => void revealStateFile()}>
-              Reveal in Finder
-            </button>
-          </section>
-
-          {saveStatus.status === "saveFailed" && (
-            <div className="privacy-panel-status error" role="alert">
-              <span>{saveStatus.message}</span>
-              <button type="button" onClick={() => void onRetrySave()}>
-                Retry
-              </button>
-            </div>
-          )}
-          {message && (
-            <div className="privacy-panel-status" role="status">
-              {message}
-            </div>
-          )}
-        </div>
-        <footer className="privacy-panel-actions">
-          <button ref={closeButtonRef} type="button" className="privacy-panel-done" onClick={onClose}>
-            Done
-          </button>
-        </footer>
-      </div>
-    </div>
   );
 }
 

@@ -79,7 +79,9 @@ test("Preview takes the terminal's place, keeps Details beside it, and preserves
       return bounds ? { width: bounds.width, height: bounds.height } : null;
     })).toEqual({ width: 1120, height: 720 });
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "264px");
-    // At the minimum window Preview has the whole focus column and Details is still there.
+    // At the minimum window Details starts hidden; ⌘I puts it back beside Preview.
+    await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
+    await page.keyboard.press("ControlOrMeta+i");
     await expect(details).toBeVisible();
     expect(await page.locator(".terminal-grid-column").evaluate((node) => node.getBoundingClientRect().width))
       .toBeGreaterThanOrEqual(420);

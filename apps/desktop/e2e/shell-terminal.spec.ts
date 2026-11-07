@@ -167,11 +167,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth - 16, 0);
   expect(terminalBounds!.x + terminalBounds!.width).toBeLessThanOrEqual(contextBounds!.x);
 
-  const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
-  await selectSurface(page, "Local Data & Privacy");
-  const privacyDialog = page.getByRole("dialog", { name: "Local Data & Privacy" });
-  const closePrivacy = privacyDialog.getByRole("button", { name: "Done" });
-  await expect(closePrivacy).toBeFocused();
+  await selectSurface(page, "Settings");
+  const privacyDialog = page.getByRole("region", { name: "Settings" });
+  await expect(privacyDialog.getByRole("heading", { name: "Local Data & Privacy" })).toBeFocused();
   await page.keyboard.press("Tab");
   expect(await privacyDialog.evaluate((dialog) => dialog.contains(document.activeElement))).toBe(true);
   const clearSavedTranscripts = privacyDialog.getByRole("button", { name: "Clear asleep sessions…" });
@@ -205,7 +203,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   await page.keyboard.press("Escape");
   await expect(privacyDialog).toHaveCount(0);
-  await expect(surfacesTrigger).toBeFocused();
+  await expect(surfaceButton(page, "Work")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   identityTransitions["Privacy→Work"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Privacy→Work"]).toBe(true);
@@ -247,7 +245,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "History" | "Details" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Details" | "Settings",
 ): Promise<void> {
   if (surface === "Details") {
     await openDetails(page);

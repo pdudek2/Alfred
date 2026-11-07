@@ -705,7 +705,7 @@ async function openNewPlan(user: ReturnType<typeof userEvent.setup>) {
 }
 
 // Deck, History and Settings live in the rail; Details is the side column.
-const SURFACE_BUTTONS = { Work: "Deck", History: "History", Details: "Details", "Local Data & Privacy": "Settings" } as const;
+const SURFACE_BUTTONS = { Work: "Deck", History: "History", Details: "Details", Settings: "Settings" } as const;
 
 function detailsOpen(): boolean {
   return screen.getByTestId("context-column").classList.contains("open");
@@ -1259,8 +1259,10 @@ describe("App integration", () => {
     await selectSurface(user, "Work");
     expect(screen.getByTestId("context-drawer")).toHaveClass("open");
 
-    await selectSurface(user, "Local Data & Privacy");
-    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
+    await selectSurface(user, "Settings");
+    expect(screen.getByRole("region", { name: "Settings" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("desk-runtime-surface")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("lists the active project's sessions under its row in the project navigator", async () => {
@@ -1499,7 +1501,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
   });
 
-  it("opens Local Data & Privacy controls from the command palette", async () => {
+  it("opens the Settings page from the command palette", async () => {
     const user = userEvent.setup();
     const { clearSavedTerminalData, revealStateFile, updatePrivacySettings } = installDesktopBridge();
 
@@ -1507,16 +1509,16 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+    await user.click(screen.getByRole("option", { name: /^Settings/ }));
 
-    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    const dialog = screen.getByRole("region", { name: "Settings" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("Local controls")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Choose what Alfred keeps on this Mac.")).toBeVisible();
     // History reads every local agent session; Settings has no switch for it.
     expect(within(dialog).queryByRole("switch")).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", {
-      name: "Done",
-    })).toHaveFocus();
+    expect(within(dialog).getByRole("heading", { name: "Local Data & Privacy" })).toHaveFocus();
+    expect(within(dialog).queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: "Off" }));
     await waitFor(() => {
@@ -1537,36 +1539,32 @@ describe("App integration", () => {
     expect(revealStateFile).toHaveBeenCalledTimes(1);
   });
 
-  it("traps Privacy focus and restores its surviving trigger", async () => {
+  it("opens Settings from the rail with focus on its heading, and Escape returns to the deck", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
 
-    const surfaces = screen.getByRole("button", { name: "Settings" });
-    await user.click(surfaces);
+    await user.click(screen.getByRole("button", { name: "Settings" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    const close = within(dialog).getByRole("button", {
-      name: "Done",
-    });
-    await waitFor(() => expect(close).toHaveFocus());
-
-    await user.keyboard("{Shift>}{Tab}{/Shift}");
-    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    const page = screen.getByRole("region", { name: "Settings" });
+    expect(within(page).getByRole("heading", { name: "Local Data & Privacy" })).toHaveFocus();
+    await user.tab();
+    expect(within(page).getByRole("button", { name: "Keep recent" })).toHaveFocus();
     await user.keyboard("{Escape}");
-    expect(dialog).not.toBeInTheDocument();
-    expect(surfaces).toHaveFocus();
+    expect(page).not.toBeInTheDocument();
+    expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
   });
 
-  it("keeps focus in Privacy while changing the clear confirmation", async () => {
+  it("keeps focus in Settings while changing the clear confirmation", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+    await user.click(screen.getByRole("option", { name: /^Settings/ }));
 
-    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    const dialog = screen.getByRole("region", { name: "Settings" });
     const clear = within(dialog).getByRole("button", { name: "Clear asleep sessions…" });
     await user.click(clear);
 
@@ -1580,15 +1578,15 @@ describe("App integration", () => {
     await waitFor(() => expect(restoredClear).toHaveFocus());
   });
 
-  it("keeps Privacy focus after clearing saved transcripts", async () => {
+  it("keeps Settings focus after clearing saved transcripts", async () => {
     const user = userEvent.setup();
     const { clearSavedTerminalData } = installDesktopBridge();
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+    await user.click(screen.getByRole("option", { name: /^Settings/ }));
 
-    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    const dialog = screen.getByRole("region", { name: "Settings" });
     await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions…" }));
     await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions" }));
 
@@ -1614,12 +1612,13 @@ describe("App integration", () => {
     expect(await screen.findByRole("listitem", { name: /Draft to clear/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
-    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    await user.click(screen.getByRole("option", { name: /^Settings/ }));
+    const dialog = screen.getByRole("region", { name: "Settings" });
     await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions…" }));
     await user.click(within(dialog).getByRole("button", { name: "Clear asleep sessions" }));
 
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
+    await selectSurface(user, "Work");
     await waitFor(() => expect(screen.queryByRole("listitem", { name: /Draft to clear/i })).not.toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /\d+ ready(, \d+ blocked)?$/ })).not.toBeInTheDocument();
   });
@@ -1984,19 +1983,18 @@ describe("App integration", () => {
     expect(xtermHost.isConnected).toBe(true);
   });
 
-  it("closes Privacy on Escape and keeps Details open", async () => {
+  it("leaves Settings on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
-    await selectSurface(user, "Local Data & Privacy");
-    screen.getByRole("button", { name: "Done" }).focus();
+    await selectSurface(user, "Settings");
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
@@ -3711,7 +3709,7 @@ describe("App integration", () => {
     expect(releaseListSnapshot).toHaveBeenCalledWith({ cursor: "partial-next-page" });
   });
 
-  it("keeps only one global modal open at a time", async () => {
+  it("opens the command palette over the Settings page", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
       {
@@ -3728,12 +3726,12 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "local data & privacy");
-    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Settings" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", code: "KeyK", metaKey: true });
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Settings" })).toBeInTheDocument();
   });
 
   it("opens Needs you from the command palette when there are no queued decisions", async () => {
@@ -8088,24 +8086,27 @@ describe("App integration", () => {
     },
   );
 
-  it("lets Privacy consume Escape over History and restore the surviving trigger", async () => {
+  it("replaces History with Settings and leaves Settings for the deck", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
     await selectSurface(user, "History");
-    const history = screen.getByRole("region", { name: "History" });
+    expect(screen.getByRole("region", { name: "History" })).toBeVisible();
 
-    await selectSurface(user, "Local Data & Privacy");
-    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    const surfaces = screen.getByRole("button", { name: "Settings" });
-    expect(within(dialog).getByRole("button", { name: "Done" })).toHaveFocus();
+    await selectSurface(user, "Settings");
+    expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "History" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("workbench-header")).toHaveTextContent("Settings");
 
+    await selectSurface(user, "History");
+    expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
+    await selectSurface(user, "Settings");
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
-    expect(history).toBeVisible();
-    expect(surfaces).toHaveFocus();
+    expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deck" })).toHaveAttribute("aria-current", "page");
   });
 
   it("clears armed recovery state on confirmed Discard so Escape leaves History", async () => {

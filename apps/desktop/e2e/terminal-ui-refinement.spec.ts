@@ -30,6 +30,13 @@ test("each session names its kind in the top bar and the deck keeps one terminal
       BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, ...bounds });
     }, { width, height });
     await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
+    // Below 1200 px Details starts hidden; ⌘I shows it beside the terminal. The wide window keeps it open.
+    const column = page.getByTestId("context-column");
+    if (width < 1200) {
+      await expect(column).toHaveClass(/\bclosed\b/);
+      await page.keyboard.press("ControlOrMeta+i");
+    }
+    await expect(column).toHaveClass(/\bopen\b/);
     const [focus] = await tileGeometry(page.locator('[data-testid="terminal-tile"]:visible'));
     const detailsBox = await page.getByTestId("context-column").boundingBox();
     expect(detailsBox).not.toBeNull();

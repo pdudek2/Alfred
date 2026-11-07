@@ -94,7 +94,6 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await page.keyboard.press("Escape");
   await expect(paletteTrigger).toBeFocused();
 
-  const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
   await selectSurface(page, "Details");
   const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
@@ -122,18 +121,16 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   )).toBe(true);
   await expect(workScreen).toContainText(terminalEvidence);
 
-  await selectSurface(page, "Local Data & Privacy");
-  const privacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
+  await selectSurface(page, "Settings");
+  const privacy = page.getByRole("region", { name: "Settings" });
   await expect(privacy).toBeVisible();
   await expectSansFont(privacy);
   // Settings uses the New sheet's 30 px buttons.
   await expectMinimumHeight(privacy.getByRole("button", { name: "Keep recent" }), 30);
   expect(await collectControlOverflowEvidence(page, {
-    controlSelector: ".privacy-panel button:not(:disabled)",
-    verticalScrollOwners: [{ id: "privacy-body", label: "Privacy body", selector: ".privacy-panel-body" }],
+    controlSelector: ".settings-page button:not(:disabled)",
+    verticalScrollOwners: [{ id: "settings-page", label: "Settings page", selector: ".settings-page" }],
   })).toEqual([]);
-  await privacy.getByRole("button", { name: "Done" }).click();
-  await expect(surfacesTrigger).toBeFocused();
 
   await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
@@ -264,7 +261,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "History" | "Details" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Details" | "Settings",
 ): Promise<void> {
   if (surface === "Details") {
     await openDetails(page);

@@ -66,7 +66,7 @@ type CommandPaletteProps = {
   onFocusPreviousSession: () => void;
   onOpenContext: () => void;
   onOpenNeedsYou: () => void;
-  onOpenPrivacyControls: () => void;
+  onOpenSettings: () => void;
   onPinSession: (sessionId: string | null) => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -105,7 +105,7 @@ export function CommandPalette({
   onFocusPreviousSession,
   onOpenContext,
   onOpenNeedsYou,
-  onOpenPrivacyControls,
+  onOpenSettings,
   onPinSession,
   onRestartSession,
   onSelectWorkspace,
@@ -266,10 +266,10 @@ export function CommandPalette({
         run: () => onPinSession(null),
       })),
       {
-        id: "local-data-privacy",
-        label: "Local Data & Privacy",
-        detail: "Saved scrollback, external Codex indexing, and local state",
-        run: onOpenPrivacyControls,
+        id: "open-settings",
+        label: "Settings",
+        detail: "Local Data & Privacy",
+        run: onOpenSettings,
       },
       {
         id: "open-context",
@@ -376,7 +376,7 @@ export function CommandPalette({
       onFocusPreviousSession,
       onOpenContext,
       onOpenNeedsYou,
-      onOpenPrivacyControls,
+      onOpenSettings,
       onPinSession,
       onRestartSession,
       onSelectWorkspace,

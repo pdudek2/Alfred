@@ -20,6 +20,7 @@ const productCssPaths = [
   "components/workspace-preview.css",
   "components/plan-line.css",
   "components/history.css",
+  "components/settings-page.css",
   "components/new-session-sheet.css",
 ].map((relativePath) => [
   resolve(process.cwd(), "src/renderer", relativePath),
@@ -31,6 +32,7 @@ const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8"))
 const previewStylesPath = productCssPaths[2]!;
 const previewStyles = readFileSync(productCssPaths[2]!, "utf8");
 const historyStyles = readFileSync(productCssPaths[4]!, "utf8");
+const settingsStyles = readFileSync(productCssPaths[5]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -845,30 +847,21 @@ describe("renderer CSS contracts", () => {
     expect(commandPalette).toContain("background-image: none");
   });
 
-  it("keeps Privacy as one flat settings list", () => {
-    const panel = singleTopLevelRuleBodyIn(styles, ".privacy-panel");
-    const body = singleTopLevelRuleBodyIn(styles, ".privacy-panel-body");
-    const rows = blockFor(".privacy-control-row,\n.privacy-action-row");
+  it("keeps Settings as one flat list on the canvas", () => {
+    const page = singleTopLevelRuleBodyIn(settingsStyles, ".settings-page");
+    const rows = singleTopLevelRuleBodyIn(settingsStyles, ".settings-row");
 
-    // The New sheet's shell: one panel surface, rows divided by hairlines, no nested cards.
-    expect(panel).toContain("background: var(--surface-panel)");
-    expect(body).toContain("overflow-y: auto");
-    expect(body).not.toContain("background:");
+    // Rows divided by hairlines on the canvas, no panel and no nested cards.
+    expect(page).toContain("overflow-y: auto");
+    expect(page).not.toContain("background");
+    expect(singleTopLevelRuleBodyIn(settingsStyles, ".settings-section")).toContain("max-width: 640px");
     expect(rows).toContain("border-bottom: 1px solid var(--border)");
-    expect(rows).toContain("border-radius: 0");
-    expect(rows).toContain("background: transparent");
-    const controls = blockFor(
-      ".privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button,\n.privacy-panel-done",
-    );
+    expect(rows).not.toContain("background");
+    expect(singleTopLevelRuleBodyIn(settingsStyles, ".settings-segmented")).not.toContain("background");
+    const controls = singleTopLevelRuleBodyIn(settingsStyles, ".settings-button");
     expect(controls).toContain("height: 30px");
     expect(controls).toContain("font: 400 13px/18px var(--sans)");
-    const privacyRuleBodies = allRulesIn(styles)
-      .filter((rule) => rule.selectors.some((selector) =>
-        selector.startsWith(".privacy-"),
-      ))
-      .map((rule) => rule.body)
-      .join("\n");
-    expect(privacyRuleBodies).not.toContain(`font-family: ${["var(--", "mono)"].join("")}`);
+    expect(settingsStyles).not.toContain(`font-family: ${["var(--", "mono)"].join("")}`);
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );

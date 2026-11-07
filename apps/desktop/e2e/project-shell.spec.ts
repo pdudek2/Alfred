@@ -142,6 +142,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
 
   const wideScreenshotSha256 = await captureEvidence(page, "project-shell-1440x900.png");
   await setWindowSize(app, page, 1120, 720);
+  // Below 1200 px Details starts hidden so the terminal keeps its width; ⌘I shows it beside the terminal.
+  await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
+  await openContext(page);
   await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
     Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
       .flatMap((tile) => tile.getAnimations())

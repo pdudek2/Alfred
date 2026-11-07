@@ -7,7 +7,7 @@ import { moveTabFocus, SESSION_VIEW_IDS } from "../tab-keys";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
-export type PrimarySurface = "work" | "sessions";
+export type PrimarySurface = "work" | "sessions" | "settings";
 
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
@@ -71,7 +71,7 @@ export function WorkbenchHeader({
               <span className="workbench-session-title">{session.title}</span>
             </span>
           </>
-        ) : !onDeck && historySelection ? (
+        ) : activeSurface === "sessions" && historySelection ? (
           <>
             <span className="workbench-breadcrumb-parent">History</span>
             <ChevronRight aria-hidden="true" size={12} />
@@ -82,7 +82,7 @@ export function WorkbenchHeader({
           </>
         ) : (
           <span className="workbench-breadcrumb-current" title={onDeck ? projectDetail : undefined}>
-            <span className="workbench-surface-title">{onDeck ? projectLabel : "History"}</span>
+            <span className="workbench-surface-title">{onDeck ? projectLabel : activeSurface === "settings" ? "Settings" : "History"}</span>
           </span>
         )}
       </nav>
