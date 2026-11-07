@@ -704,10 +704,11 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       const answered = answerApproval(session);
       // Until Enter sends your first message, an agent waits for it, whatever it draws.
       // ponytail: Enter inside pasted text counts too.
-      const submitted = !session.promptSubmitted && request.data.includes("\r");
+      const sentEnter = request.data.includes("\r") && request.answersStartScreen !== true;
+      const submitted = !session.promptSubmitted && sentEnter;
       if (submitted) session.promptSubmitted = true;
       // Without hooks, your Enter is the only sign a turn started; with them, an Enter that starts nothing must not count.
-      const startedTurn = !session.hooksLive && isAgentSession(session) && request.data.includes("\r");
+      const startedTurn = !session.hooksLive && isAgentSession(session) && sentEnter;
       if (startedTurn) session.lastPromptSeq = ++turnSeq;
       if (cleared || startedTurn) notifyWorkers();
       if (cleared || answered || submitted) {

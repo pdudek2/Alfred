@@ -134,6 +134,8 @@ export type TerminalResizeRequest = {
 export type TerminalWriteRequest = {
   id: TerminalSessionId;
   data: string;
+  /** The terminal shows an agent's start screen, so Enter answers it rather than sending a message. */
+  answersStartScreen?: boolean;
 };
 
 export type TerminalKillRequest = {

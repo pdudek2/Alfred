@@ -1,5 +1,5 @@
 import { pendingApproval, waitingSentence } from "../shared/activity-presentation";
-import { codexStartScreenSentence } from "./codex-start-screen";
+import { agentStartScreenSentence } from "./agent-start-screen";
 import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { sessionState, type SessionDisplayStatus } from "./session-status";
@@ -188,7 +188,7 @@ function projectStartScreen(
     blocksAgent: true,
     rank: 1,
     attentionAt: fallbackAttentionAt(session),
-    reason: codexStartScreenSentence(session.startScreen),
+    reason: agentStartScreenSentence(session.startScreen),
     provenance: "inferred",
     ...projectionCommand(session),
     action: { kind: "open-in-work" },

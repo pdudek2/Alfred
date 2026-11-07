@@ -1,7 +1,7 @@
 import { appendFile } from "node:fs/promises";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
-import { fixtureAgentOutput, paintedScreen } from "./support/fixture-agents";
+import { fixtureAgentOutput, launchedAgent, paintedScreen, sendHook } from "./support/fixture-agents";
 
 const HOOKS_SCREEN = [
   "  Hooks need review",
@@ -10,6 +10,15 @@ const HOOKS_SCREEN = [
   "  2. Trust all and continue",
   "  3. Continue without trusting (hooks won't run)",
   "  enter confirm · esc skip",
+];
+
+const CLAUDE_TRUST_SCREEN = [
+  "│ Accessing workspace:                              │",
+  "│ /repo                                             │",
+  "│ Quick safety check: Is this a project you created │",
+  "│ ❯ No, exit                                        │",
+  "│   Yes, I trust this folder                        │",
+  "│ Enter to confirm · Esc to cancel                  │",
 ];
 
 test("asks for you while Codex holds on a start screen, from any project, until the screen goes", async ({ harness }) => {
@@ -55,4 +64,37 @@ test("asks for you while Codex holds on a start screen, from any project, until 
   await appendFile(output, "\u001b]9;Approval requested: /bin/zsh -lc 'touch probe.txt'\u0007");
   await expect(tile).toHaveClass(/session-needs-you/);
   await expect(needsYou).toBeVisible();
+});
+
+test("asks for you while Claude asks to trust its folder, and keeps what it draws after out of Activity", async ({ harness }) => {
+  const { app, page, paths } = harness;
+  await setWindowSize(app, page, 1440, 900);
+
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await sheet.getByRole("radio", { name: /^Claude/ }).click();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
+  const tile = page.locator('[data-testid="terminal-tile"]:visible');
+  await expect(tile).toContainText("claude fixture ready");
+  const claude = await launchedAgent(paths.root, "claude", () => true);
+
+  const output = await fixtureAgentOutput(paths.root, "claude");
+  await appendFile(output, paintedScreen(CLAUDE_TRUST_SCREEN));
+  const needsYou = page.getByRole("button", { name: "Needs you, 1 session" });
+  await expect(needsYou).toBeVisible();
+  await needsYou.click();
+  await expect(page.getByRole("dialog", { name: "Needs you" })).toContainText("Claude asks to trust this folder");
+  await page.keyboard.press("Escape");
+
+  // The Enter that trusts the folder is no message: the prompt Claude then draws is not activity.
+  await tile.getByTestId("xterm-host").click();
+  await page.keyboard.press("Enter");
+  await appendFile(output, '\u001b[2J\u001b[H❯ Try "how do I log an error?"\n');
+  await expect(tile).toContainText("how do I log an error?");
+  await expect(needsYou).toHaveCount(0);
+
+  await sendHook(claude, "UserPromptSubmit", { prompt: "Fix the build" });
+  const activity = page.getByRole("complementary", { name: "Details" }).getByRole("region", { name: "Activity" });
+  await expect(activity).toContainText("You asked: Fix the build");
+  await expect(activity).not.toContainText("log an error");
 });

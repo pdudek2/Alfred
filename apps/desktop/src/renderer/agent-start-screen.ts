@@ -1,35 +1,37 @@
 import type { SessionTile } from "./session-state";
 
-export type CodexStartScreen = "hooks" | "folder" | "sign-in";
+export type AgentStartScreen = "hooks" | "folder" | "sign-in" | "claude-folder";
 
 /**
- * The screens Codex holds on before it takes a message, as of 0.164. It sends no signal for them, so they are read off
- * the terminal by their layout: every mark on a row of its own, in this order.
+ * The screens Codex (as of 0.164) and Claude Code (as of 2.1.319) hold on before they take a message. They send no
+ * signal for them, so they are read off the terminal by their layout: every mark on a row of its own, in this order.
  */
-const START_SCREENS: ReadonlyArray<{ screen: CodexStartScreen; marks: readonly string[] }> = [
+const START_SCREENS: ReadonlyArray<{ screen: AgentStartScreen; marks: readonly string[] }> = [
   { screen: "hooks", marks: ["Hooks need review", "Trust all and continue", "enter confirm · esc skip"] },
   { screen: "hooks", marks: ["hooks need review before they can run", "t trust all · enter review · esc close"] },
   { screen: "folder", marks: ["Folder access", "Trust this folder?", "enter continue · esc quit"] },
   { screen: "sign-in", marks: ["Welcome to Codex", "Sign in with ChatGPT", "Press enter to continue"] },
   { screen: "sign-in", marks: ["Paste or type your API key", "Press enter to save"] },
+  { screen: "claude-folder", marks: ["Accessing workspace:", "Quick safety check", "Yes, I trust this folder"] },
 ];
 
-const START_SCREEN_SENTENCES: Record<CodexStartScreen, string> = {
+const START_SCREEN_SENTENCES: Record<AgentStartScreen, string> = {
   hooks: "Codex asks you to review its hooks",
   folder: "Codex asks to trust this folder",
   "sign-in": "Codex needs you to sign in",
+  "claude-folder": "Claude asks to trust this folder",
 };
 
-export function codexStartScreen(rows: readonly string[]): CodexStartScreen | null {
+export function agentStartScreen(rows: readonly string[]): AgentStartScreen | null {
   return START_SCREENS.find(({ marks }) => marksOnOwnRows(rows, marks))?.screen ?? null;
 }
 
-export function codexStartScreenSentence(screen: CodexStartScreen): string {
+export function agentStartScreenSentence(screen: AgentStartScreen): string {
   return START_SCREEN_SENTENCES[screen];
 }
 
-export function watchesCodexStartScreen(session: Pick<SessionTile, "agentKind" | "command" | "detectedAgentKind">): boolean {
-  return session.agentKind === "codex" || session.command === "codex" || session.detectedAgentKind === "codex";
+export function watchesAgentStartScreen(session: Pick<SessionTile, "agentKind" | "command" | "detectedAgentKind">): boolean {
+  return [session.agentKind, session.command, session.detectedAgentKind].some((kind) => kind === "codex" || kind === "claude");
 }
 
 function marksOnOwnRows(rows: readonly string[], marks: readonly string[]): boolean {
