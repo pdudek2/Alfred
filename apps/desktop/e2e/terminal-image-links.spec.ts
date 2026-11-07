@@ -17,8 +17,9 @@ test("previews an image behind an OSC 8 link or a printed path while the pointer
   const rows = tile.locator(".xterm-rows > div");
   const peek = tile.locator(".terminal-image-peek");
 
-  // Keys typed before zsh draws its prompt lose the start of the line under load.
-  await expect(rows.filter({ hasText: /%\s*$/ })).toHaveCount(1);
+  // Keys typed before zsh draws its prompt lose the start of the line under load. On Linux a resize can make zsh
+  // draw it twice.
+  await expect(rows.filter({ hasText: /%\s*$/ }).first()).toBeVisible();
   // The link Claude Code prints for a sent [Image #1], then the same file as a bare path.
   await tile.getByTestId("xterm-host").click();
   await page.keyboard.type(`printf '\\e]8;;file://${image}\\e\\\\[Image #1]\\e]8;;\\e\\\\\\n%s\\n' ${image}`);
