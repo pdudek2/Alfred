@@ -246,3 +246,6 @@
   outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
+
+/* A worker's turn goes back to its orchestrator, not to you, so it keeps the shape but not the signal hue. */
+.session-tree-item.is-worker .session-status-glyph.status-your-turn { color: var(--text-secondary); }

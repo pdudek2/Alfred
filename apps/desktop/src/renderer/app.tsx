@@ -2498,6 +2498,7 @@ export function App() {
               onOpenExternalTerminal: handleOpenExternalTerminalForCwd,
               onRevealActivityFile: handleRevealActivityFile,
               onUpdateStagedSession: handleUpdateStagedSession,
+              onFocusTerminal: () => setTerminalFocusRequestKey((key) => key + 1),
             }}
           />
         </div>

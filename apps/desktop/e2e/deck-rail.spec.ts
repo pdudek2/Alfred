@@ -45,7 +45,8 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await alpha.click();
     await startSession(page, /^Terminal/);
 
-    await expect(alpha.locator(".project-row-state")).toHaveClass(/status-needs-you/);
+    // The open project's tree shows its states; the row keeps the summary for assistive tech only.
+    await expect(alpha.locator(".project-row-state")).toHaveCount(0);
     await expect(alpha).toHaveAccessibleDescription("needs you");
     await expect(beta.locator(".project-row-state")).toHaveClass(/status-working/);
     const sandboxes = rail.getByRole("button", { name: "Sandboxes, 5 projects" });
@@ -76,7 +77,7 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await expect(page.getByLabel("Project preview")).toBeVisible();
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "264px");
     await expect(alpha.locator(".project-row-label")).toBeVisible();
-    await expect(alpha.locator(".project-row-state")).toBeVisible();
+    await expect(alpha.locator(".project-row-state")).toHaveCount(0);
     await expect(beta.locator(".project-row-state")).toBeVisible();
     await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);
     await page.screenshot({ path: testInfo.outputPath("deck-rail-preview-1120x720.png") });

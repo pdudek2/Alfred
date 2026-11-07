@@ -311,9 +311,8 @@ test.describe("work session and project identity", () => {
       style: identityScreenshotStyle,
     });
 
-    // The active project carries one state glyph inside its row.
-    const activeGlyph = activeProject.locator(".project-row-state");
-    await expect(activeGlyph).toBeVisible();
+    // The active project's sessions carry their states below it, so its row has no glyph of its own.
+    await expect(activeProject.locator(".project-row-state")).toHaveCount(0);
 
     await setWindowSize(app, page, 1120, 720);
     await expect(treeRows).toHaveCount(6);
@@ -323,26 +322,26 @@ test.describe("work session and project identity", () => {
       style: identityScreenshotStyle,
     });
 
-    // Details at the narrow width leaves the rail alone: same width, full labels, glyph inside the row.
+    // Details at the narrow width leaves the rail alone: same width, full labels inside the row.
     await openContext(page);
     await expect(projectLabel).toBeVisible();
     await expect.poll(() => activeProject.evaluate((node) => node.closest<HTMLElement>(".project-navigator")!.getBoundingClientRect().width))
       .toBe(264);
     const compactProjectGeometry = await activeProject.evaluate((node) => {
       const button = node.getBoundingClientRect();
-      const signal = node.querySelector<HTMLElement>(".project-row-state")?.getBoundingClientRect();
+      const label = node.querySelector<HTMLElement>(".project-row-label")?.getBoundingClientRect();
       return {
         button: { bottom: button.bottom, left: button.left, right: button.right, top: button.top },
-        signal: signal
-          ? { bottom: signal.bottom, left: signal.left, right: signal.right, top: signal.top }
+        label: label
+          ? { bottom: label.bottom, left: label.left, right: label.right, top: label.top }
           : null,
       };
     });
-    expect(compactProjectGeometry.signal).not.toBeNull();
-    expect(compactProjectGeometry.signal!.left).toBeGreaterThanOrEqual(compactProjectGeometry.button.left);
-    expect(compactProjectGeometry.signal!.right).toBeLessThanOrEqual(compactProjectGeometry.button.right);
-    expect(compactProjectGeometry.signal!.top).toBeGreaterThanOrEqual(compactProjectGeometry.button.top);
-    expect(compactProjectGeometry.signal!.bottom).toBeLessThanOrEqual(compactProjectGeometry.button.bottom);
+    expect(compactProjectGeometry.label).not.toBeNull();
+    expect(compactProjectGeometry.label!.left).toBeGreaterThanOrEqual(compactProjectGeometry.button.left);
+    expect(compactProjectGeometry.label!.right).toBeLessThanOrEqual(compactProjectGeometry.button.right);
+    expect(compactProjectGeometry.label!.top).toBeGreaterThanOrEqual(compactProjectGeometry.button.top);
+    expect(compactProjectGeometry.label!.bottom).toBeLessThanOrEqual(compactProjectGeometry.button.bottom);
     const inactiveProject = page.getByRole("button", { name: "Fixture Beta project" });
     const [activeProjectHeight, inactiveProjectHeight] = await Promise.all([
       activeProject.evaluate((node) => node.getBoundingClientRect().height),
@@ -634,7 +633,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.screenshot({ path: join(evidenceDir, "nested-location.png"), style: privacySafeScreenshotStyle });
 
   expect(
-    [...privacySelectorRuntimeMatches].filter(([, matched]) => !matched).map(([selector]) => selector),
+    // Activity renders only once a session has steps; these shell fixtures record none.
+    [...privacySelectorRuntimeMatches].filter(([selector, matched]) => !matched && selector !== ".agent-activity-list").map(([selector]) => selector),
     "Every privacy screenshot selector must match the fixture DOM in at least one exercised state",
   ).toEqual([]);
 

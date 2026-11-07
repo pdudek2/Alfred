@@ -43,26 +43,25 @@ test("builds a hooked agent's history from its hooks and ignores the old screen 
   const activity = page.getByRole("complementary", { name: "Details" }).getByRole("region", { name: "Activity" });
   await expect(activity).not.toContainText("Run tests");
   await activity.getByRole("button", { name: "Show 2 tool calls" }).click();
-  const order =["Fixed the build.", "Edited app.tsx", "Ran pnpm --filter @alfred/desktop typecheck", "Run tests", `You asked: ${prompt}`];
+  const order =["Fixed the build.", "Edited app.tsx", "Ran pnpm --filter @alfred/desktop typecheck", "Run tests"];
   for (const line of order) {
     await expect(activity).toContainText(line);
   }
+  // The prompt that named the session is its title already.
+  await expect(activity).not.toContainText("You asked");
   await expect(activity).not.toContainText("tail -40");
   const row = treeRow(page, sessionId);
   await expect(row.locator(".session-tree-preview")).toHaveText("Fixed the build.");
   const items = activity.getByRole("listitem");
   // Newest first, in the order the hooks came, even within one millisecond.
   await expect.poll(async () => (await items.allTextContents()).map((text) => order.findIndex((line) => text.includes(line))).filter((index) => index >= 0))
-    .toEqual([0, 1, 2, 3, 4]);
+    .toEqual([0, 1, 2, 3]);
   const count = await items.count();
-  // Every step is one line; the long prompt ends in an ellipsis and keeps its full text in the tooltip.
+  // Every step is one line.
   const heights = await items.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
   // A second line would add 18px; every row is the same single-line height.
   expect(new Set(heights).size).toBe(1);
   expect(heights[0]).toBeLessThan(36);
-  const askedRow = items.filter({ hasText: "You asked:" }).locator(".details-activity-sentence");
-  expect(await askedRow.evaluate((line) => line.scrollWidth > line.clientWidth)).toBe(true);
-  await expect(items.filter({ hasText: "You asked:" }).locator(".details-activity-text")).toHaveAttribute("title", prompt);
 
   // Scrolling back through the transcript makes Claude draw its old tool lines and errors again.
   for (let pass = 0; pass < 3; pass += 1) {
