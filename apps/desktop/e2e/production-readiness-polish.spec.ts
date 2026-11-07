@@ -29,7 +29,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(screen).toBeAttached();
   const screenBefore = await requiredHandle(screen, "launched fixture xterm");
   await expectFixedCellFont(page.locator(".xterm-rows").first());
-  await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".session-strip-kind"));
+  await expectSans(page.getByTestId("workbench-header").locator(".session-meta-kind"));
 
   // The deck always shows one terminal; every added session lands in focus and joins the rail's tree.
   const tree = sessionTree(page);

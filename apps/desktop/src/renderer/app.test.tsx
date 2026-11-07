@@ -629,9 +629,12 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onApproveTile: vi.fn(),
     onRejectTile: vi.fn(),
   };
+  // The top bar's slot, where the focused tile shows its agent, place, age and menu.
+  const sessionMetaSlot = document.body.appendChild(document.createElement("div"));
   const renderDesk = (nextSessions: SessionTile[], selectedSessionId = nextSessions[0]?.id ?? null) => (
     <TerminalDesk
       activeWorkspaceId="A"
+      sessionMetaSlot={sessionMetaSlot}
       armedRecoverySessionIds={new Set()}
       now={Date.now()}
       pinnedSessionId={null}
@@ -649,6 +652,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     ...render(renderDesk(sessions)),
     callbacks,
     renderDesk,
+    sessionMetaSlot,
   };
 }
 
@@ -914,7 +918,7 @@ describe("App integration", () => {
   });
 
   it("shows a tile path only when it differs from the workspace root", () => {
-    renderTerminalDeskForSessions([
+    const sessions: SessionTile[] = [
       {
         id: "root-session",
         title: "Root session",
@@ -940,14 +944,16 @@ describe("App integration", () => {
       ] as const).map(([id, workTree]): SessionTile => ({
         id, title: id, workspaceId: "A", cwd: "/Users/sample/Desktop/Alfred", source: "alfred", stage: "live", runtimeStatus: "live", agentKind: "claude", workTree,
       })),
-    ]);
+    ];
+    const { rerender, renderDesk, sessionMetaSlot } = renderTerminalDeskForSessions(sessions);
 
-    expect(screen.getByRole("article", { name: "Root session" }).querySelector(".session-location-value")).toBeNull();
-    // Only the focused tile is exposed; the others stay mounted but hidden.
-    const tile = (id: string) => document.querySelector<HTMLElement>(`[data-testid="terminal-tile"][data-session-id="${id}"]`)!;
-    const labels = (id: string) => [...tile(id).querySelectorAll(".session-location-value")].map((label) => label.textContent);
-    expect(tile("nested-session")).toHaveAttribute("aria-hidden", "true");
-    expect(tile("nested-session").querySelector(".session-location-value")).toHaveTextContent(/apps\/desktop$/);
+    // Only the focused tile shows where it works, beside its title in the top bar.
+    const labels = (id: string) => {
+      rerender(renderDesk(sessions, id));
+      return [...sessionMetaSlot.querySelectorAll(".session-location-value")].map((label) => label.textContent);
+    };
+    expect(labels("root-session")).toEqual([]);
+    expect(labels("nested-session")).toEqual([expect.stringMatching(/apps\/desktop$/)]);
     expect(labels("agent-in-root")).toEqual(["fix-in-place"]);
     expect(labels("agent-in-worktree")).toEqual(["rail-long-names", ".worktrees/rail-long-names"]);
     expect(labels("agent-outside")).toEqual(["Alfred"]);
@@ -987,8 +993,8 @@ describe("App integration", () => {
     const { emitData, renameTerminal } = installDesktopBridge();
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    const kind = () => tile.querySelector(".session-strip-kind");
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    const kind = () => screen.getByTestId("workbench-header").querySelector(".session-meta-kind");
     expect(kind()).toHaveTextContent("Terminal");
     await waitForTerminalStartsToSettle();
 
@@ -2284,9 +2290,10 @@ describe("App integration", () => {
       (tile) => tile.getAttribute("aria-hidden") !== "true",
     );
     expect(visibleTiles).toHaveLength(1);
-    // The breadcrumb carries the title; the tile has no header, only its strip under the terminal.
+    // The top bar carries the title, the agent and the menu; a running tile is only its terminal.
     expect(visibleTiles[0]?.querySelector("header")).toBeNull();
-    expect(visibleTiles[0]?.querySelector(".session-strip")).toHaveTextContent(/^Codex/);
+    expect(visibleTiles[0]?.querySelector(".session-strip")).toBeNull();
+    expect(workbenchHeader.querySelector(".session-meta")).toHaveTextContent(/^Codex/);
   });
 
   it("uses the rail tree to change Focus sessions without replacing xterm", async () => {
@@ -2420,9 +2427,8 @@ describe("App integration", () => {
       runtimeStatus: "live",
       initialBuffer: "",
     };
-    const { callbacks } = renderTerminalDeskForSessions([session]);
-    const tile = screen.getByRole("article", { name: /Manual · menu/i });
-    const trigger = within(tile).getByRole("button", {
+    const { callbacks, sessionMetaSlot } = renderTerminalDeskForSessions([session]);
+    const trigger = within(sessionMetaSlot).getByRole("button", {
       name: "More actions for Manual · menu",
     });
 
@@ -2439,12 +2445,12 @@ describe("App integration", () => {
 
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: "Rename session" }));
-    expect(within(tile).getByRole("textbox", { name: "Rename Manual · menu" }))
+    expect(within(sessionMetaSlot).getByRole("textbox", { name: "Rename Manual · menu" }))
       .toHaveValue("Manual · menu");
 
     // The rename field takes the menu's place, so the menu button is a new node afterwards.
     await user.keyboard("{Escape}");
-    await user.click(within(tile).getByRole("button", { name: "More actions for Manual · menu" }));
+    await user.click(within(sessionMetaSlot).getByRole("button", { name: "More actions for Manual · menu" }));
     await user.click(screen.getByRole("menuitem", { name: /Close/ }));
     expect(callbacks.onCloseSession).toHaveBeenCalledWith("manual-menu");
   });
@@ -2480,18 +2486,18 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByTestId("terminal-tile");
-    const firstUtility = within(tile).getByRole("button", { name: "More actions for zsh" });
+    const menu = within(screen.getByTestId("workbench-header")).getByRole("button", { name: "More actions for zsh" });
     await screen.findByRole("button", { name: "Alfred project" });
 
     await act(async () => {
-      tile.focus();
+      (document.activeElement as HTMLElement | null)?.blur();
     });
-    expect(tile).toHaveFocus();
-
-    await user.tab();
-
-    expect(firstUtility).toHaveFocus();
-    expect(tile).toContainElement(document.activeElement as HTMLElement);
+    // The menu sits in the top bar, ahead of the terminal: tabbing forward reaches it before the shell keeps Tab.
+    for (let step = 0; step < 80 && document.activeElement !== menu; step += 1) {
+      expect(tile).not.toContainElement(document.activeElement as HTMLElement);
+      await user.tab();
+    }
+    expect(menu).toHaveFocus();
   });
 
   it("uses a Dispatch bar with explicit workspace planning instead of a workspace chat composer", async () => {
@@ -6149,13 +6155,12 @@ describe("App integration", () => {
       });
       const surfacesNeedingYou = () => [
         within(breadcrumb).queryByLabelText("status needs you") !== null,
-        within(tile).queryByRole("note") !== null,
         screen.queryByRole("button", { name: /^Needs you, / }) !== null,
         document.getElementById(project.getAttribute("aria-describedby") ?? "")?.textContent === "needs you",
         within(details).queryByLabelText("status needs you") !== null,
       ];
       expect(within(breadcrumb).getByLabelText("status running")).toBeInTheDocument();
-      expect(surfacesNeedingYou()).toEqual([false, false, false, false, false]);
+      expect(surfacesNeedingYou()).toEqual([false, false, false, false]);
 
       // Each tick renders before the next one is scheduled, so the clock advances a second at a time.
       for (let second = 1; second <= 16; second += 1) {
@@ -6164,8 +6169,9 @@ describe("App integration", () => {
         expect(new Set(states).size, `surfaces disagree after ${second} s: ${states.join(", ")}`).toBe(1);
       }
 
-      expect(surfacesNeedingYou()).toEqual([true, true, true, true, true]);
-      expect(within(tile).getByRole("note")).toHaveTextContent("Approval required: continue?");
+      expect(surfacesNeedingYou()).toEqual([true, true, true, true]);
+      // The terminal shows the question itself; the tile adds no line repeating it.
+      expect(within(tile).queryByRole("note")).toBeNull();
       expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -6725,9 +6731,9 @@ describe("App integration", () => {
       name: /(?<!\/)Codex(?! \d)(?! ·), Asked: Do you want to proceed\? y\/N/i,
     });
 
-    // Once the session is attached and needs you, the strip under the terminal says what the agent waits for.
-    expect(await within(tile).findByRole("note")).toHaveTextContent("Codex asks: Do you want to proceed? y/N");
-    expect(within(tile).getByText("Codex")).toHaveClass("session-strip-kind");
+    // The tile names what the agent waits for to assistive tech; on screen the terminal itself shows the question.
+    expect(within(tile).queryByRole("note")).toBeNull();
+    expect(within(screen.getByTestId("workbench-header")).getByText("Codex", { selector: ".session-meta-kind" })).toBeInTheDocument();
   });
 
   it("keeps approval context informational in the focused activity panel", async () => {
@@ -7034,9 +7040,10 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await sessionMenuAction(user, "Codex", "Rename session");
-    const input = within(tile).getByRole("textbox", { name: "Rename Codex" });
+    const header = screen.getByTestId("workbench-header");
+    const input = within(header).getByRole("textbox", { name: "Rename Codex" });
     await user.clear(input);
-    expect(within(tile).getByRole("button", { name: "Save title for Codex" })).toBeDisabled();
+    expect(within(header).getByRole("button", { name: "Save title for Codex" })).toBeDisabled();
     await user.type(input, "Spec reviewer{Enter}");
 
     // The new name shows where the title lives now: in the breadcrumb.
@@ -7153,8 +7160,6 @@ describe("App integration", () => {
     });
 
     expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
-    expect(within(screen.getByRole("article", { name: /Codex · one/i })).getByRole("note"))
-      .toHaveTextContent("Allow edit in app.tsx?");
     await user.click(screen.getByRole("button", { name: "Needs you, 1 session" }));
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Allow edit in app.tsx?");
   });

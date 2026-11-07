@@ -662,7 +662,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await busyInput.press("Enter");
   await expect(busyTile.getByTestId("xterm-host")).toContainText("Build complete");
   await treeRow(page, "nested-location").click();
-  await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="nested-location"]')).not.toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByTestId("workbench-header").locator(".session-location-value")).toBeVisible();
   await expect(page.locator(".session-tree-meta").first()).toBeVisible();
   await expect(page.getByRole("group", { name: "Free Chats" }).locator(".project-session-title")).toBeVisible();
   await recordPrivacyMaskCoverage();

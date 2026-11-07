@@ -50,14 +50,8 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await expect(popover).not.toContainText("Fixture item 2");
   const edit = popover.getByRole("button", { name: /^Edit Fixture item 1 in / });
   await expect(edit).toBeFocused();
-  // The window dims under the queue (Needs board) and still lets a click outside land where it points.
-  const scrim = page.locator(".needs-you-scrim");
-  await expect(scrim).toBeVisible();
-  expect(await scrim.evaluate((node) => {
-    const { pointerEvents, backgroundColor } = getComputedStyle(node);
-    const box = node.getBoundingClientRect();
-    return { pointerEvents, backgroundColor, width: box.width, height: box.height };
-  })).toEqual({ pointerEvents: "none", backgroundColor: "color(srgb 0.0235294 0.0235294 0.027451 / 0.45)", width: 1440, height: 900 });
+  // The queue hangs over the window without dimming it, so a click outside lands where it points.
+  await expect(page.locator(".needs-you-scrim")).toHaveCount(0);
   expect(await elementGeometry(grid)).toEqual(gridBefore);
   expect(await popover.evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(1440);
   expect(await documentOverflow(page)).toBe(0);
@@ -127,8 +121,11 @@ test.describe("mixed Needs you actions", () => {
     await expect(popover).not.toContainText("Fixture item 3");
     await expect(popover).not.toContainText("Fixture item 4");
     await expect(popover).not.toContainText("Restored fixture");
-    // The first row's action carries the Enter hint: focus starts on it.
-    expect(await rows.locator("button").allTextContents()).toEqual(["Edit↩", "Open"]);
+    // Each row is its action; the focused first row carries the Enter hint.
+    expect(await rows.getByRole("button").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("aria-label")?.split(" ")[0])))
+      .toEqual(["Edit", "Open"]);
+    await expect(rows.first().locator("kbd")).toBeVisible();
+    await expect(rows.nth(1).locator("kbd")).toBeHidden();
     await expect(popover.getByText("Fixture safety policy blocks launch outside the approved root.", { exact: true }))
       .toBeVisible();
     await expect(popover.getByText("Approval required: allow deterministic fixture?", { exact: true })).toBeVisible();

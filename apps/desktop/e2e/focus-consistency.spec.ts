@@ -15,7 +15,7 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   // Initial xterm startup claims focus asynchronously; begin after that handoff.
   await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   // A narrow focus column folds Close into the overflow menu; either way one tile control takes the ring.
-  const tileUtility = page.locator('[data-testid="terminal-tile"]:visible')
+  const tileUtility = page.getByTestId("workbench-header")
     .getByRole("button", { name: /^(Close|More actions for) zsh/ }).first();
   // A second terminal takes the focus; the first one waits in the rail's tree.
   await openNewTerminalSheet(page);

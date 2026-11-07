@@ -14,14 +14,6 @@
   font: 400 13px/18px var(--sans);
 }
 
-.needs-you-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 109;
-  background: color-mix(in srgb, var(--surface-canvas) 45%, transparent);
-  pointer-events: none;
-}
-
 .needs-you-popover:focus {
   outline: none;
 }
@@ -59,16 +51,42 @@
 }
 
 .needs-you-popover__row {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  border: 0;
   border-radius: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.needs-you-popover__row:has(button:focus-visible),
-.needs-you-popover__row:hover {
-  background: var(--surface-control);
+/* The focused row is the selection, filled like the palette's; Enter opens it. */
+.needs-you-popover__row:hover,
+.needs-you-popover__row:focus {
+  outline: none;
+  background: var(--surface-control-hover);
+}
+
+.needs-you-popover__row kbd {
+  flex: 0 0 auto;
+  visibility: hidden;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+}
+
+.needs-you-popover__row:focus kbd {
+  visibility: visible;
+}
+
+/* Faint text fails 4.5:1 on the selection fill. */
+.needs-you-popover__row:hover .needs-you-popover__title span,
+.needs-you-popover__row:focus .needs-you-popover__title span {
+  color: var(--text-muted);
 }
 
 .needs-you-popover__glyph {
@@ -108,49 +126,9 @@
   white-space: nowrap;
 }
 
-.needs-you-popover__copy p {
+.needs-you-popover__reason {
   overflow: hidden;
-  margin: 0;
   color: var(--text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.needs-you-popover__row button {
-  flex: 0 0 auto;
-  height: 26px;
-  border: 0;
-  border-radius: 8px;
-  padding: 0 10px;
-  background: var(--surface-control);
-  color: var(--text-primary);
-  font: 500 12px/16px var(--sans);
-  cursor: pointer;
-}
-
-.needs-you-popover__row button:hover {
-  background: var(--surface-control-hover);
-}
-
-/* The action Enter runs: the New sheet's button with a quiet key hint, as on the Needs board. */
-.needs-you-popover__row button.is-default {
-  height: 30px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 10px;
-  background: var(--surface-raised);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-  font: 400 13px/18px var(--sans);
-}
-
-.needs-you-popover__row button.is-default kbd {
-  color: var(--text-faint);
-  font: 400 12px/16px var(--sans);
-}
-
-.needs-you-popover__row button:focus-visible {
-  outline: 1px solid var(--focus-border);
-  outline-offset: 1px;
 }

@@ -177,6 +177,7 @@ export function App() {
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
+  const [sessionMetaSlot, setSessionMetaSlot] = useState<HTMLDivElement | null>(null);
   const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [armedRecoverySessionIds, setArmedRecoverySessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
@@ -2289,6 +2290,7 @@ export function App() {
             projectDetail={workspaceDetail(activeWorkspace)}
             projectLabel={activeWorkspace.label}
             selectedSession={activeSelectedSession}
+            sessionMetaRef={setSessionMetaSlot}
             shortcutModifier={shortcutModifier}
             onOpenCommandPalette={handleOpenCommandPalette}
             onOpenNewSession={() => openNewSession()}
@@ -2358,6 +2360,7 @@ export function App() {
             >
                 <TerminalDesk
                   activeWorkspaceId={activeWorkspace.id}
+                  sessionMetaSlot={sessionMetaSlot}
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   now={now}
                   previewPane={activePreviewDockOpen ? (

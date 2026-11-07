@@ -521,8 +521,17 @@ button {
   position: relative;
 }
 
+/* The terminal meets the rail, the window's bottom edge and, without Details, its right edge. */
 .workspace-layout.surface-work {
-  padding: 0 16px 16px;
+  padding: 0;
+}
+
+.workspace-layout.surface-work.context-visible {
+  padding-right: 16px;
+}
+
+.workspace-layout.surface-work .context-column {
+  padding-bottom: 16px;
 }
 
 /* The rail from the v4 canvas: window buttons, Deck / History, projects, Settings. */
@@ -1067,6 +1076,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 /* The top bar from the v4 canvas: breadcrumb on the left, session view and global actions on the right. */
 .workbench-header {
+  container: workbench / inline-size;
   width: 100%;
   height: 52px;
   min-width: 0;
@@ -1080,7 +1090,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .workbench-breadcrumb {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -1093,13 +1103,11 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   opacity: 0.6;
 }
 
+/* The project name never truncates; the session title gives way first. */
 .workbench-breadcrumb-parent {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
+  flex: none;
   color: var(--text-muted);
   font: 400 13px/18px var(--sans);
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1122,8 +1130,13 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   white-space: nowrap;
 }
 
+.workbench-session-meta {
+  flex: none;
+}
+
 .workbench-actions {
   flex: none;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1258,7 +1271,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .workbench-actions .workbench-new {
-  padding: 0 10px 0 8px;
+  padding: 0 10px;
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -1433,10 +1446,9 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-template-rows: minmax(0, 1fr);
 }
 
-/* v4 canvas, "Project with nothing running": the empty state sits in the same quiet box a terminal would. */
+/* v4 canvas, "Project with nothing running": the empty state sits on the same surface a terminal would. */
 .terminal-grid:has(> .terminal-empty-state) {
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--surface-terminal);
 }
 
 .terminal-empty-state {
@@ -1597,16 +1609,14 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-primary);
 }
 
-/* The focused session from the v4 canvas: one quiet box holding the terminal and its strip. */
+/* The focused session: a terminal surface set into the column, lighter than the canvas, with no frame of its own. */
 .terminal-tile {
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
   overflow: hidden;
   background: var(--surface-terminal);
-  /* Two rows: the terminal's cell, which Preview can cover, and the strip. */
+  /* Two rows: the terminal's cell, which Preview can cover, and the strip when a session cannot simply run. */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
@@ -1616,8 +1626,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 /* Keyboard focus on the box itself. Typing inside the terminal needs no ring: the cursor shows it. */
 .terminal-tile:focus-visible {
   outline: none;
-  border-color: color-mix(in oklab, var(--focus-border) 58%, var(--border-strong));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--focus-border) 18%, transparent);
+  box-shadow: inset 0 0 0 1px var(--border-focus);
 }
 
 .terminal-tile.workspace-hidden,
@@ -1767,15 +1776,12 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-faint);
 }
 
-/* The session strip: at most one action row, then who runs here, where, since when, and the menu.
-   It precedes the terminal in the DOM for keyboard order and is drawn below it. */
+/* The strip, left only for a session that cannot simply run: why, and the action. A raised surface at the foot of
+   the terminal. It precedes the terminal in the DOM for keyboard order and is drawn below it. */
 .session-strip {
   position: relative;
   grid-row: 2;
-  margin: 0 12px 12px;
-  border-radius: 12px;
-  background: var(--surface-panel);
-  box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-strip);
+  background: var(--surface-raised);
   display: flex;
   flex-direction: column;
   color: var(--text-muted);
@@ -1785,8 +1791,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .session-strip-note,
 .session-strip-action {
   margin: 0;
-  border-bottom: 1px solid var(--border);
-  padding: 12px 12px 10px 16px;
+  padding: 10px 12px 10px 20px;
   color: var(--text-secondary);
   font: 400 13px/18px var(--sans);
 }
@@ -1811,8 +1816,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   border: 0;
   border-radius: 10px;
   padding: 0 12px;
-  background: var(--surface-control);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  background: var(--surface-control-hover);
   color: var(--text-primary);
   font: 400 13px/18px var(--sans);
   white-space: nowrap;
@@ -1820,7 +1824,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .session-strip .continue-button:hover {
-  background: var(--surface-control-hover);
+  background: color-mix(in oklab, var(--surface-control-hover), white 6%);
 }
 
 /* Risk is carried by the copy and the second press, not by color. */
@@ -1828,73 +1832,85 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   font-weight: 500;
 }
 
-.session-strip-info {
-  min-height: 31px;
-  padding: 0 4px 0 16px;
+.session-strip .continue-button:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+/* The focused session beside its title in the top bar: who runs it, where, since when, and its menu. When the bar
+   runs short the age goes first, then the agent, so the project name and the title keep their room. */
+.session-meta {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-}
-
-.session-strip-kind {
-  flex: none;
-  color: var(--text-secondary);
+  gap: 12px;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
   white-space: nowrap;
+  -webkit-app-region: no-drag;
 }
 
-.session-strip .session-location-value {
+.session-meta-kind {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.session-meta .session-location-value {
   min-width: 0;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.session-strip-spacer {
-  flex: 1 1 auto;
-}
-
-.session-strip-age {
+.session-meta-age {
   flex: none;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
-.session-strip-menu {
+@container workbench (max-width: 1000px) {
+  .session-meta-age,
+  .session-meta .session-location-value {
+    display: none;
+  }
+}
+
+@container workbench (max-width: 760px) {
+  .session-meta-kind {
+    display: none;
+  }
+}
+
+.session-meta-menu {
   flex: none;
   margin-left: -6px;
 }
 
-.session-strip-menu .chrome-menu-trigger {
+.session-meta-menu .chrome-menu-trigger {
   width: 28px;
   height: 24px;
   border: 0;
   border-radius: 7px;
   padding: 0;
   background: transparent;
-  color: var(--text-faint);
+  color: var(--text-muted);
   display: grid;
   place-items: center;
   cursor: pointer;
 }
 
-.session-strip-menu .chrome-menu-trigger:hover,
-.session-strip-menu .chrome-menu-trigger[aria-expanded="true"] {
+.session-meta-menu .chrome-menu-trigger:hover,
+.session-meta-menu .chrome-menu-trigger[aria-expanded="true"] {
   background: var(--surface-control);
   color: var(--text-primary);
 }
 
-/* Inside the strip the focus ring stays within the control, so it never spills over the card's edge. */
-.session-strip-menu .chrome-menu-trigger:focus-visible,
-.session-strip .continue-button:focus-visible {
+.session-meta-menu .chrome-menu-trigger:focus-visible {
   outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
 
-/* The strip sits at the bottom of the box, so its menu opens upward. */
-.session-strip-menu .chrome-menu-popover {
-  top: auto;
-  bottom: calc(100% + 8px);
+.session-meta-menu .chrome-menu-popover {
   width: 240px;
   border: 0;
   border-radius: 10px;
@@ -1904,7 +1920,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   gap: 1px;
 }
 
-.session-strip-menu .chrome-menu-popover button {
+.session-meta-menu .chrome-menu-popover button {
   width: 100%;
   min-height: 30px;
   border: 0;
@@ -1919,14 +1935,14 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   cursor: pointer;
 }
 
-.session-strip-menu .chrome-menu-popover button:hover,
-.session-strip-menu .chrome-menu-popover button:focus-visible {
+.session-meta-menu .chrome-menu-popover button:hover,
+.session-meta-menu .chrome-menu-popover button:focus-visible {
   border-color: transparent;
   background: var(--surface-control);
   color: var(--text-primary);
 }
 
-.session-strip-menu .chrome-menu-popover button small {
+.session-meta-menu .chrome-menu-popover button small {
   color: var(--text-faint);
   font: 400 12px/16px var(--sans);
 }
@@ -2033,11 +2049,12 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   font-family: var(--sans);
 }
 
+/* 20px in from the rail, so the prompt lines up with the breadcrumb above it. */
 .xterm-host .xterm {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 12px 14px 0;
+  padding: 14px 20px 0;
   letter-spacing: 0;
 }
 
@@ -2373,14 +2390,19 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   font: 400 12px/18px var(--sans);
 }
 
-/* The selected row looks like the selected kind in New. */
+/* The selected row looks like the selected kind in New: a fill, no outline. */
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible,
 .command-palette-list button.active {
-  background: var(--surface-raised);
-  background-image: none;
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  background: var(--surface-control-hover);
   color: var(--text-primary);
+}
+
+/* Faint text fails 4.5:1 on the selection fill. */
+.command-palette-list button:hover .command-palette-shortcut,
+.command-palette-list button:focus-visible .command-palette-shortcut,
+.command-palette-list button.active .command-palette-shortcut {
+  color: var(--text-muted);
 }
 
 /* The palette is the field; its input draws no second box. */

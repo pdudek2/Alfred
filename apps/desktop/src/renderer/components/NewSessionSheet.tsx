@@ -26,8 +26,8 @@ export type NewSessionSheetProps = {
   onClose: () => void;
 };
 const kinds = [
-  ["codex", "Codex", "An agent in its own terminal"],
-  ["claude", "Claude", "An agent in its own terminal"],
+  ["codex", "Codex", "OpenAI's coding agent"],
+  ["claude", "Claude", "Anthropic's coding agent"],
   ["terminal", "Terminal", "A shell in the project folder"],
   ["plan", "Plan with Alfred", "Describe a goal and get drafts to launch"],
 ] as const;

@@ -51,7 +51,7 @@ function isLiveShellSelector(selector: string): boolean {
     ".workspace-layout", ".project-navigator", ".project-", ".free-chat-",
     ".alfred-mark", ".workbench-", ".work-surface-", ".chrome-menu", ".prepare-work-popover",
     ".desktop-save-", ".shell-action-", ".recovery-",
-    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form", ".session-strip",
+    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form", ".session-strip", ".session-meta",
     ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
   ].some((prefix) => selector.includes(prefix));
 }
@@ -409,10 +409,7 @@ describe("renderer CSS contracts", () => {
       [".chrome-menu-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
-      // The session strip is the one raised card in the deck, with hairlines on its controls (v4 canvas).
-      [".session-strip"],
-      [".session-strip .continue-button"],
-      [".session-strip-menu .chrome-menu-popover"],
+      [".session-meta-menu .chrome-menu-popover"],
       [".session-rename-form input"],
       [".session-rename-form input:focus-visible"],
       // The hairline of the drop overlay over a dragged-on terminal (v4 Drop board).
@@ -422,7 +419,7 @@ describe("renderer CSS contracts", () => {
       [".workspace-rename-form input", ".workspace-mission-form textarea"],
       [".workspace-rename-form input:focus-visible", ".workspace-mission-form textarea:focus-visible"],
     ]));
-    expect(materialShadows).toHaveLength(12);
+    expect(materialShadows).toHaveLength(10);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -776,7 +773,7 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(sheet, ".new-session-sheet .chrome-menu-trigger > svg")).toContain("opacity: 0.7");
   });
 
-  it("keeps the New sheet prompt at three rows with a hairline and the standard focus ring", () => {
+  it("keeps the New sheet prompt at three rows with a hairline and a one-pixel focus ring", () => {
     const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
     const prompt = singleTopLevelRuleBodyIn(sheet, ".new-session-prompt textarea");
     expect(prompt).toContain("resize: none");
@@ -785,8 +782,7 @@ describe("renderer CSS contracts", () => {
     expect(prompt).toContain("box-shadow: inset 0 0 0 1px var(--border)");
     const focus = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet textarea:focus-visible");
     expect(focus).toContain("outline: none");
-    expect(focus).toContain("var(--border-focus)");
-    expect(focus).toContain("var(--focus-border)");
+    expect(focus).toContain("box-shadow: inset 0 0 0 1px var(--focus-border)");
   });
 
   it("keeps the New sheet on the medium weight of the type scale", () => {

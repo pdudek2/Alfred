@@ -1,4 +1,4 @@
-import { ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import type { Ref } from "react";
 import type { HistorySelection } from "../history-presentation";
 import type { SessionTile } from "../session-state";
@@ -24,6 +24,8 @@ export type WorkbenchHeaderProps = {
   projectDetail: string;
   projectLabel: string;
   selectedSession: SessionTile | null;
+  /** Where the focused terminal puts who runs it, since when, and its menu. */
+  sessionMetaRef?: Ref<HTMLDivElement>;
   shortcutModifier: "Cmd" | "Ctrl";
   onOpenCommandPalette: () => void;
   onOpenNewSession: () => void;
@@ -45,6 +47,7 @@ export function WorkbenchHeader({
   projectDetail,
   projectLabel,
   selectedSession,
+  sessionMetaRef,
   shortcutModifier,
   onOpenCommandPalette,
   onOpenNewSession,
@@ -83,6 +86,7 @@ export function WorkbenchHeader({
           </span>
         )}
       </nav>
+      {onDeck && <div className="workbench-session-meta" ref={sessionMetaRef} />}
       <div className="workbench-actions">
         {onDeck && (session || previewAvailable || previewOpen) && (
           <>
@@ -143,7 +147,7 @@ export function WorkbenchHeader({
         </button>
         <button ref={newSessionTriggerRef} type="button" className="workbench-control workbench-new" aria-label="New"
           aria-haspopup="dialog" title={`New session (${key("N")})`} onClick={onOpenNewSession}>
-          <Plus aria-hidden="true" size={13} /><span>New</span>
+          New
         </button>
       </div>
     </header>

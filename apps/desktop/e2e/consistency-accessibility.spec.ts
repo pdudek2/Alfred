@@ -26,7 +26,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");
   await expectFixedCellTerminalFont(page.locator(".xterm-rows").first(), "13px");
-  await expectSansFont(page.locator(".terminal-tile.real-terminal .session-strip-kind").first());
+  await expectSansFont(page.getByTestId("workbench-header").locator(".session-meta-kind"));
 
   const runtimeId = await page.evaluate(async () => {
     const terminalApi = window.alfredDesktop?.terminal;
@@ -162,16 +162,15 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     return {
       row: row?.getBoundingClientRect(),
       scope: node.getBoundingClientRect(),
-      tabs: row?.querySelector("[role='tablist']")?.getBoundingClientRect(),
+      search: row?.querySelector(".sessions-navigator__search")?.getBoundingClientRect(),
     };
   });
-  // The scope sits under the search field beside the source tabs, or on its own line when the tabs leave no room;
-  // it never touches them and is never cut off.
-  expect(scopeGeometry.row && scopeGeometry.tabs).toBeTruthy();
+  // The scope ends the search row, beside the field on the same line; it never touches it and is never cut off.
+  expect(scopeGeometry.row && scopeGeometry.search).toBeTruthy();
   expect(scopeGeometry.scope.right).toBeLessThanOrEqual(scopeGeometry.row!.right);
-  const besideTabs = scopeGeometry.scope.left >= scopeGeometry.tabs!.right + 8;
-  const belowTabs = scopeGeometry.scope.top >= scopeGeometry.tabs!.bottom;
-  expect(besideTabs || belowTabs).toBe(true);
+  expect(scopeGeometry.scope.left).toBeGreaterThanOrEqual(scopeGeometry.search!.right + 8);
+  expect(Math.abs((scopeGeometry.scope.top + scopeGeometry.scope.bottom) - (scopeGeometry.search!.top + scopeGeometry.search!.bottom)))
+    .toBeLessThanOrEqual(2);
   expect(await projectScope.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await projectScope.focus();
   await expect(projectScope).toBeFocused();
@@ -275,11 +274,12 @@ async function selectSurface(
 }
 
 async function setLongSessionTitle(page: Page, sessionId: string): Promise<void> {
-  const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]`);
+  const header = page.getByTestId("workbench-header");
+  await expect(page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]`)).not.toHaveAttribute("aria-hidden", "true");
   const title = "Long session title keeps the breadcrumb truncation honest beside the top bar tabs and actions".slice(0, 80);
-  await tile.getByRole("button", { name: /^More actions for / }).click();
+  await header.getByRole("button", { name: /^More actions for / }).click();
   await page.getByRole("menuitem", { name: "Rename session", exact: true }).click();
-  const rename = tile.getByRole("textbox", { name: /^Rename / });
+  const rename = header.getByRole("textbox", { name: /^Rename / });
   await rename.fill(title);
   await rename.press("Enter");
   await expect(page.locator(".workbench-session-title")).toHaveText(title);
@@ -320,13 +320,16 @@ async function expectStableSessionChrome(
   titleTruncated: boolean,
 ): Promise<void> {
   const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]:not([aria-hidden="true"])`);
-  const strip = tile.locator(".session-strip");
-  await expect(strip).toBeVisible();
+  await expect(tile).toBeVisible();
+  const meta = page.getByTestId("workbench-header").locator(".session-meta");
+  await expect(meta).toBeVisible();
   // A long title is cut inside the breadcrumb; it never pushes the top bar wider.
   expect(await page.getByTestId("workbench-header").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   if (titleTruncated) {
     expect(await page.locator(".workbench-session-title").evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
   }
+  // The project name is never cut: the title, then the age and the agent give way first.
+  expect(await page.locator(".workbench-breadcrumb-parent").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   // The project's folder is one hover away on the breadcrumb, not spelled out in the bar.
   await expect(page.locator(".workbench-breadcrumb-parent")).toHaveAttribute("title", /workspace-a/);
   const cwd = await page.evaluate(async (clientId) => {
@@ -336,18 +339,18 @@ async function expectStableSessionChrome(
   if (!cwd) throw new Error("Terminal cwd is missing");
   expect(await realpath(cwd)).toBe(await realpath(expectedCwd));
   await settleTerminalTileAnimations(page);
-  const before = await stripGeometry(strip);
+  const before = await metaGeometry(meta);
 
   await tile.hover();
-  expect(await stripGeometry(strip)).toEqual(before);
+  expect(await metaGeometry(meta)).toEqual(before);
 
   await tile.focus();
-  expect(await stripGeometry(strip)).toEqual(before);
-  expect(await strip.locator(".session-strip-info").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect(await metaGeometry(meta)).toEqual(before);
+  expect(await meta.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
 }
 
-async function stripGeometry(strip: Locator): Promise<Array<{ width: number; x: number }>> {
-  return strip.locator(".session-strip-info > *").evaluateAll((nodes) =>
+async function metaGeometry(meta: Locator): Promise<Array<{ width: number; x: number }>> {
+  return meta.locator("> *").evaluateAll((nodes) =>
     nodes.map((node) => {
       const element = node as HTMLElement;
       return { width: element.offsetWidth, x: element.offsetLeft };

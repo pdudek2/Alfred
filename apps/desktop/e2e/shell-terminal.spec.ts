@@ -51,13 +51,13 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   const r0 = await readShellGeometry(page);
   expect(r0.visibleTileCount).toBe(1);
-  expect(r0.visibleStripCount).toBe(1);
+  expect(r0.visibleStripCount).toBe(0);
   expect(
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
   ).toBe(r0.workspaceLayoutHeight);
   const wideTile = visibleTerminalTiles(page).first();
-  await expect(wideTile.getByRole("button", { name: "More actions for zsh" })).toBeVisible();
+  await expect(page.getByTestId("workbench-header").getByRole("button", { name: "More actions for zsh" })).toBeVisible();
   await expect(wideTile.locator("header")).toHaveCount(0);
   const bannerAlert = await proveBannerAlertGeometry(page);
   expect(bannerAlert.alertStackHeight).toBeGreaterThan(0);
@@ -74,11 +74,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')).not.toHaveAttribute("aria-hidden", "true");
   await expect(treeRow(page, "manual-1")).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
-  // The focused tile has no header: its strip sits under the terminal.
-  await expect(visibleTerminalTiles(page).locator(".session-strip")).toHaveCount(1);
+  // A running tile is only its terminal: its agent, age and menu sit in the top bar.
+  await expect(visibleTerminalTiles(page).locator(".session-strip")).toHaveCount(0);
   const r1 = await readShellGeometry(page);
   expect(r1.visibleTileCount).toBe(1);
-  expect(r1.visibleStripCount).toBe(1);
+  expect(r1.visibleStripCount).toBe(0);
   await page.locator(".terminal-grid-column").evaluate((node) => {
     node.scrollTop = 900;
   });
@@ -136,12 +136,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await setWindowSize(app, page, 1120, 720);
-  const narrowTile = visibleTerminalTiles(page).first();
-  const compactActionsTrigger = narrowTile.locator(".session-strip-menu .chrome-menu-trigger");
+  const compactActionsTrigger = page.getByTestId("workbench-header").locator(".session-meta-menu .chrome-menu-trigger");
   await expect(compactActionsTrigger).toBeVisible();
   await compactActionsTrigger.click();
   await expect(
-    narrowTile.getByRole("menuitem", { name: /^Open in (Ghostty|external terminal)/ }),
+    page.getByRole("menuitem", { name: /^Open in (Ghostty|external terminal)/ }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(compactActionsTrigger).toBeFocused();

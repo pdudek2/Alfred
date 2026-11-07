@@ -64,13 +64,13 @@ describe("WorkspaceActionsMenu", () => {
     expect(menuProps.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("names its actions as the session menu does, with a path only on the ones that open the folder", () => {
+  it("names its actions as the session menu does, with the folder's path once", () => {
     render(<WorkspaceActionsMenu {...props({ missionBrief: { goal: "Ship the shell", doneWhen: [], guardrails: [] } })} />);
 
     const actions = screen.getByRole("dialog", { name: "Project actions" });
     expect([...actions.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
       "Open in Ghostty…/Desktop/Alfred",
-      "Show in Finder…/Desktop/Alfred",
+      "Show in Finder",
       "Rename project...",
       "Edit mission brief...",
       "Close project",

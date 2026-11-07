@@ -848,6 +848,8 @@ describe("SessionsSurface", () => {
     // The row is one Tab stop: the selected tab.
     expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1]);
 
+    // The tabs follow the search row's last control.
+    screen.getByRole("button", { name: "Refresh external sessions" }).focus();
     await user.tab();
     expect(all).toHaveFocus();
     await user.keyboard("{ArrowLeft}");
