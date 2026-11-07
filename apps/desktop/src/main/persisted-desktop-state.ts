@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { REDACTED, redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
@@ -786,11 +786,14 @@ async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapsh
 
   try {
     await writeFile(temporaryPath, `${JSON.stringify(fileState, null, 2)}\n`, { encoding: "utf8", flush: true });
-    await rename(filePath, previousSavePath(filePath)).catch((error: unknown) => {
-      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
-    });
+    // The previous save is a second name for the current file, so the state file exists at every moment of a save.
+    await rm(previousSavePath(filePath), { force: true });
+    if (keepPrevious) {
+      await link(filePath, previousSavePath(filePath)).catch((error: unknown) => {
+        if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+      });
+    }
     await rename(temporaryPath, filePath);
-    if (!keepPrevious) await rm(previousSavePath(filePath), { force: true });
   } catch (error) {
     // The copy holds scrollback and commands, which Clear saved transcripts would not reach.
     await rm(temporaryPath, { force: true }).catch(() => undefined);

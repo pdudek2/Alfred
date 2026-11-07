@@ -1,7 +1,7 @@
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_DESKTOP_STATE,
   DEFAULT_PRIVACY_SETTINGS,
@@ -11,6 +11,17 @@ import {
   sanitizePersistedTerminalSession,
 } from "./persisted-desktop-state.js";
 import type { DesktopStateSnapshot } from "./persisted-desktop-state.js";
+
+const fsCalls = vi.hoisted(() => ({ failRenameFrom: null as RegExp | null }));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...fs,
+    rename: (from: string, to: string) => fsCalls.failRenameFrom?.test(from)
+      ? Promise.reject(Object.assign(new Error("The app quit during the save."), { code: "EIO" }))
+      : fs.rename(from, to),
+  };
+});
 
 let temporaryDirectory: string | null = null;
 
@@ -989,7 +1000,7 @@ describe("persisted-desktop-state", () => {
 
   it.each([
     { name: "is torn", damage: (filePath: string) => writeFile(filePath, '{"version":', "utf8") },
-    { name: "is missing between the two renames of a save", damage: (filePath: string) => rm(filePath) },
+    { name: "is missing", damage: (filePath: string) => rm(filePath) },
   ])("opens the previous save when the state file $name", async ({ damage }) => {
     const filePath = await temporaryStateFile();
     const writer = createPersistedDesktopStateStore({ filePath });
@@ -1163,6 +1174,21 @@ describe("persisted-desktop-state", () => {
     await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
     expect(warnings).toEqual(["Failed to persist desktop state."]);
     expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed", message: "Failed to persist desktop state." });
+  });
+
+  it("keeps the state file in place until the new copy replaces it", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+    await store.setState({ ...DEFAULT_DESKTOP_STATE, railWidth: 300 });
+
+    // The app quits at the moment the new copy would take the file's place.
+    fsCalls.failRenameFrom = /\.tmp$/;
+    try {
+      await expect(store.setState({ ...DEFAULT_DESKTOP_STATE, railWidth: 320 })).rejects.toThrow("Failed to persist desktop state.");
+    } finally {
+      fsCalls.failRenameFrom = null;
+    }
+    expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({ railWidth: 300 });
   });
 
   it("leaves no partial copy of the state behind when a save fails", async () => {
