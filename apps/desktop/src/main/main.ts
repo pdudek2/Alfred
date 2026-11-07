@@ -296,9 +296,9 @@ if (!hasSingleInstanceLock) {
         finishQuit();
       });
       void Promise.all([
-        flushTerminalPersistence(),
+        // Each exit schedules a save of its session, so the last save starts once they are in.
+        waitForTerminalExits(QUIT_TERMINAL_EXIT_TIMEOUT_MS).then(() => flushTerminalPersistence()),
         activeWindowStatePersistence?.flush() ?? Promise.resolve(),
-        waitForTerminalExits(QUIT_TERMINAL_EXIT_TIMEOUT_MS),
       ])
         .then(finishQuit)
         .catch((error: unknown) => {

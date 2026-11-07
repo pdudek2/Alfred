@@ -191,6 +191,7 @@ describe("main quit persistence", () => {
 
       expect(event.preventDefault).toHaveBeenCalledTimes(1);
       expect(mocks.killAllTerminalSessions).toHaveBeenCalledTimes(1);
+      await flushMicrotasks();
       expect(mocks.flushTerminalPersistence).toHaveBeenCalledTimes(1);
       expect(consoleError).not.toHaveBeenCalled();
       expect(mocks.app.quit).not.toHaveBeenCalled();
@@ -267,7 +268,7 @@ describe("main quit persistence", () => {
     });
   });
 
-  it("waits for killed terminals to report exit before letting Electron tear down Node", async () => {
+  it("waits for killed terminals to report exit, then saves, before letting Electron tear down Node", async () => {
     const terminalExits = deferredPromise<void>();
     mocks.waitForTerminalExits.mockReturnValueOnce(terminalExits.promise);
 
@@ -281,11 +282,14 @@ describe("main quit persistence", () => {
     expect(mocks.waitForTerminalExits.mock.invocationCallOrder[0]).toBeGreaterThan(
       mocks.killAllTerminalSessions.mock.invocationCallOrder[0]!,
     );
+    // Each exit schedules a save of its session; a save before them would miss it, and the next one would be cut off.
+    expect(mocks.flushTerminalPersistence).not.toHaveBeenCalled();
     expect(mocks.app.quit).not.toHaveBeenCalled();
 
     terminalExits.resolve();
     await flushMicrotasks();
 
+    expect(mocks.flushTerminalPersistence).toHaveBeenCalledTimes(1);
     expect(mocks.app.quit).toHaveBeenCalledTimes(1);
   });
 
@@ -606,6 +610,5 @@ function deferredPromise<T>(): {
 }
 
 async function flushMicrotasks(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
 }
