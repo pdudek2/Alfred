@@ -201,6 +201,22 @@ export function App() {
   const [newSessionParentId, setNewSessionParentId] = useState<string | null>(null);
   const [newSessionOpening, setNewSessionOpening] = useState(0);
   const newSessionGenerationRef = useRef(0);
+  const [claudeTrustByProject, setClaudeTrustByProject] = useState<Record<string, boolean>>({});
+  // Asked on every opening: you may have trusted the folder in Claude since.
+  useEffect(() => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (!newSessionOpen || newSessionKind !== "claude" || !workspaceApi?.claudeTrustsProject) return;
+    let current = true;
+    void workspaceApi.claudeTrustsProject({ workspaceId: newSessionProjectId }).then(
+      (trusted) => {
+        if (current) setClaudeTrustByProject((known) => ({ ...known, [newSessionProjectId]: trusted }));
+      },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [newSessionOpen, newSessionOpening, newSessionKind, newSessionProjectId]);
   const closeNewSession = useCallback(() => {
     newSessionGenerationRef.current += 1;
     setNewSessionOpen(false);
@@ -2476,6 +2492,7 @@ export function App() {
             planAvailable={planAvailable}
             parentTitle={newSessionParent?.workspaceId === newSessionProjectId ? newSessionParent.title : undefined}
             draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
+            claudeTrusted={claudeTrustByProject[newSessionProjectId]}
             initialWorktree={terminalSessions.some((session) => session.workspaceId === newSessionProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
             disabled={commandPaletteOpen}
             blockedReason={composerBlockedReason}

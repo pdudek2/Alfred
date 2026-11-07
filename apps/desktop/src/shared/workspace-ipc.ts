@@ -27,6 +27,8 @@ export type WorkspaceBindFolderRequest = {
   workspaceId: string;
 };
 
+export type WorkspaceClaudeTrustRequest = { workspaceId: string };
+
 export type WorkspaceRevealPathRequest = {
   cwd?: string;
   path: string;
@@ -67,6 +69,8 @@ export type WorkspaceOpenExternalUrlResult =
 
 export type WorkspaceApi = {
   bindFolderToWorkspace(request: WorkspaceBindFolderRequest): Promise<WorkspaceStateSnapshot>;
+  /** Whether Claude Code trusts the project's folder; `claude --worktree` needs it. */
+  claudeTrustsProject(request: WorkspaceClaudeTrustRequest): Promise<boolean>;
   createWorkspaceFromFolder(): Promise<WorkspaceStateSnapshot>;
   getWorkspaceState(): Promise<WorkspaceStateSnapshot>;
   openExternalUrl(request: WorkspaceOpenExternalUrlRequest): Promise<WorkspaceOpenExternalUrlResult>;
@@ -79,6 +83,7 @@ export type WorkspaceApi = {
 
 export const workspaceChannels = {
   bindFolder: "alfred:workspace:bind-folder",
+  claudeTrust: "alfred:workspace:claude-trust",
   createFromFolder: "alfred:workspace:create-from-folder",
   get: "alfred:workspace:get",
   openExternalUrl: "alfred:workspace:open-external-url",
