@@ -4,6 +4,11 @@ export function isWorkSession(session: Pick<SessionTile, "runtimeStatus">): bool
   return session.runtimeStatus !== "restored";
 }
 
+/** Asleep or ended: no process runs, and the session waits in History to be resumed. */
+export function isAsleepOrEnded(session: Pick<SessionTile, "runtimeStatus">): boolean {
+  return session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
+}
+
 /** A project's sessions on the deck: live terminals, not drafts or asleep ones. */
 export function deckSessions(sessions: readonly SessionTile[], workspaceId: string): SessionTile[] {
   return sessions.filter((session) => session.workspaceId === workspaceId && isWorkSession(session) && session.stage === "live");

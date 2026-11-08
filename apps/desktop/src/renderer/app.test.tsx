@@ -6590,9 +6590,9 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Codex · one/i })).not.toHaveAttribute("aria-hidden");
   });
 
-  it("does not close saved memory with the desktop close shortcut", async () => {
+  it("does not close saved memory with the desktop close shortcut, and closes its project with the session kept in History", async () => {
     const user = userEvent.setup();
-    const { forgetTerminal, killTerminal } = installDesktopBridge(
+    const { createTerminal, forgetTerminal, killTerminal, setWorkspaceState } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -6629,9 +6629,72 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "close current project");
-    expect(within(palette).getByRole("option", { name: /Close current project/i })).toHaveTextContent(
-      "Discard asleep sessions first",
+    const close = within(palette).getByRole("option", { name: /Close current project/i });
+    expect(close).toHaveTextContent("Remove Saved project from the sidebar");
+    await user.click(close);
+
+    // The project leaves the sidebar; its asleep session stays in History under the folder's name.
+    expect(screen.queryByRole("button", { name: "Saved project project" })).not.toBeInTheDocument();
+    expect(setWorkspaceState).toHaveBeenLastCalledWith(expect.objectContaining({
+      workspaces: [expect.objectContaining({ id: "A" })],
+    }));
+    expect(forgetTerminal).not.toHaveBeenCalled();
+    const history = await openHistorySession(user, "Saved only");
+    expect(history).toHaveTextContent("saved");
+
+    // Resuming it brings the project back.
+    await user.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("button", { name: "saved project" })).toBeInTheDocument();
+    expect(setWorkspaceState).toHaveBeenLastCalledWith(expect.objectContaining({
+      workspaces: [expect.objectContaining({ id: "A" }), expect.objectContaining({ id: "B", rootPath: "/repo/saved" })],
+      activeWorkspaceId: "B",
+    }));
+    expect(screen.getByRole("article", { name: /Saved only/i })).toBeInTheDocument();
+  });
+
+  it("resumes a closed project's session in the project added again for its folder", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, setWorkspaceState } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "C", label: "Saved again", shortLabel: "SA", rootPath: "/repo/saved" },
+        ],
+        activeWorkspaceId: "A",
+      },
+      [{
+        clientId: "closed-worktree",
+        title: "Closed worktree",
+        source: "manual",
+        workspaceId: "B",
+        cwd: "/repo/saved/.claude/worktrees/feature",
+        shell: "/bin/zsh",
+        command: "zsh",
+        args: [],
+      }],
     );
+
+    render(<App />);
+    // After a restart the closed project stays closed.
+    expect(await screen.findByRole("button", { name: "Saved again project" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Project B/ })).not.toBeInTheDocument();
+    await openHistorySession(user, "Closed worktree");
+    await user.click(screen.getByRole("button", { name: "Resume" }));
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: "closed-worktree",
+      workspaceId: "C",
+    })));
+    expect(screen.getByRole("button", { name: "Saved again project" })).toHaveAttribute("aria-current", "location");
+    for (const [state] of setWorkspaceState.mock.calls) {
+      expect(state.workspaces.map((workspace: { id: string }) => workspace.id)).toEqual(["A", "C"]);
+    }
   });
 
   it("lists the project's asleep sessions in the empty state and resumes into the terminal", async () => {

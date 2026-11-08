@@ -208,7 +208,8 @@ function normalizeManagedSession(
   const workspace = workspacesById.get(session.workspaceId);
   const project: SessionProjectRef = {
     id: workspace?.id ?? session.workspaceId,
-    label: workspace?.label ?? session.workspaceId,
+    // A closed project's sessions keep their group under the folder they ran in.
+    label: workspace?.label ?? displayLocation(session),
   };
   const freeChat = isFreeChatScope(session);
   const kind = managedKind(session);
