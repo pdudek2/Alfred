@@ -1,5 +1,5 @@
 import type { SessionTile } from "./session-state";
-import { pendingRuntimeBlocker } from "../shared/session-activity";
+import { pendingRuntimeBlocker, SIGNALLED_WORKING_STALE_MS } from "../shared/session-activity";
 
 export type LocalTerminalStatus = "connecting" | "ready" | "browser" | "exited" | "error" | "restored";
 
@@ -51,8 +51,6 @@ export const SESSION_STATE_LABELS: Record<SessionStateKind, string> = {
 
 // Fallback for sessions that report nothing (hand-typed agents, Windows): recent output means busy.
 const ACTIVE_OUTPUT_WINDOW_MS = 15_000;
-// A hook "working" signal is dropped if neither output nor a newer signal arrives (e.g. an interrupted turn sends no Stop).
-const SIGNALLED_WORKING_STALE_MS = 60_000;
 
 /**
  * When recent output stops masking an approval prompt. Needs you counts outside a tile have no clock
@@ -136,7 +134,15 @@ export function sessionState(
   if (signal?.state === "working" && now - Math.max(signal.at, session.lastOutputAt ?? 0) <= SIGNALLED_WORKING_STALE_MS) {
     return busy;
   }
-  if (!agent && session.shellBusy !== undefined) return session.shellBusy ? busy : state("idle");
+  if (!agent && session.shellBusy !== undefined) {
+    // A plan command that asked for approval is waiting on you, whether its process runs or a shell reads the answer.
+    // Output after the question masks it only while that output is recent, as for any session below.
+    const masked = session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS;
+    const asked = session.command !== undefined && latestEvent?.kind === "approval"
+      && !(masked && (session.lastOutputAt ?? 0) > latestEvent.at);
+    if (asked) return needsYou("approval");
+    return session.shellBusy ? busy : state("idle");
+  }
 
   const outputIsWork = !(agent && !signal && awaitsFirstMessage(session));
   if (outputIsWork && session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {

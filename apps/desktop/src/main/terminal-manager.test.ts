@@ -1382,6 +1382,8 @@ describe("terminal-manager IPC", () => {
     };
 
     const created = await invoke<{ id: string }>(terminalChannels.create, request);
+    // A program run on its own holds the foreground, so the terminal reads as busy.
+    pty.process = "node";
     pty.onDataHandler?.("hello\n");
     pty.onExitHandler?.({ exitCode: 0 });
     const listed = await invoke<{ sessions: Array<{ id: string; buffer: string }> }>(terminalChannels.list);
@@ -1394,7 +1396,7 @@ describe("terminal-manager IPC", () => {
     );
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, clientId: "manual-1", data: "hello\n", activities: [], at: expect.any(Number) },
+      payload: { id: created.id, clientId: "manual-1", data: "hello\n", activities: [], at: expect.any(Number), shellBusy: true },
       windowId: 1,
     });
     expect(sentEvents).toContainEqual({
@@ -1779,6 +1781,7 @@ describe("terminal-manager IPC", () => {
       command: "node", cols: 80, cwd: "/repo", rows: 24,
     });
 
+    pty.process = "node";
     pty.onDataHandler?.("Approval re");
     pty.onDataHandler?.("quired: apply patch?");
 
@@ -1789,7 +1792,7 @@ describe("terminal-manager IPC", () => {
 
     expect(dataEvents[0]).toEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "Approval re", activities: [], at: expect.any(Number) },
+      payload: { id: created.id, data: "Approval re", activities: [], at: expect.any(Number), shellBusy: true },
       windowId: 1,
     });
     expect(emittedActivity).toEqual(persistedActivity);
@@ -3007,13 +3010,14 @@ describe("terminal-manager IPC", () => {
     );
     liveWindows = [newWindow];
     const listed = await invoke<{ sessions: Array<{ id: string }> }>(terminalChannels.list, undefined, newSender);
+    pty.process = "node";
     pty.onDataHandler?.("after reattach\n");
     emit(terminalChannels.write, { id: created.id, data: "ok\r" }, newSender);
 
     expect(listed.sessions).toEqual([expect.objectContaining({ id: created.id })]);
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "after reattach\n", activities: [], at: expect.any(Number) },
+      payload: { id: created.id, data: "after reattach\n", activities: [], at: expect.any(Number), shellBusy: true },
       windowId: 2,
     });
     expect(pty.writes).toEqual(["ok\r"]);
@@ -3855,6 +3859,24 @@ describe("terminal-manager IPC", () => {
       pty.process = "zsh";
       pty.onDataHandler?.("done\nprompt % ");
       expect(lastDataEvent()).toMatchObject({ shellBusy: false });
+    });
+
+    it("tracks a plan command as busy while it runs, but leaves agents to their hooks", async () => {
+      const pty = new FakePty();
+      registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+      await invoke(terminalChannels.create, { clientId: "draft-1", command: "pnpm", args: ["dev"], cols: 80, cwd: "/repo", rows: 24 });
+
+      // A dev server owns its terminal for as long as it runs, so a quiet log is still Running, not Idle.
+      pty.process = "node";
+      pty.onDataHandler?.("VITE ready in 140 ms\r\n");
+      expect(lastDataEvent()).toMatchObject({ shellBusy: true });
+
+      const agentPty = new FakePty();
+      registerTerminalIpc({ loadNodePty: async () => fakeNodePty(agentPty) as never });
+      await invoke(terminalChannels.create, { clientId: "claude-1", command: "claude", cols: 80, cwd: "/repo", rows: 24 });
+      agentPty.process = "node";
+      agentPty.onDataHandler?.("claude ready\r\n");
+      expect(lastDataEvent()).not.toHaveProperty("shellBusy");
     });
 
     it.each([

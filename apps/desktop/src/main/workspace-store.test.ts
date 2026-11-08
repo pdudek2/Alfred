@@ -399,6 +399,14 @@ describe("workspace-store", () => {
       activeWorkspaceId: "CLIENT",
     });
     expect((await persistedStateStore.getState()).workspaces[0]).not.toHaveProperty("rootStatus");
+
+    // Every answer carries it: the renderer replaces its whole list with whichever one came last.
+    const store = createWorkspaceStoreBase({ persistedStateStore, resolveGitBranch: async () => undefined });
+    const missing = expect.objectContaining({ id: "CLIENT", rootStatus: "missing" });
+    const afterCreate = await store.createWorkspaceFromPath(path.join(os.tmpdir(), "alfred-second-project"));
+    expect(afterCreate.workspaces).toContainEqual(missing);
+    expect((await store.setWorkspaceState(afterCreate)).workspaces).toContainEqual(missing);
+    expect((await persistedStateStore.getState()).workspaces[0]).not.toHaveProperty("rootStatus");
   });
 
   it("keeps ids unique when two folders share a basename", async () => {
