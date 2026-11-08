@@ -84,7 +84,7 @@ import {
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { deckSessions, isFreeChatScope, isWorkSession } from "./session-scope";
+import { deckSessions, isAsleepOrEnded, isFreeChatScope, isWorkSession } from "./session-scope";
 import type { AgentStartScreen } from "./agent-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
@@ -302,14 +302,17 @@ export function App() {
   // Details describes the deck's focused session. History has its own reader and no side column, and a project with
   // nothing running has nothing to describe (v4 Fresh board), so the empty deck takes the whole width.
   const detailsVisible = activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
+  // A project closes once nothing runs in it; its asleep and ended sessions stay in History.
   const canCloseActiveWorkspace =
-    activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
+    activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.every(isAsleepOrEnded);
   const unavailableWorkspaceIds = new Set(
     workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
   );
   const now = useSessionClock(terminalSessions);
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions, now).filter((item) => {
     if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
+    // A closed project's sessions wait in History, not in Needs you.
+    if (!workspaces.some((workspace) => workspace.id === item.workspaceId)) return false;
     const session = terminalSessions.find((candidate) => candidate.id === item.sessionId);
     return item.section !== "recovery"
       || session?.runtimeStatus !== "restored"
@@ -1463,6 +1466,13 @@ export function App() {
   const handleRecoverSession = useCallback((workspaceId: string, sessionId: string) => {
     const session = terminalSessions.find((item) => item.id === sessionId);
     if (!session) return;
+    // A session of a closed project brings the project back, under the same id, from the folder it ran in.
+    if (!workspaces.some((workspace) => workspace.id === workspaceId)) {
+      const label = session.cwd.split("/").filter(Boolean).at(-1) ?? workspaceId;
+      setWorkspaces((current) => current.some((workspace) => workspace.id === workspaceId)
+        ? current
+        : [...current, { id: workspaceId, label, shortLabel: shortLabelForWorkspace(label), rootPath: session.cwd }]);
+    }
     const shouldFocusAfterRecovery = sessionRelaunchSafety(session).safe || armedRecoverySessionIds.has(sessionId);
     if (session?.runtimeStatus === "restored") {
       handleContinueRestoredSession(sessionId);
@@ -1478,6 +1488,7 @@ export function App() {
     handleFocusSessionInWorkspace,
     handleRestartSession,
     terminalSessions,
+    workspaces,
   ]);
 
   const handleSelectPrimarySurface = useCallback((nextSurface: PrimarySurface) => {
@@ -2531,7 +2542,6 @@ export function App() {
             shortcutModifier={shortcutModifier}
             workspaces={workspaces}
             canCloseWorkspace={canCloseActiveWorkspace}
-            hasSavedSessions={activeSavedSessionCount > 0}
             onAddAgentSession={(kind) => openNewSession(kind)}
             onAddManualSession={() => openNewSession("terminal")}
             onOpenPlan={planAvailable ? () => openNewSession("plan") : undefined}
