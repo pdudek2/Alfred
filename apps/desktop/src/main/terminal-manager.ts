@@ -1825,11 +1825,12 @@ function sendSignalUpdate(
 
 /** Returns the new value only when it changed. Windows and agent sessions do not sample. */
 function updateShellBusy(session: TerminalSession): boolean | undefined {
-  if (session.command !== undefined || process.platform === "win32") return undefined;
+  if (isAgentSession(session) || process.platform === "win32") return undefined;
   try {
     const foreground = session.pty.process;
     const busy = !isShellProcess(foreground);
-    if (busy && foreground !== session.commandProbeProcess) probeForegroundCommand(session, foreground);
+    // A plan command is its own title; only a shell gets named after what it runs.
+    if (busy && session.command === undefined && foreground !== session.commandProbeProcess) probeForegroundCommand(session, foreground);
     // Back at the prompt the shell goes by its own name; the renderer reads that from shellBusy false.
     if (!busy) {
       session.foregroundCommand = undefined;
@@ -1844,7 +1845,7 @@ function updateShellBusy(session: TerminalSession): boolean | undefined {
 }
 
 function scheduleShellBusySample(session: TerminalSession): void {
-  if (session.command !== undefined || process.platform === "win32") return;
+  if (isAgentSession(session) || process.platform === "win32") return;
   setTimeout(() => {
     if (sessions.get(session.id) !== session) return;
     const shellBusy = updateShellBusy(session);
