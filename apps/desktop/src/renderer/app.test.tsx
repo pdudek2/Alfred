@@ -805,6 +805,17 @@ describe("App integration", () => {
     });
 
     await waitFor(() => expect(project.querySelector(".project-row-branch")).toHaveTextContent("history-redesign"));
+
+    // The folder went away while Alfred ran: the same refresh blocks starting there.
+    bridge.getWorkspaceState.mockResolvedValue({
+      workspaces: [{ id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "history-redesign", rootStatus: "missing" }],
+      activeWorkspaceId: "A",
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "New session" }));
+    await waitFor(() => expect(screen.getByRole("form", { name: "New session" })).toHaveTextContent("Reconnect the project folder first"));
   });
 
   it("kills a terminal created after its pending tile was closed", async () => {

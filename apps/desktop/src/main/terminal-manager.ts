@@ -154,6 +154,8 @@ type TerminalSession = {
   /** Turn marks an orchestrator reads this session by, as its worker (worker-tools.ts). */
   lastPromptSeq?: number | undefined;
   lastTurnEndSeq?: number | undefined;
+  /** When the last prompt went in, so a worker that never answers stops reading as working. */
+  lastPromptAt?: number | undefined;
   lastAnswer?: string | undefined;
   /** Text you typed and have not sent with Enter or cleared with Ctrl-C, even across a turn end: Alfred's Enter must not send it. */
   typingDraft?: boolean | undefined;
@@ -709,7 +711,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       if (submitted) session.promptSubmitted = true;
       // Without hooks, your Enter is the only sign a turn started; with them, an Enter that starts nothing must not count.
       const startedTurn = !session.hooksLive && isAgentSession(session) && sentEnter;
-      if (startedTurn) session.lastPromptSeq = ++turnSeq;
+      if (startedTurn) {
+        session.lastPromptSeq = ++turnSeq;
+        session.lastPromptAt = Date.now();
+      }
       if (cleared || startedTurn) notifyWorkers();
       if (cleared || answered || submitted) {
         sendSignalUpdate(session, {
@@ -1493,6 +1498,7 @@ function workerRecord(session: TerminalSession, exited = false): WorkerRecord {
     turn: {
       lastPrompt: session.lastPromptSeq ?? 0,
       lastTurnEnd: session.lastTurnEndSeq ?? 0,
+      lastActivityAt: Math.max(session.agentSignal?.at ?? 0, session.lastOutputAt ?? 0, session.lastPromptAt ?? 0),
       waitingApproval: session.agentSignal?.state === "needs-you",
       exited,
     },
@@ -1625,7 +1631,7 @@ async function requestWorker(
     clientId,
     title,
     agent: request.agent,
-    turn: { lastPrompt: 0, lastTurnEnd: 0, waitingApproval: false, exited: false },
+    turn: { lastPrompt: 0, lastTurnEnd: 0, lastActivityAt: 0, waitingApproval: false, exited: false },
     activityEvents: [],
     parentClientId,
     since: Date.now(),
@@ -1650,6 +1656,7 @@ function typeIntoAgent(session: TerminalSession, message: string): void {
     if (sessions.get(session.id) === session && session.agentSignal?.state !== "needs-you") session.pty.write("\r");
   }, PASTE_SUBMIT_DELAY_MS).unref();
   session.lastPromptSeq = ++turnSeq;
+  session.lastPromptAt = Date.now();
   session.typingDraft = false;
   if (!session.promptSubmitted) {
     session.promptSubmitted = true;
@@ -1818,11 +1825,12 @@ function sendSignalUpdate(
 
 /** Returns the new value only when it changed. Windows and agent sessions do not sample. */
 function updateShellBusy(session: TerminalSession): boolean | undefined {
-  if (session.command !== undefined || process.platform === "win32") return undefined;
+  if (isAgentSession(session) || process.platform === "win32") return undefined;
   try {
     const foreground = session.pty.process;
     const busy = !isShellProcess(foreground);
-    if (busy && foreground !== session.commandProbeProcess) probeForegroundCommand(session, foreground);
+    // A plan command is its own title; only a shell gets named after what it runs.
+    if (busy && session.command === undefined && foreground !== session.commandProbeProcess) probeForegroundCommand(session, foreground);
     // Back at the prompt the shell goes by its own name; the renderer reads that from shellBusy false.
     if (!busy) {
       session.foregroundCommand = undefined;
@@ -1837,7 +1845,7 @@ function updateShellBusy(session: TerminalSession): boolean | undefined {
 }
 
 function scheduleShellBusySample(session: TerminalSession): void {
-  if (session.command !== undefined || process.platform === "win32") return;
+  if (isAgentSession(session) || process.platform === "win32") return;
   setTimeout(() => {
     if (sessions.get(session.id) !== session) return;
     const shellBusy = updateShellBusy(session);

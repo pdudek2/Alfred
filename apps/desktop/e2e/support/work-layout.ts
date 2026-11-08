@@ -42,6 +42,8 @@ export async function openNewSession(page: Page): Promise<Locator> {
   const composer = page.getByRole("form", { name: "New session", exact: true });
   const rest = page.getByRole("button", { name: "New session", exact: true });
   if (!(await composer.isVisible()) && !(await rest.isVisible())) await surfaceButton(page, "Work").click();
+  // While the deck loads neither shows yet, and an empty deck expands the composer instead of drawing the line.
+  await expect(composer.or(rest).first()).toBeVisible();
   if (!(await composer.isVisible())) await rest.click();
   await expect(composer).toBeVisible();
   return composer;
