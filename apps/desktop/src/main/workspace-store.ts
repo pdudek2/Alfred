@@ -42,7 +42,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       const workspaceId = request.workspaceId.trim();
       const normalizedRootPath = request.rootPath.trim();
       const current = await persistedStateStore.getState();
-      if (!workspaceId || !normalizedRootPath) return toWorkspaceState(current);
+      if (!workspaceId || !normalizedRootPath) return annotateMissingRoots(current);
 
       const label = path.basename(normalizedRootPath) || normalizedRootPath;
       const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(normalizedRootPath);
@@ -64,13 +64,13 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
           : latest.activeWorkspaceId,
       }));
 
-      return toWorkspaceState(next);
+      return annotateMissingRoots(next);
     },
 
     async createWorkspaceFromPath(rootPath: string): Promise<WorkspaceStateSnapshot> {
       const normalizedRootPath = rootPath.trim();
       const current = await persistedStateStore.getState();
-      if (!normalizedRootPath) return toWorkspaceState(current);
+      if (!normalizedRootPath) return annotateMissingRoots(current);
 
       const label = path.basename(normalizedRootPath) || normalizedRootPath;
       const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(normalizedRootPath);
@@ -94,7 +94,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
         };
       });
 
-      return toWorkspaceState(next);
+      return annotateMissingRoots(next);
     },
 
     async getWorkspaceState(): Promise<WorkspaceStateSnapshot> {
@@ -105,7 +105,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
       const workspaceState = toWorkspaceState(normalizeDesktopState(request));
       const next = await persistedStateStore.updateState((current) => ({ ...current, ...workspaceState }));
-      return toWorkspaceState(next);
+      return annotateMissingRoots(next);
     },
   };
 
@@ -187,9 +187,9 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
   async function annotateMissingRoots(state: DesktopStateSnapshot): Promise<WorkspaceStateSnapshot> {
     const workspaces = await Promise.all(
       state.workspaces.map(async (workspace) => {
-        if (!workspace.rootPath) return workspace;
+        if (!workspace.rootPath) return { ...workspace };
         const rootStatus = await (options.resolveRootStatus ?? resolveRootStatus)(workspace.rootPath);
-        return rootStatus === "missing" ? { ...workspace, rootStatus } : workspace;
+        return rootStatus === "missing" ? { ...workspace, rootStatus } : { ...workspace };
       }),
     );
     return { workspaces, activeWorkspaceId: state.activeWorkspaceId };
