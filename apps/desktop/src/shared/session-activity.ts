@@ -59,6 +59,9 @@ export type TerminalOutputActivityChunkResult = {
   state: TerminalOutputActivityStreamState;
 };
 
+/** A "working" signal with neither output nor a newer signal for this long is over (an interrupted turn sends no Stop). */
+export const SIGNALLED_WORKING_STALE_MS = 60_000;
+
 const MAX_ACTIVITY_CARRY = 4_096;
 // An image or clipboard sequence can run to megabytes. Past this, carry only its opener and last character
 // (half of a split ESC \ terminator), so each chunk is scanned once instead of the whole sequence again.

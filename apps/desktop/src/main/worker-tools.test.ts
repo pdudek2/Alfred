@@ -13,7 +13,7 @@ import {
   type WorkerTurn,
 } from "./worker-tools";
 
-const idle: WorkerTurn = { lastPrompt: 0, lastTurnEnd: 0, waitingApproval: false, exited: false };
+const idle: WorkerTurn = { lastPrompt: 0, lastTurnEnd: 0, lastActivityAt: Date.now(), waitingApproval: false, exited: false };
 
 function fakeHost(workers: WorkerRecord[] = []) {
   const listeners = new Set<() => void>();
@@ -71,6 +71,13 @@ describe("a worker's state for its orchestrator", () => {
     expect(workerState({ ...idle, lastTurnEnd: 1 })).toBe("your turn");
     expect(workerState({ ...idle, lastPrompt: 1, waitingApproval: true })).toBe("needs you");
     expect(workerState({ ...idle, lastPrompt: 1, waitingApproval: true, exited: true })).toBe("ended");
+  });
+
+  it("stops reading a silent turn as working, as the rail does", () => {
+    // Esc or an API error ends a turn without a Stop hook; a minute without a signal or output is the rail's rule too.
+    const prompted = { ...idle, lastPrompt: 1, lastActivityAt: 1_000 };
+    expect(workerState(prompted, 1_000 + 60_000)).toBe("working");
+    expect(workerState(prompted, 1_000 + 60_001)).toBe("your turn");
   });
 });
 
@@ -157,6 +164,7 @@ describe("worker tools", () => {
     const timedOut = tools.call("lead-session", "wait_for_worker", { worker_id: "codex-1", timeout_seconds: 500 });
     await vi.advanceTimersByTimeAsync(119_000);
     expect(listeners.size).toBe(1);
+    busy.turn = { ...busy.turn, lastActivityAt: Date.now() }; // Still printing, so still working.
     await vi.advanceTimersByTimeAsync(1_000);
     await expect(timedOut).resolves.toMatchObject({ state: "working", timed_out: true });
     expect(listeners.size).toBe(0);

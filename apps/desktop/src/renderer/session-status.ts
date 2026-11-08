@@ -1,5 +1,5 @@
 import type { SessionTile } from "./session-state";
-import { pendingRuntimeBlocker } from "../shared/session-activity";
+import { pendingRuntimeBlocker, SIGNALLED_WORKING_STALE_MS } from "../shared/session-activity";
 
 export type LocalTerminalStatus = "connecting" | "ready" | "browser" | "exited" | "error" | "restored";
 
@@ -51,8 +51,6 @@ export const SESSION_STATE_LABELS: Record<SessionStateKind, string> = {
 
 // Fallback for sessions that report nothing (hand-typed agents, Windows): recent output means busy.
 const ACTIVE_OUTPUT_WINDOW_MS = 15_000;
-// A hook "working" signal is dropped if neither output nor a newer signal arrives (e.g. an interrupted turn sends no Stop).
-const SIGNALLED_WORKING_STALE_MS = 60_000;
 
 /**
  * When recent output stops masking an approval prompt. Needs you counts outside a tile have no clock
