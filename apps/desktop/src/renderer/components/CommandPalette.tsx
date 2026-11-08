@@ -394,8 +394,9 @@ export function CommandPalette({
     ],
   );
   const filteredCommands = filterCommands(commands, normalizedQuery);
-  const enabledCommands = filteredCommands.filter((command) => !command.disabled);
-  const paletteRows = groupPaletteCommands(filteredCommands);
+  const paletteRows = groupPaletteCommands(filteredCommands, normalizedQuery !== "");
+  // The rows in the order they are drawn, which the arrows walk and Enter falls back to.
+  const enabledCommands = enabledRows(paletteRows);
 
   useEffect(() => {
     const activeStillVisible = filteredCommands.some((command) => command.id === activeCommandId && !command.disabled);
@@ -423,14 +424,16 @@ export function CommandPalette({
         enabledCommands.findIndex((command) => command.id === activeCommandId),
       );
       const delta = event.key === "ArrowDown" ? 1 : -1;
-      const nextIndex = (currentIndex + delta + enabledCommands.length) % enabledCommands.length;
-      setActiveCommandId(enabledCommands[nextIndex]?.id ?? null);
+      const nextId = enabledCommands[(currentIndex + delta + enabledCommands.length) % enabledCommands.length]?.id ?? null;
+      setActiveCommandId(nextId);
+      if (nextId) panelRef.current?.querySelector(`[data-command-id="${CSS.escape(nextId)}"]`)?.scrollIntoView?.({ block: "nearest" });
       return;
     }
 
-    if (event.key === "Enter") {
-      const currentCommands = filterCommands(commands, queryRef.current.trim().toLowerCase());
-      const currentEnabledCommands = currentCommands.filter((item) => !item.disabled);
+    // A focused row runs itself, as any button does.
+    if (event.key === "Enter" && event.target === inputRef.current) {
+      const currentQuery = queryRef.current.trim().toLowerCase();
+      const currentEnabledCommands = enabledRows(groupPaletteCommands(filterCommands(commands, currentQuery), currentQuery !== ""));
       const command =
         currentEnabledCommands.find((item) => item.id === activeCommandId) ?? currentEnabledCommands[0];
       if (!command) return;
@@ -478,8 +481,11 @@ export function CommandPalette({
                 role="option"
                 aria-selected={row.command.id === activeCommandId}
                 disabled={row.command.disabled}
+                data-command-id={row.command.id}
                 onClick={() => runAndClose(row.command.run)}
-                onMouseEnter={() => setActiveCommandId(row.command.id)}
+                onFocus={() => setActiveCommandId(row.command.id)}
+                // Move, not enter: a list scrolling under a resting pointer must not take the highlight.
+                onMouseMove={() => setActiveCommandId(row.command.id)}
               >
                 <span>{row.command.label}</span>
                 {row.command.detail && <small>{row.command.detail}</small>}
@@ -556,9 +562,16 @@ type CommandPaletteRow =
   | { type: "group"; id: string; label: string }
   | { type: "command"; command: CommandPaletteItem };
 
-function groupPaletteCommands(commands: CommandPaletteItem[]): CommandPaletteRow[] {
+function enabledRows(rows: CommandPaletteRow[]): CommandPaletteItem[] {
+  return rows.flatMap((row) => row.type === "command" && !row.command.disabled ? [row.command] : []);
+}
+
+/** Without a query the groups keep a fixed order; with one, the group of the best match comes first. */
+function groupPaletteCommands(commands: CommandPaletteItem[], ranked: boolean): CommandPaletteRow[] {
   const rows: CommandPaletteRow[] = [];
-  const groupOrder = ["Launch", "Projects", "Review and resume", "Focused session", "Layout", "Commands"];
+  const groupOrder = ranked
+    ? [...new Set(commands.map((command) => commandGroupLabel(command.id)))]
+    : ["Launch", "Projects", "Review and resume", "Focused session", "Layout", "Commands"];
 
   for (const group of groupOrder) {
     const groupCommands = commands.filter((command) => commandGroupLabel(command.id) === group);
