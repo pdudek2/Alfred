@@ -2077,7 +2077,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   inset: 0;
   /* Above the chrome and its popovers, so a click outside the palette never reaches them. */
   z-index: 150;
-  /* The New sheet's backdrop: the window stays visible behind a dialog. */
+  /* The window stays visible behind the palette. */
   background: color-mix(in srgb, var(--surface-canvas) 55%, transparent);
   background-image: none;
   display: grid;

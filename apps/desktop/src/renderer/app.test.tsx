@@ -826,7 +826,10 @@ describe("App integration", () => {
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
   });
 
-  it("leaves the keyboard in an open command palette when the terminal behind it becomes ready", async () => {
+  it.each([
+    ["the command palette", "Open command palette", "Search commands"],
+    ["New session", "New session", "First prompt"],
+  ])("leaves the keyboard in %s when the terminal behind it becomes ready", async (_, opener, field) => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
     const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
@@ -834,8 +837,9 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    const search = screen.getByRole("textbox", { name: "Search commands" });
+    await user.click(screen.getByRole("button", { name: new RegExp(`^${opener}$`) }));
+    const search = screen.getByRole("textbox", { name: field });
+    await user.click(search);
     expect(search).toHaveFocus();
     const focusCalls = terminalFocusSessionIds.length;
 

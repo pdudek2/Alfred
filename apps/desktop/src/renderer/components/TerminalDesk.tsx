@@ -1368,8 +1368,8 @@ function ManualTerminalTile({
     if (!wasSurfaceActive) {
       scheduleRepaintRef.current?.(3);
     }
-    // A terminal that becomes ready while a dialog has the keyboard leaves it there.
-    if (selected && status === "ready" && !document.activeElement?.closest('[role="dialog"]')) {
+    // A terminal that becomes ready while a dialog or New session has the keyboard leaves it there.
+    if (selected && status === "ready" && !document.activeElement?.closest('[role="dialog"], .new-session-composer')) {
       terminalRef.current?.focus();
     }
   }, [selected, status, surfaceActive, terminalFocusRequestKey]);

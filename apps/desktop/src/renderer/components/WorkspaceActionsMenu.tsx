@@ -85,7 +85,8 @@ export function WorkspaceActionsMenu({
   // The popover is portaled to the end of the page, so the keyboard has to be handed to it.
   useEffect(() => {
     if (!menuOpen || renameEditing) return;
-    window.requestAnimationFrame(() => popoverRef.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus());
+    const frame = window.requestAnimationFrame(() => popoverRef.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus());
+    return () => window.cancelAnimationFrame(frame);
   }, [menuOpen, renameEditing]);
 
   useEffect(() => {
