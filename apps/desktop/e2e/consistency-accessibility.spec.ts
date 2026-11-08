@@ -212,6 +212,8 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(runDetailsTrigger).toBeFocused();
 
   await selectSurface(page, "Work");
+  // Off macOS the shortcut is Control J, which a focused terminal keeps as a newline.
+  await page.getByRole("button", { name: "Open command palette" }).focus();
   await page.keyboard.press("ControlOrMeta+J");
   const needsYou = page.getByRole("dialog", { name: "Needs you" });
   await expect(needsYou).toContainText("Nothing needs you right now.");
