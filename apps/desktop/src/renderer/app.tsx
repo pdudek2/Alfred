@@ -178,7 +178,8 @@ export function App() {
   const externalSessionsRequestGenerationRef = useRef(0);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
-  const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
+  // The project the rename form belongs to: switching projects leaves it with that project.
+  const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<string | null>(null);
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
   const [sessionMetaSlot, setSessionMetaSlot] = useState<HTMLDivElement | null>(null);
   const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
@@ -653,19 +654,19 @@ export function App() {
     setNeedsYouOpen(false);
     setActiveSurface("work");
     setWorkspaceRenameDraft(activeWorkspace.label);
-    setWorkspaceRenameEditing(true);
+    setWorkspaceRenameEditing(activeWorkspace.id);
     setWorkspaceMenuOpen(true);
-  }, [activeWorkspace.label]);
+  }, [activeWorkspace.id, activeWorkspace.label]);
 
   const handleCancelWorkspaceRename = useCallback(() => {
     setWorkspaceRenameDraft(activeWorkspace.label);
-    setWorkspaceRenameEditing(false);
+    setWorkspaceRenameEditing(null);
   }, [activeWorkspace.label]);
 
   const handleSaveWorkspaceRename = useCallback((label: string) => {
     const nextLabel = label.trim();
     if (!nextLabel) return;
-    setWorkspaceRenameEditing(false);
+    setWorkspaceRenameEditing(null);
     setWorkspaceMenuOpen(false);
     if (nextLabel === activeWorkspace.label) return;
 
@@ -691,7 +692,7 @@ export function App() {
   const handleSaveWorkspaceMissionBrief = useCallback((missionBrief: WorkspaceMissionBrief | undefined) => {
     const workspaceApi = getDesktopWorkspaceApi();
     setWorkspaceMenuOpen(false);
-    setWorkspaceRenameEditing(false);
+    setWorkspaceRenameEditing(null);
     const nextWorkspaces = workspaces.map((workspace) => {
       if (workspace.id !== activeWorkspace.id) return workspace;
       const { missionBrief: _previousMissionBrief, ...rest } = workspace;
@@ -1927,11 +1928,12 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // On a Mac, Control keys edit text (Control W deletes a word), so only Command takes app shortcuts.
+      const primary = navigator.platform.includes("Mac") ? event.metaKey : event.ctrlKey;
       if (commandPaletteOpen) {
-        const shortcutPressed = event.metaKey || event.ctrlKey;
         const key = event.key.toLowerCase();
         const appShortcut =
-          shortcutPressed && (
+          primary && (
             /^[1-9]$/.test(event.key) ||
             key === "i" ||
             key === "j" ||
@@ -1956,14 +1958,14 @@ export function App() {
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+      if (primary && event.key.toLowerCase() === "n") {
         event.preventDefault();
         if (!newSessionOpen) openNewSession();
         else document.querySelector<HTMLElement>(".new-session-composer :is(textarea, input:checked)")?.focus();
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
+      if (primary && /^[1-9]$/.test(event.key)) {
         const index = Number.parseInt(event.key, 10) - 1;
         const workspace = railOrder(workspaces)[index];
         if (workspace) {
@@ -1976,7 +1978,7 @@ export function App() {
       // The Deck's session shortcuts act on sessions you can see; History hides the Deck. The keys are still taken,
       // or Command W would reach the window menu.
       const key = event.key.toLowerCase();
-      const sessionShortcut = (event.metaKey || event.ctrlKey) && (
+      const sessionShortcut = primary && (
         key === "t" || key === "w"
         || (event.shiftKey && (key === "o" || event.code === "BracketRight" || event.code === "BracketLeft"))
       );
@@ -1985,7 +1987,7 @@ export function App() {
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "i") {
+      if (primary && !event.shiftKey && event.key.toLowerCase() === "i") {
         event.preventDefault();
         if (activeSurface === "work" && !workspaceMenuOpen) {
           handleToggleContextDrawer();
@@ -1993,13 +1995,13 @@ export function App() {
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "j") {
+      if (primary && !event.shiftKey && event.key.toLowerCase() === "j") {
         event.preventDefault();
         handleToggleNeedsYou();
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if (primary && event.key.toLowerCase() === "k") {
         event.preventDefault();
         if (commandPaletteOpen) {
           handleCloseCommandPalette();
@@ -2009,19 +2011,19 @@ export function App() {
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "t") {
+      if (primary && event.key.toLowerCase() === "t") {
         event.preventDefault();
         handleAddManualSession();
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "w") {
+      if (primary && event.key.toLowerCase() === "w") {
         event.preventDefault();
         handleCloseSelectedSession();
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "o") {
+      if (primary && event.shiftKey && event.key.toLowerCase() === "o") {
         if (activeSelectedSession?.cwd) {
           event.preventDefault();
           void handleOpenSessionTerminal(activeSelectedSession.cwd);
@@ -2029,13 +2031,13 @@ export function App() {
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === "BracketRight") {
+      if (primary && event.shiftKey && event.code === "BracketRight") {
         event.preventDefault();
         handleFocusSessionByDelta(1);
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === "BracketLeft") {
+      if (primary && event.shiftKey && event.code === "BracketLeft") {
         event.preventDefault();
         handleFocusSessionByDelta(-1);
       }
@@ -2253,14 +2255,14 @@ export function App() {
               menuOpen={workspaceMenuOpen}
               missionBrief={activeWorkspace.missionBrief}
               renameDraft={workspaceRenameDraft}
-              renameEditing={workspaceRenameEditing}
+              renameEditing={workspaceRenameEditing === activeWorkspace.id}
               {...(activeWorkspace.rootPath ? { rootPath: activeWorkspace.rootPath } : {})}
               workspaceLabel={activeWorkspace.label}
               onCancelRename={handleCancelWorkspaceRename}
               onChangeRenameDraft={setWorkspaceRenameDraft}
               onClose={() => {
                 setWorkspaceMenuOpen(false);
-                setWorkspaceRenameEditing(false);
+                setWorkspaceRenameEditing(null);
               }}
               onCloseWorkspace={handleCloseActiveWorkspace}
               onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
@@ -2270,7 +2272,7 @@ export function App() {
               onStartRename={handleBeginRenameActiveWorkspace}
               onToggleMenu={() => {
                 setWorkspaceMenuOpen((open) => !open);
-                setWorkspaceRenameEditing(false);
+                setWorkspaceRenameEditing(null);
               }}
             />
           )}

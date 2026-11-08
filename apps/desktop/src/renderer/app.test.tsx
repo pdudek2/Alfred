@@ -1704,7 +1704,7 @@ describe("App integration", () => {
     await user.type(composer, "keep this draft");
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", metaKey: true }));
     });
 
     const palette = screen.getByRole("dialog", { name: "Command palette" });
@@ -2402,7 +2402,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(0);
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", metaKey: true }));
     });
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "pin");
@@ -2478,12 +2478,12 @@ describe("App integration", () => {
     await user.click(trigger);
     const menu = screen.getByRole("menu", { name: "Manual · menu actions" });
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
-      expect.stringContaining("Open in external terminal"),
+      expect.stringContaining("Open in Ghostty"),
       "Rename session",
       expect.stringContaining("Close"),
     ]);
 
-    await user.click(within(menu).getByRole("menuitem", { name: /Open in external terminal/ }));
+    await user.click(within(menu).getByRole("menuitem", { name: /Open in Ghostty/ }));
     expect(callbacks.onOpenExternalTerminal).toHaveBeenCalledWith("/Users/sample/Desktop/Alfred");
 
     await user.click(trigger);
@@ -2515,7 +2515,7 @@ describe("App integration", () => {
     const trigger = screen.getByRole("button", { name: "More actions for Manual · menu" });
 
     await user.click(trigger);
-    expect(screen.getByRole("menuitem", { name: /Open in external terminal/ })).toHaveFocus();
+    expect(screen.getByRole("menuitem", { name: /Open in Ghostty/ })).toHaveFocus();
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("menu", { name: "Manual · menu actions" })).not.toBeInTheDocument();
@@ -4348,8 +4348,8 @@ describe("App integration", () => {
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     // One line: the label and the key, with no second line repeating what the label says.
     const newTerminal = within(palette).getByRole("option", { name: /New terminal/ });
-    expect(newTerminal).toHaveTextContent(/^New terminalCtrl T$/);
-    expect(within(newTerminal).getByText("Ctrl T").tagName).toBe("KBD");
+    expect(newTerminal).toHaveTextContent(/^New terminal⌘T$/);
+    expect(within(newTerminal).getByText("⌘T").tagName).toBe("KBD");
     await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
@@ -4658,6 +4658,32 @@ describe("App integration", () => {
       });
     });
     expect(setWorkspaceState).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a project's rename on that project when you switch to another", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceState } = installDesktopBridge(undefined, null, [], undefined, undefined, {
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+        { id: "B", label: "Beta", shortLabel: "B", rootPath: "/Users/sample/Desktop/Beta" },
+      ],
+      activeWorkspaceId: "A",
+    });
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Project menu for Alfred" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Project actions" })).getByRole("button", { name: /Rename project/i }));
+    const name = within(screen.getByRole("dialog", { name: "Rename project" })).getByRole("textbox", { name: "Project name" });
+    await user.clear(name);
+    await user.type(name, "Draft for Alfred");
+    setWorkspaceState.mockClear();
+
+    fireEvent.keyDown(window, { key: "2", metaKey: true });
+
+    expect(await screen.findByRole("button", { name: "Project menu for Beta" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Rename project" })).not.toBeInTheDocument();
+    expect(setWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+      workspaces: expect.arrayContaining([expect.objectContaining({ id: "B", label: "Draft for Alfred" })]),
+    }));
   });
 
   it("shows and dismisses workspace action failures without leaking them into New session", async () => {
@@ -5575,7 +5601,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
-    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("{Meta>}k{/Meta}");
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
     expect(screen.getByText("Launch")).toBeInTheDocument();
@@ -5620,7 +5646,7 @@ describe("App integration", () => {
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 2");
 
-    fireEvent.keyDown(window, { key: "[", code: "BracketLeft", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: "[", code: "BracketLeft", metaKey: true, shiftKey: true });
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
   });
@@ -6528,7 +6554,10 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).toBeInTheDocument();
 
+    // Control W deletes a word; only Command W closes.
     fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+    expect(killTerminal).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
 
     await waitFor(() => {
       expect(screen.queryByRole("article", { name: /(?<!\/)zsh 9(?! \d)(?! ·)/i })).not.toBeInTheDocument();
@@ -6591,7 +6620,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: "Asleep sessions" })).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
 
     expect(forgetTerminal).not.toHaveBeenCalled();
     expect(killTerminal).not.toHaveBeenCalled();
@@ -6945,7 +6974,7 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
     await selectSurface(user, "Details");
-    await user.click(screen.getByRole("button", { name: "Open in external terminal for Codex" }));
+    await user.click(screen.getByRole("button", { name: "Open in Ghostty for Codex" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
   });
@@ -6988,7 +7017,7 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     const terminalButton = screen.getByRole(
       "button",
-      { name: "Open in external terminal for Codex · context-terminal" },
+      { name: "Open in Ghostty for Codex · context-terminal" },
     );
     await user.click(terminalButton);
 
@@ -7028,7 +7057,7 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i });
-    await sessionMenuAction(user, "Codex", /Open in external terminal/);
+    await sessionMenuAction(user, "Codex", /Open in Ghostty/);
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/sample/Desktop/Alfred" });
   });
@@ -7047,7 +7076,7 @@ describe("App integration", () => {
 
     render(<App />);
     await screen.findByRole("article", { name: /Codex · handoff/i });
-    await sessionMenuAction(user, "Codex · handoff", /Open in external terminal/);
+    await sessionMenuAction(user, "Codex · handoff", /Open in Ghostty/);
 
     expect(await screen.findByRole("alert", { name: "Shell action failed" }))
       .toHaveTextContent("Ghostty could not open this session.");
@@ -8453,7 +8482,7 @@ describe("App integration", () => {
       }],
       restoredSessions: [],
     });
-    fireEvent.keyDown(window, { key: "1", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "1", metaKey: true });
     await selectSurface(user, "Work");
     expect(await screen.findByRole("article", { name: /Replacement session/i })).toBeInTheDocument();
 
