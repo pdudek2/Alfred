@@ -206,7 +206,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(runDetailsTrigger).toBeFocused();
 
   await selectSurface(page, "Work");
-  await page.keyboard.press("Meta+J");
+  await page.keyboard.press("ControlOrMeta+J");
   const needsYou = page.getByRole("dialog", { name: "Needs you" });
   await expect(needsYou).toContainText("Nothing needs you right now.");
   await expectSansFont(needsYou);

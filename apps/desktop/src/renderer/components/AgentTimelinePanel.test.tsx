@@ -199,7 +199,7 @@ describe("AgentTimelinePanel", () => {
     const handoff = screen.getByRole("group", { name: "Session actions for codex — feature" });
 
     await user.click(within(handoff).getByRole("button", { name: "Show in Finder for codex — feature" }));
-    await user.click(within(handoff).getByRole("button", { name: "Open in external terminal for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Open in Ghostty for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Copy path for codex — feature" }));
 
     expect(onRevealActivityFile).toHaveBeenCalledWith(".", "/repo/alfred");
@@ -215,7 +215,7 @@ describe("AgentTimelinePanel", () => {
     expect(locationName()).toHaveTextContent(/^w1\/\.worktrees\/fix$/);
     rerender(panel({ ...session, workTree: { root: worktree, branch: "fix" } }));
     await user.click(within(handoff).getByRole("button", { name: "Show in Finder for codex — feature" }));
-    await user.click(within(handoff).getByRole("button", { name: "Open in external terminal for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Open in Ghostty for codex — feature" }));
     expect(onRevealActivityFile).toHaveBeenLastCalledWith(".", worktree);
     expect(onOpenExternalTerminal).toHaveBeenLastCalledWith(worktree);
   });

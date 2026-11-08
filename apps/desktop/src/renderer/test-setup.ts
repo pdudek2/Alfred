@@ -10,6 +10,9 @@ const originalConsoleError = console.error;
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 let consoleErrors: string[];
 
+// Alfred is a Mac app: its shortcuts take Command, and Control keys are left to text editing.
+Object.defineProperty(window.navigator, "platform", { configurable: true, value: "MacIntel" });
+
 beforeEach(() => {
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   // jsdom has no matchMedia; the tests run as a wide window with no motion preference.

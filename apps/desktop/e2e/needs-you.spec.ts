@@ -74,14 +74,14 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await page.keyboard.press("Control+J");
   await expect(popover).toBeHidden();
   await expect.poll(() => terminalOwnsFocus(page)).toBe(true);
-  await page.keyboard.press("Meta+J");
+  await page.keyboard.press("ControlOrMeta+J");
   await expect(popover).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(popover).toBeHidden();
   await expect.poll(() => terminalOwnsFocus(page)).toBe(true);
 
   await setWindowSize(app, page, 1120, 720);
-  await page.keyboard.press("Meta+J");
+  await page.keyboard.press("ControlOrMeta+J");
   await expect(popover).toBeVisible();
   expect(await popover.evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(1120);
   expect(await documentOverflow(page)).toBe(0);
