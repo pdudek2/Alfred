@@ -15,6 +15,7 @@ import type { AgentKind } from "../../shared/alfred-ipc";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
 import { shortenPath } from "../path-display";
 import { externalTerminalApp } from "./WorkspaceActionsMenu";
+import { trapDialogFocus } from "../dialog-focus";
 
 type CommandPaletteItem = {
   id: string;
@@ -512,32 +513,6 @@ function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspa
 
 function isRestartableSession(session: SessionTile): boolean {
   return isRestartable(sessionState(session), session.runtimeStatus);
-}
-
-function trapDialogFocus(event: ReactKeyboardEvent, panel: HTMLElement | null): void {
-  if (!panel) return;
-  const focusable = Array.from(
-    panel.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  );
-
-  if (focusable.length === 0) return;
-
-  const first = focusable[0];
-  const last = focusable.at(-1);
-  if (!first || !last) return;
-
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-    return;
-  }
-
-  if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
 }
 
 function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string): CommandPaletteItem[] {

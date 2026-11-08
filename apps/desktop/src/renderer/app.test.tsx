@@ -826,6 +826,28 @@ describe("App integration", () => {
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
   });
 
+  it("leaves the keyboard in an open command palette when the terminal behind it becomes ready", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    const search = screen.getByRole("textbox", { name: "Search commands" });
+    expect(search).toHaveFocus();
+    const focusCalls = terminalFocusSessionIds.length;
+
+    await act(async () => {
+      pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
+      await pending.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
+    expect(terminalFocusSessionIds).toHaveLength(focusCalls);
+    expect(search).toHaveFocus();
+  });
+
   it("releases a rejected pending start after close, and the next terminal takes a new client ID", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();

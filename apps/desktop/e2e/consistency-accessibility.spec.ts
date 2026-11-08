@@ -84,6 +84,12 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await paletteTrigger.click();
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await expect(palette).toBeVisible();
+  // The backdrop covers the top bar too, so a click beside the palette closes it instead of pressing a button there.
+  const paletteBox = (await paletteTrigger.boundingBox())!;
+  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, {
+    x: paletteBox.x + paletteBox.width / 2,
+    y: paletteBox.y + paletteBox.height / 2,
+  })).toBe("command-palette-backdrop");
   expect(await palette.locator(".command-palette-list").evaluate((node) => (
     getComputedStyle(node).scrollbarColor
   ))).not.toBe("auto");
