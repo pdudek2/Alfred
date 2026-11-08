@@ -1,5 +1,5 @@
 import { activitySentence, presentActivityEvents } from "../shared/activity-presentation.js";
-import type { SessionActivityEvent } from "../shared/session-activity.js";
+import { SIGNALLED_WORKING_STALE_MS, type SessionActivityEvent } from "../shared/session-activity.js";
 
 /** The tools an orchestrator agent runs its workers with. Alfred serves them over MCP; this module answers the calls. */
 
@@ -28,6 +28,8 @@ export type WorkerTurn = {
   lastPrompt: number;
   /** The last end of a turn: Claude's or Codex's Stop, or Codex's turn-end notification. */
   lastTurnEnd: number;
+  /** The latest signal or output, in ms: a turn silent for longer than the rail allows is over. */
+  lastActivityAt: number;
   waitingApproval: boolean;
   exited: boolean;
 };
@@ -90,10 +92,10 @@ export function typedPromptSource(prompt: string): { title: string; text: string
 /** A refusal the agent should read: why the call cannot be done now. */
 export class WorkerToolError extends Error {}
 
-export function workerState(turn: WorkerTurn): WorkerState {
+export function workerState(turn: WorkerTurn, now = Date.now()): WorkerState {
   if (turn.exited) return "ended";
   if (turn.waitingApproval) return "needs you";
-  if (turn.lastPrompt > turn.lastTurnEnd) return "working";
+  if (turn.lastPrompt > turn.lastTurnEnd) return now - turn.lastActivityAt <= SIGNALLED_WORKING_STALE_MS ? "working" : "your turn";
   return turn.lastTurnEnd > 0 ? "your turn" : "starting";
 }
 
