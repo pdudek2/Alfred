@@ -172,6 +172,7 @@ describe("sessionState", () => {
     expect(sessionState(liveSession(plan), "ready", 100_000).kind).toBe("running");
     const asked = { activityEvents: [{ id: "a", kind: "approval" as const, title: "Waiting for approval", detail: "Proceed?", at: 1_000 }] };
     expect(sessionState(liveSession({ ...plan, ...asked }), "ready", 100_000).kind).toBe("needs-you");
+    expect(sessionState(liveSession({ ...plan, ...asked, shellBusy: false }), "ready", 100_000).kind).toBe("needs-you");
     expect(sessionState(liveSession({ ...plan, ...asked, lastOutputAt: 99_000 }), "ready", 100_000).kind).toBe("running");
     // Once that later output is old, the question it followed is what the command waits on.
     expect(sessionState(liveSession({ ...plan, ...asked, lastOutputAt: 2_000 }), "ready", 100_000).kind).toBe("needs-you");
