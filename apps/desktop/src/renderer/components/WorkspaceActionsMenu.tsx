@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { createPortal } from "react-dom";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import { shortenPath } from "../path-display";
+import { trapDialogFocus } from "../dialog-focus";
 
 /** Every menu, Details and the palette open the same terminal app, so they name it the same way. */
 export function externalTerminalApp(): string {
@@ -80,6 +81,13 @@ export function WorkspaceActionsMenu({
       inputRef.current?.select();
     });
   }, [renameEditing]);
+
+  // The popover is portaled to the end of the page, so the keyboard has to be handed to it.
+  useEffect(() => {
+    if (!menuOpen || renameEditing) return;
+    const frame = window.requestAnimationFrame(() => popoverRef.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuOpen, renameEditing]);
 
   useEffect(() => {
     if (!missionEditing) return;
@@ -175,7 +183,15 @@ export function WorkspaceActionsMenu({
         <Ellipsis size={14} aria-hidden="true" />
       </button>
       {menuOpen && createPortal(
-        <div className="workspace-popover" ref={popoverRef} role="dialog" aria-label={popoverLabel}>
+        <div
+          className="workspace-popover"
+          ref={popoverRef}
+          role="dialog"
+          aria-label={popoverLabel}
+          onKeyDown={(event) => {
+            if (event.key === "Tab") trapDialogFocus(event, popoverRef.current);
+          }}
+        >
           {renameEditing ? (
             <form
               className="workspace-rename-form"

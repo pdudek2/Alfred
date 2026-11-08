@@ -64,6 +64,18 @@ describe("WorkspaceActionsMenu", () => {
     expect(menuProps.onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("hands the keyboard to its first action and keeps Tab inside", async () => {
+    const user = userEvent.setup();
+    render(<WorkspaceActionsMenu {...props()} />);
+
+    const actions = [...screen.getByRole("dialog", { name: "Project actions" }).querySelectorAll("button")];
+    expect(actions[0]).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(actions.at(-1)).toHaveFocus();
+    await user.tab();
+    expect(actions[0]).toHaveFocus();
+  });
+
   it("names its actions as the session menu does, with the folder's path once", () => {
     render(<WorkspaceActionsMenu {...props({ missionBrief: { goal: "Ship the shell", doneWhen: [], guardrails: [] } })} />);
 
