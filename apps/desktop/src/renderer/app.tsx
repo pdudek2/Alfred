@@ -493,10 +493,14 @@ export function App() {
       if (!document.hasFocus()) return;
       void workspaceApi.getWorkspaceState().then((state) => {
         if (cancelled) return;
-        const branches = new Map(state.workspaces.map((workspace) => [workspace.id, workspace.gitBranch]));
+        // The same answer says whether a project's folder went missing (or came back) since.
+        const fresh = new Map(state.workspaces.map((workspace) => [workspace.id, workspace]));
         setWorkspaces((current) =>
-          current.some((workspace) => branches.has(workspace.id) && branches.get(workspace.id) !== workspace.gitBranch)
-            ? current.map((workspace) => withGitBranch(workspace, branches))
+          current.some((workspace) => {
+            const latest = fresh.get(workspace.id);
+            return latest !== undefined && (latest.gitBranch !== workspace.gitBranch || latest.rootStatus !== workspace.rootStatus);
+          })
+            ? current.map((workspace) => withFreshRoot(workspace, fresh.get(workspace.id)))
             : current);
       }, () => {});
     };
@@ -2758,11 +2762,14 @@ function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string):
   return next;
 }
 
-function withGitBranch(workspace: Workspace, branches: ReadonlyMap<string, string | undefined>): Workspace {
-  if (!branches.has(workspace.id)) return workspace;
-  const { gitBranch: _previous, ...rest } = workspace;
-  const gitBranch = branches.get(workspace.id);
-  return gitBranch === undefined ? rest : { ...rest, gitBranch };
+function withFreshRoot(workspace: Workspace, latest: Pick<Workspace, "gitBranch" | "rootStatus"> | undefined): Workspace {
+  if (!latest) return workspace;
+  const { gitBranch: _branch, rootStatus: _status, ...rest } = workspace;
+  return {
+    ...rest,
+    ...(latest.gitBranch === undefined ? {} : { gitBranch: latest.gitBranch }),
+    ...(latest.rootStatus === undefined ? {} : { rootStatus: latest.rootStatus }),
+  };
 }
 
 function workspacePlanContext(
