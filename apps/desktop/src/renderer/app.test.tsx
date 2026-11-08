@@ -1,7 +1,7 @@
 import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act, StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
 import type { SessionTile } from "./session-state";
@@ -835,6 +835,32 @@ describe("App integration", () => {
     });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["the command palette", "Open command palette", "Search commands"],
+    ["New session", "New session", "First prompt"],
+  ])("leaves the keyboard in %s when the terminal behind it becomes ready", async (_, opener, field) => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: new RegExp(`^${opener}$`) }));
+    const search = screen.getByRole("textbox", { name: field });
+    await user.click(search);
+    expect(search).toHaveFocus();
+    const focusCalls = terminalFocusSessionIds.length;
+
+    await act(async () => {
+      pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
+      await pending.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
+    expect(terminalFocusSessionIds).toHaveLength(focusCalls);
+    expect(search).toHaveFocus();
   });
 
   it("releases a rejected pending start after close, and the next terminal takes a new client ID", async () => {
@@ -4243,6 +4269,40 @@ describe("App integration", () => {
     // Nothing is live and nothing serves a preview, so the session view tabs are not offered at all.
     expect(screen.queryByRole("tab", { name: "Preview" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
+  });
+
+  it("moves the command palette's highlight down the rows as drawn, keeps it in view, and runs the row you Enter", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.textContent ?? "");
+    };
+    onTestFinished(() => {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    });
+    render(<App />);
+    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    const rows = within(palette).getAllByRole("option").filter((row) => !(row as HTMLButtonElement).disabled);
+    const highlighted = () => within(palette).getByRole("option", { selected: true });
+
+    expect(highlighted()).toBe(rows[0]);
+    for (const row of rows.slice(1, 8)) {
+      await user.keyboard("{ArrowDown}");
+      expect(highlighted()).toBe(row);
+      expect(scrolled.at(-1)).toBe(row.textContent);
+    }
+
+    // The highlight sits further down; Enter on the focused row runs that row.
+    const terminalRow = within(palette).getByRole("option", { name: /New terminal/ });
+    expect(highlighted()).not.toBe(terminalRow);
+    act(() => terminalRow.focus());
+    await user.keyboard("{Enter}");
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    const composer = await screen.findByRole("form", { name: "New session" });
+    expect(within(composer).getByRole("radio", { name: /^Terminal/ })).toBeChecked();
   });
 
   it("starts sessions in a scratch workspace before a folder is bound", async () => {
