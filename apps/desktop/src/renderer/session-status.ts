@@ -136,7 +136,15 @@ export function sessionState(
   if (signal?.state === "working" && now - Math.max(signal.at, session.lastOutputAt ?? 0) <= SIGNALLED_WORKING_STALE_MS) {
     return busy;
   }
-  if (!agent && session.shellBusy !== undefined) return session.shellBusy ? busy : state("idle");
+  if (!agent && session.shellBusy !== undefined) {
+    // A plan command that asked for approval and printed nothing since is waiting on you, though its process runs.
+    // Output after the question masks it only while that output is recent, as for any session below.
+    const masked = session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS;
+    const asked = session.command !== undefined && latestEvent?.kind === "approval"
+      && !(masked && (session.lastOutputAt ?? 0) > latestEvent.at);
+    if (session.shellBusy && asked) return needsYou("approval");
+    return session.shellBusy ? busy : state("idle");
+  }
 
   const outputIsWork = !(agent && !signal && awaitsFirstMessage(session));
   if (outputIsWork && session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
