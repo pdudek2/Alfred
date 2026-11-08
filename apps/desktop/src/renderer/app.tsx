@@ -1466,12 +1466,21 @@ export function App() {
   const handleRecoverSession = useCallback((workspaceId: string, sessionId: string) => {
     const session = terminalSessions.find((item) => item.id === sessionId);
     if (!session) return;
-    // A session of a closed project brings the project back, under the same id, from the folder it ran in.
+    // A session of a closed project resumes in its project: the one added again for that folder, or the closed one
+    // brought back under its id.
+    let targetWorkspaceId = workspaceId;
     if (!workspaces.some((workspace) => workspace.id === workspaceId)) {
-      const label = session.cwd.split("/").filter(Boolean).at(-1) ?? workspaceId;
-      setWorkspaces((current) => current.some((workspace) => workspace.id === workspaceId)
-        ? current
-        : [...current, { id: workspaceId, label, shortLabel: shortLabelForWorkspace(label), rootPath: session.cwd }]);
+      const rootPath = projectRootOf(session.cwd);
+      const returned = workspaces.find((workspace) => workspace.rootPath === rootPath);
+      if (returned) {
+        targetWorkspaceId = returned.id;
+        const moved = terminalSessionsRef.current.map((item) => item.id === sessionId ? { ...item, workspaceId: returned.id } : item);
+        terminalSessionsRef.current = moved;
+        setTerminalSessions(moved);
+      } else {
+        const label = rootPath.split("/").filter(Boolean).at(-1) ?? workspaceId;
+        setWorkspaces((current) => [...current, { id: workspaceId, label, shortLabel: shortLabelForWorkspace(label), rootPath }]);
+      }
     }
     const shouldFocusAfterRecovery = sessionRelaunchSafety(session).safe || armedRecoverySessionIds.has(sessionId);
     if (session?.runtimeStatus === "restored") {
@@ -1481,7 +1490,7 @@ export function App() {
     } else {
       return;
     }
-    if (shouldFocusAfterRecovery) handleFocusSessionInWorkspace(workspaceId, sessionId);
+    if (shouldFocusAfterRecovery) handleFocusSessionInWorkspace(targetWorkspaceId, sessionId);
   }, [
     armedRecoverySessionIds,
     handleContinueRestoredSession,
@@ -2159,9 +2168,11 @@ export function App() {
                   hydratedWorkspaceId,
                 )
               : [];
-        setWorkspaces((current) =>
-          ensureWorkspacesForSessions(workspaceStateResult?.workspaces ?? current, hydratedSessions),
-        );
+        // Asleep sessions of a closed project wait in History; only running ones bring a project back.
+        setWorkspaces((current) => ensureWorkspacesForSessions(
+          workspaceStateResult?.workspaces ?? current,
+          hydratedSessions.filter((session) => !isAsleepOrEnded(session)),
+        ));
         setTerminalSessions(hydratedSessions);
         setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
         const hydratedPendingPlans = Object.fromEntries(stagedPlanResult.plans.flatMap((plan) => {
@@ -2877,4 +2888,9 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
   const additions = liveSessions.filter((session) => !existingIds.has(session.id));
 
   return [...merged, ...additions];
+}
+
+/** The project folder a session ran in: the repo around an agent's worktree inside it, else the folder itself. */
+function projectRootOf(cwd: string): string {
+  return cwd.replace(/\/\.(?:claude\/)?worktrees\/[^/]+\/?$/, "");
 }

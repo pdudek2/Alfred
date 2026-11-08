@@ -6653,6 +6653,50 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Saved only/i })).toBeInTheDocument();
   });
 
+  it("resumes a closed project's session in the project added again for its folder", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, setWorkspaceState } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
+          { id: "C", label: "Saved again", shortLabel: "SA", rootPath: "/repo/saved" },
+        ],
+        activeWorkspaceId: "A",
+      },
+      [{
+        clientId: "closed-worktree",
+        title: "Closed worktree",
+        source: "manual",
+        workspaceId: "B",
+        cwd: "/repo/saved/.claude/worktrees/feature",
+        shell: "/bin/zsh",
+        command: "zsh",
+        args: [],
+      }],
+    );
+
+    render(<App />);
+    // After a restart the closed project stays closed.
+    expect(await screen.findByRole("button", { name: "Saved again project" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Project B/ })).not.toBeInTheDocument();
+    await openHistorySession(user, "Closed worktree");
+    await user.click(screen.getByRole("button", { name: "Resume" }));
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: "closed-worktree",
+      workspaceId: "C",
+    })));
+    expect(screen.getByRole("button", { name: "Saved again project" })).toHaveAttribute("aria-current", "location");
+    for (const [state] of setWorkspaceState.mock.calls) {
+      expect(state.workspaces.map((workspace: { id: string }) => workspace.id)).toEqual(["A", "C"]);
+    }
+  });
+
   it("lists the project's asleep sessions in the empty state and resumes into the terminal", async () => {
     const user = userEvent.setup();
     const now = Date.now();
