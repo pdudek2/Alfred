@@ -19,6 +19,8 @@ export type WorkspaceSnapshot = {
 export type WorkspaceStateSnapshot = {
   workspaces: WorkspaceSnapshot[];
   activeWorkspaceId: string;
+  /** Projects closed with sessions left in History; Resume brings one back as it was. */
+  closedWorkspaces?: WorkspaceSnapshot[];
 };
 
 export type WorkspaceStateSetRequest = WorkspaceStateSnapshot;

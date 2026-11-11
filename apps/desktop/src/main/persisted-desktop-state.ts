@@ -264,10 +264,15 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     : workspaces[0]?.id ?? DEFAULT_WORKSPACE.id;
 
   const privacySettings = normalizeDesktopPrivacySettings(value.privacySettings);
+  const openIds = new Set(workspaces.map((workspace) => workspace.id));
+  const closedWorkspaces = Array.isArray(value.closedWorkspaces)
+    ? normalizeWorkspaces(value.closedWorkspaces).filter((workspace) => !openIds.has(workspace.id))
+    : [];
 
   return {
     workspaces,
     activeWorkspaceId,
+    ...(closedWorkspaces.length === 0 ? {} : { closedWorkspaces }),
     // Builds before the retired tile grid was removed also saved layoutsByWorkspace and a work mode; both are dropped.
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     ...(typeof value.railWidth === "number" ? { railWidth: clampRailWidth(value.railWidth) } : {}),
@@ -816,11 +821,9 @@ async function removeUnfinishedSaves(filePath: string): Promise<void> {
 
 function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
   return {
-    workspaces: state.workspaces.map((workspace) => ({
-      ...workspace,
-      ...(workspace.missionBrief ? { missionBrief: cloneMissionBrief(workspace.missionBrief) } : {}),
-    })),
+    workspaces: state.workspaces.map(cloneWorkspace),
     activeWorkspaceId: state.activeWorkspaceId,
+    ...(state.closedWorkspaces ? { closedWorkspaces: state.closedWorkspaces.map(cloneWorkspace) } : {}),
     viewStateByWorkspace: Object.fromEntries(
       Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
@@ -834,6 +837,13 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
 
 function tailText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(-maxLength) : value;
+}
+
+function cloneWorkspace(workspace: WorkspaceSnapshot): WorkspaceSnapshot {
+  return {
+    ...workspace,
+    ...(workspace.missionBrief ? { missionBrief: cloneMissionBrief(workspace.missionBrief) } : {}),
+  };
 }
 
 function cloneMissionBrief(brief: WorkspaceMissionBrief): WorkspaceMissionBrief {

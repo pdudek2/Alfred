@@ -4579,6 +4579,7 @@ describe("App integration", () => {
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
           { id: "W2", label: "Project 2", shortLabel: "W2" },
         ],
+        closedWorkspaces: [],
         activeWorkspaceId: "A",
       });
     });
@@ -4884,6 +4885,7 @@ describe("App integration", () => {
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
         ],
+        closedWorkspaces: [],
         activeWorkspaceId: "A",
       });
     });
@@ -5006,6 +5008,7 @@ describe("App integration", () => {
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
         ],
+        closedWorkspaces: [],
         activeWorkspaceId: "A",
       });
     });
@@ -5628,6 +5631,7 @@ describe("App integration", () => {
         { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred", gitBranch: "main" },
         { id: "W2", label: "Project 2", shortLabel: "W2" },
       ],
+      closedWorkspaces: [],
       activeWorkspaceId: "W2",
     });
 
@@ -6592,6 +6596,7 @@ describe("App integration", () => {
 
   it("does not close saved memory with the desktop close shortcut, and closes its project with the session kept in History", async () => {
     const user = userEvent.setup();
+    const savedBrief = { goal: "Ship the saved work.", doneWhen: ["Tests pass"], guardrails: [] };
     const { createTerminal, forgetTerminal, killTerminal, setWorkspaceState } = installDesktopBridge(
       undefined,
       null,
@@ -6601,7 +6606,7 @@ describe("App integration", () => {
       {
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" },
-          { id: "B", label: "Saved project", shortLabel: "SP", rootPath: "/repo/saved" },
+          { id: "B", label: "Saved project", shortLabel: "SP", rootPath: "/repo/saved", missionBrief: savedBrief },
         ],
         activeWorkspaceId: "B",
       },
@@ -6637,20 +6642,57 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: "Saved project project" })).not.toBeInTheDocument();
     expect(setWorkspaceState).toHaveBeenLastCalledWith(expect.objectContaining({
       workspaces: [expect.objectContaining({ id: "A" })],
+      closedWorkspaces: [{ id: "B", label: "Saved project", shortLabel: "SP", rootPath: "/repo/saved", missionBrief: savedBrief }],
     }));
     expect(forgetTerminal).not.toHaveBeenCalled();
-    const history = await openHistorySession(user, "Saved only");
-    expect(history).toHaveTextContent("saved");
+    await openHistorySession(user, "Saved only");
 
-    // Resuming it brings the project back.
+    // Resuming it brings the project back with its name and brief.
     await user.click(screen.getByRole("button", { name: "Resume" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole("button", { name: "saved project" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Saved project project" })).toBeInTheDocument();
     expect(setWorkspaceState).toHaveBeenLastCalledWith(expect.objectContaining({
-      workspaces: [expect.objectContaining({ id: "A" }), expect.objectContaining({ id: "B", rootPath: "/repo/saved" })],
+      workspaces: [
+        expect.objectContaining({ id: "A" }),
+        expect.objectContaining({ id: "B", label: "Saved project", rootPath: "/repo/saved", missionBrief: savedBrief }),
+      ],
       activeWorkspaceId: "B",
+      closedWorkspaces: [],
     }));
     expect(screen.getByRole("article", { name: /Saved only/i })).toBeInTheDocument();
+  });
+
+  it("brings a project closed before a restart back with its name on Resume", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/sample/Desktop/Alfred" }],
+        activeWorkspaceId: "A",
+        closedWorkspaces: [{ id: "B", label: "Saved project", shortLabel: "SP", rootPath: "/repo/saved" }],
+      },
+      [{
+        clientId: "saved-only",
+        title: "Saved only",
+        source: "manual",
+        workspaceId: "B",
+        cwd: "/repo/saved",
+        shell: "/bin/zsh",
+        command: "zsh",
+        args: [],
+      }],
+    );
+
+    render(<App />);
+    await openHistorySession(user, "Saved only");
+    await user.click(screen.getByRole("button", { name: "Resume" }));
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "B" })));
+    expect(await screen.findByRole("button", { name: "Saved project project" })).toHaveAttribute("aria-current", "location");
   });
 
   it("resumes a closed project's session in the project added again for its folder", async () => {

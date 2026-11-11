@@ -113,7 +113,7 @@ import {
   type WorkspaceLayoutsSnapshot,
   type WorkspaceViewState,
 } from "../shared/layout-ipc";
-import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
+import type { WorkspaceMissionBrief, WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import {
   SESSIONS_PAGE_SIZE,
   SUMMARY_CACHE_COUNT_LIMIT,
@@ -145,6 +145,7 @@ const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
+  const [closedWorkspaces, setClosedWorkspaces] = useState<WorkspaceSnapshot[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
@@ -590,8 +591,15 @@ export function App() {
       remainingWorkspaces[0]?.id ??
       DEFAULT_WORKSPACE_ID;
     const workspaceApi = getDesktopWorkspaceApi();
+    const { rootStatus: _rootStatus, gitBranch: _gitBranch, ...closedRecord } = activeWorkspace;
+    // Only a project that leaves sessions in History can be resumed, so only that one is kept.
+    const nextClosedWorkspaces = [
+      ...closedWorkspaces.filter((workspace) => workspace.id !== activeWorkspace.id),
+      ...(activeSessions.length > 0 ? [closedRecord] : []),
+    ];
 
     setWorkspaces(remainingWorkspaces);
+    setClosedWorkspaces(nextClosedWorkspaces);
     setActiveWorkspaceId(nextActiveWorkspaceId);
     setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setDetailsColumn((current) => withoutWorkspace(current, activeWorkspace.id));
@@ -603,8 +611,9 @@ export function App() {
     void workspaceApi?.setWorkspaceState({
       workspaces: remainingWorkspaces,
       activeWorkspaceId: nextActiveWorkspaceId,
+      closedWorkspaces: nextClosedWorkspaces,
     });
-  }, [activeWorkspace.id, canCloseActiveWorkspace, workspaces]);
+  }, [activeSessions.length, activeWorkspace, canCloseActiveWorkspace, closedWorkspaces, workspaces]);
 
   const persistActiveWorkspaceViewState = useCallback((patch: WorkspaceViewState = {}) => {
     void getDesktopLayoutApi()?.setWorkspaceViewState({
@@ -1467,7 +1476,7 @@ export function App() {
     const session = terminalSessions.find((item) => item.id === sessionId);
     if (!session) return;
     // A session of a closed project resumes in its project: the one added again for that folder, or the closed one
-    // brought back under its id.
+    // brought back as it was.
     let targetWorkspaceId = workspaceId;
     if (!workspaces.some((workspace) => workspace.id === workspaceId)) {
       const rootPath = projectRootOf(session.cwd);
@@ -1479,8 +1488,11 @@ export function App() {
         setTerminalSessions(moved);
       } else {
         const label = rootPath.split("/").filter(Boolean).at(-1) ?? workspaceId;
-        setWorkspaces((current) => [...current, { id: workspaceId, label, shortLabel: shortLabelForWorkspace(label), rootPath }]);
+        const restored = closedWorkspaces.find((workspace) => workspace.id === workspaceId)
+          ?? { id: workspaceId, label, shortLabel: shortLabelForWorkspace(label), rootPath };
+        setWorkspaces((current) => [...current, restored]);
       }
+      setClosedWorkspaces((current) => current.filter((workspace) => workspace.id !== workspaceId));
     }
     const shouldFocusAfterRecovery = sessionRelaunchSafety(session).safe || armedRecoverySessionIds.has(sessionId);
     if (session?.runtimeStatus === "restored") {
@@ -1493,6 +1505,7 @@ export function App() {
     if (shouldFocusAfterRecovery) handleFocusSessionInWorkspace(targetWorkspaceId, sessionId);
   }, [
     armedRecoverySessionIds,
+    closedWorkspaces,
     handleContinueRestoredSession,
     handleFocusSessionInWorkspace,
     handleRestartSession,
@@ -2134,6 +2147,7 @@ export function App() {
         );
         if (workspaceStateResult) {
           setWorkspaces(workspaceStateResult.workspaces);
+          setClosedWorkspaces(workspaceStateResult.closedWorkspaces ?? []);
           setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);
         }
         const liveSessions = hydrateLiveTerminalSessions(terminalResult.sessions);
@@ -2215,9 +2229,10 @@ export function App() {
     const snapshot: WorkspaceStateSnapshot = {
       workspaces,
       activeWorkspaceId,
+      closedWorkspaces,
     };
     void workspaceApi.setWorkspaceState(snapshot);
-  }, [activeWorkspaceId, workspaces]);
+  }, [activeWorkspaceId, closedWorkspaces, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
 
