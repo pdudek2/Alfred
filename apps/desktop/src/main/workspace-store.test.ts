@@ -154,11 +154,12 @@ describe("workspace-store", () => {
     };
     const store = createWorkspaceStore({ filePath });
 
+    const { closedWorkspaces: _closed, ...withoutClosed } = state;
     await expect(store.setWorkspaceState(state)).resolves.toEqual(state);
-    await expect(createWorkspaceStore({ filePath }).getWorkspaceState()).resolves.toEqual(state);
+    // No saved session belongs to OLD, so the next launch forgets it.
+    await expect(createWorkspaceStore({ filePath }).getWorkspaceState()).resolves.toEqual(withoutClosed);
 
     // A rename or brief save sends no closed list and keeps it; an empty one clears it.
-    const { closedWorkspaces: _closed, ...withoutClosed } = state;
     await expect(store.setWorkspaceState(withoutClosed)).resolves.toEqual(state);
     await expect(store.setWorkspaceState({ ...state, closedWorkspaces: [] })).resolves.toEqual(withoutClosed);
   });

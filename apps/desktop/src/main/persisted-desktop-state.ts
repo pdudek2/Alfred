@@ -134,7 +134,7 @@ export function createPersistedDesktopStateStore(
       if (hydrated) return;
       await removeUnfinishedSaves(filePath);
       const result = await readDesktopStateFile(filePath, options.onWarning);
-      cachedState = result.state;
+      cachedState = withoutOrphanClosedWorkspaces(result.state);
       hydrated = true;
       if (result.rewrite) {
         // A failed migration write must not block startup: the state was read fine,
@@ -837,6 +837,14 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
 
 function tailText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(-maxLength) : value;
+}
+
+// Pruned on load only: during a run the saved sessions can lag behind the project just closed.
+function withoutOrphanClosedWorkspaces(state: DesktopStateSnapshot): DesktopStateSnapshot {
+  const { closedWorkspaces, ...rest } = state;
+  const heldIds = new Set(state.restoredTerminalSessions.map((session) => session.workspaceId));
+  const held = closedWorkspaces?.filter((workspace) => heldIds.has(workspace.id)) ?? [];
+  return held.length === 0 ? rest : { ...rest, closedWorkspaces: held };
 }
 
 function cloneWorkspace(workspace: WorkspaceSnapshot): WorkspaceSnapshot {
