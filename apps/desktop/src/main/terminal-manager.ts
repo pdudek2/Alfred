@@ -780,8 +780,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       session = restoredSessionSnapshots.get(request.clientId);
       const window = BrowserWindow.fromWebContents(event.sender);
       const recentExit = [...recentTerminalExits.values()].find((exit) => exit.event.clientId === request.clientId);
-      if (!session && (!recentExit || !window || !canAttachOwnerToWindow(recentExit.ownerWindowId, window))) {
-        return { ok: false, error: "Session not found." };
+      if (!session) {
+        // A session whose start failed left nothing here, so there is nothing to forget.
+        if (!recentExit) return { ok: true };
+        if (!window || !canAttachOwnerToWindow(recentExit.ownerWindowId, window)) {
+          return { ok: false, error: "Session not found." };
+        }
       }
 
       forgetPersistedSession(request.clientId);
