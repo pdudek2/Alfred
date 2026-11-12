@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { electronArguments } from "./dev-electron-config.mjs";
+import { devServerOwner, electronArguments } from "./dev-electron-config.mjs";
 
 const require = createRequire(import.meta.url);
 const electron = require("electron");
@@ -18,7 +18,11 @@ let electronProcess = null;
 let shuttingDown = false;
 
 try {
-  if (!(await isReachable(devServerUrl))) {
+  const owner = await devServerOwner(devServerUrl, appDirectory);
+  if (owner === "other") {
+    throw new Error(`${devServerUrl} is not this checkout's Vite server. Stop what runs there or set DESKTOP_PORT to a free port.`);
+  }
+  if (owner === "none") {
     viteProcess = spawn(process.execPath, [viteBin, "--host", host, "--port", String(port), "--strictPort"], {
       cwd: appDirectory,
       env: process.env,
@@ -72,22 +76,13 @@ async function waitForServer(url, processToWatch) {
     if (processToWatch.exitCode !== null) {
       throw new Error(`Vite dev server exited before ${url} became reachable.`);
     }
-    if (await isReachable(url)) {
+    if ((await devServerOwner(url, appDirectory)) === "this checkout") {
       return;
     }
     await delay(150);
   }
 
   throw new Error(`Timed out waiting for Vite dev server at ${url}.`);
-}
-
-async function isReachable(url) {
-  try {
-    const response = await fetch(url, { method: "GET" });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
 
 function delay(ms) {

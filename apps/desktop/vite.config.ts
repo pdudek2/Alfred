@@ -1,11 +1,14 @@
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
+import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
+import { DEV_ROOT_PATH } from "./scripts/dev-electron-config.mjs";
 
 const desktopPort = readPort(process.env.DESKTOP_PORT, 4310);
 
 export default defineConfig({
   base: "./",
-  plugins: [react()],
+  plugins: [react(), devRoot()],
   test: {
     projects: [
       {
@@ -32,6 +35,17 @@ export default defineConfig({
     port: desktopPort,
   },
 });
+
+// The dev launcher reuses a running server only when it answers with this checkout's folder.
+function devRoot(): Plugin {
+  const appDirectory = fileURLToPath(new URL(".", import.meta.url));
+  return {
+    name: "alfred-dev-root",
+    configureServer(server) {
+      server.middlewares.use(DEV_ROOT_PATH, (_request, response) => response.end(appDirectory));
+    },
+  };
+}
 
 function readPort(value: string | undefined, fallback: number): number {
   const port = Number.parseInt(value ?? "", 10);
