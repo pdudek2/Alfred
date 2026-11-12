@@ -134,7 +134,7 @@ export function createPersistedDesktopStateStore(
       if (hydrated) return;
       await removeUnfinishedSaves(filePath);
       const result = await readDesktopStateFile(filePath, options.onWarning);
-      cachedState = result.state;
+      cachedState = withoutOrphanClosedWorkspaces(result.state);
       hydrated = true;
       if (result.rewrite) {
         // A failed migration write must not block startup: the state was read fine,
@@ -264,10 +264,15 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     : workspaces[0]?.id ?? DEFAULT_WORKSPACE.id;
 
   const privacySettings = normalizeDesktopPrivacySettings(value.privacySettings);
+  const openIds = new Set(workspaces.map((workspace) => workspace.id));
+  const closedWorkspaces = Array.isArray(value.closedWorkspaces)
+    ? normalizeWorkspaces(value.closedWorkspaces).filter((workspace) => !openIds.has(workspace.id))
+    : [];
 
   return {
     workspaces,
     activeWorkspaceId,
+    ...(closedWorkspaces.length === 0 ? {} : { closedWorkspaces }),
     // Builds before the retired tile grid was removed also saved layoutsByWorkspace and a work mode; both are dropped.
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     ...(typeof value.railWidth === "number" ? { railWidth: clampRailWidth(value.railWidth) } : {}),
@@ -816,11 +821,9 @@ async function removeUnfinishedSaves(filePath: string): Promise<void> {
 
 function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
   return {
-    workspaces: state.workspaces.map((workspace) => ({
-      ...workspace,
-      ...(workspace.missionBrief ? { missionBrief: cloneMissionBrief(workspace.missionBrief) } : {}),
-    })),
+    workspaces: state.workspaces.map(cloneWorkspace),
     activeWorkspaceId: state.activeWorkspaceId,
+    ...(state.closedWorkspaces ? { closedWorkspaces: state.closedWorkspaces.map(cloneWorkspace) } : {}),
     viewStateByWorkspace: Object.fromEntries(
       Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
@@ -834,6 +837,21 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
 
 function tailText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(-maxLength) : value;
+}
+
+// Pruned on load only: during a run the saved sessions can lag behind the project just closed.
+function withoutOrphanClosedWorkspaces(state: DesktopStateSnapshot): DesktopStateSnapshot {
+  const { closedWorkspaces, ...rest } = state;
+  const heldIds = new Set(state.restoredTerminalSessions.map((session) => session.workspaceId));
+  const held = closedWorkspaces?.filter((workspace) => heldIds.has(workspace.id)) ?? [];
+  return held.length === 0 ? rest : { ...rest, closedWorkspaces: held };
+}
+
+function cloneWorkspace(workspace: WorkspaceSnapshot): WorkspaceSnapshot {
+  return {
+    ...workspace,
+    ...(workspace.missionBrief ? { missionBrief: cloneMissionBrief(workspace.missionBrief) } : {}),
+  };
 }
 
 function cloneMissionBrief(brief: WorkspaceMissionBrief): WorkspaceMissionBrief {

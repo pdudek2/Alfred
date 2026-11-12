@@ -103,8 +103,12 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
     },
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
-      const workspaceState = toWorkspaceState(normalizeDesktopState(request));
-      const next = await persistedStateStore.updateState((current) => ({ ...current, ...workspaceState }));
+      const normalized = normalizeDesktopState(request);
+      const workspaceState = toWorkspaceState(normalized);
+      const next = await persistedStateStore.updateState(({ closedWorkspaces: currentClosed, ...current }) => {
+        const closedWorkspaces = request.closedWorkspaces === undefined ? currentClosed : normalized.closedWorkspaces;
+        return { ...current, ...workspaceState, ...(closedWorkspaces ? { closedWorkspaces } : {}) };
+      });
       return annotateMissingRoots(next);
     },
   };
@@ -192,7 +196,11 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
         return rootStatus === "missing" ? { ...workspace, rootStatus } : { ...workspace };
       }),
     );
-    return { workspaces, activeWorkspaceId: state.activeWorkspaceId };
+    return {
+      workspaces,
+      activeWorkspaceId: state.activeWorkspaceId,
+      ...(state.closedWorkspaces ? { closedWorkspaces: state.closedWorkspaces.map((workspace) => ({ ...workspace })) } : {}),
+    };
   }
 }
 

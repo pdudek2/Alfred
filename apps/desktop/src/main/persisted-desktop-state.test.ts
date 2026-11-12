@@ -379,6 +379,20 @@ describe("persisted-desktop-state", () => {
     expect(await readFile(filePath, "utf8")).not.toContain("hunter2");
   });
 
+  it("keeps a closed project on the next launch only while History holds one of its sessions", async () => {
+    const filePath = await temporaryStateFile();
+    const held = { id: "B", label: "Saved project", shortLabel: "SP", rootPath: "/repo/saved" };
+    await createPersistedDesktopStateStore({ filePath }).setState({
+      ...DEFAULT_DESKTOP_STATE,
+      closedWorkspaces: [held, { id: "C", label: "Discarded", shortLabel: "D" }],
+      restoredTerminalSessions: [
+        { clientId: "saved-1", title: "Saved", source: "manual", workspaceId: "B", cwd: "/repo/saved", shell: "/bin/zsh" },
+      ],
+    });
+
+    expect((await createPersistedDesktopStateStore({ filePath }).getState()).closedWorkspaces).toEqual([held]);
+  });
+
   it("serializes state updates so concurrent writers do not drop fields", async () => {
     const filePath = await temporaryStateFile();
     const store = createPersistedDesktopStateStore({ filePath });

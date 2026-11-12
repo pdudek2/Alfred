@@ -150,11 +150,18 @@ describe("workspace-store", () => {
         },
       ],
       activeWorkspaceId: "API",
+      closedWorkspaces: [{ id: "OLD", label: "Old work", shortLabel: "OW", rootPath: "/repo/old" }],
     };
     const store = createWorkspaceStore({ filePath });
 
+    const { closedWorkspaces: _closed, ...withoutClosed } = state;
     await expect(store.setWorkspaceState(state)).resolves.toEqual(state);
-    await expect(createWorkspaceStore({ filePath }).getWorkspaceState()).resolves.toEqual(state);
+    // No saved session belongs to OLD, so the next launch forgets it.
+    await expect(createWorkspaceStore({ filePath }).getWorkspaceState()).resolves.toEqual(withoutClosed);
+
+    // A rename or brief save sends no closed list and keeps it; an empty one clears it.
+    await expect(store.setWorkspaceState(withoutClosed)).resolves.toEqual(state);
+    await expect(store.setWorkspaceState({ ...state, closedWorkspaces: [] })).resolves.toEqual(withoutClosed);
   });
 
   it("creates a workspace from a folder and makes it active", async () => {
