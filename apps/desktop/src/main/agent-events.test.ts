@@ -168,9 +168,13 @@ describe("createAgentEventLog", () => {
     }
 
     await post(first, JSON.stringify(claudeBody));
+    log.programStatus({ id: SESSION, clientId: "claude-9" }, "claude", { state: "blocked", kind: "permission", msg: "Use api_key=sk-ant-1234567890abcdef?" });
     await log.close();
 
-    expect((await recorded()).map((line) => line.session)).toEqual(["claude-9", "claude-9"]);
+    const lines = await recorded();
+    expect(lines.map((line) => line.session)).toEqual(["claude-9", "claude-9", "claude-9"]);
+    expect(lines.at(-1)).toMatchObject({ agent: "claude", event: "alfred.program_status", attributes: { state: "blocked", kind: "permission" } });
+    expect(JSON.stringify(lines.at(-1))).not.toContain("sk-ant-1234567890abcdef");
   });
 
   it("writes nothing for a wrong secret, an oversized body or broken JSON", async () => {
@@ -195,6 +199,7 @@ describe("createAgentEventLog", () => {
     expect(log.env({ id: SESSION }, "claude")).toEqual({});
     expect(log.launchArgs({ id: SESSION }, "codex")).toEqual([]);
     expect((await post(url, JSON.stringify(claudeBody))).status).toBe(200);
+    log.programStatus({ id: SESSION }, "codex", { state: "working" });
     await log.close();
 
     expect(await recorded()).toEqual([]);

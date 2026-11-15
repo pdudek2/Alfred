@@ -63,7 +63,9 @@ import {
   CODEX_LAUNCH_ARGS,
   isTerminalReport,
   isShellProcess,
+  parseOsc,
   parseOsc9,
+  parseProgramStatus,
   signalFromOsc9,
   type AgentSignalBridge,
   type AgentSignalUpdate,
@@ -144,6 +146,7 @@ type TerminalSession = {
   workTree?: TerminalWorkTree;
   namedByYou?: true;
   oscCarry: string;
+  programStatusCarry: string;
   shellBusy?: boolean | undefined;
   /** The program holding a plain shell's foreground as a title ("pnpm dev"), once it has held it a while. */
   foregroundCommand?: string | undefined;
@@ -589,6 +592,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           activityStream: { carry: "" },
           commandInput: "",
           oscCarry: "",
+          programStatusCarry: "",
           ownerWindowId: window.id,
           persistLaunchData: launchStartedWithPersistence
             && launchClearGeneration === privacyClearGeneration
@@ -615,6 +619,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const now = Date.now();
         const activeAgentKind = updateForegroundAgentKind(session);
         probeForegroundAgent(session, options.inspectForegroundCommand ?? inspectForegroundCommand);
+        readProgramStatus(session, data, options.agentEvents);
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now, screenIsHistory(session) ? "all" : "blockers");
@@ -1536,6 +1541,24 @@ function repaintForegroundProgram(session: TerminalSession): void {
     const size = repaint.size ?? { cols, rows };
     resizePty(session, size.cols, size.rows);
   }, REPAINT_RESIZE_GAP_MS);
+}
+
+/**
+ * Claude Code asks whether the terminal speaks OSC 7501 and reports its status only after a yes; Codex reports
+ * unasked. For now Alfred only records the reports next to the agents' own events, to compare them with hooks.
+ */
+function readProgramStatus(session: TerminalSession, data: string, agentEvents: AgentEventLog | null | undefined): void {
+  const osc = parseOsc("7501", session.programStatusCarry, data);
+  session.programStatusCarry = osc.carry;
+  const agent = session.command === "claude" || session.command === "codex" ? session.command : session.foregroundAgentKind;
+  for (const message of osc.messages) {
+    if (message === "?") {
+      session.pty.write("\x1b]7501;?\x1b\\");
+      continue;
+    }
+    const report = parseProgramStatus(message);
+    if (report && agent) agentEvents?.programStatus({ id: session.id, clientId: session.eventLogKey }, agent, report);
+  }
 }
 
 function isAgentSession(session: TerminalSession): boolean {

@@ -1504,6 +1504,7 @@ describe("terminal-manager IPC", () => {
         close: async () => {},
         env: (session, command) => (command === "claude" ? { OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `${session.clientId}/${session.id}` } : {}),
         launchArgs: (session, command) => (command === "codex" ? ["-c", `otel.session=${session.clientId}/${session.id}`] : []),
+        programStatus: () => {},
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
@@ -1523,6 +1524,36 @@ describe("terminal-manager IPC", () => {
       expect.stringMatching(new RegExp(`^otel\\.session=codex-1\\.[0-9a-f]{8}/${codex.id}$`)),
     ]);
     expect(codexCall![2].env).not.toHaveProperty("OTEL_LOGS_EXPORTER");
+  });
+
+  it("says it speaks OSC 7501 when asked, and records what an agent reports through it", async () => {
+    const ptys: FakePty[] = [];
+    const reports: unknown[] = [];
+    registerTerminalIpc({
+      agentEvents: {
+        clear: async () => {},
+        close: async () => {},
+        env: () => ({}),
+        launchArgs: () => [],
+        programStatus: (session, agent, report) => reports.push([session.clientId, agent, report]),
+      },
+      loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never,
+    });
+    await invoke(terminalChannels.create, { clientId: "claude-1", command: "claude", cols: 80, cwd: "/repo", rows: 24 });
+    await invoke(terminalChannels.create, { clientId: "shell-1", cols: 80, cwd: "/repo", rows: 24 });
+    const [claude, shell] = ptys;
+
+    // Claude Code asks, then sends a device attributes query; the answer has to come first.
+    claude!.onDataHandler?.("Welcome\x1b]75");
+    claude!.onDataHandler?.("01;?\x07\x1b[c");
+    expect(claude!.writes).toEqual(["\x1b]7501;?\x1b\\"]);
+    claude!.onDataHandler?.("\x1b]7501;state=working:app=claude-code\x1b\\\x1b]7501;state=bogus\x07");
+    expect(reports).toEqual([[expect.stringMatching(/^claude-1\./), "claude", { state: "working", app: "claude-code" }]]);
+
+    // Any program may ask; only an agent's reports go on record.
+    shell!.onDataHandler?.("\x1b]7501;?\x1b\\\x1b]7501;state=done\x07");
+    expect(shell!.writes).toEqual(["\x1b]7501;?\x1b\\"]);
+    expect(reports).toHaveLength(1);
   });
 
   it("keeps a session's event log key across a resume, but not for a later session under its id", async () => {
@@ -1545,6 +1576,7 @@ describe("terminal-manager IPC", () => {
         close: async () => {},
         env: (session) => ({ EVENT_SESSION: session.clientId ?? "" }),
         launchArgs: () => [],
+        programStatus: () => {},
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
