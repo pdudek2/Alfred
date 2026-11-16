@@ -233,7 +233,7 @@ describe("desktop session state", () => {
     // Output after a signal or an event must read as newer than it, however soon it comes.
     const signalled = recordSessionOutputActivity(first, chunk(10_100, { data: "", agentSignal: { state: "needs-you", source: "hook", at: 10_100 } }));
     expect(recordSessionOutputActivity(signalled, chunk(10_200))[0]?.lastOutputAt).toBe(10_200);
-    const activity = { id: "a1", kind: "approval" as const, title: "Approval", at: 10_150 };
+    const activity = { id: "a1", kind: "approval" as const, title: "Approval", detail: "Allow edit?", at: 10_150 };
     const asked = recordSessionOutputActivity(first, chunk(10_150, { data: "", activities: [activity] }));
     expect(recordSessionOutputActivity(asked, chunk(10_300))[0]?.lastOutputAt).toBe(10_300);
   });
