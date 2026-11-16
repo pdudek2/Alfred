@@ -190,6 +190,8 @@ describe("workspace-path", () => {
     const chart = path.join(temporaryDirectory, "out", "chart.html");
     await fs.writeFile(chart, "<html></html>");
     await expect(resolveLinkedImage({ path: "out/chart.html", cwd: temporaryDirectory })).resolves.toEqual({ ok: true, resolvedPath: chart });
+    await fs.symlink(notes, path.join(temporaryDirectory, "notes.html"));
+    await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "notes.html") })).resolves.toEqual({ ok: false, error: "Invalid image path." });
     await expect(resolveLinkedImage({ path: notes })).resolves.toEqual({ ok: false, error: "Invalid image path." });
     await expect(resolveLinkedImage({ path: folder })).resolves.toEqual({ ok: false, error: "Not an image file." });
     await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "gone.png") })).resolves.toEqual({

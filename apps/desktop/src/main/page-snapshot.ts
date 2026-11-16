@@ -1,4 +1,5 @@
-import { BrowserWindow, type NativeImage, type Rectangle } from "electron";
+import { BrowserWindow, session, type NativeImage, type Rectangle } from "electron";
+import { fileURLToPath } from "node:url";
 
 export const PAGE_PATH = /\.(?:svg|html?)$/i;
 
@@ -14,15 +15,41 @@ const GIVE_UP_MS = 8000;
 // An 800×520 page drawn at 2x, so a small diagram cut out of it stays sharp in the hover card.
 const ZOOM = 2;
 const MARGIN = 12 * ZOOM;
+const PARTITION = "alfred-page-snapshot";
+const pagesBeingDrawn = new Set<string>();
+let pagesGuarded = false;
+
+// Electron lets a file:// page read any file Alfred can, and the page has the network for its chart libraries:
+// it gets its own file and nothing else local.
+function guardPages(): void {
+  if (pagesGuarded) return;
+  pagesGuarded = true;
+  const pages = session.fromPartition(PARTITION);
+  pages.webRequest.onBeforeRequest((details, callback) => {
+    callback({ cancel: details.url.startsWith("file:") && !pagesBeingDrawn.has(filePathOf(details.url)) });
+  });
+  pages.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  pages.setPermissionCheckHandler(() => false);
+}
+
+function filePathOf(url: string): string {
+  try {
+    return fileURLToPath(url);
+  } catch {
+    return "";
+  }
+}
 
 /** An HTML or SVG file as a browser shows it, scripts run, cut to what it draws, from a hidden window that keeps nothing. */
 export async function pageSnapshot(filePath: string): Promise<NativeImage> {
+  guardPages();
+  pagesBeingDrawn.add(filePath);
   const window = new BrowserWindow({
     show: false,
     width: 800 * ZOOM,
     height: 520 * ZOOM,
     useContentSize: true,
-    webPreferences: { sandbox: true, partition: "alfred-page-snapshot", zoomFactor: ZOOM },
+    webPreferences: { sandbox: true, partition: PARTITION, zoomFactor: ZOOM },
   });
   window.webContents.setAudioMuted(true);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -37,6 +64,7 @@ export async function pageSnapshot(filePath: string): Promise<NativeImage> {
     return drawn.resize({ width: Math.min(640, drawn.getSize().width) });
   } finally {
     clearTimeout(giveUp);
+    pagesBeingDrawn.delete(filePath);
     if (!window.isDestroyed()) window.destroy();
   }
 }

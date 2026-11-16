@@ -42,9 +42,12 @@ test("previews an image behind an OSC 8 link or a printed path while the pointer
   await page.mouse.move(5, 5);
   await expect(peek).toHaveCount(0);
 
-  // A page an agent draws a chart in shows as its scripts leave it.
+  // A page an agent draws a chart in shows as its scripts leave it: red when it cannot read the file next to it.
   const chart = path.join(dir, "chart.html");
-  await writeFile(chart, "<script>document.documentElement.style.background = 'rgb(255, 0, 0)'</script>");
+  await writeFile(path.join(dir, "secret.txt"), "secret");
+  await writeFile(chart, `<script>
+    fetch("secret.txt").then(() => "rgb(0, 0, 255)", () => "rgb(255, 0, 0)").then((colour) => document.documentElement.style.background = colour);
+  </script>`);
   await page.keyboard.type(`printf '%s\\n' ${chart}`);
   await page.keyboard.press("Enter");
   const printedChart = rows.filter({ hasText: new RegExp(`^${chart.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}\\s*$`) });
@@ -64,6 +67,7 @@ test("previews an image behind an OSC 8 link or a printed path while the pointer
   })).toBe(true);
   await page.mouse.move(5, 5);
   await expect(peek).toHaveCount(0);
+  harness.expectRendererError("net::ERR_BLOCKED_BY_CLIENT");
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
   await rm(dir, { recursive: true, force: true });

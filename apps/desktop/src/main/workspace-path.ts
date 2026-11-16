@@ -58,6 +58,8 @@ export async function resolveLinkedImage(
   const resolvedPath = resolveWorkspacePath(rawPath, base);
   if (!LINKED_FILE_PATH.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
   try {
+    // A link named page.html can point at an app or script, which opening it would run.
+    if (!LINKED_FILE_PATH.test(await fs.realpath(resolvedPath))) return { ok: false, error: "Invalid image path." };
     const stat = await fs.stat(resolvedPath);
     if (!stat.isFile()) return { ok: false, error: "Not an image file." };
     if (stat.size > LINKED_IMAGE_MAX_BYTES) return { ok: false, error: "Image is too large." };
