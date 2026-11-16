@@ -701,13 +701,15 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     // Moving the mouse over or clicking into a waiting Codex terminal sends mouse and focus reports; only your own
     // input answers it.
     if (!isTerminalReport(request.data)) {
+      const hadDraft = session.typingDraft === true;
       session.typingDraft = !(request.data.endsWith("\r") || request.data === "\x03");
       const cleared = clearWaitingSignal(session);
       const answered = answerApproval(session);
       // Until Enter sends your first message, an agent waits for it, whatever it draws.
       // ponytail: Enter inside pasted text counts too.
       const sentEnter = request.data.includes("\r") && request.answersStartScreen !== true;
-      const submitted = !session.promptSubmitted && sentEnter;
+      // Neither agent sends an empty prompt, so a bare Enter, such as one pressed before the start screen is drawn, is no message.
+      const submitted = !session.promptSubmitted && sentEnter && (hadDraft || !request.data.startsWith("\r"));
       if (submitted) session.promptSubmitted = true;
       // Without hooks, your Enter is the only sign a turn started; with them, an Enter that starts nothing must not count.
       const startedTurn = !session.hooksLive && isAgentSession(session) && sentEnter;

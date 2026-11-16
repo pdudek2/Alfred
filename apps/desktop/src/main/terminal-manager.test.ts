@@ -3767,6 +3767,8 @@ describe("terminal-manager IPC", () => {
 
       // Enter on a start screen answers the screen; what the agent draws after it is still not history.
       emit(terminalChannels.write, { id: created.id, data: "\r", answersStartScreen: true });
+      // An Enter on an empty prompt, or before the agent has drawn its start screen, sends nothing either.
+      emit(terminalChannels.write, { id: created.id, data: "\r" });
       pty.onDataHandler?.('❯ Try "how do I log an error?"\n');
       expect(promptEvents()).toEqual([]);
       expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions[0]?.activityEvents ?? []).toEqual([]);
