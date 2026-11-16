@@ -1981,7 +1981,7 @@ describe("terminal-manager IPC", () => {
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
-  it("blocks terminal cwd values outside registered workspaces", async () => {
+  it("blocks terminal cwd values outside registered workspaces, and the failed session can be discarded", async () => {
     const nodePty = fakeNodePty(new FakePty());
     registerTerminalIpc({
       allowedCwdRoots: async () => ["/repo"],
@@ -1990,6 +1990,7 @@ describe("terminal-manager IPC", () => {
 
     await expect(
       invoke(terminalChannels.create, {
+        clientId: "outside-start",
         command: "node",
         cols: 80,
         cwd: "/tmp/outside",
@@ -1998,6 +1999,7 @@ describe("terminal-manager IPC", () => {
     ).rejects.toThrow("Terminal cwd is outside registered projects.");
 
     expect(nodePty.spawn).not.toHaveBeenCalled();
+    await expect(invoke(terminalChannels.forget, { clientId: "outside-start" })).resolves.toEqual({ ok: true });
   });
 
   it("relaunches an exact saved manual cwd when its legacy workspace is no longer bound", async () => {
