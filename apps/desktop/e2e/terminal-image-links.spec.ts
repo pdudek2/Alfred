@@ -41,33 +41,6 @@ test("previews an image behind an OSC 8 link or a printed path while the pointer
   await expect(peek).toContainText("shot.png");
   await page.mouse.move(5, 5);
   await expect(peek).toHaveCount(0);
-
-  // A page an agent draws a chart in shows as its scripts leave it: red when it cannot read the file next to it.
-  const chart = path.join(dir, "chart.html");
-  await writeFile(path.join(dir, "secret.txt"), "secret");
-  await writeFile(chart, `<script>
-    fetch("secret.txt").then(() => "rgb(0, 0, 255)", () => "rgb(255, 0, 0)").then((colour) => document.documentElement.style.background = colour);
-  </script>`);
-  await page.keyboard.type(`printf '%s\\n' ${chart}`);
-  await page.keyboard.press("Enter");
-  const printedChart = rows.filter({ hasText: new RegExp(`^${chart.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}\\s*$`) });
-  await expect(printedChart).toHaveCount(1);
-  await hoverStartOf(printedChart, page);
-  await expect(peek).toContainText("chart.html");
-  await expect.poll(() => peek.locator("img").evaluate((element: HTMLImageElement) => {
-    if (!element.naturalWidth) return null;
-    const canvas = document.createElement("canvas");
-    canvas.width = element.naturalWidth;
-    canvas.height = element.naturalHeight;
-    const context = canvas.getContext("2d")!;
-    context.drawImage(element, 0, 0);
-    // Colour management can move the red a little off 255, 0, 0.
-    const [red = 0, green = 0, blue = 0] = context.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
-    return red > 200 && green < 60 && blue < 60;
-  })).toBe(true);
-  await page.mouse.move(5, 5);
-  await expect(peek).toHaveCount(0);
-  harness.expectRendererError("net::ERR_BLOCKED_BY_CLIENT");
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
   await rm(dir, { recursive: true, force: true });

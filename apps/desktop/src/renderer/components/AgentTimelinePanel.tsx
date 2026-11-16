@@ -6,6 +6,7 @@ import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { normalizeSessionTitle, titleFromPrompt } from "../../shared/session-title";
 import { pathMatchesWorkspace, workTreeFolderLabel } from "../workspace-path-matching";
+import { DetailsPages } from "./DetailsPages";
 import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 
@@ -286,6 +287,7 @@ export function AgentTimelinePanel({
           </div>
         )}
         </section>
+        <DetailsPages files={session.changedFiles} folder={folder} />
         {session.changedFiles && session.changedFiles.length > 0 && (
           <section className="details-section" aria-label="Changed files">
             <header className="details-section-heading"><h2>Changed files</h2></header>

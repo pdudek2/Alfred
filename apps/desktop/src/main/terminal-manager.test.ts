@@ -3137,6 +3137,16 @@ describe("terminal-manager IPC", () => {
         });
       });
 
+      it("counts edits while the agent keeps working, at each tool it reports", async () => {
+        await fs.appendFile(transcriptPath, `${JSON.stringify({ toolUseResult: { type: "create", filePath: "/repo/out/chart.html", content: "<p>\\n", structuredPatch: [] } })}\n`);
+        const { bridge, fire } = fakeBridge();
+        const { id } = await startClaude(bridge);
+
+        fire(id, { state: "working", activity: { kind: "file", title: "File activity", detail: "Wrote chart.html" } }, transcriptPath, conversationId);
+        await vi.waitFor(() => expect(sentEvents.map((event) => (event.payload as Record<string, unknown>).changedFiles))
+          .toContainEqual([{ path: "/repo/out/chart.html", additions: 1, deletions: 0 }]));
+      });
+
       it("reads a Codex conversation's latest name from its index", async () => {
         await fs.mkdir(path.join(home, "codex"), { recursive: true });
         await fs.writeFile(path.join(home, "codex", "session_index.jsonl"), [

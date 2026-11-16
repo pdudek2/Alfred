@@ -22,6 +22,7 @@ import {
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
 import { changedFiles, tallyTranscriptChanges, workingFolder, type ChangeTally } from "./agent-changes.js";
+import { runAgainWhileBusy } from "./run-again.js";
 import { resolveWorkTree } from "./git-work-tree.js";
 import { agentConversationTitle } from "./agent-titles.js";
 import { createCodexImageIndex } from "./codex-images.js";
@@ -138,7 +139,6 @@ type TerminalSession = {
   /** The agent's transcript, as its last hook named it. */
   transcriptPath?: string;
   changeTally?: ChangeTally;
-  tallyingChanges?: boolean;
   workTree?: TerminalWorkTree;
   namedByYou?: true;
   oscCarry: string;
@@ -300,6 +300,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal, ...(resumeTarget ? { resumeTarget } : {}) });
     if (resumeTarget) rememberSessionSnapshot(session);
     if (update.state === "your-turn") readAgentRecord(session);
+    // What the agent changes shows while it keeps working; its transcript may hold the edit only by its next tool.
+    else if (update.activity) void tallyAgentChanges(session);
   });
 
   const workerReplies = new Map<string, (reply: TerminalWorkerReply) => void>();
@@ -1685,10 +1687,9 @@ function readAgentRecord(session: TerminalSession): void {
   void tallyAgentChanges(session);
 }
 
-async function tallyAgentChanges(session: TerminalSession): Promise<void> {
-  // The next turn's end catches up on whatever a read in flight does not reach.
-  if (!session.transcriptPath || session.tallyingChanges) return;
-  session.tallyingChanges = true;
+// A read asked for during another runs once more after it, so a turn's last edit is not left for the next turn.
+const tallyAgentChanges = runAgainWhileBusy(async (session: TerminalSession): Promise<void> => {
+  if (!session.transcriptPath) return;
   try {
     const { additions, deletions } = session.changeTally ?? { additions: 0, deletions: 0 };
     session.changeTally = await tallyTranscriptChanges(session.transcriptPath, session.changeTally);
@@ -1707,10 +1708,8 @@ async function tallyAgentChanges(session: TerminalSession): Promise<void> {
     }
   } catch {
     // The agent moved or removed its transcript; the row keeps what it last read.
-  } finally {
-    session.tallyingChanges = false;
   }
-}
+});
 
 function changeStats({ additions, deletions }: ChangeTally): TerminalChangeStats {
   return { additions, deletions };

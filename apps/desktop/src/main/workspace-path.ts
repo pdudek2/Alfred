@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  LINKED_FILE_PATH,
+  ATTACHABLE_IMAGE_PATH,
+  PAGE_PATH,
   type WorkspaceRevealPathRequest,
   type WorkspaceRevealPathResult,
 } from "../shared/workspace-ipc.js";
@@ -41,9 +42,12 @@ export async function resolveWorkspacePathForReveal(
 // ponytail: a cap so a hover never decodes a huge file; raise it if real screenshots hit it.
 const LINKED_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 
+const isLinkedFile = (filePath: string) => ATTACHABLE_IMAGE_PATH.test(filePath) || PAGE_PATH.test(filePath);
+
 /**
- * An image a terminal links to, for its hover preview and Quick Look. Agents keep pasted images outside
- * the workspace (Claude in its temp folder), so any image file passes, but nothing else does.
+ * An image a terminal links to, for its hover preview and Quick Look, or a page an agent changed, for Details.
+ * Agents keep pasted images outside the workspace (Claude in its temp folder), so any image or page file passes,
+ * but nothing else does.
  */
 export async function resolveLinkedImage(
   request: unknown,
@@ -56,10 +60,10 @@ export async function resolveLinkedImage(
   }
 
   const resolvedPath = resolveWorkspacePath(rawPath, base);
-  if (!LINKED_FILE_PATH.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
+  if (!isLinkedFile(resolvedPath)) return { ok: false, error: "Invalid image path." };
   try {
     // A link named page.html can point at an app or script, which opening it would run.
-    if (!LINKED_FILE_PATH.test(await fs.realpath(resolvedPath))) return { ok: false, error: "Invalid image path." };
+    if (!isLinkedFile(await fs.realpath(resolvedPath))) return { ok: false, error: "Invalid image path." };
     const stat = await fs.stat(resolvedPath);
     if (!stat.isFile()) return { ok: false, error: "Not an image file." };
     if (stat.size > LINKED_IMAGE_MAX_BYTES) return { ok: false, error: "Image is too large." };

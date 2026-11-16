@@ -2,6 +2,7 @@ import { trustedIpc } from "./trusted-ipc.js";
 import { BrowserWindow, dialog, nativeImage, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from "electron";
 import path from "node:path";
 import {
+  PAGE_PATH,
   workspaceChannels,
   type WorkspaceBindFolderRequest,
   type WorkspaceClaudeTrustRequest,
@@ -17,7 +18,7 @@ import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-p
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import { worktreesOf } from "./git-work-tree.js";
 import { claudeTrustsFolder } from "./claude-trust.js";
-import { PAGE_PATH, pageSnapshot } from "./page-snapshot.js";
+import { pageSnapshot } from "./page-snapshot.js";
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;
