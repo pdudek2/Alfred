@@ -498,7 +498,7 @@ describe("main quit persistence", () => {
     }
   });
 
-  it("wires the agent event log and state signals into terminal IPC", async () => {
+  it("wires the agent event log, state signals and the staged-command gate into terminal IPC", async () => {
     mocks.app.whenReady.mockResolvedValueOnce(undefined);
 
     await import("./main.js");
@@ -507,6 +507,8 @@ describe("main quit persistence", () => {
     expect(mocks.registerTerminalIpc).toHaveBeenCalledWith(expect.objectContaining({
       agentEvents: expect.objectContaining({ log: "agent-events" }),
       agentSignals: expect.objectContaining({ bridge: "agent-signals" }),
+      isStagedCommandAllowed: mocks.isStagedSessionLaunchAllowed,
+      requireLaunchTickets: true,
     }));
     expect(mocks.registerDesktopStateIpc).toHaveBeenCalledWith(expect.anything(), { clearAgentEvents: expect.any(Function) });
   });
