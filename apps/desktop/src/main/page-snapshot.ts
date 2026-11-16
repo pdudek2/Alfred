@@ -16,7 +16,7 @@ const GIVE_UP_MS = 8000;
 const ZOOM = 2;
 const MARGIN = 12 * ZOOM;
 const PARTITION = "alfred-page-snapshot";
-const pagesBeingDrawn = new Set<string>();
+const pagesBeingDrawn = new Map<number, string>();
 let pagesGuarded = false;
 
 // Electron lets a file:// page read any file Alfred can, and the page has the network for its chart libraries:
@@ -26,7 +26,8 @@ function guardPages(): void {
   pagesGuarded = true;
   const pages = session.fromPartition(PARTITION);
   pages.webRequest.onBeforeRequest((details, callback) => {
-    callback({ cancel: details.url.startsWith("file:") && !pagesBeingDrawn.has(filePathOf(details.url)) });
+    const ownFile = details.webContentsId === undefined ? undefined : pagesBeingDrawn.get(details.webContentsId);
+    callback({ cancel: details.url.startsWith("file:") && filePathOf(details.url) !== ownFile });
   });
   pages.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   pages.setPermissionCheckHandler(() => false);
@@ -43,7 +44,6 @@ function filePathOf(url: string): string {
 /** An HTML or SVG file as a browser shows it, scripts run, cut to what it draws, from a hidden window that keeps nothing. */
 export async function pageSnapshot(filePath: string): Promise<NativeImage> {
   guardPages();
-  pagesBeingDrawn.add(filePath);
   const window = new BrowserWindow({
     show: false,
     width: 800 * ZOOM,
@@ -51,6 +51,8 @@ export async function pageSnapshot(filePath: string): Promise<NativeImage> {
     useContentSize: true,
     webPreferences: { sandbox: true, partition: PARTITION, zoomFactor: ZOOM },
   });
+  const pageId = window.webContents.id;
+  pagesBeingDrawn.set(pageId, filePath);
   window.webContents.setAudioMuted(true);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
@@ -64,7 +66,7 @@ export async function pageSnapshot(filePath: string): Promise<NativeImage> {
     return drawn.resize({ width: Math.min(640, drawn.getSize().width) });
   } finally {
     clearTimeout(giveUp);
-    pagesBeingDrawn.delete(filePath);
+    pagesBeingDrawn.delete(pageId);
     if (!window.isDestroyed()) window.destroy();
   }
 }
