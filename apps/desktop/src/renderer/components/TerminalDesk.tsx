@@ -103,6 +103,8 @@ type TerminalDeskProps = {
   pinnedSessionId: string | null;
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  /** False until the saved sessions are in; an empty deck says nothing before then. */
+  sessionsLoaded: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
   workspaceGitBranch?: string | undefined;
@@ -142,6 +144,7 @@ export function TerminalDesk({
   pinnedSessionId,
   selectedSessionId,
   sessions,
+  sessionsLoaded,
   surfaceActive,
   terminalFocusRequestKey,
   workspaceGitBranch,
@@ -234,7 +237,7 @@ export function TerminalDesk({
         <div ref={gridColumnRef} className="terminal-grid-column">
           {hasDrafts && planLine}
           <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""}`} data-testid="terminal-grid" ref={gridRef}>
-          {liveSessions.length === 0 && (
+          {sessionsLoaded && liveSessions.length === 0 && (
             <EmptyWorkspaceState
               armedSessionIds={armedRecoverySessionIds}
               asleepSessions={asleepSessions}

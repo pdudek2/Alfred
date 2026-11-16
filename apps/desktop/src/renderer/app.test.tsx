@@ -644,6 +644,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       pinnedSessionId={null}
       selectedSessionId={selectedSessionId}
       sessions={nextSessions}
+      sessionsLoaded
       surfaceActive
       terminalFocusRequestKey={0}
       workspaceLabel="Alfred"
@@ -835,6 +836,32 @@ describe("App integration", () => {
     });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+  });
+
+  it("starts no session until the saved sessions are in, since loading them replaces the list", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const saved = await window.alfredDesktop!.workspace!.getWorkspaceState();
+    const loading = deferred<typeof saved>();
+    bridge.getWorkspaceState.mockImplementationOnce(() => loading.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.getWorkspaceState).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^New session/ })).not.toBeInTheDocument();
+    await user.keyboard("{Control>}t{/Control}");
+    await user.keyboard("{Meta>}t{/Meta}");
+    await user.keyboard("{Control>}n{/Control}");
+    await user.keyboard("{Meta>}n{/Meta}");
+    expect(bridge.createTerminal).not.toHaveBeenCalled();
+
+    await act(async () => {
+      loading.resolve(saved);
+      await loading.promise;
+    });
+    expect(await screen.findByTestId("terminal-tile")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
   });
 
   it.each([
@@ -4921,46 +4948,9 @@ describe("App integration", () => {
     });
   });
 
-  it("keeps a session selected when startup hydration resolves after local launches", async () => {
-    const user = userEvent.setup();
-    const hydration = deferred<Awaited<ReturnType<TerminalApi["list"]>>>();
-    const bridge = installDesktopBridge(undefined, null, [], undefined, {
-      viewStateByWorkspace: {},
-    });
-    window.alfredDesktop!.terminal.list = vi.fn().mockReturnValue(hydration.promise);
-
-    render(<App />);
-
-    await openComposer(user);
-    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
-    await user.click(screen.getByRole("button", { name: "Start" }));
-    await openComposer(user);
-    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
-    await user.click(screen.getByRole("button", { name: "Start" }));
-    const selectedTile = await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i });
-    expect(selectedTile).toHaveClass("selected");
-
-    await act(async () => {
-      hydration.resolve({
-        sessions: [
-          manualLiveSnapshot("manual-1", "zsh"),
-          manualLiveSnapshot("manual-2", "zsh 2"),
-        ],
-        restoredSessions: [],
-      });
-      await hydration.promise;
-    });
-
-    expect(selectedTile).toHaveClass("selected");
-    expect(bridge.setWorkspaceViewState).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      viewState: { selectedSessionId: "manual-2" },
-    });
-  });
-
   it("retries renderer hydration without invoking save retry and gates workspace autosave until success", async () => {
     const user = userEvent.setup();
-    const { createTerminal, retrySave, setWorkspaceState } = installDesktopBridge();
+    const { retrySave, setWorkspaceState } = installDesktopBridge();
     let rejectHydration!: (error: Error) => void;
     const hydrationFailure = new Promise<Awaited<ReturnType<TerminalApi["list"]>>>((_, reject) => {
       rejectHydration = reject;
@@ -4975,14 +4965,6 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(terminalList).toHaveBeenCalledTimes(1);
     });
-    await openComposer(user);
-    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
-    await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-1" }));
-    });
-
     await act(async () => {
       rejectHydration(new Error("transient terminal hydration failure"));
       await hydrationFailure.catch(() => undefined);
@@ -4990,7 +4972,7 @@ describe("App integration", () => {
 
     const hydrationAlert = screen.getByRole("alert");
     expect(hydrationAlert).toHaveTextContent("Project not loaded");
-    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Empty project" })).not.toBeInTheDocument();
     expect(setWorkspaceState).not.toHaveBeenCalled();
 
