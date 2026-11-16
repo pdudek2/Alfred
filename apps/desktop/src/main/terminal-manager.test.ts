@@ -3137,12 +3137,13 @@ describe("terminal-manager IPC", () => {
         });
       });
 
-      it("counts edits while the agent keeps working, at each tool it reports", async () => {
-        await fs.appendFile(transcriptPath, `${JSON.stringify({ toolUseResult: { type: "create", filePath: "/repo/out/chart.html", content: "<p>\\n", structuredPatch: [] } })}\n`);
+      it("counts edits while the agent keeps working, as its transcript grows", async () => {
         const { bridge, fire } = fakeBridge();
         const { id } = await startClaude(bridge);
+        fire(id, { state: "working" }, transcriptPath, conversationId);
 
-        fire(id, { state: "working", activity: { kind: "file", title: "File activity", detail: "Wrote chart.html" } }, transcriptPath, conversationId);
+        // Claude Code writes the edit after the hook that reported it; no hook follows until its next tool.
+        await fs.appendFile(transcriptPath, `${JSON.stringify({ toolUseResult: { type: "create", filePath: "/repo/out/chart.html", content: "<p>", structuredPatch: [] } })}\n`);
         await vi.waitFor(() => expect(sentEvents.map((event) => (event.payload as Record<string, unknown>).changedFiles))
           .toContainEqual([{ path: "/repo/out/chart.html", additions: 1, deletions: 0 }]));
       });

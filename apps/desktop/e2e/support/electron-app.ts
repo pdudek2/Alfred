@@ -53,8 +53,6 @@ export type ElectronHarness = {
   expectConnectionRefused(url: string): void;
   expectMainError(fragment: string): void;
   expectRendererError(fragment: string): void;
-  /** One or more renderer errors containing `fragment`, for a page that may be drawn more than once. */
-  expectRendererErrors(fragment: string): void;
   closeActiveTerminals(): Promise<void>;
   close(): Promise<void>;
   /** Quits the app as a person would, so it saves its state, and opens it again on the same user data. */
@@ -215,14 +213,6 @@ export const test = base.extend<Fixtures>({
       expectedMessages.add(matching[0]!);
     };
 
-    const expectRendererErrors = (fragment: string): void => {
-      const matching = messages.filter((message) =>
-        message.source === "renderer" && message.level === "error" && message.text.includes(fragment)
-      );
-      expect(matching.length).toBeGreaterThan(0);
-      for (const message of matching) expectedMessages.add(message);
-    };
-
     const expectMainError = (fragment: string): void => {
       const matching = messages.filter((message) =>
         message.source === "main-stderr" && message.level === "error" && message.text.includes(fragment)
@@ -303,7 +293,7 @@ export const test = base.extend<Fixtures>({
     };
 
     try {
-      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, expectRendererErrors, closeActiveTerminals, close, restart });
+      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, closeActiveTerminals, close, restart });
       assertNoRuntimeErrors();
     } finally {
       if (testInfo.status !== testInfo.expectedStatus && !page.isClosed()) {

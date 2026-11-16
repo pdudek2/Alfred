@@ -18,7 +18,7 @@ import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-p
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import { worktreesOf } from "./git-work-tree.js";
 import { claudeTrustsFolder } from "./claude-trust.js";
-import { pageSnapshot } from "./page-snapshot.js";
+import { pageSnapshot } from "./page-snapshot-client.js";
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;

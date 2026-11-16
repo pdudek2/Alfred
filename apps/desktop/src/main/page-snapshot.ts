@@ -1,4 +1,6 @@
-import { BrowserWindow, session, type NativeImage, type Rectangle } from "electron";
+// Runs in the page drawing process (page-snapshot-worker.ts), never in Alfred's own main process.
+import { BrowserWindow, session, type Rectangle } from "electron";
+import { isIPv4, isIPv6 } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +20,6 @@ const PARTITION = "alfred-page-snapshot";
 const PRELOAD = path.join(path.dirname(fileURLToPath(import.meta.url)), "page-snapshot-preload.cjs");
 const pagesBeingDrawn = new Map<number, string>();
 let pagesGuarded = false;
-let drawing: Promise<unknown> = Promise.resolve();
 
 // Electron lets a file:// page read any file Alfred can, and the page has the network for its chart libraries:
 // it gets its own file and nothing else local, no local services, no downloads and no permissions.
@@ -32,7 +33,17 @@ function guardPages(): void {
       callback({ cancel: filePathOf(details.url) !== ownFile });
       return;
     }
-    callback({ cancel: isLocalAddress(hostOf(details.url)) });
+    const host = hostOf(details.url);
+    // data: and blob: carry what the page already has.
+    if (!host) return callback({});
+    if (isLocalAddress(host) || isIPv4(host) || isIPv6(host.replace(/^\[|\]$/g, ""))) {
+      return callback({ cancel: isLocalAddress(host) });
+    }
+    // A public name can point at a local address (localtest.me is 127.0.0.1); one that does not resolve is not fetched.
+    pages.resolveHost(host).then(
+      ({ endpoints }) => callback({ cancel: endpoints.length === 0 || endpoints.some(({ address }) => isLocalAddress(address)) }),
+      () => callback({ cancel: true }),
+    );
   });
   pages.on("will-download", (event) => event.preventDefault());
   pages.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
@@ -56,31 +67,45 @@ function hostOf(url: string): string {
 }
 
 /**
- * Loopback, private and link-local hosts written as such, where Alfred's own services and the user's LAN live.
- * shortcut: a public name that resolves to a private address passes; resolving names first needs a DNS lookup per request.
+ * A host or address where Alfred's own services and the user's LAN live: loopback, private, shared, link-local,
+ * multicast and reserved addresses, in every way an IPv6 address can carry an IPv4 one. A name is not looked up here.
  */
 export function isLocalAddress(host: string): boolean {
   const name = host.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-  if (name === "localhost" || name.endsWith(".localhost") || name === "::1" || name === "::" || name === "0.0.0.0") return true;
-  if (/^(?:fc|fd|fe[89ab])[0-9a-f]{0,2}:/.test(name)) return true;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(name)?.[1];
-  const octets = (mapped ?? name).split(".");
-  if (octets.length !== 4 || !octets.every((octet) => /^\d{1,3}$/.test(octet))) return false;
-  const [a, b] = octets.map(Number) as [number, number];
-  return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  if (name === "localhost" || name.endsWith(".localhost")) return true;
+  if (isIPv4(name)) return isLocalIPv4(name.split(".").map(Number));
+  if (!isIPv6(name)) return false;
+  const groups = ipv6Groups(name);
+  const [first = 0, second = 0] = groups;
+  if (groups.every((group) => group === 0) || groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1) return true;
+  if ((first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00) return true;
+  const carriesIPv4 = groups.slice(0, 5).every((group) => group === 0) && (groups[5] === 0 || groups[5] === 0xffff)
+    || first === 0x64 && second === 0xff9b && groups.slice(2, 6).every((group) => group === 0);
+  const [high = 0, low = 0] = groups.slice(6);
+  return carriesIPv4 && isLocalIPv4([high >> 8, high & 0xff, low >> 8, low & 0xff]);
 }
 
-/**
- * An HTML or SVG file as a browser shows it, scripts run, cut to what it draws, from a hidden window that keeps nothing.
- * Pages are drawn one at a time, in the order asked.
- */
-export function pageSnapshot(filePath: string): Promise<NativeImage> {
-  const turn = drawing.then(() => drawPage(filePath));
-  drawing = turn.catch(() => undefined);
-  return turn;
+function isLocalIPv4([a = 0, b = 0, c = 0]: number[]): boolean {
+  return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0 && c === 0) || (a === 198 && (b === 18 || b === 19));
 }
 
-async function drawPage(filePath: string): Promise<NativeImage> {
+/** The eight 16-bit groups of a valid IPv6 address, "::" filled in and a trailing dotted IPv4 split in two. */
+function ipv6Groups(address: string): number[] {
+  const parts = (text: string): number[] => text === "" ? [] : text.split(":").flatMap((part) => {
+    if (!part.includes(".")) return [parseInt(part, 16)];
+    const [a = 0, b = 0, c = 0, d = 0] = part.split(".").map(Number);
+    return [(a << 8) | b, (c << 8) | d];
+  });
+  const gap = address.indexOf("::");
+  if (gap < 0) return parts(address);
+  const head = parts(address.slice(0, gap));
+  const tail = parts(address.slice(gap + 2));
+  return [...head, ...Array<number>(8 - head.length - tail.length).fill(0), ...tail];
+}
+
+/** An HTML or SVG file as a browser shows it, scripts run, cut to what it draws, as PNG, from a hidden window that keeps nothing. */
+export async function drawPage(filePath: string): Promise<Buffer> {
   guardPages();
   const window = new BrowserWindow({
     show: false,
@@ -92,6 +117,8 @@ async function drawPage(filePath: string): Promise<NativeImage> {
   const pageId = window.webContents.id;
   pagesBeingDrawn.set(pageId, filePath);
   window.webContents.setAudioMuted(true);
+  // WebRTC would reach the LAN without a request the session sees.
+  window.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   let giveUp: NodeJS.Timeout | undefined;
@@ -104,7 +131,7 @@ async function drawPage(filePath: string): Promise<NativeImage> {
     await window.webContents.executeJavaScript(SETTLED);
     const page = await window.webContents.capturePage();
     const drawn = page.crop(drawnRect(page.toBitmap(), page.getSize().width, page.getSize().height));
-    return drawn.resize({ width: Math.min(640, drawn.getSize().width) });
+    return drawn.resize({ width: Math.min(640, drawn.getSize().width) }).toPNG();
   })();
   draw.catch(() => undefined);
   try {

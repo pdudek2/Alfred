@@ -3,7 +3,7 @@ import { redactText } from "@alfred/schema";
 import { BrowserWindow } from "electron";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, watch, type FSWatcher } from "node:fs";
 import { chmod, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -139,6 +139,7 @@ type TerminalSession = {
   /** The agent's transcript, as its last hook named it. */
   transcriptPath?: string;
   changeTally?: ChangeTally;
+  transcriptWatcher?: { path: string; watcher: FSWatcher };
   workTree?: TerminalWorkTree;
   namedByYou?: true;
   oscCarry: string;
@@ -292,7 +293,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   options.agentSignals?.setListener((sessionId, update, transcriptPath, conversationId) => {
     const session = sessions.get(sessionId);
     if (!session) return;
-    if (transcriptPath) session.transcriptPath = transcriptPath;
+    if (transcriptPath) {
+      session.transcriptPath = transcriptPath;
+      watchTranscript(session);
+    }
     session.hooksLive = true;
     const resumeTarget = newConversation(session, conversationId);
     if (resumeTarget) session.resumeTarget = resumeTarget;
@@ -300,7 +304,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal, ...(resumeTarget ? { resumeTarget } : {}) });
     if (resumeTarget) rememberSessionSnapshot(session);
     if (update.state === "your-turn") readAgentRecord(session);
-    // What the agent changes shows while it keeps working; its transcript may hold the edit only by its next tool.
+    // An agent that writes the edit before the hook reports it changes nothing the watcher would see afterwards.
     else if (update.activity) void tallyAgentChanges(session);
   });
 
@@ -1434,6 +1438,7 @@ function killSession(
   }
 
   sessions.delete(id);
+  unwatchTranscript(session);
   try {
     rememberEndedWorker(session);
     recordSessionActivity(session, reason === "close"
@@ -1684,7 +1689,30 @@ function newConversation(session: TerminalSession, conversationId: string | unde
 /** At a turn's end the agent's own record of the conversation is up to date. */
 function readAgentRecord(session: TerminalSession): void {
   void adoptAgentTitle(session);
-  void tallyAgentChanges(session);
+  void tallyAgentChanges(session).then(() => followWorkTree(session));
+}
+
+/**
+ * The agent's edits show while it keeps working: Claude Code writes an edit to its transcript only after the hook
+ * that reports it, so the transcript itself says when there is something new to read.
+ */
+function watchTranscript(session: TerminalSession): void {
+  const transcriptPath = session.transcriptPath;
+  if (!transcriptPath || session.transcriptWatcher?.path === transcriptPath) return;
+  unwatchTranscript(session);
+  try {
+    const watcher = watch(transcriptPath, { persistent: false }, () => void tallyAgentChanges(session));
+    // The agent moved or removed its transcript; its next hook names the new one, and a turn's end reads it anyway.
+    watcher.on("error", () => unwatchTranscript(session));
+    session.transcriptWatcher = { path: transcriptPath, watcher };
+  } catch {
+    // Not there yet: the turn's end reads it.
+  }
+}
+
+function unwatchTranscript(session: TerminalSession): void {
+  session.transcriptWatcher?.watcher.close();
+  delete session.transcriptWatcher;
 }
 
 // A read asked for during another runs once more after it, so a turn's last edit is not left for the next turn.
@@ -1696,20 +1724,21 @@ const tallyAgentChanges = runAgainWhileBusy(async (session: TerminalSession): Pr
     if (session.changeTally.additions !== additions || session.changeTally.deletions !== deletions) {
       sendSignalUpdate(session, { changeStats: changeStats(session.changeTally), changedFiles: changedFiles(session.changeTally) });
     }
-    const folder = workingFolder(session.changeTally);
-    if (folder) {
-      const workTree = await resolveWorkTree(folder);
-      if (workTree?.root !== session.workTree?.root || workTree?.branch !== session.workTree?.branch) {
-        if (workTree) session.workTree = workTree;
-        else delete session.workTree;
-        sendSignalUpdate(session, { workTree: workTree ?? null });
-        rememberSessionSnapshot(session);
-      }
-    }
   } catch {
     // The agent moved or removed its transcript; the row keeps what it last read.
   }
 });
+
+async function followWorkTree(session: TerminalSession): Promise<void> {
+  const folder = session.changeTally && workingFolder(session.changeTally);
+  if (!folder) return;
+  const workTree = await resolveWorkTree(folder);
+  if (workTree?.root === session.workTree?.root && workTree?.branch === session.workTree?.branch) return;
+  if (workTree) session.workTree = workTree;
+  else delete session.workTree;
+  sendSignalUpdate(session, { workTree: workTree ?? null });
+  rememberSessionSnapshot(session);
+}
 
 function changeStats({ additions, deletions }: ChangeTally): TerminalChangeStats {
   return { additions, deletions };
@@ -1866,6 +1895,7 @@ function disposeSession(id: TerminalSessionId): void {
   }
 
   sessions.delete(id);
+  unwatchTranscript(session);
 }
 
 async function loadNodePty(): Promise<NodePtyModule> {

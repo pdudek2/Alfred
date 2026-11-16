@@ -89,10 +89,17 @@ test("draws the pages an agent writes in Details, away from local files and serv
   await expect(pages.getByRole("listitem").first()).toContainText("gone.html");
   await expect(gone.locator("img")).toHaveCount(0);
 
+  // A page that prints from a frame stops the process that draws it, which is not Alfred's.
+  const frames = path.join(project, "out", "frames.html");
+  await writeFile(frames, `<iframe></iframe><script>document.querySelector("iframe").contentWindow.print();</script>`);
+  await record({ type: "create", filePath: frames, content: "<iframe>", structuredPatch: [] });
+  await hook("PostToolUse", { tool_name: "Write", tool_input: { file_path: frames }, transcript_path: transcript });
+  await expect(pages.getByRole("button", { name: "frames.html" })).toBeVisible();
+  expect(await app.evaluate(({ app: electronApp }) => electronApp.isReady())).toBe(true);
+  await details.getByRole("region", { name: "Changed files" }).getByText("frames.html").hover();
+
   expect(localHits).toBe(0);
   await expect.poll(() => readdir(path.join(paths.home, "Downloads")).catch(() => [])).toEqual([]);
-  // The blocked reads of the file next to the page and of the local service.
-  harness.expectRendererErrors("net::ERR_BLOCKED_BY_CLIENT");
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
   await new Promise((resolve) => localServer.close(resolve));
