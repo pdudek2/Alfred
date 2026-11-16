@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  ATTACHABLE_IMAGE_PATH,
+  LINKED_FILE_PATH,
   type WorkspaceRevealPathRequest,
   type WorkspaceRevealPathResult,
 } from "../shared/workspace-ipc.js";
@@ -56,7 +56,7 @@ export async function resolveLinkedImage(
   }
 
   const resolvedPath = resolveWorkspacePath(rawPath, base);
-  if (!ATTACHABLE_IMAGE_PATH.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
+  if (!LINKED_FILE_PATH.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
   try {
     const stat = await fs.stat(resolvedPath);
     if (!stat.isFile()) return { ok: false, error: "Not an image file." };

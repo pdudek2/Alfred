@@ -17,6 +17,7 @@ import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-p
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import { worktreesOf } from "./git-work-tree.js";
 import { claudeTrustsFolder } from "./claude-trust.js";
+import { PAGE_PATH, pageSnapshot } from "./page-snapshot.js";
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;
@@ -61,9 +62,11 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
     if (!result.ok) return result;
     try {
       // 640px covers the hover card at 2x. Linux has no system thumbnailer, so it decodes the file.
-      const image = process.platform === "linux"
-        ? nativeImage.createFromPath(result.resolvedPath).resize({ width: 640 })
-        : await nativeImage.createThumbnailFromPath(result.resolvedPath, { width: 640, height: 640 });
+      const image = PAGE_PATH.test(result.resolvedPath)
+        ? await pageSnapshot(result.resolvedPath)
+        : process.platform === "linux"
+          ? nativeImage.createFromPath(result.resolvedPath).resize({ width: 640 })
+          : await nativeImage.createThumbnailFromPath(result.resolvedPath, { width: 640, height: 640 });
       if (image.isEmpty()) return { ok: false, error: "Unsupported image." };
       return { ok: true, dataUrl: image.toDataURL() };
     } catch {
@@ -73,6 +76,11 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
   trustedIpc.handle(workspaceChannels.quickLookImage, async (event, request): Promise<WorkspaceQuickLookImageResult> => {
     const result = await resolveLinkedImage(request);
     if (!result.ok) return result;
+    // Quick Look shows a page without running its scripts, which draw most charts and diagrams.
+    if (/\.html?$/i.test(result.resolvedPath)) {
+      const error = await shell.openPath(result.resolvedPath);
+      return error ? { ok: false, error } : { ok: true };
+    }
     // ponytail: Quick Look is macOS only; other systems need their own viewer (shell.openPath) if Alfred ships there.
     if (process.platform !== "darwin") return { ok: false, error: "Quick Look is not available on this system." };
     BrowserWindow.fromWebContents(event.sender)?.previewFile(result.resolvedPath);

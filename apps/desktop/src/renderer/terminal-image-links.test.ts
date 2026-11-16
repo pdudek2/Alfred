@@ -29,6 +29,11 @@ describe("terminal image links", () => {
     expect(imagePathsInLine("(file:///Users/p/a%20b.webp)")).toEqual([
       { start: 1, end: 27, path: "/Users/p/a b.webp" },
     ]);
+    // Pages an agent draws a diagram or chart in.
+    expect(imagePathsInLine("Wrote out/arch.html and docs/flow.svg")).toEqual([
+      { start: 6, end: 19, path: "out/arch.html" },
+      { start: 24, end: 37, path: "docs/flow.svg" },
+    ]);
   });
 
   it("leaves bare names, web addresses and other files alone", () => {

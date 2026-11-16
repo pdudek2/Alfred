@@ -50,8 +50,9 @@ export type WorkspaceImageThumbnailResult = { ok: true; dataUrl: string } | { ok
 
 export type WorkspaceQuickLookImageResult = { ok: true } | { ok: false; error: string };
 
-// The image types Claude Code attaches from a pasted path (its own check, as of 2.1.302).
-export const ATTACHABLE_IMAGE_PATH = /\.(?:png|jpe?g|gif|webp)$/i;
+// The image types Claude Code attaches from a pasted path (its own check, as of 2.1.302), and the pages agents draw
+// diagrams, charts and mockups in.
+export const LINKED_FILE_PATH = /\.(?:png|jpe?g|gif|webp|svg|html?)$/i;
 
 export type WorkspaceOpenExternalTerminalRequest = {
   cwd: string;
