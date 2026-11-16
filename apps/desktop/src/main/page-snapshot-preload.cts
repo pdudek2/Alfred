@@ -1,4 +1,4 @@
 import { webFrame } from "electron";
 
-// A page's print() opens a modal print panel that blocks Alfred's main process, even from a hidden window.
+// A page's print() opens a modal panel that stops the drawing process until Alfred kills it; this spares the main frame.
 void webFrame.executeJavaScript("window.print = () => {};");

@@ -62,7 +62,7 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
     const result = await resolveLinkedImage(request);
     if (!result.ok) return result;
     try {
-      // 640px covers the hover card at 2x. Linux has no system thumbnailer, so it decodes the file.
+      // 640px covers a hover or Details card at 2x. Linux has no system thumbnailer, so it decodes the file.
       const image = PAGE_PATH.test(result.resolvedPath)
         ? await pageSnapshot(result.resolvedPath)
         : process.platform === "linux"

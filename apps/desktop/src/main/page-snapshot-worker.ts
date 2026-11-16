@@ -1,17 +1,13 @@
-// The page drawing process: an Electron app of its own, started by page-snapshot-client.ts. A page that blocks this
-// process (print() opens a modal panel that stops its main thread) blocks only this one, which Alfred then kills.
-// Protocol: one JSON request per stdin line, { id, path }; one JSON answer per stdout line, { id, png } or { id, error }.
+// The page drawing process: an Electron app of its own, started by page-snapshot-client.ts with the folder to keep
+// its profile in. A page that blocks this process (print() opens a modal panel that stops its main thread) blocks only
+// this one, which Alfred then kills.
+// Protocol: { ready: true } once on stdout, then for each { id, path } line on stdin one { id, png } or { id, error }.
 import { app } from "electron";
-import { mkdtempSync, rmSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { createInterface } from "node:readline";
 import { drawPage } from "./page-snapshot.js";
 
-// Its own profile, so it never shares Alfred's user data or leaves anything behind.
-const profile = mkdtempSync(path.join(os.tmpdir(), "alfred-page-snapshot-"));
-app.setPath("userData", profile);
-app.on("will-quit", () => rmSync(profile, { recursive: true, force: true }));
+const profile = process.argv.at(-1);
+if (profile) app.setPath("userData", profile);
 app.dock?.hide();
 app.on("window-all-closed", () => undefined);
 
@@ -23,6 +19,7 @@ void app.whenReady().then(() => {
     queue = queue.then(() => answer(line));
   });
   lines.on("close", () => void queue.then(() => app.quit()));
+  process.stdout.write(`${JSON.stringify({ ready: true })}\n`);
 });
 
 async function answer(line: string): Promise<void> {

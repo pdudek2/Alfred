@@ -95,8 +95,13 @@ test("draws the pages an agent writes in Details, away from local files and serv
   await record({ type: "create", filePath: frames, content: "<iframe>", structuredPatch: [] });
   await hook("PostToolUse", { tool_name: "Write", tool_input: { file_path: frames }, transcript_path: transcript });
   await expect(pages.getByRole("button", { name: "frames.html" })).toBeVisible();
-  expect(await app.evaluate(({ app: electronApp }) => electronApp.isReady())).toBe(true);
-  await details.getByRole("region", { name: "Changed files" }).getByText("frames.html").hover();
+  // Alfred kills the stuck process, and a new one draws the next page.
+  const after = path.join(project, "out", "after.html");
+  await writeFile(after, chartPage("rgb(255, 0, 0)", localService));
+  await record({ type: "create", filePath: after, content: "<p>", structuredPatch: [] });
+  await hook("PostToolUse", { tool_name: "Write", tool_input: { file_path: after }, transcript_path: transcript });
+  await expect.poll(() => centreColour(pages.getByRole("button", { name: "after.html" }))).toEqual("red");
+  await expect(pages.getByRole("button", { name: "frames.html" }).locator("img")).toHaveCount(0);
 
   expect(localHits).toBe(0);
   await expect.poll(() => readdir(path.join(paths.home, "Downloads")).catch(() => [])).toEqual([]);

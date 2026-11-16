@@ -34,7 +34,8 @@ function PageCard({ page, folder }: { page: TerminalFileChange; folder: string }
   useEffect(() => {
     let current = true;
     void getDesktopWorkspaceApi()?.imageThumbnail({ path: page.path, cwd: folder }).then((result) => {
-      if (current && result.ok) setPicture({ path: page.path, dataUrl: result.dataUrl });
+      // A page that is gone or no longer draws keeps its name only.
+      if (current) setPicture(result.ok ? { path: page.path, dataUrl: result.dataUrl } : null);
     });
     return () => {
       current = false;
