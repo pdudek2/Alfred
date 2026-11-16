@@ -172,6 +172,8 @@ export function App() {
     status: "loading",
   });
   const [workspaceHydrationRetryIndex, setWorkspaceHydrationRetryIndex] = useState<number>(0);
+  // Until the saved sessions are in, a new session could take one of their ids, and loading them would replace it.
+  const workspacesReady = workspaceHydrationStatus.status === "ready";
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
   const [externalSessions, setExternalSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalSessionsError, setExternalSessionsError] = useState<string | null>(null);
@@ -204,7 +206,7 @@ export function App() {
   const [newSessionOpening, setNewSessionOpening] = useState(0);
   const newSessionGenerationRef = useRef(0);
   // An empty deck shows the composer expanded but unfocused; elsewhere it opens only on ⌘N or a click.
-  const composerExpanded = newSessionOpen || (activeSurface === "work" && deckSessions(terminalSessions, activeWorkspaceId).length === 0);
+  const composerExpanded = workspacesReady && (newSessionOpen || (activeSurface === "work" && deckSessions(terminalSessions, activeWorkspaceId).length === 0));
   const composerProjectId = newSessionOpen ? newSessionProjectId : activeWorkspaceId;
   const [claudeTrustByProject, setClaudeTrustByProject] = useState<Record<string, boolean>>({});
   // Asked on every opening: you may have trusted the folder in Claude since.
@@ -227,6 +229,7 @@ export function App() {
     setNewSessionOpen(false);
   }, []);
   const openNewSession = useCallback((kind?: NewSessionKind) => {
+    if (!workspacesReady) return;
     newSessionGenerationRef.current += 1;
     setNewSessionOpening(newSessionGenerationRef.current);
     if (kind) setNewSessionKind(kind);
@@ -235,7 +238,7 @@ export function App() {
     setNewSessionOpen(true);
     setNeedsYouOpen(false);
     setActiveSurface("work");
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, workspacesReady]);
   const openNewWorker = useCallback((parentSessionId: string) => {
     openNewSession();
     setNewSessionParentId(parentSessionId);
@@ -410,7 +413,7 @@ export function App() {
 
   const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
     const addedSession = nextSessions.at(-1);
-    if (!addedSession) return;
+    if (!addedSession || !workspacesReady) return;
     const layoutApi = getDesktopLayoutApi();
 
     terminalSessionsRef.current = nextSessions;
@@ -427,7 +430,7 @@ export function App() {
       workspaceId: addedSession.workspaceId,
       viewState: { selectedSessionId: addedSession.id },
     });
-  }, [showTerminalInWorkspace]);
+  }, [showTerminalInWorkspace, workspacesReady]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string, worktree = false) => {
     if (workspace.rootStatus === "missing") return;
@@ -489,7 +492,6 @@ export function App() {
   }, [workspaces]);
 
   // The rail names the active project's branch, and a checkout in any terminal changes it while Alfred runs.
-  const workspacesReady = workspaceHydrationStatus.status === "ready";
   useEffect(() => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (!workspaceApi || !workspacesReady) return;
@@ -2405,6 +2407,7 @@ export function App() {
             >
                 <TerminalDesk
                   activeWorkspaceId={activeWorkspace.id}
+                  sessionsLoaded={workspacesReady}
                   sessionMetaSlot={sessionMetaSlot}
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   now={now}
@@ -2459,34 +2462,36 @@ export function App() {
                     />
                   }
                 />
-                <NewSessionComposer
-                  key={newSessionOpening}
-                  expanded={composerExpanded}
-                  autoFocus={newSessionOpen}
-                  restRef={newSessionRestRef}
-                  shortcutLabel={shortcutModifier === "Cmd" ? "⌘N" : "Ctrl N"}
-                  onExpand={() => openNewSession()}
-                  projects={workspaces}
-                  projectId={composerProjectId}
-                  kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
-                  planAvailable={planAvailable}
-                  parentTitle={newSessionParent?.workspaceId === composerProjectId ? newSessionParent.title : undefined}
-                  draft={newSessionDraftsByWorkspace[composerProjectId] ?? ""}
-                  claudeTrusted={claudeTrustByProject[composerProjectId]}
-                  initialWorktree={terminalSessions.some((session) => session.workspaceId === composerProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
-                  disabled={commandPaletteOpen}
-                  blockedReason={composerBlockedReason}
-                  requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
-                  onProjectChange={(id) => {
-                    if (!newSessionOpen) setNewSessionParentId(null);
-                    setNewSessionProjectId(id);
-                    setNewSessionOpen(true);
-                  }}
-                  onKindChange={setNewSessionKind}
-                  onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [composerProjectId]: draft }))}
-                  onStart={handleStartNewSession}
-                  onClose={closeNewSession}
-                />
+                {workspacesReady && (
+                  <NewSessionComposer
+                    key={newSessionOpening}
+                    expanded={composerExpanded}
+                    autoFocus={newSessionOpen}
+                    restRef={newSessionRestRef}
+                    shortcutLabel={shortcutModifier === "Cmd" ? "⌘N" : "Ctrl N"}
+                    onExpand={() => openNewSession()}
+                    projects={workspaces}
+                    projectId={composerProjectId}
+                    kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
+                    planAvailable={planAvailable}
+                    parentTitle={newSessionParent?.workspaceId === composerProjectId ? newSessionParent.title : undefined}
+                    draft={newSessionDraftsByWorkspace[composerProjectId] ?? ""}
+                    claudeTrusted={claudeTrustByProject[composerProjectId]}
+                    initialWorktree={terminalSessions.some((session) => session.workspaceId === composerProjectId && (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && isAgentSession(session))}
+                    disabled={commandPaletteOpen}
+                    blockedReason={composerBlockedReason}
+                    requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
+                    onProjectChange={(id) => {
+                      if (!newSessionOpen) setNewSessionParentId(null);
+                      setNewSessionProjectId(id);
+                      setNewSessionOpen(true);
+                    }}
+                    onKindChange={setNewSessionKind}
+                    onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [composerProjectId]: draft }))}
+                    onStart={handleStartNewSession}
+                    onClose={closeNewSession}
+                  />
+                )}
             </div>
             {activeSurface === "sessions" && (
               <div className="surface-panel active">
