@@ -467,25 +467,31 @@ async function streamLatestConversationPage(
 
 async function* rawTranscriptLines(filePath: string, start: number): AsyncGenerator<{ start: number; nextOffset: number; text: string }> {
   const stream = createReadStream(filePath, { start });
-  let pending = Buffer.alloc(0);
+  // Pieces of the unfinished line; joined once at its newline, so a long line is not rescanned per chunk.
+  let pending: Buffer[] = [];
+  let pendingBytes = 0;
   let offset = start;
   try {
     for await (const chunk of stream) {
       const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      const buffer = pending.length ? Buffer.concat([pending, bytes]) : bytes;
       let lineStart = 0;
-      while (true) {
-        const newline = buffer.indexOf(0x0a, lineStart);
-        if (newline < 0) break;
-        const rawLine = buffer.subarray(lineStart, newline);
+      for (let newline = bytes.indexOf(0x0a); newline >= 0; newline = bytes.indexOf(0x0a, lineStart)) {
+        const piece = bytes.subarray(lineStart, newline);
+        const rawLine = pendingBytes ? Buffer.concat([...pending, piece]) : piece;
         const content = rawLine.at(-1) === 0x0d ? rawLine.subarray(0, -1) : rawLine;
-        yield { start: offset + lineStart, nextOffset: offset + newline + 1, text: content.toString("utf8") };
+        const nextOffset = offset + rawLine.length + 1;
+        yield { start: offset, nextOffset, text: content.toString("utf8") };
+        offset = nextOffset;
+        pending = [];
+        pendingBytes = 0;
         lineStart = newline + 1;
       }
-      pending = buffer.subarray(lineStart);
-      offset += lineStart;
+      if (lineStart < bytes.length) {
+        pending.push(bytes.subarray(lineStart));
+        pendingBytes += bytes.length - lineStart;
+      }
     }
-    if (pending.length) yield { start: offset, nextOffset: offset + pending.length, text: pending.toString("utf8") };
+    if (pendingBytes) yield { start: offset, nextOffset: offset + pendingBytes, text: Buffer.concat(pending).toString("utf8") };
   } finally {
     stream.destroy();
   }
@@ -497,28 +503,33 @@ async function* rawTranscriptLinesReverse(
 ): AsyncGenerator<{ start: number; text: string }> {
   const handle = await open(filePath, "r");
   let position = endExclusive;
-  let pending = Buffer.alloc(0);
+  // Pieces of the line after `position`, latest-read first.
+  let pending: Buffer[] = [];
+  const takeLine = (head: Buffer): Buffer => {
+    const line = pending.length ? Buffer.concat([head, ...pending.reverse()]) : head;
+    pending = [];
+    return line;
+  };
   try {
     while (position > 0) {
       const length = Math.min(REVERSE_READ_CHUNK_BYTES, position);
       position -= length;
       const chunk = Buffer.allocUnsafe(length);
       const { bytesRead } = await handle.read(chunk, 0, length, position);
-      const buffer = pending.length
-        ? Buffer.concat([chunk.subarray(0, bytesRead), pending])
-        : chunk.subarray(0, bytesRead);
-      let segmentEnd = buffer.length;
-      for (let index = buffer.length - 1; index >= 0; index -= 1) {
-        if (buffer[index] !== 0x0a) continue;
-        const rawLine = buffer.subarray(index + 1, segmentEnd);
+      const bytes = chunk.subarray(0, bytesRead);
+      let segmentEnd = bytes.length;
+      for (let index = bytes.length - 1; index >= 0; index -= 1) {
+        if (bytes[index] !== 0x0a) continue;
+        const rawLine = takeLine(bytes.subarray(index + 1, segmentEnd));
         const content = rawLine.at(-1) === 0x0d ? rawLine.subarray(0, -1) : rawLine;
         if (content.length) yield { start: position + index + 1, text: content.toString("utf8") };
         segmentEnd = index;
       }
-      pending = buffer.subarray(0, segmentEnd);
+      if (segmentEnd) pending.push(bytes.subarray(0, segmentEnd));
     }
     if (pending.length) {
-      const content = pending.at(-1) === 0x0d ? pending.subarray(0, -1) : pending;
+      const rest = takeLine(Buffer.alloc(0));
+      const content = rest.at(-1) === 0x0d ? rest.subarray(0, -1) : rest;
       if (content.length) yield { start: 0, text: content.toString("utf8") };
     }
   } finally {
