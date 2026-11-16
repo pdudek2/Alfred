@@ -27,18 +27,19 @@ export function DetailsPages({ files, folder }: { files: TerminalFileChange[] | 
 }
 
 function PageCard({ page, folder }: { page: TerminalFileChange; folder: string }) {
-  const [picture, setPicture] = useState<{ key: string; dataUrl: string } | null>(null);
-  // An edit changes the counts, so the page is drawn again; a picture of an older version is dropped.
-  const key = `${page.path}\n${page.additions}\n${page.deletions}`;
+  const [picture, setPicture] = useState<{ path: string; dataUrl: string } | null>(null);
+  // An edit changes the counts, so the page is drawn again. The last picture stays until the new one comes, and a
+  // drawing asked for before the edit never replaces one asked for after it.
+  const version = `${page.additions}\n${page.deletions}`;
   useEffect(() => {
     let current = true;
     void getDesktopWorkspaceApi()?.imageThumbnail({ path: page.path, cwd: folder }).then((result) => {
-      if (current && result.ok) setPicture({ key, dataUrl: result.dataUrl });
+      if (current && result.ok) setPicture({ path: page.path, dataUrl: result.dataUrl });
     });
     return () => {
       current = false;
     };
-  }, [folder, key, page.path]);
+  }, [folder, page.path, version]);
   const name = page.path.split("/").at(-1);
   return (
     <button
@@ -47,7 +48,7 @@ function PageCard({ page, folder }: { page: TerminalFileChange; folder: string }
       title={page.path}
       onClick={() => void getDesktopWorkspaceApi()?.quickLookImage({ path: page.path, cwd: folder })}
     >
-      {picture?.key === key && <img src={picture.dataUrl} alt="" />}
+      {picture?.path === page.path && <img src={picture.dataUrl} alt="" />}
       <span>{name}</span>
     </button>
   );

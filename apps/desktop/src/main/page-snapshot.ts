@@ -40,6 +40,8 @@ function guardPages(): void {
       return callback({ cancel: isLocalAddress(host) });
     }
     // A public name can point at a local address (localtest.me is 127.0.0.1); one that does not resolve is not fetched.
+    // shortcut: a name whose answer changes between this lookup and the connection (DNS rebinding) passes; closing
+    // that needs a proxy that connects to the address it checked.
     pages.resolveHost(host).then(
       ({ endpoints }) => callback({ cancel: endpoints.length === 0 || endpoints.some(({ address }) => isLocalAddress(address)) }),
       () => callback({ cancel: true }),
