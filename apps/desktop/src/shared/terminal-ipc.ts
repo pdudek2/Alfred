@@ -178,7 +178,7 @@ export type TerminalExitEvent = {
 /** What an agent or shell reports about itself; see the session model contract §3. */
 export type TerminalAgentSignal = {
   state: "working" | "needs-you" | "your-turn";
-  source: "hook" | "osc9";
+  source: "hook" | "osc9" | "program-status";
   at: number;
   detail?: string;
 };

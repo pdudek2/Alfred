@@ -143,22 +143,69 @@ export function isShellProcess(processName: string): boolean {
 
 /** Splits terminal output into complete OSC 9 messages; a trailing partial sequence is carried over. */
 export function parseOsc9(carry: string, data: string): { carry: string; messages: string[] } {
+  return parseOsc("9", carry, data);
+}
+
+/** Splits terminal output into the payloads of complete OSC `code` sequences; a trailing partial one is carried over. */
+export function parseOsc(code: string, carry: string, data: string): { carry: string; messages: string[] } {
   const text = carry + data;
+  const opener = `\x1b]${code};`;
   const messages: string[] = [];
-  // eslint-disable-next-line no-control-regex
-  const pattern = /\x1b\]9;([^\x07\x1b]*)(?:\x07|\x1b\\)/g;
+  const pattern = new RegExp(`\\x1b\\]${code};([^\\x07\\x1b]*)(?:\\x07|\\x1b\\\\)`, "g");
   let consumed = 0;
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     messages.push(match[1]!);
     consumed = pattern.lastIndex;
   }
   const rest = text.slice(consumed);
-  const partialStart = rest.lastIndexOf("\x1b]9;");
+  const partialStart = rest.lastIndexOf(opener);
   // A chunk can also end inside the opener itself.
-  // eslint-disable-next-line no-control-regex
-  const nextCarry = partialStart === -1 ? /\x1b(?:\](?:9)?)?$/.exec(rest)?.[0] ?? "" : rest.slice(partialStart);
+  let nextCarry = partialStart === -1 ? "" : rest.slice(partialStart);
+  for (let length = opener.length - 1; partialStart === -1 && length > 0; length -= 1) {
+    if (rest.endsWith(opener.slice(0, length))) {
+      nextCarry = opener.slice(0, length);
+      break;
+    }
+  }
   return { carry: nextCarry.length > MAX_OSC_CARRY ? "" : nextCarry, messages };
 }
+
+export type ProgramStatusReport = {
+  state: string;
+  id?: string;
+  kind?: string;
+  app?: string;
+  progress?: number;
+  title?: string;
+  msg?: string;
+};
+
+/** One OSC 7501 report (the Program Status Protocol, rev. 0.4): `key=value` pairs split by `:`, texts in base64. */
+export function parseProgramStatus(payload: string): ProgramStatusReport | null {
+  const fields = new Map(payload.split(":").map((pair) => {
+    const at = pair.indexOf("=");
+    return at === -1 ? [pair, ""] : [pair.slice(0, at), pair.slice(at + 1)];
+  }));
+  const state = fields.get("state");
+  if (!state || !PROGRAM_STATES.has(state)) return null;
+  const text = (key: string) => {
+    const value = fields.get(key);
+    return value ? Buffer.from(value, "base64").toString("utf8").slice(0, MAX_DETAIL) : undefined;
+  };
+  const progress = Number(fields.get("progress") || Number.NaN);
+  const report: Record<string, unknown> = {
+    state,
+    id: fields.get("id"),
+    kind: fields.get("kind"),
+    app: fields.get("app"),
+    progress: Number.isInteger(progress) && progress >= 0 && progress <= 100 ? progress : undefined,
+    title: text("title"),
+    msg: text("msg"),
+  };
+  return Object.fromEntries(Object.entries(report).filter(([, value]) => value !== undefined)) as ProgramStatusReport;
+}
+
+const PROGRAM_STATES = new Set(["idle", "working", "done", "blocked", "error", "clear"]);
 
 /**
  * The Codex notifications that stop it until you answer: "Approval requested…" (a command, network access or

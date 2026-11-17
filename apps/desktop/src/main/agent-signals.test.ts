@@ -8,7 +8,9 @@ import {
   createAgentSignalBridge,
   isTerminalReport,
   isShellProcess,
+  parseOsc,
   parseOsc9,
+  parseProgramStatus,
   removeOrphanedSockets,
   signalFromHook,
   signalFromOsc9,
@@ -79,6 +81,31 @@ describe("parseOsc9", () => {
     const long = `Done: ${"x".repeat(5_000)}`;
     expect(parseOsc9(parseOsc9("", `\x1b]9;${long}`).carry, "\x07").messages).toEqual([long]);
     expect(parseOsc9("", `\x1b]9;${"x".repeat(20_000)}`).carry).toBe("");
+  });
+});
+
+describe("OSC 7501 program status", () => {
+  it("reads the query and reports even when a chunk ends inside the opener", () => {
+    const report = `\x1b]7501;state=blocked:kind=permission:app=codex:msg=${Buffer.from("Run ls?").toString("base64")}\x1b\\`;
+    for (const cut of [1, 4, 7, 9, report.length - 1]) {
+      const first = parseOsc("7501", "", `\x1b]7501;?\x07text${report.slice(0, cut)}`);
+      const second = parseOsc("7501", first.carry, report.slice(cut));
+      expect([...first.messages, ...second.messages]).toEqual(["?", report.slice(7, -2)]);
+    }
+    // Codex's OSC 9 notification is not a status report.
+    expect(parseOsc("7501", "", "\x1b]9;Approval requested\x07").messages).toEqual([]);
+  });
+
+  it("decodes the texts and keeps only what the protocol defines", () => {
+    expect(parseProgramStatus(`state=blocked:kind=permission:app=codex:msg=${Buffer.from("Run ls?").toString("base64")}`)).toEqual({
+      state: "blocked", kind: "permission", app: "codex", msg: "Run ls?",
+    });
+    expect(parseProgramStatus("state=working:id=build/test:progress=40")).toEqual({ state: "working", id: "build/test", progress: 40 });
+    expect(parseProgramStatus("state=working:progress=")).toEqual({ state: "working" });
+    expect(parseProgramStatus("state=working:progress=140")).toEqual({ state: "working" });
+    // A state added in a later revision is ignored whole, so it never reads as another.
+    expect(parseProgramStatus("state=sleeping:app=x")).toBeNull();
+    expect(parseProgramStatus("app=x")).toBeNull();
   });
 });
 

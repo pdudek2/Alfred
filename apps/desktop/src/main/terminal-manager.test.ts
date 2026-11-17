@@ -1504,6 +1504,7 @@ describe("terminal-manager IPC", () => {
         close: async () => {},
         env: (session, command) => (command === "claude" ? { OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `${session.clientId}/${session.id}` } : {}),
         launchArgs: (session, command) => (command === "codex" ? ["-c", `otel.session=${session.clientId}/${session.id}`] : []),
+        programStatus: () => {},
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
@@ -1523,6 +1524,36 @@ describe("terminal-manager IPC", () => {
       expect.stringMatching(new RegExp(`^otel\\.session=codex-1\\.[0-9a-f]{8}/${codex.id}$`)),
     ]);
     expect(codexCall![2].env).not.toHaveProperty("OTEL_LOGS_EXPORTER");
+  });
+
+  it("says it speaks OSC 7501 when asked, and records what an agent reports through it", async () => {
+    const ptys: FakePty[] = [];
+    const reports: unknown[] = [];
+    registerTerminalIpc({
+      agentEvents: {
+        clear: async () => {},
+        close: async () => {},
+        env: () => ({}),
+        launchArgs: () => [],
+        programStatus: (session, agent, report) => reports.push([session.clientId, agent, report]),
+      },
+      loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never,
+    });
+    await invoke(terminalChannels.create, { clientId: "claude-1", command: "claude", cols: 80, cwd: "/repo", rows: 24 });
+    await invoke(terminalChannels.create, { clientId: "shell-1", cols: 80, cwd: "/repo", rows: 24 });
+    const [claude, shell] = ptys;
+
+    // Claude Code asks, then sends a device attributes query; the answer has to come first.
+    claude!.onDataHandler?.("Welcome\x1b]75");
+    claude!.onDataHandler?.("01;?\x07\x1b[c");
+    expect(claude!.writes).toEqual(["\x1b]7501;?\x1b\\"]);
+    claude!.onDataHandler?.("\x1b]7501;state=working:app=claude-code\x1b\\\x1b]7501;state=bogus\x07");
+    expect(reports).toEqual([[expect.stringMatching(/^claude-1\./), "claude", { state: "working", app: "claude-code" }]]);
+
+    // Any program may ask; only an agent's reports go on record.
+    shell!.onDataHandler?.("\x1b]7501;?\x1b\\\x1b]7501;state=done\x07");
+    expect(shell!.writes).toEqual(["\x1b]7501;?\x1b\\"]);
+    expect(reports).toHaveLength(1);
   });
 
   it("keeps a session's event log key across a resume, but not for a later session under its id", async () => {
@@ -1545,6 +1576,7 @@ describe("terminal-manager IPC", () => {
         close: async () => {},
         env: (session) => ({ EVENT_SESSION: session.clientId ?? "" }),
         launchArgs: () => [],
+        programStatus: () => {},
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
@@ -3321,6 +3353,82 @@ describe("terminal-manager IPC", () => {
         agentSignal: { state: "your-turn", source: "hook", detail: "Created hello world.txt on the desktop." },
         activities: [expect.objectContaining({ kind: "output", detail: "Created hello world.txt on the desktop." })],
       });
+    });
+
+    it("ends a hooked Claude's Working when Claude reports it is back at its prompt, and trusts nothing else it reports", async () => {
+      const { bridge, fire, callTool } = fakeBridge();
+      const ptys: FakePty[] = [];
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      const starting = callTool(lead.id, "start_worker", { agent: "claude", prompt: "Run the tests" });
+      const request = sentEvents.find((event) => event.channel === terminalChannels.workerRequest)?.payload as TerminalWorkerRequest;
+      emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: "claude-2", title: "Claude" });
+      await starting;
+      const worker = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-2", cols: 80, command: "claude", cwd: "/repo", parentClientId: "claude-1", rows: 24,
+      });
+      const pty = ptys[1]!;
+      const report = (fields: string) => pty.onDataHandler?.(`\x1b]7501;${fields}\x1b\\`);
+      const signals = () => sentEvents.filter((event) => event.channel === terminalChannels.data)
+        .map((event) => (event.payload as { agentSignal?: unknown }).agentSignal).filter((signal) => signal !== undefined);
+
+      // Esc: no Stop hook follows, only the report.
+      fire(worker.id, { state: "working" });
+      report("state=working:app=claude-code");
+      report("state=idle:app=claude-code");
+      expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "program-status" } });
+      // The shown state only: the orchestrator still reads its worker's turns from hooks.
+      await expect(callTool(lead.id, "read_worker", { worker_id: "claude-2" })).resolves.toMatchObject({ state: "working" });
+
+      // At its prompt with a shell in the background, Claude still says working.
+      fire(worker.id, { state: "your-turn", detail: "Started the dev server." });
+      const before = signals().length;
+      report(`state=working:app=claude-code:msg=${Buffer.from("1 shell still running").toString("base64")}`);
+      report("state=done:app=claude-code");
+      // A sub-task's end, an end while an approval waits, and a Codex or hookless Claude report change nothing either.
+      fire(worker.id, { state: "working" });
+      report("state=done:id=task-1:app=claude-code");
+      fire(worker.id, { state: "needs-you", detail: "Bash: rm" });
+      report("state=idle:app=claude-code");
+      expect(signals().slice(before)).toEqual([
+        expect.objectContaining({ state: "working", source: "hook" }),
+        expect.objectContaining({ state: "needs-you", source: "hook" }),
+      ]);
+
+      // A rejected approval: your key clears Needs you, and only the report says the turn ended.
+      emit(terminalChannels.write, { id: worker.id, data: "\x1b" });
+      expect(lastDataEvent()).toMatchObject({ agentSignal: null });
+      report("state=idle:app=claude-code");
+      expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "program-status" } });
+
+      // After a Stop hook ends a turn, a report has nothing left to end, even once you typed.
+      fire(worker.id, { state: "working" });
+      fire(worker.id, { state: "your-turn" });
+      const afterStop = signals().length;
+      report("state=idle:app=claude-code");
+      expect(signals()).toHaveLength(afterStop);
+    });
+
+    it("leaves Codex and a Claude without hooks to their own signals when they report through OSC 7501", async () => {
+      const { bridge, fire } = fakeBridge();
+      const ptys: FakePty[] = [];
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never });
+      const codex = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+      });
+      // Claude whose hooks never reach Alfred, with a message you sent.
+      const claude = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      emit(terminalChannels.write, { id: claude.id, data: "hi" });
+      emit(terminalChannels.write, { id: claude.id, data: "\r" });
+      fire(codex.id, { state: "working" });
+      for (const pty of ptys) pty.onDataHandler?.("\x1b]7501;state=working\x1b\\\x1b]7501;state=idle\x1b\\");
+      expect(sentEvents.filter((event) => event.channel === terminalChannels.data)
+        .map((event) => (event.payload as { agentSignal?: unknown }).agentSignal).filter((signal) => signal !== undefined))
+        .toEqual([expect.objectContaining({ state: "working", source: "hook" })]);
     });
 
     it("remembers the conversation an agent's hooks name, so Resume can reopen that one", async () => {

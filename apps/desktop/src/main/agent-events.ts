@@ -18,6 +18,8 @@ export type AgentEventLog = {
   env(session: AgentEventSession, command?: string): Record<string, string>;
   /** Leading arguments that make a `codex` session send its events here. */
   launchArgs(session: AgentEventSession, command?: string): string[];
+  /** Records what an agent reported about itself in its terminal (OSC 7501), next to its own events. */
+  programStatus(session: AgentEventSession, agent: AgentEventLine["agent"], report: Record<string, unknown>): void;
 };
 
 /** A terminal session: its process id, and the Alfred session id it keeps when resumed. */
@@ -95,25 +97,27 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
       // Answer first: the agent's exporter never waits on Alfred's disk.
       response.writeHead(200, { "content-type": "application/json" }).end("{}");
       if (!options.isRecording()) return;
-      const lines = agentEventLines(match[2] as AgentEventLine["agent"], match[3]!, body);
-      if (lines.length === 0) return;
-      const file = path.join(options.dir, `${new Date().toISOString().slice(0, 10)}.jsonl`);
-      void enqueue(async () => {
-        await mkdir(options.dir, { recursive: true, mode: 0o700 });
-        await appendFile(file, lines.map((line) => JSON.stringify(line) + "\n").join(""), { mode: 0o600 });
-      });
+      write(agentEventLines(match[2] as AgentEventLine["agent"], match[3]!, body));
     });
   });
+  const write = (lines: AgentEventLine[]): void => {
+    if (lines.length === 0) return;
+    const file = path.join(options.dir, `${new Date().toISOString().slice(0, 10)}.jsonl`);
+    void enqueue(async () => {
+      await mkdir(options.dir, { recursive: true, mode: 0o700 });
+      await appendFile(file, lines.map((line) => JSON.stringify(line) + "\n").join(""), { mode: 0o600 });
+    });
+  };
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => resolve());
   });
   const { port } = server.address() as AddressInfo;
   // The session's log key stays the same across resumes; the process id is new each time.
-  const endpoint = (agent: string, session: AgentEventSession): string => {
-    const id = session.clientId !== undefined && SESSION_SEGMENT.test(session.clientId) ? session.clientId : session.id;
-    return `http://127.0.0.1:${port}/${secret}/${agent}/${id}/v1/logs`;
-  };
+  const logKey = (session: AgentEventSession): string =>
+    session.clientId !== undefined && SESSION_SEGMENT.test(session.clientId) ? session.clientId : session.id;
+  const endpoint = (agent: string, session: AgentEventSession): string =>
+    `http://127.0.0.1:${port}/${secret}/${agent}/${logKey(session)}/v1/logs`;
 
   return {
     clear: () => {
@@ -148,6 +152,12 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
             "otel.log_user_prompt=false",
           ]
         : [],
+    programStatus: (session, agent, report) => {
+      if (!options.isRecording()) return;
+      // What the agent says it is doing (msg, title) describes your work, so only the state goes on record.
+      const { msg: _msg, title: _title, ...status } = report;
+      write([{ agent, at: new Date().toISOString(), attributes: redacted(status), event: "alfred.program_status", session: logKey(session) }]);
+    },
   };
 }
 
