@@ -3355,6 +3355,68 @@ describe("terminal-manager IPC", () => {
       });
     });
 
+    it("ends a hooked Claude's Working when Claude reports it is back at its prompt, and trusts nothing else it reports", async () => {
+      const { bridge, fire, callTool } = fakeBridge();
+      const ptys: FakePty[] = [];
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      const starting = callTool(lead.id, "start_worker", { agent: "claude", prompt: "Run the tests" });
+      const request = sentEvents.find((event) => event.channel === terminalChannels.workerRequest)?.payload as TerminalWorkerRequest;
+      emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: "claude-2", title: "Claude" });
+      await starting;
+      const worker = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-2", cols: 80, command: "claude", cwd: "/repo", parentClientId: "claude-1", rows: 24,
+      });
+      const pty = ptys[1]!;
+      const report = (fields: string) => pty.onDataHandler?.(`\x1b]7501;${fields}\x1b\\`);
+      const signals = () => sentEvents.filter((event) => event.channel === terminalChannels.data)
+        .map((event) => (event.payload as { agentSignal?: unknown }).agentSignal).filter((signal) => signal !== undefined);
+
+      // Esc: no Stop hook follows, only the report.
+      fire(worker.id, { state: "working" });
+      report("state=working:app=claude-code");
+      report("state=idle:app=claude-code");
+      expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "program-status" } });
+      // The shown state only: the orchestrator still reads its worker's turns from hooks.
+      await expect(callTool(lead.id, "read_worker", { worker_id: "claude-2" })).resolves.toMatchObject({ state: "working" });
+
+      // At its prompt with a shell in the background, Claude still says working.
+      fire(worker.id, { state: "your-turn", detail: "Started the dev server." });
+      const before = signals().length;
+      report(`state=working:app=claude-code:msg=${Buffer.from("1 shell still running").toString("base64")}`);
+      report("state=done:app=claude-code");
+      // A sub-task's end, an end while an approval waits, and a Codex or hookless Claude report change nothing either.
+      fire(worker.id, { state: "working" });
+      report("state=done:id=task-1:app=claude-code");
+      fire(worker.id, { state: "needs-you", detail: "Bash: rm" });
+      report("state=idle:app=claude-code");
+      expect(signals().slice(before)).toEqual([
+        expect.objectContaining({ state: "working", source: "hook" }),
+        expect.objectContaining({ state: "needs-you", source: "hook" }),
+      ]);
+
+      fire(worker.id, { state: "working" });
+      report("state=done:app=claude-code");
+      expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "program-status" } });
+    });
+
+    it("leaves Codex and a Claude without hooks to their own signals when they report through OSC 7501", async () => {
+      const { bridge, fire } = fakeBridge();
+      const ptys: FakePty[] = [];
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never });
+      const codex = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
+      });
+      await invoke(terminalChannels.create, { clientId: "shell-1", cols: 80, cwd: "/repo", rows: 24 });
+      fire(codex.id, { state: "working" });
+      for (const pty of ptys) pty.onDataHandler?.("\x1b]7501;state=working\x1b\\\x1b]7501;state=idle\x1b\\");
+      expect(sentEvents.filter((event) => event.channel === terminalChannels.data)
+        .map((event) => (event.payload as { agentSignal?: unknown }).agentSignal).filter((signal) => signal !== undefined))
+        .toEqual([expect.objectContaining({ state: "working", source: "hook" })]);
+    });
+
     it("remembers the conversation an agent's hooks name, so Resume can reopen that one", async () => {
       const first = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
       const second = "7a2d3b5f-9c2e-4d4f-8a3b-1e6f8c9dab21";

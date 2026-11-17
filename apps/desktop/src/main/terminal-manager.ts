@@ -67,6 +67,7 @@ import {
   parseOsc9,
   parseProgramStatus,
   signalFromOsc9,
+  type ProgramStatusReport,
   type AgentSignalBridge,
   type AgentSignalUpdate,
 } from "./agent-signals.js";
@@ -619,7 +620,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const now = Date.now();
         const activeAgentKind = updateForegroundAgentKind(session);
         probeForegroundAgent(session, options.inspectForegroundCommand ?? inspectForegroundCommand);
-        readProgramStatus(session, data, options.agentEvents);
+        const reports = readProgramStatus(session, data, options.agentEvents);
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now, screenIsHistory(session) ? "all" : "blockers");
@@ -638,6 +639,15 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
               if (update.state === "your-turn") readAgentRecord(session);
             }
           }
+        } else if (
+          session.agentSignal?.source === "hook"
+          && session.agentSignal.state === "working"
+          && reports.some((report) => (report.state === "idle" || report.state === "done") && report.id === undefined)
+        ) {
+          // Esc, a rejected approval or a local command end Claude's turn without a Stop hook. Claude's "working" is not
+          // trusted back: it sends one while it waits with a shell in the background. Worker turns stay on hooks.
+          agentSignal = { state: "your-turn", source: "program-status", at: now };
+          session.agentSignal = agentSignal;
         }
         const shellBusy = updateShellBusy(session);
         if (effectivePrivacySettings.terminalScrollbackRetention === "off") {
@@ -1545,20 +1555,24 @@ function repaintForegroundProgram(session: TerminalSession): void {
 
 /**
  * Claude Code asks whether the terminal speaks OSC 7501 and reports its status only after a yes; Codex reports
- * unasked. For now Alfred only records the reports next to the agents' own events, to compare them with hooks.
+ * unasked. Every report an agent sends is recorded next to its own events.
  */
-function readProgramStatus(session: TerminalSession, data: string, agentEvents: AgentEventLog | null | undefined): void {
+function readProgramStatus(session: TerminalSession, data: string, agentEvents: AgentEventLog | null | undefined): ProgramStatusReport[] {
   const osc = parseOsc("7501", session.programStatusCarry, data);
   session.programStatusCarry = osc.carry;
   const agent = session.command === "claude" || session.command === "codex" ? session.command : session.foregroundAgentKind;
+  const reports: ProgramStatusReport[] = [];
   for (const message of osc.messages) {
     if (message === "?") {
       session.pty.write("\x1b]7501;?\x1b\\");
       continue;
     }
     const report = parseProgramStatus(message);
-    if (report && agent) agentEvents?.programStatus({ id: session.id, clientId: session.eventLogKey }, agent, report);
+    if (!report || !agent) continue;
+    agentEvents?.programStatus({ id: session.id, clientId: session.eventLogKey }, agent, report);
+    reports.push(report);
   }
+  return reports;
 }
 
 function isAgentSession(session: TerminalSession): boolean {
