@@ -50,9 +50,11 @@ export type WorkspaceImageThumbnailResult = { ok: true; dataUrl: string } | { ok
 
 export type WorkspaceQuickLookImageResult = { ok: true } | { ok: false; error: string };
 
+export type WorkspaceReadAgentPageResult = { ok: true; text: string; modifiedAt: number } | { ok: false; error: string };
+
 // The image types Claude Code attaches from a pasted path (its own check, as of 2.1.302).
 export const ATTACHABLE_IMAGE_PATH = /\.(?:png|jpe?g|gif|webp)$/i;
-// The pages agents draw diagrams, charts and mockups in, which Details shows.
+// The pages agents draw diagrams, charts and mockups in, which the page panel shows.
 export const PAGE_PATH = /\.(?:svg|html?)$/i;
 
 export type WorkspaceOpenExternalTerminalRequest = {
@@ -81,6 +83,7 @@ export type WorkspaceApi = {
   openExternalTerminal(request: WorkspaceOpenExternalTerminalRequest): Promise<WorkspaceOpenExternalTerminalResult>;
   imageThumbnail(request: WorkspaceImageRequest): Promise<WorkspaceImageThumbnailResult>;
   quickLookImage(request: WorkspaceImageRequest): Promise<WorkspaceQuickLookImageResult>;
+  readAgentPage(request: WorkspaceImageRequest): Promise<WorkspaceReadAgentPageResult>;
   revealPath(request: WorkspaceRevealPathRequest): Promise<WorkspaceRevealPathResult>;
   setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot>;
 };
@@ -94,6 +97,7 @@ export const workspaceChannels = {
   openExternalTerminal: "alfred:workspace:open-external-terminal",
   imageThumbnail: "alfred:workspace:image-thumbnail",
   quickLookImage: "alfred:workspace:quick-look-image",
+  readAgentPage: "alfred:workspace:read-agent-page",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
 } as const;

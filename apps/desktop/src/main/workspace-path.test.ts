@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PAGE_PATH } from "../shared/workspace-ipc.js";
 import { isAllowedWorkspacePath, resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
 
 let temporaryDirectory = "";
@@ -166,7 +167,7 @@ describe("workspace-path", () => {
     });
   });
 
-  it("resolves only existing image files a terminal links to", async () => {
+  it("resolves only existing files of the accepted kind a terminal or an agent names", async () => {
     const image = path.join(temporaryDirectory, "out", "Screenshot 11.52.png");
     const notes = path.join(temporaryDirectory, "notes.txt");
     const folder = path.join(temporaryDirectory, "looks-like.png");
@@ -187,11 +188,19 @@ describe("workspace-path", () => {
       ok: false,
       error: "Invalid image path.",
     });
+    // Pages are for the page panel only: the hover preview and its thumbnail take images.
     const chart = path.join(temporaryDirectory, "out", "chart.html");
     await fs.writeFile(chart, "<html></html>");
-    await expect(resolveLinkedImage({ path: "out/chart.html", cwd: temporaryDirectory })).resolves.toEqual({ ok: true, resolvedPath: chart });
+    const pages = { accept: PAGE_PATH, maxBytes: 20 };
+    await expect(resolveLinkedImage({ path: "out/chart.html", cwd: temporaryDirectory })).resolves.toEqual({ ok: false, error: "Invalid image path." });
+    await expect(resolveLinkedImage({ path: "out/chart.html", cwd: temporaryDirectory }, pages)).resolves.toEqual({ ok: true, resolvedPath: chart });
+    await expect(resolveLinkedImage({ path: image }, pages)).resolves.toEqual({ ok: false, error: "Invalid image path." });
+    await fs.symlink(image, path.join(temporaryDirectory, "shot.html"));
+    await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "shot.html") }, pages)).resolves.toEqual({ ok: false, error: "Invalid image path." });
+    await fs.writeFile(path.join(temporaryDirectory, "big.html"), "<p>".repeat(10));
+    await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "big.html") }, pages)).resolves.toEqual({ ok: false, error: "Image is too large." });
     await fs.symlink(notes, path.join(temporaryDirectory, "notes.html"));
-    await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "notes.html") })).resolves.toEqual({ ok: false, error: "Invalid image path." });
+    await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "notes.html") }, pages)).resolves.toEqual({ ok: false, error: "Invalid image path." });
     await expect(resolveLinkedImage({ path: notes })).resolves.toEqual({ ok: false, error: "Invalid image path." });
     await expect(resolveLinkedImage({ path: folder })).resolves.toEqual({ ok: false, error: "Not an image file." });
     await expect(resolveLinkedImage({ path: path.join(temporaryDirectory, "gone.png") })).resolves.toEqual({

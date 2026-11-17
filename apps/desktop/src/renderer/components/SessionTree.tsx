@@ -7,6 +7,7 @@ import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus, type Ses
 import { sessionAgeLabel } from "../session-time";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+import { agentPages } from "../page-panel-state";
 import { SessionPeek } from "./SessionPeek";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import "./session-tree.css";
@@ -204,7 +205,7 @@ function TreeItem({
   const agent = kind === "claude" || kind === "codex";
   const preview = agent || PREVIEW_KINDS.has(status.kind) ? sessionPreviewLine(session, status) : null;
   const changes = agent && !ACTIVITY_FIRST_KINDS.has(status.kind) ? session.changeStats : undefined;
-  const lead = changes ? <ChangeCounts {...changes} /> : preview && <span className="session-tree-preview">{preview}</span>;
+  const lead = changes ? <ChangeCounts {...changes} pages={agentPages(session.changedFiles).length} /> : preview && <span className="session-tree-preview">{preview}</span>;
   const age = agent && lead ? sessionAgeLabel(session.lastActivityAt, now) : null;
   const meta = collapsed ? <WorkerCounts workers={workers} /> : lead && <>{lead}{age && <span className="session-tree-age">{age}</span>}</>;
   const peeking = peekControl.openPeekSessionId === session.id;
@@ -283,11 +284,12 @@ function TreeItem({
   );
 }
 
-function ChangeCounts({ additions, deletions }: NonNullable<SessionTile["changeStats"]>) {
+function ChangeCounts({ additions, deletions, pages }: NonNullable<SessionTile["changeStats"]> & { pages: number }) {
   return (
     <span className="session-tree-changes">
       <span className="details-additions">+{additions}</span>
       <span className="details-deletions">−{deletions}</span>
+      {pages > 0 && <span>· {pages} {pages === 1 ? "page" : "pages"}</span>}
     </span>
   );
 }

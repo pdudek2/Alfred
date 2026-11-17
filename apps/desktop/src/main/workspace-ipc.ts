@@ -1,5 +1,6 @@
 import { trustedIpc } from "./trusted-ipc.js";
 import { BrowserWindow, dialog, nativeImage, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from "electron";
+import fs from "node:fs/promises";
 import path from "node:path";
 import {
   PAGE_PATH,
@@ -8,17 +9,20 @@ import {
   type WorkspaceClaudeTrustRequest,
   type WorkspaceImageThumbnailResult,
   type WorkspaceQuickLookImageResult,
+  type WorkspaceReadAgentPageResult,
   type WorkspaceStateSetRequest,
   type WorkspaceStateSnapshot,
 } from "../shared/workspace-ipc.js";
 import { openExternalUrl } from "./external-url.js";
 import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
-import { resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
+import { IMAGE_OR_PAGE_PATH, resolveLinkedImage, resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import { worktreesOf } from "./git-work-tree.js";
 import { claudeTrustsFolder } from "./claude-trust.js";
-import { pageSnapshot } from "./page-snapshot-client.js";
+
+// shortcut: a page goes to the renderer whole; past a few MB it is data, not a diagram.
+const AGENT_PAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;
@@ -62,12 +66,10 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
     const result = await resolveLinkedImage(request);
     if (!result.ok) return result;
     try {
-      // 640px covers a hover or Details card at 2x. Linux has no system thumbnailer, so it decodes the file.
-      const image = PAGE_PATH.test(result.resolvedPath)
-        ? await pageSnapshot(result.resolvedPath)
-        : process.platform === "linux"
-          ? nativeImage.createFromPath(result.resolvedPath).resize({ width: 640 })
-          : await nativeImage.createThumbnailFromPath(result.resolvedPath, { width: 640, height: 640 });
+      // 640px covers a hover card at 2x. Linux has no system thumbnailer, so it decodes the file.
+      const image = process.platform === "linux"
+        ? nativeImage.createFromPath(result.resolvedPath).resize({ width: 640 })
+        : await nativeImage.createThumbnailFromPath(result.resolvedPath, { width: 640, height: 640 });
       if (image.isEmpty()) return { ok: false, error: "Unsupported image." };
       return { ok: true, dataUrl: image.toDataURL() };
     } catch {
@@ -75,10 +77,10 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
     }
   });
   trustedIpc.handle(workspaceChannels.quickLookImage, async (event, request): Promise<WorkspaceQuickLookImageResult> => {
-    const result = await resolveLinkedImage(request);
+    const result = await resolveLinkedImage(request, { accept: IMAGE_OR_PAGE_PATH });
     if (!result.ok) return result;
     // Quick Look shows a page without running its scripts, which draw most charts and diagrams.
-    if (/\.html?$/i.test(result.resolvedPath)) {
+    if (PAGE_PATH.test(result.resolvedPath)) {
       const error = await shell.openPath(result.resolvedPath);
       return error ? { ok: false, error } : { ok: true };
     }
@@ -86,6 +88,16 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
     if (process.platform !== "darwin") return { ok: false, error: "Quick Look is not available on this system." };
     BrowserWindow.fromWebContents(event.sender)?.previewFile(result.resolvedPath);
     return { ok: true };
+  });
+  trustedIpc.handle(workspaceChannels.readAgentPage, async (_event, request): Promise<WorkspaceReadAgentPageResult> => {
+    const result = await resolveLinkedImage(request, { accept: PAGE_PATH, maxBytes: AGENT_PAGE_MAX_BYTES });
+    if (!result.ok) return result;
+    try {
+      const [text, stat] = await Promise.all([fs.readFile(result.resolvedPath, "utf8"), fs.stat(result.resolvedPath)]);
+      return { ok: true, text, modifiedAt: stat.mtimeMs };
+    } catch {
+      return { ok: false, error: "Page does not exist." };
+    }
   });
   trustedIpc.handle(workspaceChannels.revealPath, async (_event, request) => {
     const result = await resolveWorkspacePathForReveal(request, { allowedRoots: await allowedWorkspaceRoots(store, options) });

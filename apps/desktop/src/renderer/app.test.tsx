@@ -462,6 +462,7 @@ function installDesktopBridge(
       openExternalUrl,
       imageThumbnail,
       quickLookImage,
+      readAgentPage: vi.fn().mockResolvedValue({ ok: false, error: "Page does not exist." }),
       revealPath,
       setWorkspaceState,
     },

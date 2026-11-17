@@ -39,10 +39,12 @@ const mocks = vi.hoisted(() => {
           show: vi.fn(),
           webContents: {
             id: 1,
+            mainFrame: {},
             on: vi.fn(),
             once: vi.fn(),
             openDevTools: vi.fn(),
-            session: { webRequest: { onBeforeRequest: vi.fn() } },
+            session: { setPermissionRequestHandler: vi.fn(), webRequest: { onBeforeRequest: vi.fn() } },
+            setWebRTCIPHandlingPolicy: vi.fn(),
             setWindowOpenHandler: vi.fn(),
           },
         };
@@ -447,14 +449,14 @@ describe("main quit persistence", () => {
     const window = mocks.BrowserWindow.mock.results[0]?.value;
     const navigation = window.webContents.on.mock.calls.find(([name]: [string]) =>
       name === "will-frame-navigate"
-    )?.[1] as ((event: { url: string; isMainFrame: boolean; preventDefault: () => void }) => void) | undefined;
+    )?.[1] as ((event: { url: string; isMainFrame: boolean; frame: unknown; preventDefault: () => void }) => void) | undefined;
     const redirect = window.webContents.on.mock.calls.find(([name]: [string]) =>
       name === "will-redirect"
     )?.[1] as typeof navigation;
     expect(navigation).toBeTypeOf("function");
     expect(redirect).toBeTypeOf("function");
 
-    const foreign = { url: "http://127.0.0.1:9999/takeover", isMainFrame: true, preventDefault: vi.fn() };
+    const foreign = { url: "http://127.0.0.1:9999/takeover", isMainFrame: true, frame: null, preventDefault: vi.fn() };
     navigation?.(foreign);
     redirect?.(foreign);
     expect(foreign.preventDefault).toHaveBeenCalledTimes(2);
@@ -471,6 +473,14 @@ describe("main quit persistence", () => {
     navigation?.(ownPage);
     expect(ownPage.preventDefault).not.toHaveBeenCalled();
     expect(window.webContents.setWindowOpenHandler.mock.calls[0]?.[0]()).toEqual({ action: "deny" });
+
+    // A page an agent wrote sits in an opaque frame of the main frame and may not navigate itself anywhere.
+    const page = { ...foreign, isMainFrame: false, frame: { origin: "null", parent: window.webContents.mainFrame }, preventDefault: vi.fn() };
+    navigation?.(page);
+    expect(page.preventDefault).toHaveBeenCalledTimes(1);
+    const grant = vi.fn();
+    window.webContents.session.setPermissionRequestHandler.mock.calls[0]?.[0](window.webContents, "notifications", grant, { isMainFrame: false });
+    expect(grant).toHaveBeenCalledWith(false);
   });
 
   it("blocks Preview from loading Alfred's configured dev origin, including another path", async () => {
