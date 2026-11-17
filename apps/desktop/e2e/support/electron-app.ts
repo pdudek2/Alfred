@@ -109,7 +109,12 @@ export const test = base.extend<Fixtures>({
         ],
         artifactsDir: paths.artifacts,
         cwd: desktopRoot,
-        env: electronEnvironment(paths),
+        env: {
+          ...electronEnvironment(paths),
+          ...(fixtureOptions.previewDeploy
+            ? { ALFRED_DEPLOY_ROOT: path.join(paths.root, "deploy"), ALFRED_DEPLOY_RELEASE: path.join(paths.root, "deploy", "releases", "own") }
+            : {}),
+        },
       });
       launched.on("window", instrumentPage);
       for (const window of launched.windows()) instrumentPage(window);

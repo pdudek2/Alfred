@@ -1,14 +1,33 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from "electron";
 
 let trustedContents: WebContents | null = null;
-let trustedEntryUrl = "";
+// The window's renderer entry, and while a reload moves to another release's renderer, that one too.
+let trustedEntryUrls: string[] = [];
 
 export function configureTrustedIpc(contents: WebContents, entryUrl: string): void {
   trustedContents = contents;
-  trustedEntryUrl = entryUrl;
+  trustedEntryUrls = [entryUrl];
   contents.once("destroyed", () => {
     if (trustedContents === contents) trustedContents = null;
   });
+}
+
+export function trustedEntries(): readonly string[] {
+  return trustedEntryUrls;
+}
+
+/** A reload to `next` is under way: both entries stay trusted until it lands or fails. */
+export function beginEntrySwitch(next: string): void {
+  trustedEntryUrls = [trustedEntryUrls[0] ?? next, next];
+}
+
+export function finishEntrySwitch(landed: boolean): void {
+  const [current, next] = trustedEntryUrls;
+  trustedEntryUrls = [(landed ? next : current) ?? current ?? ""];
+}
+
+export function isTrustedEntry(actual: string): boolean {
+  return trustedEntryUrls.some((entry) => isTrustedDocumentUrl(actual, entry));
 }
 
 export function isTrustedDocumentUrl(actual: string, entryUrl: string): boolean {
@@ -46,7 +65,7 @@ export function isTrustedDocumentOrigin(actual: string, entryUrl: string): boole
 export function isTrustedIpcRecipient(contents: WebContents): boolean {
   return trustedContents === contents
     && contents.mainFrame != null
-    && isTrustedDocumentUrl(contents.mainFrame.url, trustedEntryUrl);
+    && isTrustedEntry(contents.mainFrame.url);
 }
 
 function isTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {

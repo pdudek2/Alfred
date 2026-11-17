@@ -264,6 +264,12 @@ button {
   gap: 2px;
 }
 
+.desktop-save-banner .desktop-update-actions {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
 .desktop-save-banner strong {
   font: 700 12px/1.2 var(--sans);
 }
