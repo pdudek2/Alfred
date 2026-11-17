@@ -98,7 +98,7 @@ function readJson(file) {
 function defaultRun(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed (${result.status ?? result.signal}): ${result.stderr?.slice(-2000) ?? ""}`);
+    throw new Error(`${command} ${args.join(" ")} failed (${result.status ?? result.signal}): ${`${result.stdout ?? ""}${result.stderr ?? ""}`.slice(-2000)}`);
   }
   return result.stdout ?? "";
 }
