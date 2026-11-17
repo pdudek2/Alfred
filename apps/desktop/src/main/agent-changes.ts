@@ -4,7 +4,7 @@ import type { TerminalChangeStats, TerminalFileChange } from "../shared/terminal
 import { isRecord, parseJsonRecord } from "./transcript-files.js";
 
 export type ChangeTally = TerminalChangeStats & {
-  /** The same counts per file, in the order the files were first edited. */
+  /** The same counts per file, the file edited last at the end. */
   files: Map<string, TerminalChangeStats>;
   transcriptPath: string;
   offset: number;
@@ -95,6 +95,7 @@ function addLines(tally: ChangeTally, file: string | undefined, additions: numbe
   const counts = tally.files.get(file) ?? { additions: 0, deletions: 0 };
   counts.additions += additions;
   counts.deletions += deletions;
+  tally.files.delete(file);
   tally.files.set(file, counts);
 }
 

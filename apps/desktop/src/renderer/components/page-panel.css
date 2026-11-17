@@ -1,0 +1,159 @@
+/* The page panel from board A: right of the terminal, in the column Details uses. */
+.page-column {
+  position: relative;
+  grid-column: 2;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding-bottom: 16px;
+}
+
+.page-panel {
+  --page-glyph: #E8A16B;
+  --page-line: rgba(255, 255, 255, 0.06);
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.page-panel-top {
+  flex: none;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 8px;
+  border-bottom: 1px solid var(--page-line);
+}
+
+.page-panel-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.page-panel-tab {
+  flex: none;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.page-panel-tab svg {
+  color: var(--page-glyph);
+}
+
+.page-panel-tab[aria-selected="true"] {
+  background: var(--surface-control-hover);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.page-panel-tab:hover {
+  color: var(--text-primary);
+}
+
+.page-panel-age {
+  flex: none;
+  padding: 0 4px 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.page-panel-icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.page-panel-icon:hover {
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+.page-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+/* While a column is dragged, the frame must not take the pointer moves. */
+.column-resizing .page-panel-frame {
+  pointer-events: none;
+}
+
+/* A page that sets no background reads as a browser shows it: on white. */
+.page-panel-frame {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: #fff;
+}
+
+.page-panel-missing {
+  margin: auto;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.page-panel-missing strong {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.page-panel-foot {
+  flex: none;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-top: 1px solid var(--page-line);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.page-panel-foot svg {
+  flex: none;
+}
+
+.page-panel-path {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

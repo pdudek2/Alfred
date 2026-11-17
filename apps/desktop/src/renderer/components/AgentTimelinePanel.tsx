@@ -5,7 +5,8 @@ import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { normalizeSessionTitle, titleFromPrompt } from "../../shared/session-title";
-import { pathMatchesWorkspace, workTreeFolderLabel } from "../workspace-path-matching";
+import { pathMatchesWorkspace, sessionFolder, workTreeFolderLabel } from "../workspace-path-matching";
+import { DetailsPages } from "./DetailsPages";
 import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 
@@ -16,6 +17,8 @@ export type AgentTimelinePanelProps = {
   onUpdateStagedSession?: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
   /** Hands the keyboard to the session's terminal, where a waiting question is answered. */
   onFocusTerminal?: () => void;
+  /** Opens one of the session's pages beside its terminal. */
+  onOpenPage?: (path: string) => void;
   session: SessionTile | null;
   /** The app's one session clock, shared with every other surface. */
   now: number;
@@ -28,6 +31,7 @@ export function AgentTimelinePanel({
   onRevealActivityFile,
   onUpdateStagedSession,
   onFocusTerminal,
+  onOpenPage,
   session,
   now,
   projectName,
@@ -68,7 +72,7 @@ export function AgentTimelinePanel({
   });
   const locationName = projectName || session.workspaceId;
   // The session starts in the project; an agent that made its own worktree works there instead.
-  const folder = session.workTree && !pathMatchesWorkspace(session.cwd, session.workTree.root) ? session.workTree.root : session.cwd;
+  const folder = sessionFolder(session);
   const handoffActions = sessionHandoffActions(session, folder);
   const workTreeLabel = folder === session.cwd ? undefined : workTreeFolderLabel(folder, session.cwd);
   const locationTitle = workTreeLabel && pathMatchesWorkspace(folder, session.cwd) ? `${locationName}/${workTreeLabel}` : workTreeLabel ?? locationName;
@@ -286,6 +290,7 @@ export function AgentTimelinePanel({
           </div>
         )}
         </section>
+        {onOpenPage && <DetailsPages files={session.changedFiles} onOpenPage={onOpenPage} />}
         {session.changedFiles && session.changedFiles.length > 0 && (
           <section className="details-section" aria-label="Changed files">
             <header className="details-section-heading"><h2>Changed files</h2></header>

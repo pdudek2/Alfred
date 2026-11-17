@@ -58,6 +58,7 @@ const layoutChannels = {
   get: "alfred:layout:get",
   setWorkspaceViewState: "alfred:layout:set-workspace-view-state",
   setRailWidth: "alfred:layout:set-rail-width",
+  setPageWidth: "alfred:layout:set-page-width",
 } as const;
 
 const workspaceChannels = {
@@ -69,6 +70,7 @@ const workspaceChannels = {
   openExternalTerminal: "alfred:workspace:open-external-terminal",
   imageThumbnail: "alfred:workspace:image-thumbnail",
   quickLookImage: "alfred:workspace:quick-look-image",
+  readAgentPage: "alfred:workspace:read-agent-page",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
 } as const;
@@ -149,6 +151,7 @@ const layout: LayoutApi = {
   setWorkspaceViewState: (request) =>
     ipcRenderer.invoke(layoutChannels.setWorkspaceViewState, request) as ReturnType<LayoutApi["setWorkspaceViewState"]>,
   setRailWidth: (width) => ipcRenderer.invoke(layoutChannels.setRailWidth, width) as ReturnType<LayoutApi["setRailWidth"]>,
+  setPageWidth: (width) => ipcRenderer.invoke(layoutChannels.setPageWidth, width) as ReturnType<LayoutApi["setPageWidth"]>,
 };
 
 const workspace: WorkspaceApi = {
@@ -166,6 +169,8 @@ const workspace: WorkspaceApi = {
     ipcRenderer.invoke(workspaceChannels.imageThumbnail, request) as ReturnType<WorkspaceApi["imageThumbnail"]>,
   quickLookImage: (request) =>
     ipcRenderer.invoke(workspaceChannels.quickLookImage, request) as ReturnType<WorkspaceApi["quickLookImage"]>,
+  readAgentPage: (request) =>
+    ipcRenderer.invoke(workspaceChannels.readAgentPage, request) as ReturnType<WorkspaceApi["readAgentPage"]>,
   revealPath: (request) =>
     ipcRenderer.invoke(workspaceChannels.revealPath, request) as ReturnType<WorkspaceApi["revealPath"]>,
   claudeTrustsProject: (request) =>

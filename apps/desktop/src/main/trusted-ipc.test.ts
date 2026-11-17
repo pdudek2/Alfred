@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   configureTrustedIpc,
+  isPageFrameEscape,
   isTrustedDocumentOrigin,
   isTrustedDocumentUrl,
   isTrustedIpcRecipient,
@@ -91,5 +92,15 @@ describe("trusted IPC boundary", () => {
     expect(isTrustedDocumentUrl("http://127.0.0.1:9999/", "http://127.0.0.1:4310/")).toBe(false);
     expect(isTrustedDocumentOrigin("http://127.0.0.1:4310/other", "http://127.0.0.1:4310/")).toBe(true);
     expect(isTrustedDocumentOrigin("http://127.0.0.1:4311/", "http://127.0.0.1:4310/")).toBe(false);
+  });
+
+  it("keeps a page frame on its own srcdoc and leaves frames inside Preview alone", () => {
+    const page = { frameOrigin: "null", parentIsMainFrame: true };
+    expect(isPageFrameEscape({ ...page, url: "http://127.0.0.1:4310/x" })).toBe(true);
+    expect(isPageFrameEscape({ ...page, url: "https://example.com/" })).toBe(true);
+    expect(isPageFrameEscape({ ...page, url: "about:srcdoc" })).toBe(false);
+    expect(isPageFrameEscape({ ...page, url: "about:blank" })).toBe(false);
+    expect(isPageFrameEscape({ frameOrigin: "null", parentIsMainFrame: false, url: "http://127.0.0.1:5173/" })).toBe(false);
+    expect(isPageFrameEscape({ frameOrigin: "http://localhost:5173", parentIsMainFrame: true, url: "http://localhost:5173/a" })).toBe(false);
   });
 });

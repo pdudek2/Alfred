@@ -11,10 +11,14 @@ import {
 } from "./desktop-api";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
+import { PagePanel } from "./components/PagePanel";
+import { agentPages, pagePanelPage, pickedPage, type PagePanelChoice } from "./page-panel-state";
+import { sessionTileKind, tileKindMeta } from "./tile-kind";
+import { sessionFolder } from "./workspace-path-matching";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionComposer, type NewSessionKind } from "./components/NewSessionComposer";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
-import { RailResizeHandle } from "./components/RailResizeHandle";
+import { ColumnResizeHandle } from "./components/ColumnResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
@@ -103,12 +107,18 @@ import type {
   TerminalCreateResult,
   TerminalDataEvent,
   TerminalExitEvent,
+  TerminalFileChange,
   TerminalForgetResult,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
 import {
+  clampPageWidth,
   clampRailWidth,
+  DEFAULT_PAGE_WIDTH,
   DEFAULT_RAIL_WIDTH,
+  MAX_PAGE_WIDTH,
+  MAX_RAIL_WIDTH,
+  MIN_PAGE_WIDTH,
   type DispatchTargetSnapshot,
   type WorkspaceLayoutsSnapshot,
   type WorkspaceViewState,
@@ -175,6 +185,7 @@ export function App() {
   // Until the saved sessions are in, a new session could take one of their ids, and loading them would replace it.
   const workspacesReady = workspaceHydrationStatus.status === "ready";
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
+  const [pageWidth, setPageWidth] = useState(DEFAULT_PAGE_WIDTH);
   const [externalSessions, setExternalSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalSessionsError, setExternalSessionsError] = useState<string | null>(null);
   const [externalSessionsLoading, setExternalSessionsLoading] = useState<boolean>(false);
@@ -195,6 +206,7 @@ export function App() {
   const [detailsColumn, setDetailsColumn] = useState(
     () => initialDetailsColumnState(window.matchMedia(NARROW_WINDOW_QUERY).matches),
   );
+  const [pagePanelChoices, setPagePanelChoices] = useState<Record<string, PagePanelChoice>>({});
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionDraftsByWorkspace, setNewSessionDraftsByWorkspace] = useState<Record<string, string>>({});
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -305,7 +317,11 @@ export function App() {
   const activeContextDrawerOpen = isDetailsOpen(detailsColumn, activeWorkspace.id);
   // Details describes the deck's focused session. History has its own reader and no side column, and a project with
   // nothing running has nothing to describe (v4 Fresh board), so the empty deck takes the whole width.
-  const detailsVisible = activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
+  // A page the inspected session's agent wrote takes Details' column while it is open.
+  const activePage = activeSurface === "work" && activeInspectedSession
+    ? pagePanelPage(activeInspectedSession.changedFiles, pagePanelChoices[activeInspectedSession.id])
+    : null;
+  const detailsVisible = activePage === null && activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
   // A project closes once nothing runs in it; its asleep and ended sessions stay in History.
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.every(isAsleepOrEnded);
@@ -627,7 +643,24 @@ export function App() {
     });
   }, [activeSelectedSessionId, activeWorkspace.id]);
 
+  // Closing the page panel brings Details back, where its Pages rows open it again.
+  const handleClosePagePanel = useCallback((sessionId: string, focusDetails: boolean) => {
+    setPagePanelChoices((current) => ({ ...current, [sessionId]: { closed: true } }));
+    contextReturnFocusRef.current = null;
+    if (focusDetails) contextFocusRequestKeyRef.current += 1;
+    else setTerminalFocusRequestKey((key) => key + 1);
+    setDetailsColumn((current) => withDetailsOpen(current, activeWorkspace.id, true));
+  }, [activeWorkspace.id]);
+
+  const handleOpenPage = useCallback((sessionId: string, files: TerminalFileChange[] | undefined, path: string) => {
+    setPagePanelChoices((current) => ({ ...current, [sessionId]: pickedPage(files, path) }));
+  }, []);
+
   const handleToggleContextDrawer = useCallback(() => {
+    if (activePage && activeInspectedSession) {
+      handleClosePagePanel(activeInspectedSession.id, true);
+      return;
+    }
     const nextOpen = !activeContextDrawerOpen;
     if (nextOpen) {
       contextReturnFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
@@ -641,15 +674,16 @@ export function App() {
       else setTerminalFocusRequestKey((key) => key + 1);
     }
     setDetailsColumn((current) => withDetailsOpen(current, activeWorkspace.id, nextOpen));
-  }, [activeContextDrawerOpen, activeWorkspace.id]);
+  }, [activeContextDrawerOpen, activeInspectedSession, activePage, activeWorkspace.id, handleClosePagePanel]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
+    if (activeInspectedSession) setPagePanelChoices((current) => ({ ...current, [activeInspectedSession.id]: { closed: true } }));
     setActiveSurface("work");
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
     setNeedsYouOpen(false);
     contextFocusRequestKeyRef.current += 1;
     setDetailsColumn((current) => withDetailsOpen(current, activeWorkspace.id, true));
-  }, [activeWorkspace.id]);
+  }, [activeInspectedSession, activeWorkspace.id]);
 
   useEffect(() => {
     const narrowWindow = window.matchMedia(NARROW_WINDOW_QUERY);
@@ -1175,6 +1209,18 @@ export function App() {
   const handleRailWidthChange = useCallback((width: number) => {
     setRailWidth(width);
     void getDesktopLayoutApi()?.setRailWidth(width);
+  }, []);
+
+  // The panel may take what the terminal has beyond its 420px (the grid's minimum for it).
+  const pageColumnRoom = useCallback((handle: HTMLElement) => {
+    const column = handle.parentElement!;
+    const terminal = column.parentElement!.firstElementChild!;
+    return column.getBoundingClientRect().width + terminal.getBoundingClientRect().width - 420;
+  }, []);
+
+  const handlePageWidthChange = useCallback((width: number) => {
+    setPageWidth(width);
+    void getDesktopLayoutApi()?.setPageWidth(width);
   }, []);
 
   const handleCloseSelectedSession = useCallback(() => {
@@ -1767,6 +1813,8 @@ export function App() {
   }, []);
 
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
+    // Details is where the review happens, so a page panel open on that session gives way.
+    setPagePanelChoices((current) => ({ ...current, [sessionId]: { closed: true } }));
     contextReturnFocusRef.current = null;
     contextFocusRequestKeyRef.current += 1;
     const layoutApi = getDesktopLayoutApi();
@@ -2131,6 +2179,7 @@ export function App() {
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
         setRailWidth(clampRailWidth(layoutResult.railWidth));
+        setPageWidth(clampPageWidth(layoutResult.pageWidth));
         const hydratedSelectedSessionIds = Object.fromEntries(
           Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
             viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
@@ -2273,7 +2322,7 @@ export function App() {
       </div>
       <section
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
-        style={{ "--rail-width": `${railWidth}px` } as CSSProperties}
+        style={{ "--rail-width": `${railWidth}px`, "--page-width": `${pageWidth}px` } as CSSProperties}
         aria-label="Alfred Agent Space desktop shell"
       >
         <ProjectNavigator
@@ -2284,7 +2333,18 @@ export function App() {
           attentionCountsByWorkspace={attentionCountsByWorkspace}
           now={now}
           pinnedSessionId={activePinnedSessionId}
-          railResizer={<RailResizeHandle width={railWidth} onChange={handleRailWidthChange} />}
+          railResizer={(
+            <ColumnResizeHandle
+              label="Resize sidebar"
+              edge="right"
+              cssVariable="--rail-width"
+              width={railWidth}
+              min={DEFAULT_RAIL_WIDTH}
+              max={MAX_RAIL_WIDTH}
+              initial={DEFAULT_RAIL_WIDTH}
+              onChange={handleRailWidthChange}
+            />
+          )}
           sessions={terminalSessions}
           workspaces={workspaces}
           workspaceActions={(
@@ -2395,6 +2455,7 @@ export function App() {
             `surface-${activeSurface}`,
             activePreviewDockOpen ? "preview-visible" : "",
             detailsVisible ? "context-visible" : "",
+            activePage ? "page-visible" : "",
           ].filter(Boolean).join(" ")}
           data-testid="workbench-shell"
         >
@@ -2547,8 +2608,36 @@ export function App() {
               onRevealActivityFile: handleRevealActivityFile,
               onUpdateStagedSession: handleUpdateStagedSession,
               onFocusTerminal: () => setTerminalFocusRequestKey((key) => key + 1),
+              ...(activeInspectedSession ? {
+                onOpenPage: (path: string) => handleOpenPage(activeInspectedSession.id, activeInspectedSession.changedFiles, path),
+              } : {}),
             }}
           />
+          {activePage && activeInspectedSession && (
+            <div className="page-column">
+              <ColumnResizeHandle
+                label="Resize page"
+                edge="left"
+                cssVariable="--page-width"
+                width={pageWidth}
+                min={MIN_PAGE_WIDTH}
+                max={MAX_PAGE_WIDTH}
+                initial={DEFAULT_PAGE_WIDTH}
+                room={pageColumnRoom}
+                onChange={handlePageWidthChange}
+              />
+              <PagePanel
+                agentLabel={tileKindMeta(sessionTileKind(activeInspectedSession)).label}
+                folder={sessionFolder(activeInspectedSession)}
+                now={now}
+                page={activePage}
+                pages={agentPages(activeInspectedSession.changedFiles)}
+                onClose={() => handleClosePagePanel(activeInspectedSession.id, false)}
+                onFocusTerminal={() => setTerminalFocusRequestKey((key) => key + 1)}
+                onPick={(path) => handleOpenPage(activeInspectedSession.id, activeInspectedSession.changedFiles, path)}
+              />
+            </div>
+          )}
         </div>
         {needsYouOpen && (
           <NeedsYouPopover

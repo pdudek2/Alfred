@@ -31,9 +31,10 @@ describe("tallyTranscriptChanges", () => {
 
     const tally = await tallyTranscriptChanges(transcript);
     expect(tally).toMatchObject({ additions: 4, deletions: 2 });
+    // The file edited last comes last.
     expect(changedFiles(tally)).toEqual([
-      { path: "/repo/a.ts", additions: 2, deletions: 2 },
       { path: "/repo/b.md", additions: 2, deletions: 0 },
+      { path: "/repo/a.ts", additions: 2, deletions: 2 },
     ]);
   });
 

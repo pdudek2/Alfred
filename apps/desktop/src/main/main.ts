@@ -5,6 +5,7 @@ import {
   Menu,
   type BrowserWindowConstructorOptions,
   type MessageBoxSyncOptions,
+  type WebFrameMain,
 } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -34,7 +35,7 @@ import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./
 import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
-import { configureTrustedIpc, isTrustedDocumentOrigin, isTrustedDocumentUrl } from "./trusted-ipc.js";
+import { configureTrustedIpc, isPageFrameEscape, isTrustedDocumentOrigin, isTrustedDocumentUrl } from "./trusted-ipc.js";
 import {
   attachWindowStatePersistence,
   restoreWindowPresentation,
@@ -100,11 +101,16 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
     },
   });
   configureTrustedIpc(window.webContents, rendererUrl.toString());
-  const blockForeignNavigation = (details: { url: string; isMainFrame: boolean; preventDefault(): void }) => {
+  const blockForeignNavigation = (details: { url: string; isMainFrame: boolean; frame: WebFrameMain | null; preventDefault(): void }) => {
     if (details.isMainFrame && !isTrustedDocumentUrl(details.url, rendererUrl.toString())) details.preventDefault();
+    const pageFrame = { url: details.url, frameOrigin: details.frame?.origin, parentIsMainFrame: details.frame?.parent === window.webContents.mainFrame };
+    if (!details.isMainFrame && isPageFrameEscape(pageFrame)) details.preventDefault();
   };
   window.webContents.on("will-frame-navigate", blockForeignNavigation);
   window.webContents.on("will-redirect", blockForeignNavigation);
+  // The page panel runs pages an agent wrote: their WebRTC stays off the LAN, and no frame is granted a permission.
+  window.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
+  window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback, details) => callback(details.isMainFrame));
   const trustedContentsId = window.webContents.id;
   window.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
     callback({

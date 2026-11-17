@@ -5,7 +5,7 @@ import { REDACTED, redactArgs, redactSecrets, redactText, redactUnknown } from "
 import { checkSafety } from "../shared/terminal-command-safety.js";
 import { terminalTail } from "../shared/terminal-tail.js";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import { clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
+import { clampPageWidth, clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
   SessionActivityEvent,
   SessionActivityEventKind,
@@ -54,6 +54,7 @@ export type DesktopWindowState = {
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
   railWidth?: number;
+  pageWidth?: number;
   stagedPlans: Record<string, AlfredStagedPlanSnapshot>;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
   windowState: DesktopWindowState;
@@ -277,6 +278,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     // Builds before the retired tile grid was removed also saved layoutsByWorkspace and a work mode; both are dropped.
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     ...(typeof value.railWidth === "number" ? { railWidth: clampRailWidth(value.railWidth) } : {}),
+    ...(typeof value.pageWidth === "number" ? { pageWidth: clampPageWidth(value.pageWidth) } : {}),
     stagedPlans: normalizeStagedPlans(value.stagedPlans, value.stagedPlan, activeWorkspaceId),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions, privacySettings),
     windowState: normalizeWindowState(value.windowState),
@@ -829,6 +831,7 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
       Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
     ...(state.railWidth === undefined ? {} : { railWidth: state.railWidth }),
+    ...(state.pageWidth === undefined ? {} : { pageWidth: state.pageWidth }),
     stagedPlans: Object.fromEntries(Object.entries(state.stagedPlans).map(([id, plan]) => [id, cloneStagedPlan(plan)])),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
     windowState: cloneWindowState(state.windowState),

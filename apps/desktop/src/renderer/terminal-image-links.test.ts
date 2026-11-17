@@ -33,6 +33,8 @@ describe("terminal image links", () => {
 
   it("leaves bare names, web addresses and other files alone", () => {
     expect(imagePathsInLine("logo.png https://example.com/a.png /Users/p/notes.txt /Users/p/build")).toEqual([]);
+    // Pages show in Details, not behind a path in the terminal.
+    expect(imagePathsInLine("Wrote out/arch.html and docs/flow.svg")).toEqual([]);
   });
 
   it("finds the sent Codex messages on screen and the one a row belongs to", () => {

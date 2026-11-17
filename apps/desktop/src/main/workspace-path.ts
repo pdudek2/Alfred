@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   ATTACHABLE_IMAGE_PATH,
+  PAGE_PATH,
   type WorkspaceRevealPathRequest,
   type WorkspaceRevealPathResult,
 } from "../shared/workspace-ipc.js";
@@ -41,12 +42,17 @@ export async function resolveWorkspacePathForReveal(
 // ponytail: a cap so a hover never decodes a huge file; raise it if real screenshots hit it.
 const LINKED_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 
+/** Quick Look and Open in browser take an image or a page. */
+export const IMAGE_OR_PAGE_PATH = new RegExp(`${ATTACHABLE_IMAGE_PATH.source}|${PAGE_PATH.source}`, "i");
+
 /**
- * An image a terminal links to, for its hover preview and Quick Look. Agents keep pasted images outside
- * the workspace (Claude in its temp folder), so any image file passes, but nothing else does.
+ * An image a terminal links to, for its hover preview and Quick Look, or a page an agent changed, for the page panel.
+ * Agents keep pasted images outside the workspace (Claude in its temp folder), so any file `accept` names passes,
+ * but nothing else does.
  */
 export async function resolveLinkedImage(
   request: unknown,
+  { accept = ATTACHABLE_IMAGE_PATH, maxBytes = LINKED_IMAGE_MAX_BYTES }: { accept?: RegExp; maxBytes?: number } = {},
 ): Promise<{ ok: true; resolvedPath: string } | { ok: false; error: string }> {
   const { path: rawPath, cwd } = typeof request === "object" && request !== null ? request as Record<string, unknown> : {};
   // A relative path needs the session's folder; anything else as a base is ignored.
@@ -56,11 +62,13 @@ export async function resolveLinkedImage(
   }
 
   const resolvedPath = resolveWorkspacePath(rawPath, base);
-  if (!ATTACHABLE_IMAGE_PATH.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
+  if (!accept.test(resolvedPath)) return { ok: false, error: "Invalid image path." };
   try {
+    // A link named page.html can point at an app or script, which opening it would run.
+    if (!accept.test(await fs.realpath(resolvedPath))) return { ok: false, error: "Invalid image path." };
     const stat = await fs.stat(resolvedPath);
     if (!stat.isFile()) return { ok: false, error: "Not an image file." };
-    if (stat.size > LINKED_IMAGE_MAX_BYTES) return { ok: false, error: "Image is too large." };
+    if (stat.size > maxBytes) return { ok: false, error: "Image is too large." };
   } catch {
     return { ok: false, error: "Image does not exist." };
   }

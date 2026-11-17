@@ -1,0 +1,44 @@
+.column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.column-resize-handle:focus-visible {
+  outline: none;
+}
+
+.column-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.column-resize-handle:hover::after,
+.column-resize-handle:active::after {
+  background: var(--text-muted);
+}
+
+.column-resize-handle:focus-visible::after {
+  width: 2px;
+  background: var(--focus-border);
+}
+
+/* The page panel's handle sits in the gap left of the panel, its line in the middle of the gap. */
+.column-resize-handle.edge-left {
+  left: -9px;
+  right: auto;
+}
+
+.column-resize-handle.edge-left::after {
+  left: 3px;
+  right: auto;
+}

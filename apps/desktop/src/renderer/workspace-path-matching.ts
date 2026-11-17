@@ -17,6 +17,11 @@ export function pathsReferToSameLocation(
   return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
 }
 
+/** The folder a session works in: its worktree when it moved into one, else where it started. */
+export function sessionFolder(session: { cwd: string; workTree?: { root: string } | undefined }): string {
+  return session.workTree && !pathMatchesWorkspace(session.cwd, session.workTree.root) ? session.workTree.root : session.cwd;
+}
+
 /** How a worktree reads beside its project: nothing for the project itself, its path inside it, else its folder name. */
 export function workTreeFolderLabel(root: string, projectRoot: string | undefined): string | undefined {
   const tree = normalizePosixPath(root);

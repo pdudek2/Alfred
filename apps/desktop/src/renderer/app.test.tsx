@@ -444,7 +444,7 @@ function installDesktopBridge(
       revealStateFile,
       updatePrivacySettings,
     },
-    layout: { getLayouts, setRailWidth, setWorkspaceViewState },
+    layout: { getLayouts, setRailWidth, setPageWidth: vi.fn().mockResolvedValue(undefined), setWorkspaceViewState },
     sessions: {
       listExternalSessions,
       releaseListSnapshot,
@@ -462,6 +462,7 @@ function installDesktopBridge(
       openExternalUrl,
       imageThumbnail,
       quickLookImage,
+      readAgentPage: vi.fn().mockResolvedValue({ ok: false, error: "Page does not exist." }),
       revealPath,
       setWorkspaceState,
     },
