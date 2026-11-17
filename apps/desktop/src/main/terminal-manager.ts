@@ -57,6 +57,7 @@ import {
   type TerminalWorkerReply,
   type TerminalWorkerRequest,
 } from "../shared/terminal-ipc.js";
+import { terminalTail } from "../shared/terminal-tail.js";
 import {
   CODEX_LAUNCH_ARGS,
   isTerminalReport,
@@ -169,6 +170,8 @@ type TerminalSession = {
   lastOutputAt?: number;
   persistLaunchData: boolean;
   pty: PtyProcess;
+  /** Set while a repaint resize runs; the size a window asks for meanwhile waits here. */
+  repaintResize?: { size?: { cols: number; rows: number } };
   /** Settles when the process has exited. */
   ptyExited?: Promise<void>;
   // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
@@ -196,6 +199,7 @@ const MAX_BUFFER_LENGTH = 200_000;
 // What saving gets: the tail it keeps and the margin redaction reads before it.
 const MAX_PERSISTED_BUFFER_LENGTH = MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN;
 const MAX_RECENT_TERMINAL_EXITS = 64;
+const REPAINT_RESIZE_GAP_MS = 200;
 /** More sent messages than a terminal's scrollback can show. */
 const MAX_CODEX_VISIBLE_MESSAGES = 1_000;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
@@ -416,6 +420,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         && (!request.clientId || request.clientId === session.clientId)
       ) {
         attachSessionWindow(session, window);
+        repaintForegroundProgram(session);
         return { state: "running", snapshot: toSnapshot(session) };
       }
 
@@ -731,12 +736,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   trustedIpc.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
     const session = getOwnedSession(event.sender, request.id);
-    try {
-      session?.pty.resize(normalizeDimension(request.cols, 80), normalizeDimension(request.rows, 24));
-    } catch (error) {
-      // node-pty closes the fd before it reports exit, so a resize can land on a PTY that is already gone.
-      if (!String(error).includes("EBADF")) throw error;
-    }
+    if (!session) return;
+    const size = { cols: normalizeDimension(request.cols, 80), rows: normalizeDimension(request.rows, 24) };
+    if (session.repaintResize) session.repaintResize.size = size;
+    else resizePty(session, size.cols, size.rows);
   });
 
   trustedIpc.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
@@ -1129,7 +1132,7 @@ function appendToBuffer(session: TerminalSession, data: string): void {
   session.buffer += data;
 
   if (session.buffer.length > MAX_BUFFER_LENGTH) {
-    session.buffer = session.buffer.slice(-MAX_BUFFER_LENGTH);
+    session.buffer = terminalTail(session.buffer, MAX_BUFFER_LENGTH);
   }
 }
 
@@ -1490,6 +1493,42 @@ function notifyWorkers(): void {
       console.warn("Failed to notify worker listener.", error);
     }
   }
+}
+
+function resizePty(session: TerminalSession, cols: number, rows: number): void {
+  try {
+    session.pty.resize(cols, rows);
+  } catch (error) {
+    // node-pty closes the fd before it reports exit, so a resize can land on a PTY that is already gone.
+    if (!String(error).includes("EBADF")) throw error;
+  }
+}
+
+/**
+ * A reattached window replays only the tail of the output, and a program that paints only what changed (Claude Code,
+ * Codex) keeps the rest of its old screen. One row less and back makes it paint the whole screen; the gap lets it read
+ * the new size, since a program compares sizes and an instant round trip looks like none.
+ */
+function repaintForegroundProgram(session: TerminalSession): void {
+  if (process.platform === "win32" || session.repaintResize) return;
+  let foreground: string;
+  try {
+    foreground = session.pty.process;
+  } catch {
+    return;
+  }
+  const { cols, rows } = session.pty;
+  if (isShellProcess(foreground) || rows < 2) return;
+  const repaint: NonNullable<TerminalSession["repaintResize"]> = {};
+  session.repaintResize = repaint;
+  resizePty(session, cols, rows - 1);
+  setTimeout(() => {
+    if (session.repaintResize !== repaint) return;
+    delete session.repaintResize;
+    if (sessions.get(session.id) !== session) return;
+    const size = repaint.size ?? { cols, rows };
+    resizePty(session, size.cols, size.rows);
+  }, REPAINT_RESIZE_GAP_MS);
 }
 
 function isAgentSession(session: TerminalSession): boolean {
