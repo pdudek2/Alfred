@@ -62,9 +62,15 @@ describe("Alfred Preview releases", () => {
     expect(isTrustedEntry("file:///new/index.html")).toBe(true);
   });
 
-  it("does nothing without a deploy root", () => {
+  it("does nothing without a deploy root, and tells the window there is no new version", async () => {
     const quit = vi.fn();
     expect(startPreviewDeploy({ env: {}, appPath: "/x/apps/desktop", windowMaterialQuery: undefined, window: () => null, quit })).toBeNull();
+    const mainFrame = { url: "file:///own/index.html" };
+    const contents = { mainFrame, once: vi.fn() };
+    configureTrustedIpc(contents as never, mainFrame.url);
+    expect(await handlers.get(desktopStateChannels.getUpdate)!({ sender: contents, senderFrame: mainFrame })).toBeNull();
+    await handlers.get(desktopStateChannels.applyUpdate)!({ sender: contents, senderFrame: mainFrame }, "restart");
+    expect(quit).not.toHaveBeenCalled();
   });
 
   it("offers a ready release, and a restart the quit dialog cancelled does not happen later", async () => {

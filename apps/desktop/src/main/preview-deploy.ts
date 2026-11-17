@@ -67,7 +67,12 @@ export function startPreviewDeploy(options: {
   quit: () => void;
 }): PreviewDeploy | null {
   const root = options.env.ALFRED_DEPLOY_ROOT;
-  if (!root || !existsSync(root)) return null;
+  if (!root || !existsSync(root)) {
+    // The window asks either way; an Alfred that does not run releases never has a new one.
+    trustedIpc.handle(desktopStateChannels.getUpdate, () => null);
+    trustedIpc.handle(desktopStateChannels.applyUpdate, () => undefined);
+    return null;
+  }
   const ownRelease = realpathSync(options.env.ALFRED_DEPLOY_RELEASE ?? path.resolve(options.appPath, "../.."));
   const ownMainHash = (() => {
     try {
