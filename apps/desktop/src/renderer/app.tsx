@@ -93,7 +93,7 @@ import type { AgentStartScreen } from "./agent-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
-import type { DesktopPrivacySettings, DesktopSaveStatus } from "../shared/desktop-state-ipc";
+import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopUpdate } from "../shared/desktop-state-ipc";
 import type {
   AgentKind,
   AlfredPlanResponse,
@@ -169,6 +169,8 @@ export function App() {
   const [commandQuery, setCommandQuery] = useState<string>("");
   const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
+  const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdate | null>(null);
+  const [laterUpdateSha, setLaterUpdateSha] = useState<string | null>(null);
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [sessionsViewState, setSessionsViewState] = useState(createInitialSessionsViewState);
   const [historySelection, setHistorySelection] = useState<HistorySelection | null>(null);
@@ -407,10 +409,19 @@ export function App() {
     const unsubscribe = desktopStateApi.onSaveStatus((status) => {
       if (!cancelled) setDesktopSaveStatus(status);
     });
+    void desktopStateApi.getUpdate()
+      .then((update) => {
+        if (!cancelled) setDesktopUpdate(update);
+      })
+      .catch(() => undefined);
+    const unsubscribeUpdate = desktopStateApi.onUpdate((update) => {
+      if (!cancelled) setDesktopUpdate(update);
+    });
 
     return () => {
       cancelled = true;
       unsubscribe();
+      unsubscribeUpdate();
     };
   }, []);
 
@@ -2424,6 +2435,23 @@ export function App() {
         )}
 
         <div className="desktop-alert-stack">
+          {desktopUpdate && desktopUpdate.sha !== laterUpdateSha && (
+            <div className="desktop-save-banner" role="status" aria-label="New version">
+              <div>
+                <strong>{desktopUpdate.reloadFailed ? "The new version did not load" : "New version ready"}</strong>
+                <span title={desktopUpdate.ref}>{desktopUpdate.sha.slice(0, 7)} {desktopUpdate.subject}</span>
+              </div>
+              <div className="desktop-update-actions">
+                {desktopUpdate.action === "reload" && !desktopUpdate.reloadFailed ? (
+                  <button type="button" onClick={() => void getDesktopStateApi()?.applyUpdate("reload")}>Reload window</button>
+                ) : (
+                  <button type="button" onClick={() => void getDesktopStateApi()?.applyUpdate("restart")}>Restart Alfred</button>
+                )}
+                <button type="button" onClick={() => setLaterUpdateSha(desktopUpdate.sha)}>Later</button>
+              </div>
+            </div>
+          )}
+
           {desktopSaveStatus.status === "saveFailed" && (
             <div className="desktop-save-banner" role="alert">
               <div>

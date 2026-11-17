@@ -28,6 +28,8 @@ export type DesktopStateFixtureOptions = {
   /** One Claude Code transcript in project A, as Claude Code writes it. */
   claudeSessionFixture?: boolean;
   missingWorkspaceId?: "A" | "B";
+  /** An Alfred Deploy folder (`<root>/deploy`) whose release `own` is the one this app runs, with main hash "same". */
+  previewDeploy?: boolean;
 };
 
 /** The conversation in the Claude Code transcript fixture. */
@@ -62,6 +64,10 @@ export async function createDesktopFixture(
         .map((value) => mkdir(value, { recursive: true })),
     );
     await mkdir(path.join(paths.home, "bin"), { recursive: true });
+    if (options.previewDeploy) {
+      await mkdir(path.join(root, "deploy", "releases", "own"), { recursive: true });
+      await writeFile(path.join(root, "deploy", "releases", "own", "release.json"), JSON.stringify({ mainHash: "same" }));
+    }
     await Promise.all([
       mkdir(path.join(paths.home, ".config"), { recursive: true }),
       mkdir(path.join(paths.home, ".codex"), { recursive: true }),

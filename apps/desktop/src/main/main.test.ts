@@ -157,6 +157,11 @@ vi.mock("./window-state.js", () => ({
   windowOptionsFromState: mocks.windowOptionsFromState,
 }));
 
+vi.mock("./preview-deploy.js", () => ({
+  PREVIEW_DEPLOY_ENV_KEYS: [],
+  startPreviewDeploy: vi.fn(() => null),
+}));
+
 vi.mock("./workspace-ipc.js", () => ({
   allowedWorkspaceRoots: mocks.allowedWorkspaceRoots,
   registerWorkspaceIpc: mocks.registerWorkspaceIpc,

@@ -4,7 +4,7 @@ import type { TerminalApi, TerminalDataEvent, TerminalExitEvent, TerminalWorkerR
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
 import type { SessionsApi, SessionsChannels } from "../shared/sessions-ipc.js";
-import type { DesktopStateApi, DesktopSaveStatus } from "../shared/desktop-state-ipc.js";
+import type { DesktopStateApi, DesktopSaveStatus, DesktopUpdate } from "../shared/desktop-state-ipc.js";
 import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
 const terminalChannels = {
@@ -90,6 +90,9 @@ const desktopStateChannels = {
   revealStateFile: "alfred:desktop-state:reveal-state-file",
   retrySave: "alfred:desktop-state:retry-save",
   saveStatus: "alfred:desktop-state:save-status",
+  getUpdate: "alfred:desktop-state:get-update",
+  applyUpdate: "alfred:desktop-state:apply-update",
+  update: "alfred:desktop-state:update",
 } as const;
 
 const terminal: TerminalApi = {
@@ -214,6 +217,15 @@ const desktopState: DesktopStateApi = {
     ipcRenderer.on(desktopStateChannels.saveStatus, listener);
     return () => {
       ipcRenderer.off(desktopStateChannels.saveStatus, listener);
+    };
+  },
+  getUpdate: () => ipcRenderer.invoke(desktopStateChannels.getUpdate) as ReturnType<DesktopStateApi["getUpdate"]>,
+  applyUpdate: (action) => ipcRenderer.invoke(desktopStateChannels.applyUpdate, action) as ReturnType<DesktopStateApi["applyUpdate"]>,
+  onUpdate: (callback) => {
+    const listener = (_event: IpcRendererEvent, payload: DesktopUpdate | null) => callback(payload);
+    ipcRenderer.on(desktopStateChannels.update, listener);
+    return () => {
+      ipcRenderer.off(desktopStateChannels.update, listener);
     };
   },
 };

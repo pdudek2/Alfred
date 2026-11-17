@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -45,12 +45,18 @@ test("macOS installer builds isolated Stable and Preview launcher bundles", { sk
 
     assert.equal(preview.bundleName, "Alfred Preview");
     assert.equal(preview.bundleIdentifier, "dev.patryk.alfred.desktop.preview");
-    assert.match(preview.launcher, /export DESKTOP_PORT="4311"/);
-    assert.match(
-      preview.launcher,
-      /export ALFRED_DESKTOP_USER_DATA_DIR=".*Library\/Application Support\/Alfred Preview"/,
-    );
+    // Preview runs a built release, not the live source: no dev server, no port.
+    assert.doesNotMatch(preview.launcher, /dev:electron|DESKTOP_PORT/);
+    assert.match(preview.launcher, /deploy_root=".*Library\/Application Support\/Alfred Deploy"/);
+    assert.match(preview.launcher, /export ALFRED_DEPLOY_ROOT=/);
+    assert.match(preview.launcher, /export ALFRED_DEPLOY_CHECKOUT=/);
+    assert.match(preview.launcher, /"--user-data-dir=.*Library\/Application Support\/Alfred Preview"/);
     assert.equal(existsSync(path.join(preview.contents, "Resources", "alfred-icon.icns")), true);
+
+    // Without a release it says so instead of starting anything.
+    const launch = spawnSync(path.join(preview.contents, "MacOS", "Alfred"), [], { env: { ...process.env, HOME: previewHome, ALFRED_LAUNCHER_NO_ALERT: "1" }, encoding: "utf8" });
+    assert.equal(launch.status, 1);
+    assert.match(launch.stderr, /no release yet\. Run pnpm deploy:preview/);
   } finally {
     rmSync(stableHome, { force: true, recursive: true });
     rmSync(previewHome, { force: true, recursive: true });

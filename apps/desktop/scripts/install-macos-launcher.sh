@@ -13,7 +13,6 @@ case "${channel}" in
   preview)
     app_name="Alfred Preview"
     bundle_identifier="dev.patryk.alfred.desktop.preview"
-    desktop_port="4311"
     user_data_dir="${HOME}/Library/Application Support/Alfred Preview"
     ;;
   *)
@@ -36,15 +35,9 @@ if [[ ! -f "${icon_source}" ]]; then
   exit 1
 fi
 
-if [[ ! -x "${pnpm_bin}" ]]; then
+if [[ "${channel}" == "stable" && ! -x "${pnpm_bin}" ]]; then
   echo "pnpm not found at ${pnpm_bin}. Set PNPM_BIN to the pnpm executable path." >&2
   exit 1
-fi
-
-if [[ -n "${user_data_dir}" ]]; then
-  user_data_export="export ALFRED_DESKTOP_USER_DATA_DIR=\"${user_data_dir}\""
-else
-  user_data_export=""
 fi
 
 rm -rf "${app_dir}"
@@ -82,16 +75,43 @@ cat > "${contents_dir}/Info.plist" <<PLIST
 </plist>
 PLIST
 
-cat > "${macos_dir}/Alfred" <<LAUNCHER
+if [[ "${channel}" == "preview" ]]; then
+  # Preview runs the release scripts/deploy-preview.mjs built, never the source a worktree is editing.
+  deploy_root="${HOME}/Library/Application Support/Alfred Deploy"
+  cat > "${macos_dir}/Alfred" <<LAUNCHER
+#!/bin/zsh
+set -euo pipefail
+
+export PATH="${HOME}/.local/bin:${HOME}/.bun/bin:${HOME}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+deploy_root="${deploy_root}"
+if [[ ! -e "\${deploy_root}/current" ]]; then
+  message="Alfred Preview has no release yet. Run pnpm deploy:preview in ${repo_root}."
+  echo "\${message}" >&2
+  # Started from the Dock nobody reads stderr.
+  if [[ ! -t 2 && -z "\${ALFRED_LAUNCHER_NO_ALERT:-}" ]]; then
+    osascript -e "display alert \"Alfred Preview\" message \"\${message}\"" >/dev/null 2>&1 || true
+  fi
+  exit 1
+fi
+release="\$(realpath "\${deploy_root}/current")"
+electron="\$(node -p 'require(process.argv[1]).electron' "\${release}/release.json")"
+export ALFRED_DEPLOY_ROOT="\${deploy_root}"
+export ALFRED_DEPLOY_CHECKOUT="${repo_root}"
+export ALFRED_DESKTOP_WORKSPACE_CWD="${repo_root}"
+cd "\${deploy_root}"
+exec "\${electron}" "\${release}/apps/desktop" "--user-data-dir=${user_data_dir}"
+LAUNCHER
+else
+  cat > "${macos_dir}/Alfred" <<LAUNCHER
 #!/bin/zsh
 set -euo pipefail
 
 export PATH="${HOME}/.local/bin:${HOME}/.bun/bin:${HOME}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export DESKTOP_PORT="${desktop_port}"
-${user_data_export}
 cd "${repo_root}"
 exec "${pnpm_bin}" --filter @alfred/desktop dev:electron
 LAUNCHER
+fi
 
 chmod +x "${macos_dir}/Alfred"
 

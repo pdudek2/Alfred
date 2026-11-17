@@ -443,6 +443,9 @@ function installDesktopBridge(
       retrySave,
       revealStateFile,
       updatePrivacySettings,
+      getUpdate: vi.fn().mockResolvedValue(null),
+      applyUpdate: vi.fn().mockResolvedValue(undefined),
+      onUpdate: vi.fn(() => () => undefined),
     },
     layout: { getLayouts, setRailWidth, setPageWidth: vi.fn().mockResolvedValue(undefined), setWorkspaceViewState },
     sessions: {

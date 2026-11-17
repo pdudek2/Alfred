@@ -35,7 +35,8 @@ import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./
 import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
-import { configureTrustedIpc, isPageFrameEscape, isTrustedDocumentOrigin, isTrustedDocumentUrl } from "./trusted-ipc.js";
+import { configureTrustedIpc, isPageFrameEscape, isTrustedDocumentOrigin, isTrustedEntry, trustedEntries } from "./trusted-ipc.js";
+import { PREVIEW_DEPLOY_ENV_KEYS, startPreviewDeploy, type PreviewDeploy } from "./preview-deploy.js";
 import {
   attachWindowStatePersistence,
   restoreWindowPresentation,
@@ -62,6 +63,7 @@ let terminalPersistenceFlushedForQuit = false;
 let quitFlushInProgress = false;
 let desktopStateStore: PersistedDesktopStateStore | null = null;
 let activeWindowStatePersistence: WindowStatePersistenceHandle | null = null;
+let previewDeploy: PreviewDeploy | null = null;
 
 // Load repo-root .env before any IPC registration so OPENROUTER_API_KEY is visible.
 // Repo root is two levels up from app.getAppPath() (apps/desktop) — same logic as
@@ -78,7 +80,9 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
   const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
   const windowMaterial = windowMaterialConfiguration();
-  const rendererPath = path.join(__dirname, "../renderer/index.html");
+  // After a window reload into a newer release, a window made again (macOS activate) opens that release's renderer.
+  const rendererPath = previewDeploy?.rendererFile(path.join(__dirname, "../renderer/index.html"))
+    ?? path.join(__dirname, "../renderer/index.html");
   const rendererUrl = isDev
     ? new URL(process.env.VITE_DEV_SERVER_URL!)
     : pathToFileURL(rendererPath);
@@ -102,7 +106,7 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   });
   configureTrustedIpc(window.webContents, rendererUrl.toString());
   const blockForeignNavigation = (details: { url: string; isMainFrame: boolean; frame: WebFrameMain | null; preventDefault(): void }) => {
-    if (details.isMainFrame && !isTrustedDocumentUrl(details.url, rendererUrl.toString())) details.preventDefault();
+    if (details.isMainFrame && !isTrustedEntry(details.url)) details.preventDefault();
     const pageFrame = { url: details.url, frameOrigin: details.frame?.origin, parentIsMainFrame: details.frame?.parent === window.webContents.mainFrame };
     if (!details.isMainFrame && isPageFrameEscape(pageFrame)) details.preventDefault();
   };
@@ -116,7 +120,7 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
     callback({
       cancel: details.webContentsId === trustedContentsId
         && details.resourceType === "subFrame"
-        && isTrustedDocumentOrigin(details.url, rendererUrl.toString()),
+        && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)),
     });
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -248,13 +252,22 @@ if (!hasSingleInstanceLock) {
     registerTerminalIpc({
       agentEvents,
       agentSignals,
-      appOnlyEnvKeys,
+      // Terminals get neither keys loaded from .env nor the release settings: a dev Alfred started in one must not
+      // take the running Preview's deploy folder for its own.
+      appOnlyEnvKeys: new Set([...appOnlyEnvKeys, ...PREVIEW_DEPLOY_ENV_KEYS]),
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { scratchRootPath }),
       isStagedCommandAllowed: isStagedSessionLaunchAllowed,
       requireLaunchTickets: true,
       scratchRootPath,
     });
     registerWorkspaceIpc(workspaceStore, { scratchRootPath });
+    previewDeploy = startPreviewDeploy({
+      env: process.env,
+      appPath: app.getAppPath(),
+      windowMaterialQuery: windowMaterialConfiguration().enabled ? { [WINDOW_MATERIAL_QUERY_KEY]: "native" } : undefined,
+      window: () => BrowserWindow.getAllWindows()[0] ?? null,
+      quit: () => app.quit(),
+    });
     await createWindow(persistedDesktopStateStore);
 
     app.on("activate", () => {
@@ -277,6 +290,7 @@ if (!hasSingleInstanceLock) {
     if (!terminalQuitConfirmed && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
       if (!confirmTerminalQuit()) {
         event.preventDefault();
+        previewDeploy?.cancelRestart();
         if (BrowserWindow.getAllWindows().length === 0 && desktopStateStore) {
           createWindowInBackground(desktopStateStore);
         }
@@ -295,6 +309,16 @@ if (!hasSingleInstanceLock) {
         if (terminalPersistenceFlushedForQuit) return;
         terminalPersistenceFlushedForQuit = true;
         stopSlowSavePrompt();
+        try {
+          previewDeploy?.relaunchIfArmed((options) => {
+            // The new process would take the keys this one loaded from .env for the user's own and pass them on.
+            for (const key of appOnlyEnvKeys) delete process.env[key];
+            app.relaunch(options);
+          }, app.getPath("userData"));
+        } catch (error) {
+          // The sessions are already stopped; quitting without the restart beats staying half closed.
+          console.error("Alfred could not restart into the new release.", error);
+        }
         app.quit();
       };
       const stopSlowSavePrompt = promptWhenQuitSaveIsSlow(() => terminalPersistenceFlushedForQuit, () => {

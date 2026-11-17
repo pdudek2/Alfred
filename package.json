@@ -15,7 +15,8 @@
     "test:scripts": "node --test scripts/test/*.test.mjs",
     "typecheck": "turbo run typecheck",
     "verify:quality": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-    "verify": "pnpm verify:quality && pnpm smoke:electron"
+    "verify": "pnpm verify:quality && pnpm smoke:electron",
+    "deploy:preview": "node scripts/deploy-preview.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
