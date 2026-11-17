@@ -57,6 +57,7 @@ import {
   type TerminalWorkerReply,
   type TerminalWorkerRequest,
 } from "../shared/terminal-ipc.js";
+import { terminalTail } from "../shared/terminal-tail.js";
 import {
   CODEX_LAUNCH_ARGS,
   isTerminalReport,
@@ -1129,7 +1130,7 @@ function appendToBuffer(session: TerminalSession, data: string): void {
   session.buffer += data;
 
   if (session.buffer.length > MAX_BUFFER_LENGTH) {
-    session.buffer = session.buffer.slice(-MAX_BUFFER_LENGTH);
+    session.buffer = terminalTail(session.buffer, MAX_BUFFER_LENGTH);
   }
 }
 

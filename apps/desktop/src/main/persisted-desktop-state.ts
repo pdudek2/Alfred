@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { REDACTED, redactArgs, redactSecrets, redactText, redactUnknown } from "@alfred/schema";
 import { checkSafety } from "../shared/terminal-command-safety.js";
+import { terminalTail } from "../shared/terminal-tail.js";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import { clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
@@ -574,7 +575,7 @@ export function sanitizePersistedTerminalSession(
     ...(session.buffer === undefined
       ? {}
       : {
-          buffer: tailText(
+          buffer: terminalTail(
             redactText(tailText(session.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH + SCROLLBACK_REDACTION_MARGIN)),
             MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH,
           ),

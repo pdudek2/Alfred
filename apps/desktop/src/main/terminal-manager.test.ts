@@ -463,6 +463,17 @@ describe("terminal-manager IPC", () => {
 
     expect(state.restoredTerminalSessions[0]?.buffer).toHaveLength(80_000);
     expect(state.restoredTerminalSessions[0]?.buffer).toBe(retainedTail);
+
+    // A cut inside an escape sequence would replay its rest as text; the kept end starts at the next line.
+    pty.onDataHandler?.(`\u001b[7;1Hstatus\n${"c".repeat(79_990)}`);
+    await flushTerminalPersistence();
+    expect(state.restoredTerminalSessions[0]?.buffer).toBe("c".repeat(79_990));
+    const live = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-live-tail", command: "node", cols: 80, cwd: "/repo", rows: 24,
+    });
+    pty.onDataHandler?.(`\u001b[5;9Hdone\n${"d".repeat(199_990)}`);
+    await expect(invoke(terminalChannels.reconcile, { id: live.id, clientId: "manual-live-tail" }))
+      .resolves.toMatchObject({ state: "running", snapshot: { buffer: "d".repeat(199_990) } });
   });
 
   const keyLines = Array.from({ length: 25 }, () => "K".repeat(70));
