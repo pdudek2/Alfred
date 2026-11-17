@@ -154,7 +154,9 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
         : [],
     programStatus: (session, agent, report) => {
       if (!options.isRecording()) return;
-      write([{ agent, at: new Date().toISOString(), attributes: redacted(report), event: "alfred.program_status", session: logKey(session) }]);
+      // What the agent says it is doing (msg, title) describes your work, so only the state goes on record.
+      const { msg: _msg, title: _title, ...status } = report;
+      write([{ agent, at: new Date().toISOString(), attributes: redacted(status), event: "alfred.program_status", session: logKey(session) }]);
     },
   };
 }

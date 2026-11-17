@@ -3397,9 +3397,18 @@ describe("terminal-manager IPC", () => {
         expect.objectContaining({ state: "needs-you", source: "hook" }),
       ]);
 
-      fire(worker.id, { state: "working" });
-      report("state=done:app=claude-code");
+      // A rejected approval: your key clears Needs you, and only the report says the turn ended.
+      emit(terminalChannels.write, { id: worker.id, data: "\x1b" });
+      expect(lastDataEvent()).toMatchObject({ agentSignal: null });
+      report("state=idle:app=claude-code");
       expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "program-status" } });
+
+      // After a Stop hook ends a turn, a report has nothing left to end, even once you typed.
+      fire(worker.id, { state: "working" });
+      fire(worker.id, { state: "your-turn" });
+      const afterStop = signals().length;
+      report("state=idle:app=claude-code");
+      expect(signals()).toHaveLength(afterStop);
     });
 
     it("leaves Codex and a Claude without hooks to their own signals when they report through OSC 7501", async () => {
@@ -3409,7 +3418,12 @@ describe("terminal-manager IPC", () => {
       const codex = await invoke<{ id: string }>(terminalChannels.create, {
         agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24,
       });
-      await invoke(terminalChannels.create, { clientId: "shell-1", cols: 80, cwd: "/repo", rows: 24 });
+      // Claude whose hooks never reach Alfred, with a message you sent.
+      const claude = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      emit(terminalChannels.write, { id: claude.id, data: "hi" });
+      emit(terminalChannels.write, { id: claude.id, data: "\r" });
       fire(codex.id, { state: "working" });
       for (const pty of ptys) pty.onDataHandler?.("\x1b]7501;state=working\x1b\\\x1b]7501;state=idle\x1b\\");
       expect(sentEvents.filter((event) => event.channel === terminalChannels.data)

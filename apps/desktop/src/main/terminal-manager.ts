@@ -640,12 +640,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             }
           }
         } else if (
-          session.agentSignal?.source === "hook"
-          && session.agentSignal.state === "working"
+          session.hooksLive
+          && (session.agentSignal === undefined || (session.agentSignal.source === "hook" && session.agentSignal.state === "working"))
           && reports.some((report) => (report.state === "idle" || report.state === "done") && report.id === undefined)
         ) {
-          // Esc, a rejected approval or a local command end Claude's turn without a Stop hook. Claude's "working" is not
-          // trusted back: it sends one while it waits with a shell in the background. Worker turns stay on hooks.
+          // Esc, a rejected approval (your key already cleared its Needs you) or a local command end Claude's turn without
+          // a Stop hook. Claude's "working" is not trusted back: it sends one while it waits with a shell in the background.
+          // Worker turns stay on hooks.
           agentSignal = { state: "your-turn", source: "program-status", at: now };
           session.agentSignal = agentSignal;
         }
