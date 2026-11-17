@@ -31,6 +31,8 @@ test("loads a release that changes only the window with a reload, while the term
   await sheet.getByRole("radio", { name: /^Terminal/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   const tile = page.locator('[data-testid="terminal-tile"]:visible');
+  // Keys typed before the shell draws its prompt can be dropped while it starts its line editor.
+  await expect(tile).toContainText(/[%$#]/);
   await tile.getByTestId("xterm-host").click();
   await page.keyboard.type("echo PID:$$");
   await page.keyboard.press("Enter");
