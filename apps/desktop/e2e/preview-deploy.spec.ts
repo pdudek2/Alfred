@@ -1,4 +1,4 @@
-import { cp, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "./support/electron-app";
 import { openNewSession } from "./support/work-layout";
@@ -14,8 +14,11 @@ async function release(deployRoot: string, name: string, mainHash: string): Prom
   await cp(builtRenderer, renderer, { recursive: true });
   const index = path.join(renderer, "index.html");
   await writeFile(index, (await readFile(index, "utf8")).replace("<head>", `<head><meta name="alfred-release" content="${name}">`));
+  // Alfred offers only a release whose Electron lies inside it; a restart would run that binary.
+  await mkdir(path.join(dir, "electron"), { recursive: true });
+  await writeFile(path.join(dir, "electron", "Electron"), "");
   await writeFile(path.join(deployRoot, "ready.json"), JSON.stringify({
-    sha: `${name}0000000000`, ref: "a-branch", subject: `Release ${name}`, mainHash, electron: "/unused/Electron", path: dir,
+    sha: `${name}0000000000`, ref: "a-branch", subject: `Release ${name}`, mainHash, electron: path.join(dir, "electron", "Electron"), path: dir,
   }));
 }
 
@@ -49,7 +52,9 @@ test("loads a release that changes only the window with a reload, while the term
   await page.keyboard.type("echo AGAIN:$$");
   await page.keyboard.press("Enter");
   await expect(reloaded).toContainText(`AGAIN:${pid}`);
-  expect((await readFile(path.join(deployRoot, "running.json"), "utf8"))).toContain(path.join("releases", "own"));
+  // The launcher starts the reloaded release next time; the main process still runs from the one it started in.
+  expect(await realpath(path.join(deployRoot, "current"))).toBe(await realpath(path.join(deployRoot, "releases", "next")));
+  expect(JSON.parse(await readFile(path.join(deployRoot, "running.json"), "utf8")).release).toBe(await realpath(path.join(deployRoot, "releases", "own")));
 
   // A release with other main-process code asks for a restart; Later puts it away.
   await release(deployRoot, "main-change", "other");

@@ -3,7 +3,7 @@
 // Usage: pnpm deploy:preview [--ref <ref>] [--auto] [--checkout <repo>]
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -53,14 +53,29 @@ export function releasesToPrune(releases, { running, current, ready }) {
   return others.slice(1).map((release) => release.path);
 }
 
-/** A lock file holds the pid of the deploy that runs; a pid that is gone frees it. */
+/** A lock file holds the pid of the deploy that runs; a pid that is gone frees it. Creating it is atomic. */
 export function acquireLock(lockPath, pid, isAlive) {
-  if (existsSync(lockPath)) {
-    const holder = Number(readFileSync(lockPath, "utf8").trim());
-    if (Number.isInteger(holder) && holder !== pid && isAlive(holder)) return false;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      writeFileSync(lockPath, String(pid), { flag: "wx" });
+      return true;
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      const holder = Number(readFileSync(lockPath, "utf8").trim());
+      if (holder === pid) return true;
+      if (Number.isInteger(holder) && isAlive(holder)) return false;
+      rmSync(lockPath, { force: true });
+    }
   }
-  writeFileSync(lockPath, String(pid));
-  return true;
+  return false;
+}
+
+/** Replaces a file or symlink in one step, so a reader never sees it missing or half written. */
+function replaceAtomically(target, write) {
+  const staging = `${target}.${process.pid}.tmp`;
+  rmSync(staging, { force: true });
+  write(staging);
+  renameSync(staging, target);
 }
 
 function pidAlive(pid) {
@@ -92,12 +107,22 @@ function defaultRun(command, args, options = {}) {
  * One deploy. `run` executes a command and returns its stdout (tests pass a fake). Returns what happened:
  * "locked", "unchanged", "ci-pending" or "built".
  */
-export async function deploy({ argv, env = process.env, run = defaultRun, log = console.log, launchCheck = checkLaunch }) {
+export async function deploy({ argv, env = process.env, run = defaultRun, log: print = console.log, launchCheck = checkLaunch }) {
   const options = parseArgs(argv);
   mkdirSync(env.ALFRED_DEPLOY_ROOT || DEFAULT_DEPLOY_ROOT, { recursive: true });
   // One spelling of every path, so a release compares equal to what `current` and running.json name.
   const root = realpathSync(env.ALFRED_DEPLOY_ROOT || DEFAULT_DEPLOY_ROOT);
-  const checkout = options.checkout ?? env.ALFRED_DEPLOY_CHECKOUT ?? run("git", ["rev-parse", "--show-toplevel"]).trim();
+  const log = (line) => {
+    print(line);
+    try {
+      appendFileSync(path.join(root, "deploy.log"), `${new Date().toISOString()} ${line}\n`);
+    } catch {
+      // The log is for reading later; a deploy does not fail on it.
+    }
+  };
+  // The main checkout, also when run from a worktree: it holds the .env a release links.
+  const checkout = options.checkout ?? env.ALFRED_DEPLOY_CHECKOUT
+    ?? path.dirname(run("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]).trim());
   const git = (...args) => run("git", ["-C", checkout, ...args]).trim();
   const releasesDir = path.join(root, "releases");
   mkdirSync(releasesDir, { recursive: true });
@@ -115,7 +140,8 @@ export async function deploy({ argv, env = process.env, run = defaultRun, log = 
 
     if (options.auto) {
       const remote = git("ls-remote", "origin", "refs/heads/main").split(/\s+/)[0];
-      if (remote && remote === state.lastBuilt) return "unchanged";
+      // A commit that failed to build waits for the next one instead of building again every five minutes.
+      if (remote && (remote === state.lastBuilt || remote === state.lastFailed)) return "unchanged";
     }
     if (isMain || ref.startsWith("origin/")) git("fetch", "--quiet", "origin");
     const sha = git("rev-parse", `${ref}^{commit}`);
@@ -139,15 +165,21 @@ export async function deploy({ argv, env = process.env, run = defaultRun, log = 
 
     let release = readJson(path.join(releaseDir, "release.json"));
     if (!release) {
-      release = await build({ checkout, sha, ref, releasesDir, releaseDir, run, git, log, launchCheck });
+      try {
+        release = await build({ checkout, sha, ref, releasesDir, releaseDir, run, git, log, launchCheck });
+      } catch (error) {
+        if (isMain) writeFileSync(statePath, JSON.stringify({ ...state, lastFailed: sha }));
+        log(`Build of ${sha.slice(0, 7)} failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw error;
+      }
     }
     if (currentTarget === undefined) {
       // The first release: the launcher has nothing to start yet, so it starts this one.
-      symlinkSync(releaseDir, currentPath);
+      replaceAtomically(currentPath, (staging) => symlinkSync(releaseDir, staging));
       log(`Current: ${sha.slice(0, 7)} ${release.subject}`);
       return "built";
     }
-    writeFileSync(readyPath, JSON.stringify({ path: releaseDir, ...release }, null, 2));
+    replaceAtomically(readyPath, (staging) => writeFileSync(staging, JSON.stringify({ path: releaseDir, ...release }, null, 2)));
     if (isMain) writeFileSync(statePath, JSON.stringify({ ...state, lastBuilt: sha }));
     log(`Ready: ${sha.slice(0, 7)} ${release.subject}`);
 

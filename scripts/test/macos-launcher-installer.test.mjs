@@ -54,7 +54,7 @@ test("macOS installer builds isolated Stable and Preview launcher bundles", { sk
     assert.equal(existsSync(path.join(preview.contents, "Resources", "alfred-icon.icns")), true);
 
     // Without a release it says so instead of starting anything.
-    const launch = spawnSync(path.join(preview.contents, "MacOS", "Alfred"), [], { env: { ...process.env, HOME: previewHome }, encoding: "utf8" });
+    const launch = spawnSync(path.join(preview.contents, "MacOS", "Alfred"), [], { env: { ...process.env, HOME: previewHome, ALFRED_LAUNCHER_NO_ALERT: "1" }, encoding: "utf8" });
     assert.equal(launch.status, 1);
     assert.match(launch.stderr, /no release yet\. Run pnpm deploy:preview/);
   } finally {

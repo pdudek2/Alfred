@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -85,6 +85,32 @@ test("an automatic deploy does not fetch while main is the commit it last built,
   assert.equal(await deploy({ argv: ["--auto", "--checkout", "/repo"], env, run: fake, log: () => {} }), "ci-pending");
   assert.equal(calls.some((call) => call.includes("fetch")), true);
   assert.equal(calls.some((call) => call.includes("archive")), false);
+});
+
+test("an automatic deploy does not retry a commit whose build failed", async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), "alfred-deploy-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(path.join(root, "deploy-state.json"), JSON.stringify({ lastFailed: "abc123" }));
+  const calls = [];
+  const fake = (command, args) => {
+    calls.push([command, ...args].join(" "));
+    return args.includes("ls-remote") ? "abc123\trefs/heads/main\n" : "";
+  };
+  assert.equal(await deploy({ argv: ["--auto", "--checkout", "/repo"], env: { ALFRED_DEPLOY_ROOT: root }, run: fake, log: () => {} }), "unchanged");
+  assert.equal(calls.some((call) => call.includes("fetch")), false);
+});
+
+test("a release replaces a current that points nowhere", async (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), "alfred-deploy-")));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const release = path.join(root, "releases", "def456");
+  mkdirSync(release, { recursive: true });
+  writeFileSync(path.join(release, "release.json"), JSON.stringify({ sha: "def456", subject: "Built before", builtAt: 1 }));
+  symlinkSync(path.join(root, "releases", "removed"), path.join(root, "current"));
+  const fake = (_command, args) => (args.includes("rev-parse") ? "def456\n" : "");
+  assert.equal(await deploy({ argv: ["--ref", "a-branch", "--checkout", "/repo"], env: { ALFRED_DEPLOY_ROOT: root }, run: fake, log: () => {} }), "built");
+  assert.equal(realpathSync(path.join(root, "current")), release);
+  assert.match(readFileSync(path.join(root, "deploy.log"), "utf8"), /Current: def456 Built before/);
 });
 
 test("a commit that is already current or ready is not built again", async (t) => {

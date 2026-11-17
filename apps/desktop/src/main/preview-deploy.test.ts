@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -73,6 +73,14 @@ describe("Alfred Preview releases", () => {
     expect(quit).not.toHaveBeenCalled();
   });
 
+  it("leaves the folder alone in an Alfred that was not started from one of its releases", () => {
+    const { root } = deployRoot();
+    const elsewhere = realpathSync(mkdtempSync(path.join(os.tmpdir(), "alfred-dev-")));
+    roots.push(elsewhere);
+    expect(startPreviewDeploy({ env: { ALFRED_DEPLOY_ROOT: root }, appPath: path.join(elsewhere, "apps", "desktop"), windowMaterialQuery: undefined, window: () => null, quit: vi.fn() })).toBeNull();
+    expect(existsSync(path.join(root, "running.json"))).toBe(false);
+  });
+
   it("offers a ready release, and a restart the quit dialog cancelled does not happen later", async () => {
     const { root, own } = deployRoot();
     const quit = vi.fn();
@@ -92,9 +100,18 @@ describe("Alfred Preview releases", () => {
     const applyUpdate = (_event: unknown, action: string) => handlers.get(desktopStateChannels.applyUpdate)!(trusted, action);
     expect(await getUpdate({})).toBeNull();
 
+    // A ready.json naming a folder outside the releases, or an Electron outside its release, is not offered.
+    const outside = realpathSync(mkdtempSync(path.join(os.tmpdir(), "alfred-outside-")));
+    roots.push(outside);
+    writeFileSync(path.join(root, "ready.json"), JSON.stringify(release(outside, "changed")));
+    expect(await getUpdate({})).toBeNull();
+
     const next = path.join(root, "releases", "next");
-    mkdirSync(next, { recursive: true });
+    mkdirSync(path.join(next, "e"), { recursive: true });
+    writeFileSync(path.join(next, "e", "Electron"), "");
     writeFileSync(path.join(root, "ready.json"), JSON.stringify(release(next, "changed")));
+    expect(await getUpdate({})).toBeNull();
+    writeFileSync(path.join(root, "ready.json"), JSON.stringify({ ...release(next, "changed"), electron: path.join(next, "e", "Electron") }));
     expect(await getUpdate({})).toMatchObject({ sha: "next", action: "restart" });
 
     await applyUpdate({}, "restart");
@@ -106,7 +123,7 @@ describe("Alfred Preview releases", () => {
 
     await applyUpdate({}, "restart");
     expect(deploy.relaunchIfArmed(relaunch, "/u")).toBe(true);
-    expect(relaunch).toHaveBeenCalledWith({ execPath: "/e/Electron", args: [path.join(next, "apps", "desktop"), "--user-data-dir=/u"] });
+    expect(relaunch).toHaveBeenCalledWith({ execPath: path.join(next, "e", "Electron"), args: [path.join(next, "apps", "desktop"), "--user-data-dir=/u"] });
     expect(readlinkSync(path.join(root, "current"))).toBe(next);
   });
 });

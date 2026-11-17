@@ -36,7 +36,7 @@ import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js"
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
 import { configureTrustedIpc, isPageFrameEscape, isTrustedDocumentOrigin, isTrustedEntry, trustedEntries } from "./trusted-ipc.js";
-import { startPreviewDeploy, type PreviewDeploy } from "./preview-deploy.js";
+import { PREVIEW_DEPLOY_ENV_KEYS, startPreviewDeploy, type PreviewDeploy } from "./preview-deploy.js";
 import {
   attachWindowStatePersistence,
   restoreWindowPresentation,
@@ -252,7 +252,9 @@ if (!hasSingleInstanceLock) {
     registerTerminalIpc({
       agentEvents,
       agentSignals,
-      appOnlyEnvKeys,
+      // Terminals get neither keys loaded from .env nor the release settings: a dev Alfred started in one must not
+      // take the running Preview's deploy folder for its own.
+      appOnlyEnvKeys: new Set([...appOnlyEnvKeys, ...PREVIEW_DEPLOY_ENV_KEYS]),
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { scratchRootPath }),
       isStagedCommandAllowed: isStagedSessionLaunchAllowed,
       requireLaunchTickets: true,
@@ -307,11 +309,16 @@ if (!hasSingleInstanceLock) {
         if (terminalPersistenceFlushedForQuit) return;
         terminalPersistenceFlushedForQuit = true;
         stopSlowSavePrompt();
-        previewDeploy?.relaunchIfArmed((options) => {
-          // The new process would take the keys this one loaded from .env for the user's own and pass them on.
-          for (const key of appOnlyEnvKeys) delete process.env[key];
-          app.relaunch(options);
-        }, app.getPath("userData"));
+        try {
+          previewDeploy?.relaunchIfArmed((options) => {
+            // The new process would take the keys this one loaded from .env for the user's own and pass them on.
+            for (const key of appOnlyEnvKeys) delete process.env[key];
+            app.relaunch(options);
+          }, app.getPath("userData"));
+        } catch (error) {
+          // The sessions are already stopped; quitting without the restart beats staying half closed.
+          console.error("Alfred could not restart into the new release.", error);
+        }
         app.quit();
       };
       const stopSlowSavePrompt = promptWhenQuitSaveIsSlow(() => terminalPersistenceFlushedForQuit, () => {
