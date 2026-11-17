@@ -216,6 +216,28 @@ describe("desktop session state", () => {
     expect(recordSessionOutputActivity([other, kept!], event({ shellBusy: false }))[1]?.title).toBe("Dev server");
   });
 
+  it("keeps the same sessions while output changes nothing but its time within a second", () => {
+    const agent: SessionTile = {
+      id: "claude-1", runtimeId: "pty-a", title: "Claude", workspaceId: "A", cwd: "/repo", source: "manual", stage: "live",
+      runtimeStatus: "live", agentKind: "claude",
+    };
+    const other: SessionTile = { ...agent, id: "claude-2", runtimeId: "pty-b", title: "Claude 2" };
+    const chunk = (at: number, update: Partial<TerminalDataEvent> = {}): TerminalDataEvent =>
+      ({ id: "pty-a", data: "✻ Thinking…", activities: [], foregroundAgentKind: "claude", at, ...update });
+
+    const first = recordSessionOutputActivity([agent, other], chunk(10_000));
+    expect(first[0]?.lastOutputAt).toBe(10_000);
+    expect(recordSessionOutputActivity(first, chunk(10_400))).toBe(first);
+    expect(recordSessionOutputActivity(first, chunk(11_000))[0]?.lastOutputAt).toBe(11_000);
+
+    // Output after a signal or an event must read as newer than it, however soon it comes.
+    const signalled = recordSessionOutputActivity(first, chunk(10_100, { data: "", agentSignal: { state: "needs-you", source: "hook", at: 10_100 } }));
+    expect(recordSessionOutputActivity(signalled, chunk(10_200))[0]?.lastOutputAt).toBe(10_200);
+    const activity = { id: "a1", kind: "approval" as const, title: "Approval", detail: "Allow edit?", at: 10_150 };
+    const asked = recordSessionOutputActivity(first, chunk(10_150, { data: "", activities: [activity] }));
+    expect(recordSessionOutputActivity(asked, chunk(10_300))[0]?.lastOutputAt).toBe(10_300);
+  });
+
   it("keeps the address a busy shell printed until it is back at the prompt, and only then", () => {
     const shell: SessionTile = {
       id: "manual-1", runtimeId: "pty-a", title: "zsh", workspaceId: "A", cwd: "/repo", source: "manual", stage: "live",

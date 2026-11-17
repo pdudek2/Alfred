@@ -644,7 +644,7 @@ function ManualTerminalTile({
   const tileHidden = workspaceHidden || layoutHidden;
   const previousTileHiddenRef = useRef(tileHidden);
   const previousSurfaceActiveRef = useRef(surfaceActive);
-  const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
+  const writeOutputRef = useRef<((data: string) => void) | null>(null);
   const watchesStartScreenRef = useRef(watchesStartScreen);
   watchesStartScreenRef.current = watchesStartScreen;
   const startScreenRef = useRef(startScreen);
@@ -1082,18 +1082,16 @@ function ManualTerminalTile({
       const screen = agentStartScreen(rows);
       if (screen !== (startScreenRef.current ?? null)) runtimeCallbacksRef.current.onRuntimeSessionStartScreen(sessionKey, screen);
     };
-    const writeAndRepaint = (data: string) => {
+    // xterm draws what it is written; size changes reach the observer below.
+    const writeOutput = (data: string) => {
       terminal.write(data, () => {
-        if (disposed) return;
-        scheduleRepaint();
-        if (watchesStartScreenRef.current) readStartScreen();
+        if (!disposed && watchesStartScreenRef.current) readStartScreen();
       });
-      scheduleRepaint();
     };
     const resizeObserver = new ResizeObserver(() => scheduleRepaint());
     fitAndResizeRef.current = fitAndResize;
     scheduleRepaintRef.current = scheduleRepaint;
-    writeAndRepaintRef.current = writeAndRepaint;
+    writeOutputRef.current = writeOutput;
 
     resizeObserver.observe(container);
     scheduleRepaint();
@@ -1103,7 +1101,7 @@ function ManualTerminalTile({
       resizeObserver.disconnect();
       fitAndResizeRef.current = null;
       scheduleRepaintRef.current = null;
-      writeAndRepaintRef.current = null;
+      writeOutputRef.current = null;
       terminalRef.current = null;
       terminal.dispose();
     };
@@ -1115,8 +1113,8 @@ function ManualTerminalTile({
     const metadata = runtimeMetadataRef.current;
     const callbacks = runtimeCallbacksRef.current;
     let disposed = false;
-    const writeAndRepaint = (data: string) => {
-      const writer = writeAndRepaintRef.current;
+    const writeOutput = (data: string) => {
+      const writer = writeOutputRef.current;
       if (writer) {
         writer(data);
         return;
@@ -1132,9 +1130,9 @@ function ManualTerminalTile({
     if (!terminal) {
       return;
     }
-    const replaceAndRepaint = (data: string) => {
+    const replaceOutput = (data: string) => {
       terminal.reset();
-      writeAndRepaint(data);
+      writeOutput(data);
     };
 
     sessionIdRef.current = runtimeId ?? null;
@@ -1143,7 +1141,7 @@ function ManualTerminalTile({
     if (metadata.restoredTranscript) {
       setTileStatus("restored");
       if (metadata.initialBuffer) {
-        writeAndRepaint(metadata.initialBuffer);
+        writeOutput(metadata.initialBuffer);
       }
       return () => {
         disposed = true;
@@ -1155,7 +1153,7 @@ function ManualTerminalTile({
       const nextStatus = metadata.runtimeStatus === "exited" ? "exited" : "error";
       setTileStatus(nextStatus);
       if (metadata.initialBuffer) {
-        writeAndRepaint(metadata.initialBuffer);
+        writeOutput(metadata.initialBuffer);
       } else if (previousStatus !== nextStatus) {
         terminal.writeln(
           metadata.runtimeStatus === "exited"
@@ -1194,7 +1192,7 @@ function ManualTerminalTile({
         } else if (snapshotHandshakePending) {
           snapshotHandshakeOutput += event.data;
         } else {
-          writeAndRepaint(event.data);
+          writeOutput(event.data);
         }
         runtimeCallbacksRef.current.onRuntimeSessionOutput(event);
       }
@@ -1250,7 +1248,7 @@ function ManualTerminalTile({
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
               runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
-              replaceAndRepaint(fallbackBuffer);
+              replaceOutput(fallbackBuffer);
             }
             return;
           }
@@ -1259,7 +1257,7 @@ function ManualTerminalTile({
           const replayBuffer = mergeTerminalReplayBuffer(snapshot.buffer, snapshotHandshakeOutput);
           runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, { ...snapshot, buffer: replayBuffer });
           if (replayBuffer) {
-            replaceAndRepaint(replayBuffer);
+            replaceOutput(replayBuffer);
           }
           if (result.state === "exited" && !exitObserved) {
             reportExit(result.event);
@@ -1271,7 +1269,7 @@ function ManualTerminalTile({
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
               runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
-              replaceAndRepaint(fallbackBuffer);
+              replaceOutput(fallbackBuffer);
             }
           }
         });

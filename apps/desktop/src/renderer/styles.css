@@ -1031,15 +1031,11 @@ html[data-alfred-window-material="native"] .mission-bar {
   border-color: color-mix(in oklab, white 13%, transparent);
   background: rgba(8, 8, 10, 0.78);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
-  backdrop-filter: blur(24px) saturate(1.22);
-  -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
 html[data-alfred-window-material="native"] .project-navigator {
   border-color: color-mix(in oklab, white 13%, transparent);
   background: rgba(8, 8, 10, 0.78);
-  backdrop-filter: blur(24px) saturate(1.22);
-  -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
 html[data-alfred-window-material="native"] .project-navigator-surfaces button[aria-current="page"],
@@ -2261,8 +2257,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   html[data-alfred-window-material="native"] .mission-bar,
   html[data-alfred-window-material="native"] .project-navigator {
     background: var(--surface-chrome);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 }
 
