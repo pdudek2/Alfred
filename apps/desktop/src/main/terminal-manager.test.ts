@@ -44,6 +44,8 @@ class FakePty {
   onExitHandler: ((event: { exitCode: number; signal?: number }) => void) | null = null;
   process = "zsh";
   killed = false;
+  cols = 80;
+  rows = 24;
   resized: Array<{ cols: number; rows: number }> = [];
   writes: string[] = [];
 
@@ -61,6 +63,8 @@ class FakePty {
 
   resize(cols: number, rows: number): void {
     this.resized.push({ cols, rows });
+    this.cols = cols;
+    this.rows = rows;
   }
 
   kill(): void {
@@ -1656,6 +1660,39 @@ describe("terminal-manager IPC", () => {
     expect((await store.getState()).restoredTerminalSessions).toEqual([expect.objectContaining({ clientId: "discard-failure" })]);
     await expect(invoke(terminalChannels.snapshot, { id: created.id })).resolves.toMatchObject({ buffer: "keep on failure" });
     await expect(invoke(terminalChannels.reconcile, { id: created.id })).resolves.toMatchObject({ state: "exited" });
+  });
+
+  it("makes the program holding the foreground repaint when a window attaches again", async () => {
+    vi.useFakeTimers();
+    try {
+      const pty = new FakePty();
+      registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        clientId: "agent-reattach", cols: 80, cwd: "/repo", rows: 24,
+      });
+      const reconcile = () => invoke(terminalChannels.reconcile, { id: created.id, clientId: "agent-reattach" });
+
+      // The shell at its prompt redraws nothing it has to.
+      await reconcile();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(pty.resized).toEqual([]);
+
+      // A program that paints only what changed gets one row less and back, a gap apart, so it reads a new size.
+      pty.process = "claude";
+      await reconcile();
+      expect(pty.resized).toEqual([{ cols: 80, rows: 23 }]);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(pty.resized).toEqual([{ cols: 80, rows: 23 }, { cols: 80, rows: 24 }]);
+
+      // The size a reloaded window sends at once waits out the gap, or the program would never see a change.
+      await reconcile();
+      emit(terminalChannels.resize, { id: created.id, cols: 100, rows: 30 });
+      expect(pty.resized.slice(2)).toEqual([{ cols: 80, rows: 23 }]);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(pty.resized.slice(2)).toEqual([{ cols: 80, rows: 23 }, { cols: 100, rows: 30 }]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reconciles a terminal that exits before the renderer attaches its exit listener", async () => {
