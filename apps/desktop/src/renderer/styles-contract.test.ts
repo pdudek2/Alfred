@@ -635,11 +635,8 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(2);
-    expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      ['html[data-alfred-window-material="native"] .mission-bar'],
-      ['html[data-alfred-window-material="native"] .project-navigator'],
-    ]));
+    // A blur cannot reach the native material behind the page, and redraws on every frame anything under it moves.
+    expect(blurredRules).toEqual([]);
     expect(styles).not.toMatch(/--glass:/);
   });
 
@@ -830,14 +827,6 @@ describe("renderer CSS contracts", () => {
     expect(controls).toContain("height: 30px");
     expect(controls).toContain("font: 400 13px/18px var(--sans)");
     expect(settingsStyles).not.toContain(`font-family: ${["var(--", "mono)"].join("")}`);
-    const blurredRules = allRulesIn(styles).filter((rule) =>
-      /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
-    );
-    expect(blurredRules).toHaveLength(2);
-    expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      ['html[data-alfred-window-material="native"] .mission-bar'],
-      ['html[data-alfred-window-material="native"] .project-navigator'],
-    ]));
   });
 
   it.each([

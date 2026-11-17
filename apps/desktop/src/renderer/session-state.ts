@@ -75,6 +75,7 @@ export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInp
 const MANUAL_SESSION_PREFIX = "manual-";
 const ALFRED_SESSION_PREFIX = "alfred-";
 const MAX_ACTIVITY_EVENTS = 40;
+const OUTPUT_AT_RESOLUTION_MS = 1_000;
 // Titles Alfred gives, which a detected agent or the first prompt may replace: "zsh", "Codex 2". Builds before
 // 2026-10-20 wrote "Manual · zsh 3" and "Codex · session 3", which a main process still running can hand over.
 // ponytail: a session you named exactly "Codex" or "zsh" reads as generated too.
@@ -600,53 +601,73 @@ export function recordSessionOutputActivity(
   event: TerminalDataEvent,
   now = Date.now(),
 ): SessionTile[] {
-  const session = sessions.find((item) => terminalEventMatchesSession(item, event));
-  if (!session) return sessions;
-  return sessions.map((item) => {
-    if (item.id !== session.id) return item;
+  const index = sessions.findIndex((item) => terminalEventMatchesSession(item, event));
+  if (index === -1) return sessions;
+  const item = sessions[index]!;
+  const next = sessionAfterOutput(sessions, item, event, now);
+  if (outputChangesNothing(item, next)) return sessions;
+  const updated = [...sessions];
+  updated[index] = next;
+  return updated;
+}
 
-    const previousEvents = item.activityEvents ?? [];
-    const eventIds = new Set(previousEvents.map((activity) => activity.id));
-    const acceptedEvents = event.activities.filter((activity) => {
-      if (eventIds.has(activity.id)) return false;
-      eventIds.add(activity.id);
-      return true;
-    });
-    const activityEvents = [...previousEvents, ...acceptedEvents].slice(-MAX_ACTIVITY_EVENTS);
-    const acceptedLastActivityAt = acceptedEvents.reduce<number | undefined>(
-      (latest, activity) => latest === undefined ? activity.at : Math.max(latest, activity.at),
-      undefined,
-    );
-    const lastActivityAt = acceptedLastActivityAt === undefined
-      ? item.lastActivityAt
-      : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
-    const outputAt = event.at ?? acceptedLastActivityAt ?? now;
-    const { agentSignal: _previousSignal, shellTitle: _shellTitle, servingUrl: _servingUrl, workTree: _workTree, ...withoutSignal } = item;
-    const workTree = event.workTree === undefined ? item.workTree : event.workTree;
-    const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
-    const named = event.agentTitle ? { title: event.agentTitle } : titleForForegroundCommand(item, event);
-    // An address a shell echoes as you type it is not served; only one printed while a program runs is.
-    const servingUrl = (event.shellBusy ?? item.shellBusy) ? extractLocalPreviewUrls(event.data)[0] ?? item.servingUrl : undefined;
+/** An agent's spinner prints many times a second; the app redraws for output only once a second unless it says more. */
+function outputChangesNothing(item: SessionTile, next: SessionTile): boolean {
+  const keys = new Set([...Object.keys(item), ...Object.keys(next)] as (keyof SessionTile)[]);
+  for (const key of keys) {
+    if (key !== "lastOutputAt" && item[key] !== next[key]) return false;
+  }
+  if (item.lastOutputAt === next.lastOutputAt) return true;
+  if (item.lastOutputAt === undefined || next.lastOutputAt === undefined) return false;
+  // Status compares output with the latest event and signal, so output after either always lands.
+  const latestMark = Math.max(item.activityEvents?.at(-1)?.at ?? -Infinity, item.agentSignal?.at ?? -Infinity);
+  return item.lastOutputAt > latestMark && next.lastOutputAt - item.lastOutputAt < OUTPUT_AT_RESOLUTION_MS;
+}
 
-    return {
-      ...withoutSignal,
-      ...named,
-      title: generatedTitleForDetectedAgent(sessions, { ...withoutSignal, ...named }, event.foregroundAgentKind),
-      detectedAgentKind: event.foregroundAgentKind,
-      // Signal-only events (empty data) are not terminal output.
-      ...(event.data === "" ? {} : { lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt) }),
-      ...(agentSignal == null ? {} : { agentSignal }),
-      ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
-      ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
-      ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
-      ...(event.changeStats ? { changeStats: event.changeStats } : {}),
-      ...(event.changedFiles ? { changedFiles: event.changedFiles } : {}),
-      ...(workTree == null ? {} : { workTree }),
-      ...(activityEvents.length === 0 ? {} : { activityEvents }),
-      ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
-      ...(servingUrl === undefined ? {} : { servingUrl }),
-    };
+function sessionAfterOutput(sessions: SessionTile[], item: SessionTile, event: TerminalDataEvent, now: number): SessionTile {
+  const previousEvents = item.activityEvents ?? [];
+  const eventIds = new Set(previousEvents.map((activity) => activity.id));
+  const acceptedEvents = event.activities.filter((activity) => {
+    if (eventIds.has(activity.id)) return false;
+    eventIds.add(activity.id);
+    return true;
   });
+  const activityEvents = acceptedEvents.length === 0
+    ? previousEvents
+    : [...previousEvents, ...acceptedEvents].slice(-MAX_ACTIVITY_EVENTS);
+  const acceptedLastActivityAt = acceptedEvents.reduce<number | undefined>(
+    (latest, activity) => latest === undefined ? activity.at : Math.max(latest, activity.at),
+    undefined,
+  );
+  const lastActivityAt = acceptedLastActivityAt === undefined
+    ? item.lastActivityAt
+    : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
+  const outputAt = event.at ?? acceptedLastActivityAt ?? now;
+  const { agentSignal: _previousSignal, shellTitle: _shellTitle, servingUrl: _servingUrl, workTree: _workTree, ...withoutSignal } = item;
+  const workTree = event.workTree === undefined ? item.workTree : event.workTree;
+  const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
+  const named = event.agentTitle ? { title: event.agentTitle } : titleForForegroundCommand(item, event);
+  // An address a shell echoes as you type it is not served; only one printed while a program runs is.
+  const servingUrl = (event.shellBusy ?? item.shellBusy) ? extractLocalPreviewUrls(event.data)[0] ?? item.servingUrl : undefined;
+
+  return {
+    ...withoutSignal,
+    ...named,
+    title: generatedTitleForDetectedAgent(sessions, { ...withoutSignal, ...named }, event.foregroundAgentKind),
+    detectedAgentKind: event.foregroundAgentKind,
+    // Signal-only events (empty data) are not terminal output.
+    ...(event.data === "" ? {} : { lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt) }),
+    ...(agentSignal == null ? {} : { agentSignal }),
+    ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
+    ...(event.promptSubmitted ? { promptSubmitted: true } : {}),
+    ...(event.resumeTarget ? { resumeTarget: event.resumeTarget } : {}),
+    ...(event.changeStats ? { changeStats: event.changeStats } : {}),
+    ...(event.changedFiles ? { changedFiles: event.changedFiles } : {}),
+    ...(workTree == null ? {} : { workTree }),
+    ...(activityEvents.length === 0 ? {} : { activityEvents }),
+    ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
+    ...(servingUrl === undefined ? {} : { servingUrl }),
+  };
 }
 
 export function terminalEventMatchesSession(
