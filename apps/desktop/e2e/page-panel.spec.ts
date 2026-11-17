@@ -5,6 +5,7 @@ import net from "node:net";
 import path from "node:path";
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { resolveDesktopStateFilePath } from "../src/main/persisted-desktop-state";
 import { openNewSession } from "./support/work-layout";
 
 // A page an agent wrote. Once every way out to the test's local listeners has settled it paints `colour`, or blue if
@@ -151,6 +152,34 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: chart }, transcript_path: transcript });
   await expect.poll(() => pageColour(page, panel("chart.html"))).toBe("green");
 
+  // The user drags the panel's edge; the terminal keeps 420px however far it goes.
+  const resizer = page.getByRole("separator", { name: "Resize page" });
+  const dragBy = async (distance: number) => {
+    const box = (await resizer.boundingBox())!;
+    const y = box.y + 300;
+    await page.mouse.move(box.x + 3, y);
+    await page.mouse.down();
+    // The move crosses the page frame on the way; the drag must keep it.
+    await page.mouse.move(box.x + 3 + distance, y, { steps: 6 });
+    await page.mouse.up();
+  };
+  const widthOf = async (locator: typeof tile) => Math.round((await locator.boundingBox())!.width);
+  await dragBy(-100);
+  await expect.poll(() => widthOf(panel("chart.html"))).toBe(700);
+  await expect(resizer).toHaveAttribute("aria-valuenow", "700");
+  await dragBy(150);
+  await expect.poll(() => widthOf(panel("chart.html"))).toBe(550);
+  // As wide as the window allows: the terminal keeps 420px, and the panel's width is what it shows.
+  await dragBy(-2000);
+  await expect.poll(() => widthOf(tile)).toBeGreaterThanOrEqual(420);
+  expect(await widthOf(tile)).toBeLessThan(424);
+  await expect(resizer).toHaveAttribute("aria-valuenow", String(await widthOf(panel("chart.html"))));
+  await resizer.dblclick();
+  await expect.poll(() => widthOf(panel("chart.html"))).toBe(600);
+  await resizer.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => widthOf(panel("chart.html"))).toBe(616);
+
   // A page that grabs the keyboard on load does not keep it while the pointer is elsewhere.
   await tile.getByTestId("xterm-host").click();
   await writePage("focus.html", focusPage("rgb(0, 160, 0)"));
@@ -227,6 +256,12 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   expect(dialogs).toBe(0);
   expect(await app.evaluate(() => (globalThis as { pageDownloads?: number }).pageDownloads)).toBe(0);
   harness.assertNoRuntimeErrors();
+  // The width outlives a restart.
+  const stateFile = resolveDesktopStateFilePath({ userDataPath: paths.userData });
+  await expect.poll(async () => (JSON.parse(await readFile(stateFile, "utf8")) as { pageWidth?: number }).pageWidth).toBe(616);
+  const restarted = (await harness.restart()).page;
+  await expect.poll(() => restarted.locator(".desktop-frame").evaluate((frame) => getComputedStyle(frame).getPropertyValue("--page-width").trim())).toBe("616px");
+
   await harness.closeActiveTerminals();
   await new Promise((resolve) => localServer.close(resolve));
   udp.close();

@@ -7,11 +7,12 @@ import {
   configureLayoutPersistence,
   getLayoutsSnapshot,
   resetLayoutPersistence,
+  setPageWidthSnapshot,
   setRailWidthSnapshot,
   setWorkspaceViewStateSnapshot,
 } from "./layout-store.js";
 import { DESKTOP_STATE_VERSION, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
-import { DEFAULT_RAIL_WIDTH, MAX_RAIL_WIDTH } from "../shared/layout-ipc.js";
+import { DEFAULT_PAGE_WIDTH, DEFAULT_RAIL_WIDTH, MAX_PAGE_WIDTH, MAX_RAIL_WIDTH, MIN_PAGE_WIDTH } from "../shared/layout-ipc.js";
 
 let temporaryDirectory: string | null = null;
 
@@ -62,6 +63,23 @@ describe("layout-store", () => {
     await setRailWidthSnapshot(320);
     configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
     await expect(getLayoutsSnapshot()).resolves.toMatchObject({ railWidth: 320 });
+  });
+
+  it("keeps the page panel's width within its range across a restart", async () => {
+    const filePath = await temporaryStateFile();
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
+    await expect(getLayoutsSnapshot()).resolves.not.toHaveProperty("pageWidth");
+
+    await setPageWidthSnapshot(5000);
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: MAX_PAGE_WIDTH });
+    await setPageWidthSnapshot(100);
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: MIN_PAGE_WIDTH });
+    await setPageWidthSnapshot(Number.NaN);
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: DEFAULT_PAGE_WIDTH });
+
+    await setPageWidthSnapshot(812.4);
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: 812 });
   });
 
   it("does not expose a retired context drawer value from persisted layout state", async () => {

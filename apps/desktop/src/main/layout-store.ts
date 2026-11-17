@@ -1,4 +1,5 @@
 import {
+  clampPageWidth,
   clampRailWidth,
   type WorkspaceLayoutsSnapshot,
   type WorkspaceViewState,
@@ -8,12 +9,14 @@ import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 const viewStateByWorkspace = new Map<string, WorkspaceViewState>();
 let railWidth: number | undefined;
+let pageWidth: number | undefined;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 
 export function configureLayoutPersistence(store: PersistedDesktopStateStore): void {
   persistedStateStore = store;
   viewStateByWorkspace.clear();
   railWidth = undefined;
+  pageWidth = undefined;
 }
 
 export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
@@ -22,6 +25,7 @@ export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
     return {
       viewStateByWorkspace: cloneViewStateByWorkspace(state.viewStateByWorkspace),
       ...(state.railWidth === undefined ? {} : { railWidth: state.railWidth }),
+      ...(state.pageWidth === undefined ? {} : { pageWidth: state.pageWidth }),
     };
   }
 
@@ -30,6 +34,7 @@ export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
       [...viewStateByWorkspace.entries()].map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
     ...(railWidth === undefined ? {} : { railWidth }),
+    ...(pageWidth === undefined ? {} : { pageWidth }),
   };
 }
 
@@ -40,6 +45,15 @@ export async function setRailWidthSnapshot(width: unknown): Promise<void> {
     return;
   }
   railWidth = next;
+}
+
+export async function setPageWidthSnapshot(width: unknown): Promise<void> {
+  const next = clampPageWidth(width);
+  if (persistedStateStore) {
+    await persistedStateStore.updateState((current) => ({ ...current, pageWidth: next }));
+    return;
+  }
+  pageWidth = next;
 }
 
 export async function setWorkspaceViewStateSnapshot(
@@ -82,6 +96,7 @@ export function resetLayoutPersistence(): void {
   persistedStateStore = null;
   viewStateByWorkspace.clear();
   railWidth = undefined;
+  pageWidth = undefined;
 }
 
 function cloneViewStateByWorkspace(

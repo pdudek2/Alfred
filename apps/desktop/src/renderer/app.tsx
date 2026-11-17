@@ -18,7 +18,7 @@ import { sessionFolder } from "./workspace-path-matching";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionComposer, type NewSessionKind } from "./components/NewSessionComposer";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
-import { RailResizeHandle } from "./components/RailResizeHandle";
+import { ColumnResizeHandle } from "./components/ColumnResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
@@ -112,8 +112,13 @@ import type {
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
 import {
+  clampPageWidth,
   clampRailWidth,
+  DEFAULT_PAGE_WIDTH,
   DEFAULT_RAIL_WIDTH,
+  MAX_PAGE_WIDTH,
+  MAX_RAIL_WIDTH,
+  MIN_PAGE_WIDTH,
   type DispatchTargetSnapshot,
   type WorkspaceLayoutsSnapshot,
   type WorkspaceViewState,
@@ -180,6 +185,7 @@ export function App() {
   // Until the saved sessions are in, a new session could take one of their ids, and loading them would replace it.
   const workspacesReady = workspaceHydrationStatus.status === "ready";
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
+  const [pageWidth, setPageWidth] = useState(DEFAULT_PAGE_WIDTH);
   const [externalSessions, setExternalSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalSessionsError, setExternalSessionsError] = useState<string | null>(null);
   const [externalSessionsLoading, setExternalSessionsLoading] = useState<boolean>(false);
@@ -1205,6 +1211,18 @@ export function App() {
     void getDesktopLayoutApi()?.setRailWidth(width);
   }, []);
 
+  // The panel may take what the terminal has beyond its 420px (the grid's minimum for it).
+  const pageColumnRoom = useCallback((handle: HTMLElement) => {
+    const column = handle.parentElement!;
+    const terminal = column.parentElement!.firstElementChild!;
+    return column.getBoundingClientRect().width + terminal.getBoundingClientRect().width - 420;
+  }, []);
+
+  const handlePageWidthChange = useCallback((width: number) => {
+    setPageWidth(width);
+    void getDesktopLayoutApi()?.setPageWidth(width);
+  }, []);
+
   const handleCloseSelectedSession = useCallback(() => {
     const selectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id];
     const currentWorkspaceSessions = terminalSessionsRef.current.filter(
@@ -2161,6 +2179,7 @@ export function App() {
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
         setRailWidth(clampRailWidth(layoutResult.railWidth));
+        setPageWidth(clampPageWidth(layoutResult.pageWidth));
         const hydratedSelectedSessionIds = Object.fromEntries(
           Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
             viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
@@ -2303,7 +2322,7 @@ export function App() {
       </div>
       <section
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
-        style={{ "--rail-width": `${railWidth}px` } as CSSProperties}
+        style={{ "--rail-width": `${railWidth}px`, "--page-width": `${pageWidth}px` } as CSSProperties}
         aria-label="Alfred Agent Space desktop shell"
       >
         <ProjectNavigator
@@ -2314,7 +2333,18 @@ export function App() {
           attentionCountsByWorkspace={attentionCountsByWorkspace}
           now={now}
           pinnedSessionId={activePinnedSessionId}
-          railResizer={<RailResizeHandle width={railWidth} onChange={handleRailWidthChange} />}
+          railResizer={(
+            <ColumnResizeHandle
+              label="Resize sidebar"
+              edge="right"
+              cssVariable="--rail-width"
+              width={railWidth}
+              min={DEFAULT_RAIL_WIDTH}
+              max={MAX_RAIL_WIDTH}
+              initial={DEFAULT_RAIL_WIDTH}
+              onChange={handleRailWidthChange}
+            />
+          )}
           sessions={terminalSessions}
           workspaces={workspaces}
           workspaceActions={(
@@ -2585,6 +2615,17 @@ export function App() {
           />
           {activePage && activeInspectedSession && (
             <div className="page-column">
+              <ColumnResizeHandle
+                label="Resize page"
+                edge="left"
+                cssVariable="--page-width"
+                width={pageWidth}
+                min={MIN_PAGE_WIDTH}
+                max={MAX_PAGE_WIDTH}
+                initial={DEFAULT_PAGE_WIDTH}
+                room={pageColumnRoom}
+                onChange={handlePageWidthChange}
+              />
               <PagePanel
                 agentLabel={tileKindMeta(sessionTileKind(activeInspectedSession)).label}
                 folder={sessionFolder(activeInspectedSession)}

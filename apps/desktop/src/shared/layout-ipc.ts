@@ -3,9 +3,23 @@ export const DEFAULT_RAIL_WIDTH = 264;
 /** Still leaves the terminal and Details their minimum widths at the smallest window. */
 export const MAX_RAIL_WIDTH = 392;
 
+/** Board A draws the page panel at this width; the user drags it between the limits below. */
+export const DEFAULT_PAGE_WIDTH = 600;
+export const MIN_PAGE_WIDTH = 360;
+/** The grid still narrows the panel first, so the terminal keeps 420px in any window. */
+export const MAX_PAGE_WIDTH = 1400;
+
 export function clampRailWidth(width: unknown): number {
-  if (typeof width !== "number" || !Number.isFinite(width)) return DEFAULT_RAIL_WIDTH;
-  return Math.min(MAX_RAIL_WIDTH, Math.max(DEFAULT_RAIL_WIDTH, Math.round(width)));
+  return clampWidth(width, DEFAULT_RAIL_WIDTH, MAX_RAIL_WIDTH, DEFAULT_RAIL_WIDTH);
+}
+
+export function clampPageWidth(width: unknown): number {
+  return clampWidth(width, MIN_PAGE_WIDTH, MAX_PAGE_WIDTH, DEFAULT_PAGE_WIDTH);
+}
+
+function clampWidth(width: unknown, min: number, max: number, fallback: number): number {
+  if (typeof width !== "number" || !Number.isFinite(width)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(width)));
 }
 
 export type DispatchTargetSnapshot = {
@@ -23,6 +37,7 @@ export type WorkspaceViewState = {
 export type WorkspaceLayoutsSnapshot = {
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
   railWidth?: number;
+  pageWidth?: number;
 };
 
 export type WorkspaceLayoutRequest = {
@@ -37,10 +52,12 @@ export type LayoutApi = {
   getLayouts(): Promise<WorkspaceLayoutsSnapshot>;
   setWorkspaceViewState(request: WorkspaceViewStateSetRequest): Promise<WorkspaceLayoutsSnapshot>;
   setRailWidth(width: number): Promise<void>;
+  setPageWidth(width: number): Promise<void>;
 };
 
 export const layoutChannels = {
   get: "alfred:layout:get",
   setWorkspaceViewState: "alfred:layout:set-workspace-view-state",
   setRailWidth: "alfred:layout:set-rail-width",
+  setPageWidth: "alfred:layout:set-page-width",
 } as const;

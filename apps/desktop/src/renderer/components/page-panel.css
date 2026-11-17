@@ -1,5 +1,6 @@
 /* The page panel from board A: right of the terminal, in the column Details uses. */
 .page-column {
+  position: relative;
   grid-column: 2;
   min-width: 0;
   min-height: 0;
@@ -101,6 +102,11 @@
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+}
+
+/* While a column is dragged, the frame must not take the pointer moves. */
+.column-resizing .page-panel-frame {
+  pointer-events: none;
 }
 
 /* A page that sets no background reads as a browser shows it: on white. */

@@ -534,9 +534,9 @@ button {
   padding-bottom: 16px;
 }
 
-/* The page panel (board A) takes Details' column: 600px at most, and the terminal keeps 420px first. */
+/* The page panel (board A) takes Details' column at the width the user dragged it to; the terminal keeps 420px first. */
 .workspace-layout.surface-work.page-visible {
-  grid-template-columns: minmax(420px, 1fr) minmax(0, 600px);
+  grid-template-columns: minmax(420px, 1fr) minmax(0, var(--page-width, 600px));
   column-gap: 12px;
   padding-right: 16px;
 }

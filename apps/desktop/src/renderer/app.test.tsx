@@ -444,7 +444,7 @@ function installDesktopBridge(
       revealStateFile,
       updatePrivacySettings,
     },
-    layout: { getLayouts, setRailWidth, setWorkspaceViewState },
+    layout: { getLayouts, setRailWidth, setPageWidth: vi.fn().mockResolvedValue(undefined), setWorkspaceViewState },
     sessions: {
       listExternalSessions,
       releaseListSnapshot,
