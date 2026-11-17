@@ -131,7 +131,10 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await expect(details.getByRole("region", { name: "Changed files" })).toContainText("app.ts");
   await expect(details.getByRole("region", { name: "Pages" })).toHaveCount(0);
   await expect(anyPanel).toHaveCount(0);
-  // The user hides Details; closing the page panel later must still leave a way back to it.
+  // The user hides Details; closing the page panel later must still leave a way back to it. Off macOS, Control I in a
+  // focused terminal is Tab, so the shortcut is pressed from Alfred's own controls.
+  const settings = page.getByTestId("project-navigator").getByRole("button", { name: "Settings", exact: true });
+  await settings.focus();
   await page.keyboard.press("ControlOrMeta+i");
   await expect(details).toHaveClass(/closed/);
 
@@ -219,7 +222,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: focus }, transcript_path: transcript });
   await expect(panel("focus.html")).toBeVisible();
   // ⌘I swaps the panel for Details, with the keyboard in Alfred.
-  await tile.getByTestId("xterm-host").click();
+  await settings.focus();
   await page.keyboard.press("ControlOrMeta+i");
   await expect(anyPanel).toHaveCount(0);
   await expect(details).toHaveClass(/open/);
