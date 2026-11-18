@@ -81,7 +81,7 @@ test("an automatic deploy does not fetch while main is the commit it last built,
   assert.equal(calls.some((call) => call.includes("fetch")), false);
 
   writeFileSync(path.join(root, "deploy-state.json"), JSON.stringify({ lastBuilt: "older" }));
-  checkRuns = CI_JOBS.slice(0, 3).map((job) => run(job, "completed", "success"));
+  checkRuns = CI_JOBS.slice(1).map((job) => run(job, "completed", "success"));
   assert.equal(await deploy({ argv: ["--auto", "--checkout", "/repo"], env, run: fake, log: () => {} }), "ci-pending");
   assert.equal(calls.some((call) => call.includes("fetch")), true);
   assert.equal(calls.some((call) => call.includes("archive")), false);

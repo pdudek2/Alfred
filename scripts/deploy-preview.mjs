@@ -10,7 +10,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 /** The jobs of .github/workflows/ci.yml; main deploys only when every one of them passed on the commit. */
-export const CI_JOBS = ["quality", "electron-smoke", "electron-smoke-linux", "windows-path-security"];
+export const CI_JOBS = ["quality", "electron-smoke", "windows-path-security"];
 
 export const DEFAULT_DEPLOY_ROOT = path.join(os.homedir(), "Library", "Application Support", "Alfred Deploy");
 
