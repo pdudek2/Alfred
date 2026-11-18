@@ -1,0 +1,28 @@
+name: Rerun CI jobs that never started
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: write
+
+jobs:
+  rerun:
+    if: github.event.workflow_run.run_attempt == 1 && contains(fromJSON('["failure", "cancelled"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      # A job that never got a runner (macOS queues can run out) is cancelled without a step and says nothing about the code.
+      # A run that a newer one replaced is left alone: rerunning it would cancel the newer run.
+      - run: |
+          unstarted=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs" --jq '[.jobs[] | select(.conclusion == "cancelled" and (.steps | length) == 0)] | length')
+          latest=$(gh run list --workflow CI --branch "$BRANCH" --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "Jobs that never started: $unstarted. Latest CI run on $BRANCH: $latest."
+          if [ "$unstarted" -gt 0 ] && [ "$latest" = "$RUN_ID" ]; then gh run rerun "$RUN_ID" --failed; fi
