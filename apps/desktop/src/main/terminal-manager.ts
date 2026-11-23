@@ -216,6 +216,8 @@ let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
 // A terminal that never goes quiet must not hold back the save; the whole state file is rewritten, so not every chunk.
 const PERSIST_MAX_WAIT_MS = 2_000;
+// Output alone only grows scrollback, which a crash may lose.
+const OUTPUT_PERSIST_WAIT_MS = 30_000;
 let persistDeadline = 0;
 let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
 let privacyClearGeneration = 0;
@@ -703,7 +705,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           session.persistLaunchData = false;
           clearSessionReplayData(session);
         }
-        rememberSessionSnapshot(session);
+        rememberSessionSnapshot(session, true);
         sendToSessionWindow(session, terminalChannels.data, {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
@@ -1306,14 +1308,17 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
   }
 }
 
-function rememberSessionSnapshot(session: TerminalSession): void {
+function rememberSessionSnapshot(session: TerminalSession, outputOnly = false): void {
   const snapshot = toPersistedSnapshot(session);
   if (!snapshot) return;
   if (forgottenClientIds.has(snapshot.clientId)) return;
 
+  // An agent started in a shell shows first in its output, and the session resumes as that agent.
+  const previous = restoredSessionSnapshots.get(snapshot.clientId);
+  const sameAgent = previous?.agentKind === snapshot.agentKind && previous?.command === snapshot.command;
   persistenceHydrationMutations?.set(snapshot.clientId, privacyClearGeneration);
   restoredSessionSnapshots.set(snapshot.clientId, snapshot);
-  scheduleTerminalPersistence();
+  scheduleTerminalPersistence(outputOnly && sameAgent);
 }
 
 function forgetPersistedSession(clientId: string): void {
@@ -1357,7 +1362,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
   return session.persistLaunchData ? snapshot : persistedSessionIdentity(snapshot);
 }
 
-function scheduleTerminalPersistence(): void {
+function scheduleTerminalPersistence(outputOnly = false): void {
   if (!persistedStateStore) return;
 
   if (persistDebounceMs <= 0) {
@@ -1365,12 +1370,22 @@ function scheduleTerminalPersistence(): void {
     return;
   }
 
+  if (outputOnly) {
+    if (!persistTimer) setPersistTimer(Date.now() + OUTPUT_PERSIST_WAIT_MS, OUTPUT_PERSIST_WAIT_MS);
+    return;
+  }
+
   if (persistTimer) clearTimeout(persistTimer);
-  else persistDeadline = Date.now() + PERSIST_MAX_WAIT_MS;
+  const deadline = Math.min(persistTimer ? persistDeadline : Infinity, Date.now() + PERSIST_MAX_WAIT_MS);
+  setPersistTimer(deadline, Math.max(0, Math.min(persistDebounceMs, deadline - Date.now())));
+}
+
+function setPersistTimer(deadline: number, delayMs: number): void {
+  persistDeadline = deadline;
   persistTimer = setTimeout(() => {
     persistTimer = null;
     persistTerminalSnapshotsInBackground();
-  }, Math.max(0, Math.min(persistDebounceMs, persistDeadline - Date.now())));
+  }, delayMs);
 }
 
 function persistTerminalSnapshotsInBackground(): void {
