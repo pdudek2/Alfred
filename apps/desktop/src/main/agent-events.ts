@@ -187,10 +187,16 @@ export function agentEventLines(agent: AgentEventLine["agent"], session: string,
   return lines;
 }
 
+const COUNT_KEY = /(?:_tokens|_token_count)$/;
+
 function redacted(attributes: Record<string, unknown>): Record<string, unknown> {
   // The redactor blanks a value by its key's name too, which would take every *_token_count; numbers hold no secret.
   const text = Object.fromEntries(Object.entries(attributes).filter(([, value]) => typeof value !== "number" && typeof value !== "boolean"));
-  return capStrings({ ...attributes, ...(redactUnknown(text) as Record<string, unknown>) }) as Record<string, unknown>;
+  // Codex sends its token counts, and Claude its compaction sizes, as digits in text.
+  const counts = Object.fromEntries(Object.entries(attributes)
+    .filter(([key, value]) => COUNT_KEY.test(key) && typeof value === "string" && /^\d+$/.test(value))
+    .map(([key, value]) => [key, Number(value)]));
+  return capStrings({ ...attributes, ...(redactUnknown(text) as Record<string, unknown>), ...counts }) as Record<string, unknown>;
 }
 
 function capStrings(value: unknown): unknown {
