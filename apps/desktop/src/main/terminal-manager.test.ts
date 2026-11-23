@@ -364,6 +364,24 @@ describe("terminal-manager IPC", () => {
       }
 
       expect(state.restoredTerminalSessions.map((session) => session.clientId)).toEqual(["manual-1", "manual-2"]);
+
+      // Output alone is saved every 30 s, not every 2 s.
+      await vi.advanceTimersByTimeAsync(30_000);
+      const saves = vi.mocked(store.updateState).mock.calls.length;
+      for (let tick = 0; tick < 299; tick += 1) {
+        busy.onDataHandler?.("x");
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      expect(vi.mocked(store.updateState).mock.calls.length).toBe(saves);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(vi.mocked(store.updateState).mock.calls.length).toBe(saves + 1);
+      expect(state.restoredTerminalSessions[0]?.buffer).toContain("x".repeat(299));
+
+      // A new session is not held back by output waiting for its save.
+      busy.onDataHandler?.("y");
+      await invoke(terminalChannels.create, { clientId: "manual-3", command: "zsh", cols: 80, cwd: "/repo", rows: 24 });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(state.restoredTerminalSessions.map((session) => session.clientId)).toContain("manual-3");
     } finally {
       vi.useRealTimers();
     }
