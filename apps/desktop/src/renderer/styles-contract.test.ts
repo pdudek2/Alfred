@@ -398,7 +398,7 @@ describe("renderer CSS contracts", () => {
     const ownerRules = allRulesIn(styles).filter((rule) => rule.selectors.some(isLiveShellSelector));
     const gradients = ownerRules.filter(({ body }) => /(?:linear|radial)-gradient/.test(body));
     const materialShadows = ownerRules.filter(({ body }) => {
-      const value = body.match(/box-shadow:\s*([^;]+)/)?.[1]?.trim();
+      const value = body.match(/box-shadow:\s*([^;]+)/)?.[1]?.replace("!important", "").trim();
       return value !== undefined && value !== "none";
     });
     const signalUses = ownerRules.filter(({ body }) => /var\(--signal\)/.test(body));
@@ -535,7 +535,8 @@ describe("renderer CSS contracts", () => {
   it("keeps terminal ancestors motionless and honors reduced motion", () => {
     const terminalAncestorPattern = /^(?:\.terminal-stage|\.terminal-stage-body|\.terminal-grid-column|\.terminal-grid|\.terminal-tile|\.xterm-host)(?:$|[. :>])/;
     const motionOwners = allRulesIn(styles).filter(({ selectors, body }) =>
-      selectors.some((selector) => terminalAncestorPattern.test(selector))
+      // xterm's own cursor blinks inside the terminal; the rule only changes how.
+      selectors.some((selector) => terminalAncestorPattern.test(selector) && !selector.includes(".xterm-cursor"))
       && /(?:animation|transition)(?:-[a-z-]+)?\s*:/.test(body),
     );
     expect(motionOwners.map(({ selectors }) => selectors)).toEqual([]);

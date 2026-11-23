@@ -2080,6 +2080,28 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   background-color: var(--surface-terminal);
 }
 
+/* xterm blinks the bar by animating box-shadow, a restyle every frame while a terminal has focus; opacity blinks on the GPU. */
+.xterm-host .xterm-rows .xterm-cursor.xterm-cursor-blink.xterm-cursor-bar {
+  position: relative;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.xterm-host .xterm-rows .xterm-cursor.xterm-cursor-blink.xterm-cursor-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  background: var(--terminal-cursor);
+  animation: terminal-cursor-blink 1s step-end infinite;
+}
+
+@keyframes terminal-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* Command palette */
 .command-palette-backdrop {
   position: fixed;
