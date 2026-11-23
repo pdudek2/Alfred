@@ -160,6 +160,9 @@ describe("signals", () => {
     expect(signalFromHook("PostToolUse", {})).toEqual({ state: "working" });
     expect(signalFromHook("Stop", {})).toEqual({ state: "your-turn" });
     expect(signalFromHook("SessionStart", {})).toBeNull();
+    expect(signalFromHook("SessionStart", { source: "startup" })).toBeNull();
+    // A resumed Claude waits at its prompt; it did not just end a turn.
+    expect(signalFromHook("SessionStart", { source: "resume" })).toEqual({ state: "your-turn", resumed: true });
     expect(
       signalFromHook("PermissionRequest", { tool_name: "Bash", tool_input: { command: "touch probe.txt", description: "Create" } }),
     ).toEqual({ state: "needs-you", detail: "Bash: touch probe.txt" });
@@ -297,6 +300,9 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
     };
     const command = settings.hooks.PermissionRequest![0]!.hooks[0]!.command;
+    // Claude says when a resumed session waits; Codex's trusted hooks stay as they are.
+    expect(Object.keys(settings.hooks)).toContain("SessionStart");
+    expect(bridge!.launchArgs("codex").join(" ")).not.toContain("SessionStart");
 
     await new Promise<void>((resolve, reject) => {
       const child = execFile("sh", ["-c", command], { env: { ...process.env, ...bridge!.env("session-1") } }, (error) =>
