@@ -1359,12 +1359,12 @@ export function App() {
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => terminalEventMatchesSession(item, event));
       const failed = event.exitCode !== 0;
-      const next = markSessionExited(sessions, event.id, event.exitCode, event.clientId);
+      const next = markSessionExited(sessions, event.id, event.exitCode, event.clientId, Date.now(), event.reason);
       if (!session) return next;
       return appendSessionActivity(next, session.id, {
         kind: failed ? "error" : "lifecycle",
         title: failed ? "Process failed" : "Process exited",
-        detail: sessionExitSentence(event.exitCode),
+        detail: sessionExitSentence(event.exitCode, event.reason),
       });
     });
   }, []);

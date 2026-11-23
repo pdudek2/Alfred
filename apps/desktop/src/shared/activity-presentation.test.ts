@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activitySentence,
   classifyActivityPresentationLayer,
+  exitReason,
   presentActivityEvents,
   waitingSentence,
 } from "./activity-presentation";
@@ -216,5 +217,16 @@ describe("activity presentation", () => {
       "work",
       "raw",
     ]);
+  });
+});
+
+describe("exit reasons", () => {
+  it("tells a session macOS kept out of its folder from any other failure", () => {
+    expect(exitReason(1, "Can't read the current directory (EPERM). Start Claude Code from a different directory.")).toBe("folder-access");
+    expect(exitReason(128, "fatal: Unable to read current working directory: Operation not permitted")).toBe("folder-access");
+    // Only a failed exit, and only what it printed last.
+    expect(exitReason(0, "Can't read the current directory (EPERM).")).toBeUndefined();
+    expect(exitReason(1, "Error: EPERM: operation not permitted, open '/etc/hosts'")).toBeUndefined();
+    expect(exitReason(1, `Can't read the current directory (EPERM).\n${"x".repeat(5_000)}`)).toBeUndefined();
   });
 });
