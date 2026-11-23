@@ -92,6 +92,7 @@ const desktopStateChannels = {
   saveStatus: "alfred:desktop-state:save-status",
   getUpdate: "alfred:desktop-state:get-update",
   applyUpdate: "alfred:desktop-state:apply-update",
+  takeRestartResume: "alfred:desktop-state:take-restart-resume",
   update: "alfred:desktop-state:update",
 } as const;
 
@@ -220,7 +221,8 @@ const desktopState: DesktopStateApi = {
     };
   },
   getUpdate: () => ipcRenderer.invoke(desktopStateChannels.getUpdate) as ReturnType<DesktopStateApi["getUpdate"]>,
-  applyUpdate: (action) => ipcRenderer.invoke(desktopStateChannels.applyUpdate, action) as ReturnType<DesktopStateApi["applyUpdate"]>,
+  applyUpdate: (action, restart) => ipcRenderer.invoke(desktopStateChannels.applyUpdate, action, restart) as ReturnType<DesktopStateApi["applyUpdate"]>,
+  takeRestartResume: () => ipcRenderer.invoke(desktopStateChannels.takeRestartResume) as ReturnType<DesktopStateApi["takeRestartResume"]>,
   onUpdate: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: DesktopUpdate | null) => callback(payload);
     ipcRenderer.on(desktopStateChannels.update, listener);

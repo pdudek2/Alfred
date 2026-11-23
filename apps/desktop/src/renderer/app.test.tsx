@@ -447,6 +447,7 @@ function installDesktopBridge(
       getUpdate: vi.fn().mockResolvedValue(null),
       applyUpdate: vi.fn().mockResolvedValue(undefined),
       onUpdate: vi.fn(() => () => undefined),
+      takeRestartResume: vi.fn().mockResolvedValue([]),
     },
     layout: { getLayouts, setRailWidth, setPageWidth: vi.fn().mockResolvedValue(undefined), setWorkspaceViewState },
     sessions: {
@@ -2311,6 +2312,87 @@ describe("App integration", () => {
     expect(within(asleep).getByText("Codex · restored visible")).toBeInTheDocument();
     expect(within(asleep).getByText("Saved free chat")).toBeInTheDocument();
     expect(within(asleep).queryByText(/Draft one|Draft two/)).not.toBeInTheDocument();
+  });
+
+  it("restarts for an update only once no agent works, naming what it waits for and what it stops", async () => {
+    const user = userEvent.setup();
+    const { emitData, emitDataNow } = installDesktopBridge(undefined, null, [
+      liveSnapshot("lead", {
+        title: "Lead", agentKind: "claude", command: "claude", agentSignal: { state: "working", source: "hook", at: Date.now() },
+        resumeTarget: { agentKind: "claude", sessionId: "conv-1", source: "agent-hook" },
+      }),
+      liveSnapshot("helper", { title: "Helper", agentKind: "codex", command: "codex" }),
+      { ...manualLiveSnapshot("dev", "pnpm dev"), shellBusy: true },
+    ]);
+    const desktopState = window.alfredDesktop!.desktopState!;
+    vi.mocked(desktopState.getUpdate).mockResolvedValue({ sha: "abc1234567", subject: "A change", ref: "main", action: "restart" });
+    // Main still waits for a message on its way the first time it is asked.
+    vi.mocked(desktopState.applyUpdate).mockResolvedValueOnce({ waitingFor: ["a message on its way to an agent"] });
+
+    render(<App />);
+    const banner = await screen.findByRole("status", { name: "New version" });
+    // The Codex without its conversation's id cannot come back to it, so the restart stops it like a command.
+    expect(banner).toHaveTextContent("Stops Helper, pnpm dev");
+    await user.click(within(banner).getByRole("button", { name: "Restart when idle" }));
+    expect(banner).toHaveTextContent("Restart waits forLead");
+    expect(within(banner).queryByRole("button", { name: "Later" })).not.toBeInTheDocument();
+    // The tile listens before the clock is frozen.
+    await emitData({ id: "runtime-lead", clientId: "lead", data: "", activities: [] });
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await act(async () => emitDataNow({ id: "runtime-lead", clientId: "lead", data: "", activities: [], agentSignal: { state: "your-turn", source: "hook", at: Date.now() } }));
+      expect(banner).toHaveTextContent("Restarting…");
+      // Quiet has to last: the moment the last agent stops is when Alfred hands its news to an orchestrator.
+      await act(() => vi.advanceTimersByTimeAsync(2_900));
+      expect(desktopState.applyUpdate).not.toHaveBeenCalled();
+      await act(() => vi.advanceTimersByTimeAsync(200));
+      expect(desktopState.applyUpdate).toHaveBeenCalledWith("restart");
+      expect(banner).toHaveTextContent("Restart waits fora message on its way to an agent");
+      // Asked again once quiet held again.
+      await act(() => vi.advanceTimersByTimeAsync(3_100));
+      expect(desktopState.applyUpdate).toHaveBeenCalledTimes(2);
+      expect(banner).toHaveTextContent("Restarting…");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits for a New session draft, and Restart now stops waiting so a cancelled quit restarts nothing later", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [manualLiveSnapshot("shell", "zsh")]);
+    const desktopState = window.alfredDesktop!.desktopState!;
+    vi.mocked(desktopState.getUpdate).mockResolvedValue({ sha: "abc1234567", subject: "A change", ref: "main", action: "restart" });
+
+    render(<App />);
+    const banner = await screen.findByRole("status", { name: "New version" });
+    const composer = await openComposer(user);
+    await user.type(within(composer).getByRole("textbox"), "Fix the flaky test");
+    await user.click(within(banner).getByRole("button", { name: "Restart when idle" }));
+    expect(banner).toHaveTextContent("Restart waits foryour New session draft");
+    await user.click(within(banner).getByRole("button", { name: "Restart now" }));
+    expect(desktopState.applyUpdate).toHaveBeenCalledWith("restart", { now: true });
+    expect(within(banner).getByRole("button", { name: "Restart when idle" })).toBeInTheDocument();
+  });
+
+  it("resumes after an update restart the agents main names, each in its own conversation", async () => {
+    const asleep = (clientId: string, extra: Partial<PersistedTerminalSessionSnapshot>): PersistedTerminalSessionSnapshot => ({
+      clientId, title: clientId, source: "manual", workspaceId: "A", cwd: "/Users/sample/Desktop/Alfred", shell: "claude", buffer: "", ...extra,
+    });
+    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
+      asleep("restored-claude", { agentKind: "claude", command: "claude", resumeTarget: { agentKind: "claude", sessionId: "conv-1", source: "agent-hook" } }),
+      // Its args name a conversation, but without the id its hooks gave, a resume would take the project's latest.
+      asleep("restored-codex", { agentKind: "codex", command: "codex", args: ["resume", "conv-3"] }),
+      asleep("restored-other", { agentKind: "claude", command: "claude", resumeTarget: { agentKind: "claude", sessionId: "conv-2", source: "agent-hook" } }),
+    ]);
+    vi.mocked(window.alfredDesktop!.desktopState!.takeRestartResume).mockResolvedValue(["restored-claude", "restored-codex"]);
+
+    render(<App />);
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: "restored-claude", command: "claude", args: ["--resume", "conv-1"],
+    })));
+    expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("counts the project's asleep sessions at the foot of its rail tree", async () => {

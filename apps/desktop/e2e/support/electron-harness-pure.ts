@@ -7,8 +7,9 @@ const ELECTRON_CSP_WARNING = [
 ].join(" ");
 
 // Either line may come as its own stderr chunk.
+// An Alfred that quits itself, as for an update restart, says it waits for Playwright's debugger to let go.
 const PLAYWRIGHT_INSPECTOR_SHUTDOWN =
-  /^(?=.)(?:Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\n|$))?(?:For help, see: https:\/\/nodejs\.org\/learn\/getting-started\/debugging\n?)?$/;
+  /^(?=.)(?:Waiting for the debugger to disconnect\.\.\.(?:\n|$))?(?:Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\n|$))?(?:For help, see: https:\/\/nodejs\.org\/learn\/getting-started\/debugging\n?)?$/;
 const MACOS_BACKUPD_XPC_LINE =
   String.raw`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} Electron Helper\[\d+:\d+\] XPC error for connection com\.apple\.backupd\.sandbox\.xpc: Connection invalid`;
 const MACOS_BACKUPD_XPC_OUTPUT = new RegExp(

@@ -98,6 +98,8 @@ export type PersistedTerminalSessionSnapshot = {
   parentClientId?: string;
   /** You renamed this session, so the agent's name for the conversation stays out. */
   namedByYou?: true;
+  /** An orchestrator started this worker with start_worker, so its turn ends wake that orchestrator. */
+  startedByTool?: true;
   buffer?: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;

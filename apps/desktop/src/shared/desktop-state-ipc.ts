@@ -33,9 +33,15 @@ export type DesktopStateApi = {
   retrySave(): Promise<DesktopSaveStatus>;
   onSaveStatus(callback: (status: DesktopSaveStatus) => void): () => void;
   getUpdate(): Promise<DesktopUpdate | null>;
-  applyUpdate(action: DesktopUpdate["action"]): Promise<void>;
+  /** For a restart that waits until Alfred is quiet: what it still waits for, and the window asks again later. */
+  applyUpdate(action: DesktopUpdate["action"], restart?: DesktopRestartRequest): Promise<{ waitingFor: string[] } | undefined>;
   onUpdate(callback: (update: DesktopUpdate | null) => void): () => void;
+  /** The sessions the restart that started this Alfred asked to resume, once. */
+  takeRestartResume(): Promise<string[]>;
 };
+
+/** `now` restarts at once, asking before it stops sessions; otherwise the restart waits until Alfred is quiet. */
+export type DesktopRestartRequest = { now?: boolean };
 
 export const desktopStateChannels = {
   getPrivacySettings: "alfred:desktop-state:get-privacy-settings",
@@ -46,5 +52,6 @@ export const desktopStateChannels = {
   saveStatus: "alfred:desktop-state:save-status",
   getUpdate: "alfred:desktop-state:get-update",
   applyUpdate: "alfred:desktop-state:apply-update",
+  takeRestartResume: "alfred:desktop-state:take-restart-resume",
   update: "alfred:desktop-state:update",
 } as const;

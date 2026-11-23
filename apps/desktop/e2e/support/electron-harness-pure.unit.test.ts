@@ -42,6 +42,7 @@ describe("Electron harness pure guards", () => {
 For help, see: https://nodejs.org/learn/getting-started/debugging
 `;
     expect(isAllowedElectronMainOutput("main-stderr", inspectorShutdown)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", "Waiting for the debugger to disconnect...\n")).toBe(true);
     expect(isAllowedElectronMainOutput("main-stdout", inspectorShutdown)).toBe(false);
     expect(isAllowedElectronMainOutput("main-stderr", `${inspectorShutdown}unexpected output`)).toBe(false);
     expect(
