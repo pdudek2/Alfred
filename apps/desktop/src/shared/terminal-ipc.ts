@@ -175,7 +175,11 @@ export type TerminalExitEvent = {
   clientId?: string;
   exitCode: number;
   signal?: number;
+  /** Why it failed, when its last output says: macOS kept it out of its folder. */
+  reason?: TerminalExitReason;
 };
+
+export type TerminalExitReason = "folder-access";
 
 /** What an agent or shell reports about itself; see the session model contract §3. */
 export type TerminalAgentSignal = {

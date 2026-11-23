@@ -262,6 +262,7 @@ export function TerminalDesk({
                 createdAt={session.createdAt}
                 endedAt={session.endedAt}
                 exitCode={session.exitCode}
+                exitReason={session.exitReason}
                 key={session.id}
                 now={now}
                 sessionKey={session.id}
@@ -525,6 +526,7 @@ function ManualTerminalTile({
   createdAt,
   endedAt,
   exitCode,
+  exitReason,
   now,
   agentKind,
   detectedAgentKind,
@@ -581,6 +583,7 @@ function ManualTerminalTile({
   createdAt?: number | undefined;
   endedAt?: number | undefined;
   exitCode?: number | undefined;
+  exitReason?: SessionTile["exitReason"];
   now: number;
   agentKind?: SessionTile["agentKind"];
   detectedAgentKind?: SessionTile["detectedAgentKind"];
@@ -883,7 +886,7 @@ function ManualTerminalTile({
           copy: displayStatus.kind === "done"
             ? "This session ended."
             : displayStatus.kind === "failed"
-              ? exitCode === undefined ? "This session failed." : `${sessionExitSentence(exitCode)}.`
+              ? exitCode === undefined ? "This session failed." : `${sessionExitSentence(exitCode, exitReason)}.`
               : attentionCopy ?? "This session is blocked.",
           label: resumeButtonLabel(relaunchNeedsReview, relaunchArmed),
           run: onRestartSession,

@@ -27,6 +27,7 @@ import type {
   TerminalCreateResult,
   TerminalCreateRequest,
   TerminalDataEvent,
+  TerminalExitEvent,
   TerminalWorkerRequest,
   TerminalListResult,
 } from "../shared/terminal-ipc.js";
@@ -1677,6 +1678,22 @@ describe("terminal-manager IPC", () => {
 
     const snapshot = await invoke<object>(terminalChannels.snapshot, { id: created.id });
     expect(JSON.stringify(snapshot)).not.toContain("PRIVATE_OUTPUT_WHILE_OFF");
+  });
+
+  it("says macOS kept a session out of its folder when its last output says so", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      agentKind: "claude", clientId: "no-access", command: "claude", cols: 80, cwd: "/repo", rows: 24,
+    });
+    pty.onDataHandler?.("Can't read the current directory (EPERM). Start Claude Code from a different directory.\r\n");
+    pty.onExitHandler?.({ exitCode: 1 });
+
+    const reconciled = await invoke<{ event: TerminalExitEvent; snapshot: { activityEvents: Array<{ detail?: string }> } }>(
+      terminalChannels.reconcile, { id: created.id, clientId: "no-access" },
+    );
+    expect(reconciled.event).toEqual({ id: created.id, clientId: "no-access", exitCode: 1, reason: "folder-access" });
+    expect(reconciled.snapshot.activityEvents.at(-1)?.detail).toBe("macOS does not let Alfred read this folder (Privacy & Security, Files and Folders)");
   });
 
   it.each([false, true])("discards ended scrollback from persistence and the exit cache (retention off: %s)", async (retentionOff) => {

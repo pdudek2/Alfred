@@ -13,6 +13,7 @@ import type {
   TerminalWorkTree,
   TerminalDataEvent,
   TerminalExitEvent,
+  TerminalExitReason,
   PersistedTerminalSessionSnapshot,
   TerminalSessionSnapshot,
   TerminalSessionId,
@@ -32,6 +33,7 @@ export type SessionTile = {
   endedAt?: number;
   /** What the ended process exited with, while it stays ended. */
   exitCode?: number;
+  exitReason?: TerminalExitReason;
   source: "manual" | "alfred";
   stage: "staged" | "live";
   stagedReviewStatus?: "checking" | "edited";
@@ -266,6 +268,7 @@ export function markSessionExited(
   exitCode = 0,
   clientId?: string,
   now = Date.now(),
+  exitReason?: TerminalExitReason,
 ): SessionTile[] {
   const runtimeStatus = exitCode === 0 ? "exited" : "error";
   return sessions.map((session) =>
@@ -273,7 +276,7 @@ export function markSessionExited(
       id: runtimeId,
       ...(clientId === undefined ? {} : { clientId }),
     })
-      ? { ...session, runtimeId, runtimeStatus, endedAt: now, exitCode }
+      ? { ...session, runtimeId, runtimeStatus, endedAt: now, exitCode, ...(exitReason ? { exitReason } : {}) }
       : session,
   );
 }

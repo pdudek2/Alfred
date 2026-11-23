@@ -1,4 +1,5 @@
 import type { SessionActivityEvent } from "./session-activity.js";
+import type { TerminalExitReason } from "./terminal-ipc.js";
 
 export type ActivityPresentationLayer = "raw" | "signal" | "work";
 
@@ -139,8 +140,17 @@ const CLAUDE_TOOL_VERBS: Record<string, string> = {
 const OTHER_CLAUDE_TOOLS = new Set(["Agent", "Glob", "Grep", "Read", "Skill", "Task", "WebSearch"]);
 
 /** One plain sentence per activity, as the v4 Details board writes them: "Edited session-status.ts", "Ran pnpm test". */
-export function sessionExitSentence(exitCode: number): string {
+export function sessionExitSentence(exitCode: number, reason?: TerminalExitReason): string {
+  if (reason === "folder-access") return "macOS does not let Alfred read this folder (Privacy & Security, Files and Folders)";
   return exitCode === 0 ? "Session ended" : `Failed with exit code ${exitCode}`;
+}
+
+/** Claude: "Can't read the current directory (EPERM)"; git: "Unable to read current working directory: Operation not permitted". */
+const FOLDER_ACCESS_DENIED = /current (?:working )?directory[^\n]*(?:EPERM|Operation not permitted)/i;
+
+/** A failed exit whose last output says macOS refused the session its folder. */
+export function exitReason(exitCode: number, lastOutput: string): TerminalExitReason | undefined {
+  return exitCode !== 0 && FOLDER_ACCESS_DENIED.test(lastOutput.slice(-4_000)) ? "folder-access" : undefined;
 }
 
 export function activitySentence(event: SessionActivityEvent): string {

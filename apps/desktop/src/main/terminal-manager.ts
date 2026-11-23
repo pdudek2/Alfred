@@ -82,7 +82,7 @@ import {
   type DesktopPrivacySettings,
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
-import { sessionExitSentence } from "../shared/activity-presentation.js";
+import { exitReason, sessionExitSentence } from "../shared/activity-presentation.js";
 import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path.js";
 import {
   alfredNotice,
@@ -732,13 +732,17 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
         };
-        const payload: TerminalExitEvent = signal === undefined
-          ? { ...identity, exitCode }
-          : { ...identity, exitCode, signal };
+        const reason = exitReason(exitCode, session.buffer);
+        const payload: TerminalExitEvent = {
+          ...identity,
+          exitCode,
+          ...(signal === undefined ? {} : { signal }),
+          ...(reason ? { reason } : {}),
+        };
         recordSessionActivity(session, {
           kind: "lifecycle",
           title: "Process exited",
-          detail: sessionExitSentence(exitCode),
+          detail: sessionExitSentence(exitCode, reason),
         });
         rememberSessionSnapshot(session);
         const recentExit = {
