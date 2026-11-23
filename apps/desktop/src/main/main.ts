@@ -18,7 +18,8 @@ import {
   flushTerminalPersistence,
   getTerminalSessionCount,
   killAllTerminalSessions,
-  terminalsQuietForRestart,
+  liveAgentClientIds,
+  restartBlockers,
   registerTerminalIpc,
   savesTerminalData,
   waitForTerminalExits,
@@ -280,7 +281,8 @@ if (!hasSingleInstanceLock) {
       window: () => BrowserWindow.getAllWindows()[0] ?? null,
       quit: () => app.quit(),
       userDataPath: app.getPath("userData"),
-      quietForRestart: terminalsQuietForRestart,
+      restartBlockers,
+      liveAgentClientIds,
     });
     await createWindow(persistedDesktopStateStore);
 

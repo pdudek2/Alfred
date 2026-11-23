@@ -12,7 +12,7 @@ const CHECK_INTERVAL_MS = 5 * 60_000;
 export const PREVIEW_DEPLOY_ENV_KEYS = ["ALFRED_DEPLOY_ROOT", "ALFRED_DEPLOY_CHECKOUT", "ALFRED_DEPLOY_RELEASE"] as const;
 const FIRST_CHECK_MS = 60_000;
 /** A resume list older than this is from a restart that never came back, not from this start. */
-const RESTART_RESUME_MAX_AGE_MS = 10 * 60_000;
+const RESTART_RESUME_MAX_AGE_MS = 2 * 60_000;
 const MAX_RESUMED_SESSIONS = 200;
 
 type Release = { sha: string; ref: string; subject: string; mainHash: string; electron: string; path: string };
@@ -81,7 +81,8 @@ export function startPreviewDeploy(options: {
   window: () => BrowserWindow | null;
   quit: () => void;
   userDataPath: string;
-  quietForRestart: () => boolean;
+  restartBlockers: () => string[];
+  liveAgentClientIds: () => string[];
 }): PreviewDeploy | null {
   const resumeFile = path.join(options.userDataPath, "restart-resume.json");
   trustedIpc.handle(desktopStateChannels.takeRestartResume, () => takeRestartResume(resumeFile));
@@ -115,7 +116,7 @@ export function startPreviewDeploy(options: {
   let rendererRelease = ownRelease;
   let reloadFailed = false;
   let restartTarget: Release | null = null;
-  let restartRequest: DesktopRestartRequest | null = null;
+  let restartRequest: (DesktopRestartRequest & { resume: string[] }) | null = null;
   const readyFile = path.join(root, "ready.json");
   const pending = (): Release | undefined => {
     const ready = readRelease(readyFile, releasesDir);
@@ -175,16 +176,18 @@ export function startPreviewDeploy(options: {
   };
 
   trustedIpc.handle(desktopStateChannels.getUpdate, () => currentUpdate());
-  trustedIpc.handle(desktopStateChannels.applyUpdate, (_event, action: unknown, restart: unknown): "busy" | undefined => {
+  trustedIpc.handle(desktopStateChannels.applyUpdate, (_event, action: unknown, restart: unknown): { waitingFor: string[] } | undefined => {
     const ready = pending();
     if (!ready) return undefined;
     const update = updateFor(ready, ownMainHash);
     if (action === "reload" && update.action === "reload") reload(ready);
     if (action === "restart") {
-      const request = restartRequestFrom(restart);
-      if (!request.now && !options.quietForRestart()) return "busy";
+      const now = typeof restart === "object" && restart !== null && (restart as DesktopRestartRequest).now === true;
+      const waitingFor = now ? [] : options.restartBlockers();
+      if (waitingFor.length > 0) return { waitingFor };
       restartTarget = ready;
-      restartRequest = request;
+      // Main names the agents to resume from its own sessions; the window only chooses when.
+      restartRequest = { ...(now ? { now } : {}), resume: options.liveAgentClientIds() };
       options.quit();
     }
     return undefined;
@@ -240,13 +243,10 @@ export function startPreviewDeploy(options: {
   };
 }
 
-/** Only client ids, at most a few hundred: the request comes from the window. */
-export function restartRequestFrom(value: unknown): DesktopRestartRequest {
-  const request = typeof value === "object" && value !== null ? value as { resume?: unknown; now?: unknown } : {};
-  const resume = Array.isArray(request.resume)
-    ? request.resume.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 200).slice(0, MAX_RESUMED_SESSIONS)
+function clientIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 200).slice(0, MAX_RESUMED_SESSIONS)
     : [];
-  return { resume, ...(request.now === true ? { now: true } : {}) };
 }
 
 function writeRestartResume(file: string, clientIds: string[]): void {
@@ -266,8 +266,9 @@ export function takeRestartResume(file: string, now = Date.now()): string[] {
   }
   try {
     const value = JSON.parse(text) as { clientIds?: unknown; writtenAt?: unknown };
-    if (typeof value.writtenAt !== "number" || now - value.writtenAt > RESTART_RESUME_MAX_AGE_MS) return [];
-    return restartRequestFrom({ resume: value.clientIds }).resume;
+    const age = typeof value.writtenAt === "number" ? now - value.writtenAt : Number.NaN;
+    if (!(age >= -5_000 && age <= RESTART_RESUME_MAX_AGE_MS)) return [];
+    return clientIds(value.clientIds);
   } catch {
     return [];
   }

@@ -2317,18 +2317,24 @@ describe("App integration", () => {
   it("restarts for an update only once no agent works, naming what it waits for and what it stops", async () => {
     const user = userEvent.setup();
     const { emitData, emitDataNow } = installDesktopBridge(undefined, null, [
-      liveSnapshot("lead", { title: "Lead", agentKind: "claude", command: "claude", agentSignal: { state: "working", source: "hook", at: Date.now() } }),
+      liveSnapshot("lead", {
+        title: "Lead", agentKind: "claude", command: "claude", agentSignal: { state: "working", source: "hook", at: Date.now() },
+        resumeTarget: { agentKind: "claude", sessionId: "conv-1", source: "agent-hook" },
+      }),
+      liveSnapshot("helper", { title: "Helper", agentKind: "codex", command: "codex" }),
       { ...manualLiveSnapshot("dev", "pnpm dev"), shellBusy: true },
     ]);
     const desktopState = window.alfredDesktop!.desktopState!;
     vi.mocked(desktopState.getUpdate).mockResolvedValue({ sha: "abc1234567", subject: "A change", ref: "main", action: "restart" });
+    // Main still waits for a message on its way the first time it is asked.
+    vi.mocked(desktopState.applyUpdate).mockResolvedValueOnce({ waitingFor: ["a message on its way to an agent"] });
 
     render(<App />);
     const banner = await screen.findByRole("status", { name: "New version" });
-    expect(banner).toHaveTextContent("Stops pnpm dev");
+    // The Codex without its conversation's id cannot come back to it, so the restart stops it like a command.
+    expect(banner).toHaveTextContent("Stops Helper, pnpm dev");
     await user.click(within(banner).getByRole("button", { name: "Restart when idle" }));
-    expect(banner).toHaveTextContent("Restart waits for agents");
-    expect(banner).toHaveTextContent("Lead");
+    expect(banner).toHaveTextContent("Restart waits forLead");
     expect(within(banner).queryByRole("button", { name: "Later" })).not.toBeInTheDocument();
     // The tile listens before the clock is frozen.
     await emitData({ id: "runtime-lead", clientId: "lead", data: "", activities: [] });
@@ -2341,37 +2347,42 @@ describe("App integration", () => {
       await act(() => vi.advanceTimersByTimeAsync(2_900));
       expect(desktopState.applyUpdate).not.toHaveBeenCalled();
       await act(() => vi.advanceTimersByTimeAsync(200));
-      expect(desktopState.applyUpdate).toHaveBeenCalledWith("restart", { resume: ["lead"] });
+      expect(desktopState.applyUpdate).toHaveBeenCalledWith("restart");
+      expect(banner).toHaveTextContent("Restart waits fora message on its way to an agent");
+      // Asked again once quiet held again.
+      await act(() => vi.advanceTimersByTimeAsync(3_100));
+      expect(desktopState.applyUpdate).toHaveBeenCalledTimes(2);
+      expect(banner).toHaveTextContent("Restarting…");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("restarts at once with Restart now, which asks before it stops sessions", async () => {
+  it("waits for a New session draft, and Restart now stops waiting so a cancelled quit restarts nothing later", async () => {
     const user = userEvent.setup();
-    installDesktopBridge(undefined, null, [
-      liveSnapshot("lead", { title: "Lead", agentKind: "claude", command: "claude", agentSignal: { state: "working", source: "hook", at: Date.now() } }),
-    ]);
+    installDesktopBridge(undefined, null, [manualLiveSnapshot("shell", "zsh")]);
     const desktopState = window.alfredDesktop!.desktopState!;
     vi.mocked(desktopState.getUpdate).mockResolvedValue({ sha: "abc1234567", subject: "A change", ref: "main", action: "restart" });
 
     render(<App />);
     const banner = await screen.findByRole("status", { name: "New version" });
+    const composer = await openComposer(user);
+    await user.type(within(composer).getByRole("textbox"), "Fix the flaky test");
     await user.click(within(banner).getByRole("button", { name: "Restart when idle" }));
+    expect(banner).toHaveTextContent("Restart waits foryour New session draft");
     await user.click(within(banner).getByRole("button", { name: "Restart now" }));
-    expect(desktopState.applyUpdate).toHaveBeenCalledWith("restart", { resume: ["lead"], now: true });
-    await user.click(within(banner).getByRole("button", { name: "Cancel" }));
+    expect(desktopState.applyUpdate).toHaveBeenCalledWith("restart", { now: true });
     expect(within(banner).getByRole("button", { name: "Restart when idle" })).toBeInTheDocument();
   });
 
-  it("resumes after an update restart the agents it was asked to, each in its own conversation", async () => {
+  it("resumes after an update restart the agents main names, each in its own conversation", async () => {
     const asleep = (clientId: string, extra: Partial<PersistedTerminalSessionSnapshot>): PersistedTerminalSessionSnapshot => ({
       clientId, title: clientId, source: "manual", workspaceId: "A", cwd: "/Users/sample/Desktop/Alfred", shell: "claude", buffer: "", ...extra,
     });
     const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
       asleep("restored-claude", { agentKind: "claude", command: "claude", resumeTarget: { agentKind: "claude", sessionId: "conv-1", source: "agent-hook" } }),
-      // Without its conversation's id it would resume the project's latest one, which may be another's.
-      asleep("restored-codex", { agentKind: "codex", command: "codex" }),
+      // Its args name a conversation, but without the id its hooks gave, a resume would take the project's latest.
+      asleep("restored-codex", { agentKind: "codex", command: "codex", args: ["resume", "conv-3"] }),
       asleep("restored-other", { agentKind: "claude", command: "claude", resumeTarget: { agentKind: "claude", sessionId: "conv-2", source: "agent-hook" } }),
     ]);
     vi.mocked(window.alfredDesktop!.desktopState!.takeRestartResume).mockResolvedValue(["restored-claude", "restored-codex"]);

@@ -294,11 +294,28 @@ export function resetTerminalPersistenceForTests(): void {
   persistDebounceMs = 250;
 }
 
-/** Nothing is on its way that a restart would cut short or lose, and nobody is typing into an agent. */
-export function terminalsQuietForRestart(): boolean {
-  return launchesInFlight === 0 && workerStartsInFlight === 0 && pasteSubmitsPending === 0
-    && pendingWakes.size === 0 && wakeTimers.size === 0
-    && ![...sessions.values()].some((session) => session.typingDraft);
+/**
+ * What a restart would cut short, for the update banner to name; empty when Alfred is quiet. News that waits for an
+ * orchestrator's next turn does not count: it may wait forever, and the orchestrator can still ask list_workers.
+ */
+export function restartBlockers(): string[] {
+  const blockers: string[] = [];
+  if (launchesInFlight > 0) blockers.push("a session that is starting");
+  if (workerStartsInFlight > 0) blockers.push("a worker that is starting");
+  if (pasteSubmitsPending > 0 || wakeTimers.size > 0) blockers.push("a message on its way to an agent");
+  for (const session of sessions.values()) {
+    if (!isAgentSession(session)) continue;
+    // A turn stays open however long its tool runs quietly; only the agent's own turn end closes it.
+    if (session.agentSignal?.state === "needs-you") blockers.push(`${session.title} (needs you)`);
+    else if ((session.lastPromptSeq ?? 0) > (session.lastTurnEndSeq ?? 0)) blockers.push(`${session.title} (working)`);
+    else if (session.typingDraft) blockers.push(`${session.title} (your draft)`);
+  }
+  return blockers;
+}
+
+/** The agents running now, by client id: a restart for an update resumes them afterwards. */
+export function liveAgentClientIds(): string[] {
+  return [...sessions.values()].flatMap((session) => (isAgentSession(session) && session.clientId ? [session.clientId] : []));
 }
 
 function countingLaunch<A extends unknown[], R>(launch: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
@@ -478,7 +495,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   trustedIpc.handle(
     terminalChannels.prepareLaunch,
-    async (_event, request: TerminalCreateRequest) => {
+    countingLaunch(async (_event, request: TerminalCreateRequest) => {
       const safeRequest = validateTerminalCreateRequest(request);
       const preparedClientId = safeRequest.clientId;
       if (preparedClientId) {
@@ -525,7 +542,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           }
         }
       }
-    },
+    }),
   );
 
   trustedIpc.handle(

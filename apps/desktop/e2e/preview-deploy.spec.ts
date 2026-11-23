@@ -89,7 +89,8 @@ test("restarts for a main-process release once Claude is idle, and resumes it in
   const banner = page.getByRole("status", { name: "New version" });
   await release(deployRoot, "main-change", "other");
   await banner.getByRole("button", { name: "Restart when idle" }).click();
-  await expect(banner).toContainText("Restart waits for agents");
+  await expect(banner).toContainText("Restart waits for");
+  await expect(banner).toContainText("Claude");
   // Quitting must not ask: answering "Cancel" would keep Alfred open and the test waiting.
   await app.evaluate(({ dialog }) => {
     dialog.showMessageBoxSync = () => 0;

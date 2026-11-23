@@ -13,7 +13,8 @@ import {
   killAllTerminalSessions,
   registerTerminalIpc as registerTerminalIpcBase,
   resetTerminalPersistenceForTests,
-  terminalsQuietForRestart,
+  liveAgentClientIds,
+  restartBlockers,
   savesTerminalData,
   waitForTerminalExits,
 } from "./terminal-manager.js";
@@ -3736,32 +3737,43 @@ describe("terminal-manager IPC", () => {
       }
     });
 
-    it("is quiet for a restart only with no launch, worker start, wake or paste on its way and no draft being typed", async () => {
+    it("names what a restart would cut short: a launch or worker start on its way, a message being sent, an open turn, a draft", async () => {
       vi.useFakeTimers();
       try {
         const { fire, callTool, lead, workers } = await orchestratorWithWorkers(1);
-        expect(terminalsQuietForRestart()).toBe(true);
-        // A worker's turn end queues a wake for its orchestrator.
+        expect(restartBlockers()).toEqual([]);
+        expect(liveAgentClientIds()).toEqual(["claude-1", "codex-1"]);
+        // A worker's turn: open however long its tool runs quietly, until the agent ends it.
         fire(workers[0]!.id, { state: "working" });
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+        expect(restartBlockers()).toEqual(["Task 1 (working)"]);
+        // Its end queues news for the orchestrator, which is pasted, then sent with Enter a moment later.
         fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
-        expect(terminalsQuietForRestart()).toBe(false);
+        expect(restartBlockers()).toEqual(["a message on its way to an agent"]);
         await vi.advanceTimersByTimeAsync(2_000);
-        // The news is pasted; its Enter follows a moment later.
-        expect(terminalsQuietForRestart()).toBe(false);
+        expect(restartBlockers()).toContain("a message on its way to an agent");
         await vi.advanceTimersByTimeAsync(200);
-        expect(terminalsQuietForRestart()).toBe(true);
+        expect(restartBlockers()).toEqual(["Lead (working)"]);
+        fire(lead.id, { state: "your-turn", detail: "Read it." });
+        expect(restartBlockers()).toEqual([]);
         // A worker the orchestrator asked for, while its window has not added it yet.
-        fire(lead.id, { state: "working" });
         const starting = callTool(lead.id, "start_worker", { agent: "codex", prompt: "More" });
-        expect(terminalsQuietForRestart()).toBe(false);
+        expect(restartBlockers()).toContain("a worker that is starting");
         const request = sentEvents.filter((event) => event.channel === terminalChannels.workerRequest).at(-1)!.payload as TerminalWorkerRequest;
         emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: "codex-2", title: "More" });
         await starting;
-        expect(terminalsQuietForRestart()).toBe(true);
-        // You are typing a message to an agent.
-        fire(lead.id, { state: "your-turn", detail: "Ok." });
+        // Its terminal on its way.
+        const launching = invoke(terminalChannels.create, {
+          agentKind: "codex", clientId: "codex-2", cols: 80, command: "codex", cwd: "/repo", parentClientId: "claude-1", rows: 24, title: "More",
+        });
+        expect(restartBlockers()).toContain("a session that is starting");
+        await launching;
+        expect(restartBlockers()).toEqual([]);
+        // You are typing a message to an agent, or it asks you something.
         emit(terminalChannels.write, { id: lead.id, data: "half" });
-        expect(terminalsQuietForRestart()).toBe(false);
+        expect(restartBlockers()).toEqual(["Lead (your draft)"]);
+        fire(workers[0]!.id, { state: "needs-you", detail: "Bash: rm -rf dist" });
+        expect(restartBlockers()).toEqual(["Lead (your draft)", "Task 1 (needs you)"]);
       } finally {
         vi.useRealTimers();
       }

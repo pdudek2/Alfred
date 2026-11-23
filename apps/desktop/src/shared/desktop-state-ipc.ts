@@ -33,15 +33,15 @@ export type DesktopStateApi = {
   retrySave(): Promise<DesktopSaveStatus>;
   onSaveStatus(callback: (status: DesktopSaveStatus) => void): () => void;
   getUpdate(): Promise<DesktopUpdate | null>;
-  /** "busy" when a restart that waits for Alfred to be quiet found work on its way; the window asks again later. */
-  applyUpdate(action: DesktopUpdate["action"], restart?: DesktopRestartRequest): Promise<"busy" | undefined>;
+  /** For a restart that waits until Alfred is quiet: what it still waits for, and the window asks again later. */
+  applyUpdate(action: DesktopUpdate["action"], restart?: DesktopRestartRequest): Promise<{ waitingFor: string[] } | undefined>;
   onUpdate(callback: (update: DesktopUpdate | null) => void): () => void;
   /** The sessions the restart that started this Alfred asked to resume, once. */
   takeRestartResume(): Promise<string[]>;
 };
 
-/** The agents to resume after the restart; `now` restarts at once, asking before it stops sessions. */
-export type DesktopRestartRequest = { resume: string[]; now?: boolean };
+/** `now` restarts at once, asking before it stops sessions; otherwise the restart waits until Alfred is quiet. */
+export type DesktopRestartRequest = { now?: boolean };
 
 export const desktopStateChannels = {
   getPrivacySettings: "alfred:desktop-state:get-privacy-settings",

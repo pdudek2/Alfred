@@ -78,7 +78,6 @@ import {
   type SessionTile,
 } from "./session-state";
 import { isAgentSession, nextApprovalRevealAt, sessionState } from "./session-status";
-import { hasExactResumeTarget } from "./restored-session-action";
 import type { HistorySelection } from "./history-presentation";
 import { createInitialSessionsViewState } from "./sessions-view-state";
 import {
@@ -175,6 +174,7 @@ export function App() {
   // The release a "Restart when idle" waits to load, and a count bumped when Alfred was not quiet yet, to wait again.
   const [restartWhenIdleSha, setRestartWhenIdleSha] = useState<string | null>(null);
   const [restartAttempt, setRestartAttempt] = useState(0);
+  const [restartBlockedBy, setRestartBlockedBy] = useState<string[]>([]);
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [sessionsViewState, setSessionsViewState] = useState(createInitialSessionsViewState);
   const [historySelection, setHistorySelection] = useState<HistorySelection | null>(null);
@@ -335,28 +335,31 @@ export function App() {
     workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
   );
   const now = useSessionClock(terminalSessions);
-  // A restart waits for agents that work or wait for you; it stops running commands, which the banner names.
-  const restartWaitsFor = terminalSessions.filter((session) =>
-    isAgentSession(session) && ["working", "needs-you"].includes(sessionState(session, "ready", now).kind));
-  const restartStops = terminalSessions.filter((session) =>
-    !isAgentSession(session) && sessionState(session, "ready", now).kind === "running");
+  // A restart waits for agents that work or wait for you, and for a New session draft; main adds what it knows of.
+  const restartWaitsFor = [
+    ...terminalSessions
+      .filter((session) => isAgentSession(session) && ["working", "needs-you"].includes(sessionState(session, "ready", now).kind))
+      .map((session) => session.title),
+    ...(Object.values(newSessionDraftsByWorkspace).some((draft) => draft.trim()) ? ["your New session draft"] : []),
+  ];
+  // It stops running commands and the agents that cannot return to their own conversation; the banner names both.
+  const restartStops = terminalSessions.filter((session) => isAgentSession(session)
+    ? (session.runtimeStatus === "live" || session.runtimeStatus === "starting") && !session.resumeTarget
+    : sessionState(session, "ready", now).kind === "running");
   const restartQuiet = restartWaitsFor.length === 0;
   const restartArmed = desktopUpdate !== null && restartWhenIdleSha === desktopUpdate.sha;
-  const restartAlfred = useCallback((immediately = false) => {
-    // Every running agent is asked back; the next start resumes those that can return to their own conversation.
-    const resume = terminalSessionsRef.current
-      .filter((session) => isAgentSession(session) && (session.runtimeStatus === "live" || session.runtimeStatus === "starting"))
-      .map((session) => session.id);
-    void getDesktopStateApi()?.applyUpdate("restart", { resume, ...(immediately ? { now: true } : {}) }).then((result) => {
-      if (result === "busy") setRestartAttempt((attempt) => attempt + 1);
-    }, () => undefined);
-  }, []);
+  const restartPending = restartArmed ? [...restartWaitsFor, ...(restartQuiet ? restartBlockedBy : [])] : [];
   useEffect(() => {
     if (!restartArmed || !restartQuiet) return;
-    // Quiet has to hold: the moment the last agent stops is when Alfred hands its news to the orchestrator.
-    const timer = setTimeout(() => restartAlfred(), RESTART_QUIET_MS);
+    // Quiet has to hold before main is asked; main then checks the work only it can see, and the window asks again.
+    const timer = setTimeout(() => {
+      void getDesktopStateApi()?.applyUpdate("restart").then((result) => {
+        setRestartBlockedBy(result?.waitingFor ?? []);
+        if (result) setRestartAttempt((attempt) => attempt + 1);
+      }, () => undefined);
+    }, RESTART_QUIET_MS);
     return () => clearTimeout(timer);
-  }, [restartArmed, restartQuiet, restartAttempt, restartAlfred]);
+  }, [restartArmed, restartQuiet, restartAttempt]);
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions, now).filter((item) => {
     if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
     // A closed project's sessions wait in History, not in Needs you.
@@ -2213,9 +2216,8 @@ export function App() {
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
       layoutApi?.getLayouts() ?? Promise.resolve(emptyLayouts),
       workspaceApi?.getWorkspaceState() ?? Promise.resolve(null),
-      getDesktopStateApi()?.takeRestartResume().catch(() => []) ?? Promise.resolve([]),
     ])
-      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult, resumeAfterRestart]) => {
+      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
         if (cancelled) return;
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
@@ -2265,7 +2267,7 @@ export function App() {
         if (alreadyLaunchedStagedIds.length > 0) {
           void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLaunchedStagedIds });
         }
-        const startedSessions =
+        const hydratedSessions =
           liveSessions.length + restoredSessions.length + stagedSessions.length > 0
             ? [...liveSessions, ...restoredSessions, ...stagedSessions]
             : hydratedWorkspaceRootPath && !hydratedWorkspaceMissing
@@ -2274,18 +2276,6 @@ export function App() {
                   hydratedWorkspaceId,
                 )
               : [];
-        // The agents a restart from the update banner stopped go back to their own conversations, as Resume would.
-        const hydratedSessions = resumeAfterRestart.reduce((sessions, id) => {
-          const session = sessions.find((item) => item.id === id);
-          if (!session || !canRelaunchRestoredSession(session) || !hasExactResumeTarget(session) || !sessionRelaunchSafety(session).safe) {
-            return sessions;
-          }
-          return appendSessionActivity(relaunchRestoredSession(sessions, id), id, {
-            kind: "lifecycle",
-            title: "Resuming session",
-            detail: "Resumed after the update restart",
-          });
-        }, startedSessions);
         // Asleep sessions of a closed project wait in History; only running ones bring a project back.
         setWorkspaces((current) => ensureWorkspacesForSessions(
           workspaceStateResult?.workspaces ?? current,
@@ -2301,6 +2291,10 @@ export function App() {
         setPendingPlans(hydratedPendingPlans);
         workspaceStateHydratedRef.current = true;
         setWorkspaceHydrationStatus({ status: "ready" });
+        // Asked only now the window holds its sessions: the list is handed out once.
+        void getDesktopStateApi()?.takeRestartResume().then((ids) => {
+          if (!cancelled && ids.length > 0) setTerminalSessions((sessions) => resumeAfterUpdateRestart(sessions, ids));
+        }, () => undefined);
       })
       .catch(() => {
         if (!cancelled) {
@@ -2483,10 +2477,10 @@ export function App() {
                 <strong>
                   {desktopUpdate.reloadFailed
                     ? "The new version did not load"
-                    : restartArmed ? (restartQuiet ? "Restarting…" : "Restart waits for agents") : "New version ready"}
+                    : restartArmed ? (restartPending.length > 0 ? "Restart waits for" : "Restarting…") : "New version ready"}
                 </strong>
-                {restartArmed && !restartQuiet
-                  ? <span>{restartWaitsFor.map((session) => session.title).join(", ")}</span>
+                {restartPending.length > 0
+                  ? <span>{restartPending.join(", ")}</span>
                   : <span title={desktopUpdate.ref}>{desktopUpdate.sha.slice(0, 7)} {desktopUpdate.subject}</span>}
                 {desktopUpdate.action === "restart" && restartStops.length > 0 && (
                   <span>Stops {restartStops.map((session) => session.title).join(", ")}</span>
@@ -2497,11 +2491,18 @@ export function App() {
                   <button type="button" onClick={() => void getDesktopStateApi()?.applyUpdate("reload")}>Reload window</button>
                 ) : restartArmed ? (
                   <>
-                    <button type="button" onClick={() => restartAlfred(true)}>Restart now</button>
+                    <button type="button" onClick={() => {
+                      // Disarmed first: if you then keep Alfred open in the quit dialog, nothing restarts it later.
+                      setRestartWhenIdleSha(null);
+                      void getDesktopStateApi()?.applyUpdate("restart", { now: true });
+                    }}>Restart now</button>
                     <button type="button" onClick={() => setRestartWhenIdleSha(null)}>Cancel</button>
                   </>
                 ) : (
-                  <button type="button" onClick={() => setRestartWhenIdleSha(desktopUpdate.sha)}>
+                  <button type="button" onClick={() => {
+                    setRestartBlockedBy([]);
+                    setRestartWhenIdleSha(desktopUpdate.sha);
+                  }}>
                     {restartQuiet ? "Restart Alfred" : "Restart when idle"}
                   </button>
                 )}
@@ -3026,6 +3027,20 @@ function workspacePlanContext(
  * never disagree. It ticks every 5 s for ages and decaying busy states, and at the moment an approval
  * stops being masked by recent output.
  */
+/** The agents an update restart stopped go back to their own conversations, as Resume would take them. */
+function resumeAfterUpdateRestart(sessions: SessionTile[], ids: string[]): SessionTile[] {
+  return ids.reduce((current, id) => {
+    const session = current.find((item) => item.id === id);
+    // Without its conversation's id it would take the project's latest, which may be another session's.
+    if (!session?.resumeTarget || !canRelaunchRestoredSession(session) || !sessionRelaunchSafety(session).safe) return current;
+    return appendSessionActivity(relaunchRestoredSession(current, id), id, {
+      kind: "lifecycle",
+      title: "Resuming session",
+      detail: "Resumed after the update restart",
+    });
+  }, sessions);
+}
+
 /** How long no agent may work before a waiting restart goes ahead. */
 const RESTART_QUIET_MS = 3_000;
 
