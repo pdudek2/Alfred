@@ -14,9 +14,14 @@ export type AgentSignalUpdate = Pick<TerminalAgentSignal, "detail" | "state"> & 
   activity?: SessionActivityInput;
   /** The whole answer a turn ended with, for an orchestrator reading its worker. */
   answer?: string;
+  /** A resumed agent waits at its prompt: no turn of its own ended, so there is no news of one. */
+  resumed?: true;
 };
 
 const HOOK_EVENTS = ["UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"] as const;
+// Only Claude says when a resumed session waits; Codex sends SessionStart with its first prompt, and new Codex hooks
+// would have to be trusted again.
+const CLAUDE_HOOK_EVENTS = [...HOOK_EVENTS, "SessionStart"] as const;
 const KNOWN_SHELLS = new Set(["zsh", "bash", "sh", "fish", "nu", "dash", "ksh", "tcsh", "csh"]);
 const MAX_HOOK_MESSAGE_BYTES = 1_000_000;
 const MAX_OSC_CARRY = 16_384;
@@ -254,6 +259,9 @@ export function signalFromHook(event: string, payload: unknown): AgentSignalUpda
     }
     case "PermissionRequest":
       return { state: "needs-you", detail: describePermissionRequest(payload) };
+    case "SessionStart":
+      // `claude --resume` starts at its prompt, waiting for a message; a new session starts on its first prompt.
+      return (payload as { source?: unknown } | null)?.source === "resume" ? { state: "your-turn", resumed: true } : null;
     default:
       return null;
   }
@@ -490,7 +498,7 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     settingsPath,
     JSON.stringify({
       hooks: Object.fromEntries(
-        HOOK_EVENTS.map((event) => [event, [{ hooks: [{ type: "command", command: relayCommand(event) }] }]]),
+        CLAUDE_HOOK_EVENTS.map((event) => [event, [{ hooks: [{ type: "command", command: relayCommand(event) }] }]]),
       ),
       // Starting a worker is the orchestrator's own step; the user already chose not to be asked (plan of 2026-10-24).
       permissions: { allow: ["mcp__alfred"] },

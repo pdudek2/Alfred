@@ -1914,8 +1914,10 @@ function applyAgentSignal(
   if (update.state === "working") session.lastPromptSeq = ++turnSeq;
   if (update.state === "your-turn") {
     session.lastTurnEndSeq = ++turnSeq;
-    session.lastAnswer = update.answer ?? update.detail;
-    queueWake(session, false);
+    if (!update.resumed) {
+      session.lastAnswer = update.answer ?? update.detail;
+      queueWake(session, false);
+    }
     // Its own turn just ended: news that waited for it can go now.
     if (session.clientId && pendingWakes.get(session.clientId)?.size) scheduleWake(session.clientId);
   }
