@@ -90,6 +90,34 @@ function isPrivateIpv6(address: string): boolean {
   return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
 }
 
+/**
+ * Whether a subresource request from Alfred's window must not reach this Mac or its network. Only a frame known to
+ * be Alfred's own (the main frame) or a Preview frame (its server's origin) may; a page's opaque frame may not, and
+ * neither may a request whose frame Electron cannot name, which a page's requests on a busy machine can be.
+ */
+export function blocksPrivateRequest(request: {
+  url: string;
+  resourceType: string;
+  frame: { isMain: boolean; origin: string } | null;
+  trustedEntryUrls: readonly string[];
+}): boolean {
+  // Frame navigations have their own guards (will-frame-navigate and the trusted-entry rule).
+  if (request.resourceType === "mainFrame" || request.resourceType === "subFrame") return false;
+  if (!isPrivateNetworkUrl(request.url)) return false;
+  // Alfred's own dev server, its HMR socket (ws:) included.
+  if (request.trustedEntryUrls.some((entry) => sameHost(request.url, entry))) return false;
+  return !request.frame || (!request.frame.isMain && request.frame.origin === "null");
+}
+
+function sameHost(actual: string, entryUrl: string): boolean {
+  try {
+    const entry = new URL(entryUrl);
+    return /^https?:$/.test(entry.protocol) && new URL(actual).host === entry.host;
+  } catch {
+    return false;
+  }
+}
+
 export function isTrustedDocumentOrigin(actual: string, entryUrl: string): boolean {
   try {
     const document = new URL(actual);

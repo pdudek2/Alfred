@@ -37,7 +37,7 @@ import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./
 import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
-import { configureTrustedIpc, isPageFrameEscape, isPrivateNetworkUrl, isTrustedDocumentOrigin, isTrustedEntry, trustedEntries } from "./trusted-ipc.js";
+import { blocksPrivateRequest, configureTrustedIpc, isPageFrameEscape, isTrustedDocumentOrigin, isTrustedEntry, trustedEntries } from "./trusted-ipc.js";
 import { PREVIEW_DEPLOY_ENV_KEYS, startPreviewDeploy, type PreviewDeploy } from "./preview-deploy.js";
 import {
   attachWindowStatePersistence,
@@ -118,13 +118,12 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   window.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback, details) => callback(details.isMainFrame));
   const trustedContentsId = window.webContents.id;
-  // A page is an opaque srcdoc frame right under the main frame; a Preview frame shows its server's URL even when sandboxed.
-  const isPageFrame = (frame: WebFrameMain | null | undefined): boolean => {
+  // A frame Electron has already let go of counts as unknown.
+  const frameOf = (frame: WebFrameMain | null | undefined): { isMain: boolean; origin: string } | null => {
     try {
-      return frame?.origin === "null" && /^about:(?:srcdoc|blank)(?:[?#]|$)/.test(frame.url)
-        && frame.parent === window.webContents.mainFrame;
+      return frame ? { isMain: frame === window.webContents.mainFrame, origin: frame.origin } : null;
     } catch {
-      return false;
+      return null;
     }
   };
   window.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
@@ -132,7 +131,7 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
     callback({
       cancel: trusted && (
         (details.resourceType === "subFrame" && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)))
-        || (isPrivateNetworkUrl(details.url) && isPageFrame(details.frame))
+        || blocksPrivateRequest({ url: details.url, resourceType: details.resourceType, frame: frameOf(details.frame), trustedEntryUrls: trustedEntries() })
       ),
     });
   });
