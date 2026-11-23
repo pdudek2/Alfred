@@ -35,7 +35,7 @@ import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./
 import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
-import { configureTrustedIpc, isPageFrameEscape, isTrustedDocumentOrigin, isTrustedEntry, trustedEntries } from "./trusted-ipc.js";
+import { configureTrustedIpc, isPageFrameEscape, isPrivateNetworkUrl, isTrustedDocumentOrigin, isTrustedEntry, trustedEntries } from "./trusted-ipc.js";
 import { PREVIEW_DEPLOY_ENV_KEYS, startPreviewDeploy, type PreviewDeploy } from "./preview-deploy.js";
 import {
   attachWindowStatePersistence,
@@ -116,11 +116,21 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   window.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback, details) => callback(details.isMainFrame));
   const trustedContentsId = window.webContents.id;
+  // A page's opaque frame sits right under the main frame; Preview's frames have the origin of the server they show.
+  const isPageFrame = (frame: WebFrameMain | null | undefined): boolean => {
+    try {
+      return frame?.origin === "null" && frame.parent === window.webContents.mainFrame;
+    } catch {
+      return false;
+    }
+  };
   window.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
+    const trusted = details.webContentsId === trustedContentsId;
     callback({
-      cancel: details.webContentsId === trustedContentsId
-        && details.resourceType === "subFrame"
-        && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)),
+      cancel: trusted && (
+        (details.resourceType === "subFrame" && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)))
+        || (isPrivateNetworkUrl(details.url) && isPageFrame(details.frame))
+      ),
     });
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

@@ -52,6 +52,44 @@ export function isPageFrameEscape(navigation: { url: string; frameOrigin: string
     && navigation.url !== "about:srcdoc" && navigation.url !== "about:blank";
 }
 
+/**
+ * A URL whose host is this Mac or its local network: loopback, private, link-local, shared and unspecified addresses,
+ * and localhost or .local names. The scheme does not matter (wss: passes a CSP's https:).
+ * shortcut: a public name that resolves to a private address still passes; resolve the host first if pages ever need it.
+ */
+export function isPrivateNetworkUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return false;
+  }
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
+  if (host.startsWith("[")) return isPrivateIpv6(host.slice(1, -1));
+  const octets = host.split(".");
+  return octets.length === 4 && octets.every((octet) => /^\d{1,3}$/.test(octet)) && isPrivateIpv4(octets.map(Number));
+}
+
+function isPrivateIpv4([a, b]: number[]): boolean {
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b! >= 16 && b! <= 31)
+    || (a === 192 && b === 168) || (a === 100 && b! >= 64 && b! <= 127);
+}
+
+// `new URL` has already compressed the address and written an IPv4 tail as two hex groups.
+function isPrivateIpv6(address: string): boolean {
+  const [head = "", tail] = address.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = tail === undefined ? left : [...left, ...Array<string>(8 - left.length - right.length).fill("0"), ...right];
+  const words = groups.map((group) => Number.parseInt(group, 16));
+  const [first = 0] = words;
+  if (words.slice(0, 7).every((word) => word === 0)) return words[7]! <= 1;
+  if (words.slice(0, 5).every((word) => word === 0) && words[5] === 0xffff) {
+    return isPrivateIpv4([words[6]! >> 8, words[6]! & 0xff]);
+  }
+  return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
+}
+
 export function isTrustedDocumentOrigin(actual: string, entryUrl: string): boolean {
   try {
     const document = new URL(actual);

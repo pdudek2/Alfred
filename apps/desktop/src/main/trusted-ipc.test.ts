@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   configureTrustedIpc,
   isPageFrameEscape,
+  isPrivateNetworkUrl,
   isTrustedDocumentOrigin,
   isTrustedDocumentUrl,
   isTrustedIpcRecipient,
@@ -102,5 +103,20 @@ describe("trusted IPC boundary", () => {
     expect(isPageFrameEscape({ ...page, url: "about:blank" })).toBe(false);
     expect(isPageFrameEscape({ frameOrigin: "null", parentIsMainFrame: false, url: "http://127.0.0.1:5173/" })).toBe(false);
     expect(isPageFrameEscape({ frameOrigin: "http://localhost:5173", parentIsMainFrame: true, url: "http://localhost:5173/a" })).toBe(false);
+  });
+
+  it("tells addresses on this Mac or its network from public ones, whatever the scheme or spelling", () => {
+    for (const url of [
+      "https://127.0.0.1:8443/", "https://127.9.9.9/", "wss://10.1.2.3/", "https://172.16.0.1/", "https://172.31.255.255/",
+      "https://192.168.100.100/", "https://169.254.169.254/", "https://100.64.0.1/", "https://0.0.0.0/", "https://0x7f.1/",
+      "https://2130706433/", "https://[::1]/", "https://[::]/", "https://[fc00::1]/", "https://[fd12:3456::1]/", "https://[fe80::1]/",
+      "https://[::ffff:127.0.0.1]/", "https://[::ffff:192.168.1.1]/", "https://localhost/", "https://LOCALHOST./",
+      "https://app.localhost/", "https://printer.local/",
+    ]) expect(isPrivateNetworkUrl(url), url).toBe(true);
+    for (const url of [
+      "https://cdn.jsdelivr.net/x.js", "https://8.8.8.8/", "https://172.32.0.1/", "https://172.15.0.1/", "https://100.128.0.1/",
+      "https://192.169.0.1/", "https://[2606:4700::1111]/", "https://[::ffff:8.8.8.8]/", "https://localhost.example.com/",
+      "about:srcdoc", "data:text/plain,x", "not a url",
+    ]) expect(isPrivateNetworkUrl(url), url).toBe(false);
   });
 });

@@ -84,8 +84,9 @@ export const test = base.extend<Fixtures>({
       window.on("console", (message) => {
         if (message.type() !== "error" && message.type() !== "warning") return;
         // A page an agent wrote, shown in the page panel, reports its own errors, and Chromium the dialogs its sandbox
-        // ignored; they are not Alfred's.
-        if (message.location().url === "about:srcdoc" || message.text().includes("The document is sandboxed")) return;
+        // ignored and the requests Alfred cancels for it; they are not Alfred's.
+        if (message.location().url === "about:srcdoc" || message.text().includes("The document is sandboxed")
+          || message.text() === "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT") return;
         messages.push(
           runtimeMessage(
             "renderer",

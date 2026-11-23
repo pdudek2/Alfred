@@ -10,9 +10,15 @@ import { openNewSession } from "./support/work-layout";
 
 // A page an agent wrote. Once every way out to the test's local listeners has settled it paints `colour`, or blue if
 // any of them got through; then it tries to navigate itself to a listener.
-const chartPage = (colour: string, port: number, udpPort: number) => `<!doctype html>
+const chartPage = (colour: string, port: number, udpPort: number, tlsPort: number) => `<!doctype html>
 <script>
   const local = "http://127.0.0.1:${port}/";
+  // The page's CSP lets https: through, so only Alfred keeps it off local addresses there, from a worker too.
+  for (const host of ["127.0.0.1", "localhost"]) {
+    fetch("https://" + host + ":${tlsPort}/fetch", { mode: "no-cors" }).catch(() => {});
+    new Image().src = "https://" + host + ":${tlsPort}/img";
+  }
+  new Worker(URL.createObjectURL(new Blob(['fetch("https://127.0.0.1:${tlsPort}/worker", { mode: "no-cors" }).catch(() => {})'])));
   const failed = (promise) => promise.then(() => false, () => true);
   const loads = (tag, attribute) => new Promise((resolve) => {
     const element = document.createElement(tag);
@@ -78,6 +84,12 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   });
   await new Promise<void>((resolve) => localServer.listen(0, "127.0.0.1", resolve));
   const port = (localServer.address() as net.AddressInfo).port;
+  const tlsServer = net.createServer((socket) => {
+    hits.push("https");
+    socket.destroy();
+  });
+  await new Promise<void>((resolve) => tlsServer.listen(0, "127.0.0.1", resolve));
+  const tlsPort = (tlsServer.address() as net.AddressInfo).port;
   const udp = dgram.createSocket("udp4");
   udp.on("message", () => hits.push("udp"));
   await new Promise<void>((resolve) => udp.bind(0, "127.0.0.1", resolve));
@@ -139,7 +151,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await expect(details).toHaveClass(/closed/);
 
   // The agent writes a page and keeps working: the page opens beside the terminal and runs.
-  await writePage("chart.html", chartPage("rgb(255, 0, 0)", port, udpPort));
+  await writePage("chart.html", chartPage("rgb(255, 0, 0)", port, udpPort, tlsPort));
   await expect(panel("chart.html")).toBeVisible();
   await expect(details).toHaveClass(/closed/);
   await expect.poll(() => pageColour(page, panel("chart.html"))).toBe("red");
@@ -150,7 +162,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
 
   // It edits the page; the panel shows the new version without a click.
   const chart = path.join(project, "out", "chart.html");
-  await writeFile(chart, chartPage("rgb(0, 160, 0)", port, udpPort));
+  await writeFile(chart, chartPage("rgb(0, 160, 0)", port, udpPort, tlsPort));
   await record({ filePath: chart, structuredPatch: [{ lines: ["-red", "+green"] }] });
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: chart }, transcript_path: transcript });
   await expect.poll(() => pageColour(page, panel("chart.html"))).toBe("green");
@@ -267,6 +279,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
 
   await harness.closeActiveTerminals();
   await new Promise((resolve) => localServer.close(resolve));
+  await new Promise((resolve) => tlsServer.close(resolve));
   udp.close();
 });
 
