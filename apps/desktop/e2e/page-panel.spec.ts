@@ -238,6 +238,8 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await record({ filePath: focus, structuredPatch: [{ lines: ["+again"] }] });
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: focus }, transcript_path: transcript });
   await expect(panel("focus.html")).toBeVisible();
+  // The page has made its grab for the keyboard before Alfred's control takes it.
+  await expect.poll(() => pageColour(page, panel("focus.html"))).toBe("blue");
   // ⌘I swaps the panel for Details, with the keyboard in Alfred.
   await settings.focus();
   await page.keyboard.press("ControlOrMeta+i");
