@@ -9,18 +9,11 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-/** The jobs of .github/workflows/ci.yml; main deploys only when every one of them passed on the commit. */
-export const CI_JOBS = ["quality", "electron-smoke", "windows-path-security"];
-
 export const DEFAULT_DEPLOY_ROOT = path.join(os.homedir(), "Library", "Application Support", "Alfred Deploy");
 
-/** Check runs as GitHub lists them; a job counts by its latest run. An empty or partial list is not a pass. */
-export function ciPassed(checkRuns) {
-  return CI_JOBS.every((job) => {
-    const runs = checkRuns.filter((run) => run.name === job);
-    const latest = runs.sort((a, b) => String(b.started_at ?? "").localeCompare(String(a.started_at ?? "")))[0];
-    return latest?.status === "completed" && latest.conclusion === "success";
-  });
+/** The latest CI workflow run on main for a commit, as `gh run list` gives it; a rerun updates that same run. */
+export function ciPassed(runs) {
+  return runs[0]?.status === "completed" && runs[0].conclusion === "success";
 }
 
 /** Everything the main process loads, so equal hashes mean a window reload keeps a compatible main process. */
@@ -156,8 +149,8 @@ export async function deploy({ argv, env = process.env, run = defaultRun, log: p
     }
 
     if (isMain) {
-      const runs = JSON.parse(run("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/check-runs?per_page=100`], { cwd: checkout }));
-      if (!ciPassed(runs.check_runs ?? [])) {
+      const runs = JSON.parse(run("gh", ["run", "list", "--workflow", "ci.yml", "--branch", "main", "--commit", sha, "--limit", "1", "--json", "status,conclusion"], { cwd: checkout }));
+      if (!ciPassed(runs)) {
         log(`CI has not passed on ${sha.slice(0, 7)} yet.`);
         return "ci-pending";
       }

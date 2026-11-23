@@ -3,20 +3,15 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { acquireLock, CI_JOBS, ciPassed, deploy, mainHash, releasesToPrune } from "../deploy-preview.mjs";
+import { acquireLock, ciPassed, deploy, mainHash, releasesToPrune } from "../deploy-preview.mjs";
 
-const run = (name, status, conclusion, started_at = "2026-11-17T10:00:00Z") => ({ name, status, conclusion, started_at });
-
-test("CI passes only when every job's latest run succeeded", () => {
-  assert.equal(ciPassed(CI_JOBS.map((job) => run(job, "completed", "success"))), true);
-  // A fresh push has no check runs for a while.
+test("CI passes only when main's latest CI run completed with success", () => {
+  assert.equal(ciPassed([{ status: "completed", conclusion: "success" }]), true);
+  // A fresh push has no run for a while.
   assert.equal(ciPassed([]), false);
-  assert.equal(ciPassed(CI_JOBS.slice(1).map((job) => run(job, "completed", "success"))), false);
-  assert.equal(ciPassed(CI_JOBS.map((job, index) => run(job, index === 0 ? "in_progress" : "completed", index === 0 ? null : "success"))), false);
-  assert.equal(ciPassed(CI_JOBS.map((job, index) => run(job, "completed", index === 1 ? "failure" : "success"))), false);
-  // A rerun that passed replaces the failed run.
-  const rerun = [...CI_JOBS.map((job) => run(job, "completed", "success", "2026-11-17T11:00:00Z")), run("quality", "completed", "failure", "2026-11-17T10:00:00Z")];
-  assert.equal(ciPassed(rerun), true);
+  assert.equal(ciPassed([{ status: "in_progress", conclusion: "" }]), false);
+  assert.equal(ciPassed([{ status: "completed", conclusion: "failure" }]), false);
+  assert.equal(ciPassed([{ status: "completed", conclusion: "cancelled" }]), false);
 });
 
 test("the main hash follows everything the main process loads", (t) => {
@@ -67,12 +62,12 @@ test("an automatic deploy does not fetch while main is the commit it last built,
   const root = mkdtempSync(path.join(tmpdir(), "alfred-deploy-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const calls = [];
-  let checkRuns = [];
+  let ciRuns = [];
   const fake = (command, args) => {
     calls.push([command, ...args].join(" "));
     if (args.includes("ls-remote")) return "abc123\trefs/heads/main\n";
     if (args.includes("rev-parse")) return "def456\n";
-    if (command === "gh") return JSON.stringify({ check_runs: checkRuns });
+    if (command === "gh") return JSON.stringify(ciRuns);
     return "";
   };
   const env = { ALFRED_DEPLOY_ROOT: root };
@@ -81,8 +76,10 @@ test("an automatic deploy does not fetch while main is the commit it last built,
   assert.equal(calls.some((call) => call.includes("fetch")), false);
 
   writeFileSync(path.join(root, "deploy-state.json"), JSON.stringify({ lastBuilt: "older" }));
-  checkRuns = CI_JOBS.slice(1).map((job) => run(job, "completed", "success"));
+  ciRuns = [{ status: "in_progress", conclusion: "" }];
   assert.equal(await deploy({ argv: ["--auto", "--checkout", "/repo"], env, run: fake, log: () => {} }), "ci-pending");
+  // Only main's own CI run counts: a run of the same commit on another branch must not stand in for it.
+  assert.ok(calls.includes("gh run list --workflow ci.yml --branch main --commit def456 --limit 1 --json status,conclusion"));
   assert.equal(calls.some((call) => call.includes("fetch")), true);
   assert.equal(calls.some((call) => call.includes("archive")), false);
 });
