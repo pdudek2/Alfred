@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   configureTrustedIpc,
+  blocksPrivateRequest,
   isPageFrameEscape,
   isPrivateNetworkUrl,
   isTrustedDocumentOrigin,
@@ -103,6 +104,23 @@ describe("trusted IPC boundary", () => {
     expect(isPageFrameEscape({ ...page, url: "about:blank" })).toBe(false);
     expect(isPageFrameEscape({ frameOrigin: "null", parentIsMainFrame: false, url: "http://127.0.0.1:5173/" })).toBe(false);
     expect(isPageFrameEscape({ frameOrigin: "http://localhost:5173", parentIsMainFrame: true, url: "http://localhost:5173/a" })).toBe(false);
+  });
+
+  it("keeps a page's subresources, and any whose frame is unknown, off private hosts; Alfred and Preview keep theirs", () => {
+    const request = (url: string, frame: { isMain: boolean; origin: string } | null, resourceType = "xhr") =>
+      blocksPrivateRequest({ url, resourceType, frame, trustedEntryUrls: ["http://127.0.0.1:4310/"] });
+    const page = { isMain: false, origin: "null" };
+    expect(request("https://127.0.0.1:8443/x", page)).toBe(true);
+    expect(request("https://192.168.1.10/x", page, "image")).toBe(true);
+    // Electron could not name the frame, as for some of a page's requests on a loaded machine.
+    expect(request("https://localhost:8443/x", null, "image")).toBe(true);
+    expect(request("https://cdn.jsdelivr.net/x.js", page, "script")).toBe(false);
+    expect(request("http://localhost:5173/app.js", { isMain: false, origin: "http://localhost:5173" }, "script")).toBe(false);
+    expect(request("http://127.0.0.1:4310/assets/app.js", { isMain: true, origin: "http://127.0.0.1:4310" }, "script")).toBe(false);
+    // Alfred's own dev server, whatever frame Electron reports.
+    expect(request("ws://127.0.0.1:4310/", null, "webSocket")).toBe(false);
+    // Navigations go through their own guards.
+    expect(request("http://localhost:5173/", null, "subFrame")).toBe(false);
   });
 
   it("tells addresses on this Mac or its network from public ones, whatever the scheme or spelling", () => {
