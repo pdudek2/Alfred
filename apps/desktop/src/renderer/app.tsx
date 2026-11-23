@@ -1909,6 +1909,7 @@ export function App() {
         runtimeStatus: "starting",
         agentKind,
         command: agentKind,
+        // shortcut: a DeepSeek transcript resumed from History runs on Claude; carry its model once History records it.
         args: agentKind === "claude" ? ["--resume", resolved.sessionId] : ["resume", resolved.sessionId],
         resumeTarget: { agentKind, sessionId: resolved.sessionId, source: "external-session-index" },
         resumeMode: "exact",
