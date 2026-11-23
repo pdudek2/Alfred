@@ -3142,7 +3142,7 @@ describe("terminal-manager IPC", () => {
   describe("agent state signals", () => {
     type Listener = (
       sessionId: string,
-      update: { activity?: SessionActivityInput; answer?: string; detail?: string; state: "working" | "needs-you" | "your-turn" },
+      update: { activity?: SessionActivityInput; answer?: string; detail?: string; resumed?: true; state: "working" | "needs-you" | "your-turn" },
       transcriptPath?: string,
       conversationId?: string,
     ) => void;
@@ -3715,9 +3715,10 @@ describe("terminal-manager IPC", () => {
       // The next Alfred resumes both: the worker's turn end still wakes the orchestrator it was started for.
       resetTerminalPersistenceForTests();
       configureTerminalPersistence(store, { debounceMs: 0 });
-      const { bridge, fire } = fakeBridge();
+      const { bridge, fire, callTool } = fakeBridge();
       const leadPty = new FakePty();
-      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn: vi.fn(() => new FakePty()).mockReturnValueOnce(leadPty) }) as never });
+      const spawn = vi.fn(() => new FakePty()).mockReturnValueOnce(leadPty);
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn }) as never });
       const lead = await invoke<{ id: string }>(terminalChannels.create, {
         agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24, title: "Lead",
       });
@@ -3726,6 +3727,12 @@ describe("terminal-manager IPC", () => {
       });
       vi.useFakeTimers();
       try {
+        // Resumed, the worker says it waits at its prompt: its orchestrator can give it a message, and hears no news.
+        fire(lead.id, { state: "your-turn", resumed: true });
+        fire(worker.id, { state: "your-turn", resumed: true });
+        await expect(callTool(lead.id, "send_to_worker", { worker_id: "codex-1", message: "Go on" })).resolves.toMatchObject({ sent: true });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes.join("")).not.toContain("Message from");
         fire(lead.id, { state: "working" });
         fire(lead.id, { state: "your-turn", detail: "Waiting." });
         fire(worker.id, { state: "working" });
