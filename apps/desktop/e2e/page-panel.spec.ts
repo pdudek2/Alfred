@@ -10,9 +10,17 @@ import { openNewSession } from "./support/work-layout";
 
 // A page an agent wrote. Once every way out to the test's local listeners has settled it paints `colour`, or blue if
 // any of them got through; then it tries to navigate itself to a listener.
-const chartPage = (colour: string, port: number, udpPort: number) => `<!doctype html>
+const chartPage = (colour: string, port: number, udpPort: number, tlsPort: number) => `<!doctype html>
 <script>
   const local = "http://127.0.0.1:${port}/";
+  // The page's CSP lets https: through, so only Alfred keeps it off local addresses there, from a worker too.
+  const secure = (host) => "https://" + host + ":${tlsPort}/";
+  const fromWorker = new Promise((resolve) => {
+    const worker = new Worker(URL.createObjectURL(new Blob([
+      'fetch("' + secure("127.0.0.1") + 'worker", { mode: "no-cors" }).then(() => postMessage(false), () => postMessage(true))',
+    ])));
+    worker.onmessage = (event) => resolve(event.data);
+  });
   const failed = (promise) => promise.then(() => false, () => true);
   const loads = (tag, attribute) => new Promise((resolve) => {
     const element = document.createElement(tag);
@@ -47,6 +55,9 @@ const chartPage = (colour: string, port: number, udpPort: number) => `<!doctype 
     failed(fetch("http://localhost:${port}/localhost", { mode: "no-cors" })),
     loads("img", "src"),
     loads("video", "src"),
+    failed(fetch(secure("127.0.0.1") + "fetch", { mode: "no-cors" })),
+    failed(fetch(secure("localhost") + "fetch", { mode: "no-cors" })),
+    fromWorker,
     ice,
     Promise.resolve(typeof Notification === "undefined" ? "denied" : Notification.requestPermission()).then((answer) => answer !== "granted"),
   ]).then((results) => {
@@ -78,6 +89,12 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   });
   await new Promise<void>((resolve) => localServer.listen(0, "127.0.0.1", resolve));
   const port = (localServer.address() as net.AddressInfo).port;
+  const tlsServer = net.createServer((socket) => {
+    hits.push("https");
+    socket.destroy();
+  });
+  await new Promise<void>((resolve) => tlsServer.listen(0, "127.0.0.1", resolve));
+  const tlsPort = (tlsServer.address() as net.AddressInfo).port;
   const udp = dgram.createSocket("udp4");
   udp.on("message", () => hits.push("udp"));
   await new Promise<void>((resolve) => udp.bind(0, "127.0.0.1", resolve));
@@ -139,7 +156,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await expect(details).toHaveClass(/closed/);
 
   // The agent writes a page and keeps working: the page opens beside the terminal and runs.
-  await writePage("chart.html", chartPage("rgb(255, 0, 0)", port, udpPort));
+  await writePage("chart.html", chartPage("rgb(255, 0, 0)", port, udpPort, tlsPort));
   await expect(panel("chart.html")).toBeVisible();
   await expect(details).toHaveClass(/closed/);
   await expect.poll(() => pageColour(page, panel("chart.html"))).toBe("red");
@@ -150,7 +167,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
 
   // It edits the page; the panel shows the new version without a click.
   const chart = path.join(project, "out", "chart.html");
-  await writeFile(chart, chartPage("rgb(0, 160, 0)", port, udpPort));
+  await writeFile(chart, chartPage("rgb(0, 160, 0)", port, udpPort, tlsPort));
   await record({ filePath: chart, structuredPatch: [{ lines: ["-red", "+green"] }] });
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: chart }, transcript_path: transcript });
   await expect.poll(() => pageColour(page, panel("chart.html"))).toBe("green");
@@ -221,6 +238,8 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   await record({ filePath: focus, structuredPatch: [{ lines: ["+again"] }] });
   await hook("PostToolUse", { tool_name: "Edit", tool_input: { file_path: focus }, transcript_path: transcript });
   await expect(panel("focus.html")).toBeVisible();
+  // The page has made its grab for the keyboard before Alfred's control takes it.
+  await expect.poll(() => pageColour(page, panel("focus.html"))).toBe("blue");
   // ⌘I swaps the panel for Details, with the keyboard in Alfred.
   await settings.focus();
   await page.keyboard.press("ControlOrMeta+i");
@@ -258,6 +277,8 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   expect(hits).toEqual([]);
   expect(dialogs).toBe(0);
   expect(await app.evaluate(() => (globalThis as { pageDownloads?: number }).pageDownloads)).toBe(0);
+  harness.expectBlockedRequests(`https://127.0.0.1:${tlsPort}/`);
+  harness.expectBlockedRequests(`https://localhost:${tlsPort}/`);
   harness.assertNoRuntimeErrors();
   // The width outlives a restart.
   const stateFile = resolveDesktopStateFilePath({ userDataPath: paths.userData });
@@ -267,6 +288,7 @@ test("shows a page an agent writes live beside its terminal, away from local ser
 
   await harness.closeActiveTerminals();
   await new Promise((resolve) => localServer.close(resolve));
+  await new Promise((resolve) => tlsServer.close(resolve));
   udp.close();
 });
 
