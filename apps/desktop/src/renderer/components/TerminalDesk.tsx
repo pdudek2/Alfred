@@ -965,6 +965,7 @@ function ManualTerminalTile({
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    container.style.setProperty("--terminal-cursor", ghosttyVesperTerminalProfile.theme.cursor ?? null);
     // Image paths printed as plain text, such as an agent's "saved to out/shot.png" or a pasted path.
     terminal.registerLinkProvider({
       provideLinks(y, callback) {
