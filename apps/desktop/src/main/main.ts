@@ -119,7 +119,7 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   // A page is an opaque srcdoc frame right under the main frame; a Preview frame shows its server's URL even when sandboxed.
   const isPageFrame = (frame: WebFrameMain | null | undefined): boolean => {
     try {
-      return frame?.origin === "null" && (frame.url === "about:srcdoc" || frame.url === "about:blank")
+      return frame?.origin === "null" && /^about:(?:srcdoc|blank)(?:[?#]|$)/.test(frame.url)
         && frame.parent === window.webContents.mainFrame;
     } catch {
       return false;
