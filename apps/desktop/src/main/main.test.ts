@@ -500,8 +500,8 @@ describe("main quit persistence", () => {
       const window = mocks.BrowserWindow.mock.results[0]?.value;
       expect(window.loadURL).toHaveBeenCalledWith(expect.stringMatching(/^http:\/\/127\.0\.0\.1:4310\//));
       const request = window.webContents.session.webRequest.onBeforeRequest.mock.calls[0]?.[1] as
-        ((details: { webContentsId: number; resourceType: string; url: string }, callback: (result: { cancel: boolean }) => void) => void);
-      const check = (url: string, resourceType = "subFrame", webContentsId = 1) => {
+        ((details: { webContentsId?: number; resourceType: string; url: string }, callback: (result: { cancel: boolean }) => void) => void);
+      const check = (url: string, resourceType = "subFrame", webContentsId: number | undefined = 1) => {
         const callback = vi.fn();
         request({ url, resourceType, webContentsId }, callback);
         return callback.mock.calls[0]?.[0];
@@ -510,6 +510,10 @@ describe("main quit persistence", () => {
       expect(check("http://127.0.0.1:4311/")).toEqual({ cancel: false });
       expect(check("http://127.0.0.1:4310/other", "mainFrame")).toEqual({ cancel: false });
       expect(check("http://127.0.0.1:4310/other", "subFrame", 2)).toEqual({ cancel: false });
+      // A page's worker can fetch with no window and no frame Electron can name; it stays off this Mac all the same.
+      expect(check("https://127.0.0.1:8443/worker", "xhr", undefined)).toEqual({ cancel: true });
+      expect(check("https://cdn.jsdelivr.net/npm/x.js", "xhr", undefined)).toEqual({ cancel: false });
+      expect(check("https://127.0.0.1:8443/worker", "xhr", 2)).toEqual({ cancel: false });
     } finally {
       vi.unstubAllEnvs();
     }

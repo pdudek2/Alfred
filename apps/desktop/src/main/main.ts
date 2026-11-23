@@ -128,11 +128,12 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   };
   window.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
     const trusted = details.webContentsId === trustedContentsId;
+    // A page's worker can make requests Electron ties to no window; Alfred's main process makes none through Chromium.
+    const fromWindowOrUnknown = trusted || details.webContentsId === undefined;
     callback({
-      cancel: trusted && (
-        (details.resourceType === "subFrame" && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)))
-        || blocksPrivateRequest({ url: details.url, resourceType: details.resourceType, frame: frameOf(details.frame), trustedEntryUrls: trustedEntries() })
-      ),
+      cancel: (trusted && details.resourceType === "subFrame" && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)))
+        || (fromWindowOrUnknown
+          && blocksPrivateRequest({ url: details.url, resourceType: details.resourceType, frame: frameOf(details.frame), trustedEntryUrls: trustedEntries() })),
     });
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
