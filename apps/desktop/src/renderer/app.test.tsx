@@ -8228,8 +8228,11 @@ describe("App integration", () => {
     await user.click(within(list).getByRole("option"));
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
-    await waitFor(() => expect(within(list).getAllByRole("option")).toHaveLength(80));
-    expect(within(list).getAllByRole("option").at(-1)).toHaveAttribute("aria-selected", "true");
+    // The page turns back first; the row is selected on the next render.
+    await waitFor(() => {
+      expect(within(list).getAllByRole("option")).toHaveLength(80);
+      expect(within(list).getAllByRole("option").at(-1)).toHaveAttribute("aria-selected", "true");
+    });
     expect(list).toHaveFocus();
   });
 
