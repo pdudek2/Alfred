@@ -52,6 +52,7 @@ import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 import { SESSION_VIEW_IDS } from "../tab-keys";
+import { isDeepSeekLaunch } from "../../shared/agent-command";
 
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
@@ -455,6 +456,7 @@ function asleepSessionAt(session: SessionTile): number {
 }
 
 function asleepSessionKindLabel(session: SessionTile): string {
+  if (isDeepSeekLaunch(session.command, session.args)) return "DeepSeek";
   if (session.agentKind === "codex" || session.command === "codex") return "Codex";
   if (session.agentKind === "claude" || session.command === "claude") return "Claude";
   return "Terminal";
@@ -663,7 +665,7 @@ function ManualTerminalTile({
   const [hoveredImage, setHoveredImage] = useState<HoveredImage | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);
-  const kind = sessionTileKind({ agentKind, detectedAgentKind, source });
+  const kind = sessionTileKind({ agentKind, detectedAgentKind, source, command, args });
   const kindMeta = tileKindMeta(kind);
   const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
   const tileStatus = restoredTranscript ? "restored" : status;
@@ -730,8 +732,6 @@ function ManualTerminalTile({
     : runtimeStatus === "error"
       ? sessionStripLabel("Failed", endedAt, now)
       : sessionStripLabel("Started", createdAt, now);
-  // Contract vocabulary: a session is Claude, Codex or Terminal.
-  const kindLabel = kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Terminal";
   const locationMatchesWorkspaceRoot = pathsReferToSameLocation(cwd, workspaceRootPath)
     && pathsReferToSameLocation(resolvedCwd, workspaceRootPath);
   // Where the session works: the agent's worktree and branch, a folder other than the project root, or the project's branch.
@@ -869,7 +869,7 @@ function ManualTerminalTile({
   const attentionCopy = displayStatus.kind === "needs-you" && displayStatus.reason === "start-screen" && startScreen
     ? agentStartScreenSentence(startScreen)
     : displayStatus.kind === "needs-you" && waitingOn
-      ? waitingSentence(waitingOn, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
+      ? waitingSentence(waitingOn, kind === "claude" || kind === "codex" || kind === "deepseek" ? kindMeta.label : undefined)
       : null;
   const resumeAction = tileStatus === "restored" && relaunchCapable
     ? {
@@ -1414,7 +1414,7 @@ function ManualTerminalTile({
         <header className="terminal-pinned-head">
           <SessionStatusGlyph kind={displayStatus.kind} label={displayStatus.label} />
           <span className="terminal-pinned-title">{title}</span>
-          <span className="terminal-pinned-kind">{kindLabel}</span>
+          <span className="terminal-pinned-kind">{kindMeta.label}</span>
           <button type="button" className="terminal-pinned-unpin" aria-label={`Unpin ${title}`} onClick={onUnpin}>Unpin</button>
         </header>
       ) : (stripNote || resumeAction) && (
@@ -1472,7 +1472,7 @@ function ManualTerminalTile({
             </form>
           ) : (
             <>
-              <span className={`session-meta-kind kind-${kind}`} title={kindLabel}><TileKindIcon kind={kind} size={14} /><span className="visually-hidden">{kindLabel}</span></span>
+              <span className={`session-meta-kind kind-${kind}`} title={kindMeta.label}><TileKindIcon kind={kind} size={14} /><span className="visually-hidden">{kindMeta.label}</span></span>
               {locationLabel && (
                 <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
               )}
@@ -1500,7 +1500,7 @@ function ManualTerminalTile({
       )}
       {fileDragOver && (
         <div className="terminal-drop-overlay" aria-hidden="true">
-          <strong>{kind === "claude" || kind === "codex" ? `Drop to attach to ${kindMeta.label}` : "Drop to paste the file path"}</strong>
+          <strong>{kind === "claude" || kind === "codex" || kind === "deepseek" ? `Drop to attach to ${kindMeta.label}` : "Drop to paste the file path"}</strong>
           <span>The file path goes into the prompt</span>
         </div>
       )}

@@ -203,6 +203,7 @@ function installDesktopBridge(
   runtimeStatus: AlfredRuntimeStatus | null = {
     model: "anthropic/claude-sonnet-4-6",
     openRouterConfigured: true,
+    deepSeekConfigured: true,
   },
   layouts: WorkspaceLayoutsSnapshot = {
     viewStateByWorkspace: { A: {  } },
@@ -4361,6 +4362,7 @@ describe("App integration", () => {
     expect(within(composer).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual([
       "Codex",
       "Claude",
+      "DeepSeek",
       "Terminal",
       "Plan with Alfred",
     ]);
@@ -7500,7 +7502,7 @@ describe("App integration", () => {
   });
 
   it.each([
-    ["without an OpenRouter key", { model: "anthropic/claude-sonnet-4-6", openRouterConfigured: false }],
+    ["without an OpenRouter key", { model: "anthropic/claude-sonnet-4-6", openRouterConfigured: false, deepSeekConfigured: false }],
     ["while the runtime status is unknown", null],
   ] as const)("does not offer Plan with Alfred %s", async (_name, runtimeStatus) => {
     const user = userEvent.setup();
@@ -7511,6 +7513,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
     await openComposer(user);
     expect(screen.queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /^DeepSeek/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -9580,7 +9583,11 @@ describe("App integration", () => {
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
   });
 
-  it.each(["Codex", "Claude"])("launches %s in the picked project with a literal first prompt", async (kind) => {
+  it.each([
+    ["Codex", "codex", []],
+    ["Claude", "claude", []],
+    ["DeepSeek", "claude", ["--model", "deepseek-flash[1m]"]],
+  ])("launches %s in the picked project with a literal first prompt", async (kind, agentKind, model) => {
     const user = userEvent.setup();
     const { claudeTrustsProject, createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: [
@@ -9597,8 +9604,9 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("First prompt"), "--prompt=keep this literal");
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
-      agentKind: kind.toLowerCase(), workspaceId: "B", cwd: "/project-b", args: ["--", "--prompt=keep this literal"],
+      agentKind, command: agentKind, workspaceId: "B", cwd: "/project-b", args: [...model, "--", "--prompt=keep this literal"],
     })));
+    expect(screen.getAllByTitle(kind).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Beta project" })).toHaveAttribute("aria-current", "location");
     expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
 
@@ -9607,11 +9615,11 @@ describe("App integration", () => {
     await user.click(screen.getByRole("radio", { name: new RegExp(`^${kind}`) }));
     expect(screen.getByRole("checkbox", { name: /New worktree/ })).toBeChecked();
     // Claude asks only for a worktree of a folder it trusts.
-    if (kind === "Claude") expect(claudeTrustsProject).toHaveBeenLastCalledWith({ workspaceId: "B" });
+    if (agentKind === "claude") expect(claudeTrustsProject).toHaveBeenLastCalledWith({ workspaceId: "B" });
     else expect(claudeTrustsProject).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({
-      agentKind: kind.toLowerCase(), workspaceId: "B", args: ["--worktree"],
+      agentKind, workspaceId: "B", args: [...model, "--worktree"],
     })));
   });
 

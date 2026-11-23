@@ -4,7 +4,7 @@ import { TileKindIcon } from "../tile-kind-icon";
 import { ChromeMenu } from "./ChromeMenu";
 import "./new-session-composer.css";
 
-export type NewSessionKind = "codex" | "claude" | "terminal" | "plan";
+export type NewSessionKind = "codex" | "claude" | "deepseek" | "terminal" | "plan";
 type Project = { id: string; label: string; rootPath?: string; rootStatus?: string; gitBranch?: string };
 export type NewSessionComposerProps = {
   /** False shows the one-line rest state under the terminal. */
@@ -25,6 +25,8 @@ export type NewSessionComposerProps = {
   parentTitle?: string | undefined;
   /** Plan with Alfred needs an OpenRouter key; without one it is not offered. */
   planAvailable?: boolean;
+  /** DeepSeek runs Claude Code on DeepSeek's API and needs its key; without one it is not offered. */
+  deepSeekAvailable?: boolean;
   blockedReason?: string | undefined;
   requestError?: string | undefined;
   disabled?: boolean;
@@ -37,10 +39,11 @@ export type NewSessionComposerProps = {
 const kinds = [
   ["codex", "Codex"],
   ["claude", "Claude"],
+  ["deepseek", "DeepSeek"],
   ["terminal", "Terminal"],
   ["plan", "Plan with Alfred"],
 ] as const;
-const kindMark = { codex: "codex", claude: "claude", terminal: "manual" } as const;
+const kindMark = { codex: "codex", claude: "claude", deepseek: "deepseek", terminal: "manual" } as const;
 
 export function NewSessionComposer({ expanded, shortcutLabel = "⌘N", restRef, onExpand, ...props }: NewSessionComposerProps) {
   const projectLabel = props.projects.find((item) => item.id === props.projectId)?.label;
@@ -58,7 +61,7 @@ export function NewSessionComposer({ expanded, shortcutLabel = "⌘N", restRef, 
   );
 }
 
-function ComposerForm({ autoFocus = true, restRef, projects, projectId, kind, draft, initialWorktree = false, claudeTrusted = true, parentTitle, planAvailable = true, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: Omit<NewSessionComposerProps, "expanded" | "shortcutLabel" | "onExpand">) {
+function ComposerForm({ autoFocus = true, restRef, projects, projectId, kind, draft, initialWorktree = false, claudeTrusted = true, parentTitle, planAvailable = true, deepSeekAvailable = false, blockedReason, requestError, disabled = false, onProjectChange, onKindChange, onDraftChange, onStart, onClose }: Omit<NewSessionComposerProps, "expanded" | "shortcutLabel" | "onExpand">) {
   const formRef = useRef<HTMLFormElement>(null);
   const [opener] = useState(() => document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null);
   const [worktreeChoice, setWorktree] = useState<boolean>();
@@ -73,9 +76,9 @@ function ComposerForm({ autoFocus = true, restRef, projects, projectId, kind, dr
   const lastFocus = useRef<HTMLElement | null>(null);
   const project = projects.find((item) => item.id === projectId);
   // The agent makes the worktree, which needs the project to be a git repository on a branch.
-  const worktreeOffered = (kind === "codex" || kind === "claude") && Boolean(project?.rootPath && project.gitBranch);
+  const worktreeOffered = (kind === "codex" || kind === "claude" || kind === "deepseek") && Boolean(project?.rootPath && project.gitBranch);
   // `claude --worktree` exits at once in a folder Claude does not trust yet, where plain `claude` asks.
-  const needsClaudeTrust = kind === "claude" && !claudeTrusted;
+  const needsClaudeTrust = (kind === "claude" || kind === "deepseek") && !claudeTrusted;
   const worktree = worktreeChoice ?? (initialWorktree && !needsClaudeTrust);
   const reason = project?.rootStatus === "missing" ? "Reconnect the project folder first." : kind === "plan" ? blockedReason : undefined;
   const invalid = disabled || busy || !project || Boolean(reason) || (kind === "plan" && !draft.trim());
@@ -151,7 +154,7 @@ function ComposerForm({ autoFocus = true, restRef, projects, projectId, kind, dr
       <div className="new-session-status" role="status">{status}</div>
       <footer>
         <fieldset disabled={busy || disabled} className="new-session-kinds"><legend className="visually-hidden">Kind</legend>
-          {kinds.filter(([value]) => value !== "plan" || (parentTitle === undefined && planAvailable)).map(([value, title]) => (
+          {kinds.filter(([value]) => (value !== "plan" || (parentTitle === undefined && planAvailable)) && (value !== "deepseek" || deepSeekAvailable)).map(([value, title]) => (
             <label key={value} className={kind === value ? "selected" : undefined}>
               <input type="radio" name="new-session-kind" value={value} checked={kind === value} onChange={() => onKindChange(value)} />
               {value !== "plan" && <span className={`new-session-mark kind-${kindMark[value]}`}><TileKindIcon kind={kindMark[value]} size={14} /></span>}

@@ -9,6 +9,7 @@ import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { SessionTree } from "./SessionTree";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+import { isDeepSeekLaunch } from "../../shared/agent-command";
 
 const RECENT_RESULT_LIMIT = 2;
 
@@ -342,7 +343,7 @@ export function ProjectNavigator({
 type RecentAgentResult = {
   session: SessionTile;
   workspaceLabel: string;
-  agentLabel: "Claude" | "Codex";
+  agentLabel: "Claude" | "Codex" | "DeepSeek";
   status: "done" | "failed";
   activityAt?: number;
   ageLabel: string | null;
@@ -377,7 +378,8 @@ function recentAgentResults(
   )).slice(0, RECENT_RESULT_LIMIT);
 }
 
-function recentAgentLabel(session: SessionTile): "Claude" | "Codex" | null {
+function recentAgentLabel(session: SessionTile): "Claude" | "Codex" | "DeepSeek" | null {
+  if (isDeepSeekLaunch(session.command, session.args)) return "DeepSeek";
   const kind = session.agentKind === "claude" || session.agentKind === "codex"
     ? session.agentKind
     : session.detectedAgentKind === "claude" || session.detectedAgentKind === "codex"

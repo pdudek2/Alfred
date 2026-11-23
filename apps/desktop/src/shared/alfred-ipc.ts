@@ -123,6 +123,7 @@ export type AlfredStagedPlanSessionUpdateResponse =
 export type AlfredRuntimeStatus = {
   model: string;
   openRouterConfigured: boolean;
+  deepSeekConfigured: boolean;
 };
 
 export type AlfredApi = {

@@ -226,7 +226,7 @@ export function App() {
   // Asked on every opening: you may have trusted the folder in Claude since.
   useEffect(() => {
     const workspaceApi = getDesktopWorkspaceApi();
-    if (!composerExpanded || newSessionKind !== "claude" || !workspaceApi?.claudeTrustsProject) return;
+    if (!composerExpanded || (newSessionKind !== "claude" && newSessionKind !== "deepseek") || !workspaceApi?.claudeTrustsProject) return;
     let current = true;
     void workspaceApi.claudeTrustsProject({ workspaceId: composerProjectId }).then(
       (trusted) => {
@@ -356,6 +356,8 @@ export function App() {
   const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
   // Plan with Alfred plans through OpenRouter; without a key it is not offered anywhere.
   const planAvailable = runtimeStatus?.openRouterConfigured === true;
+  const deepSeekAvailable = runtimeStatus?.deepSeekConfigured === true;
+  const composerKind = (newSessionKind === "plan" && !planAvailable) || (newSessionKind === "deepseek" && !deepSeekAvailable) ? "codex" : newSessionKind;
   const composerBlockedReason =
     terminalSessions.some((session) => session.workspaceId === newSessionProjectId && session.stage === "staged")
       ? "Resolve the current Alfred plan before asking for another."
@@ -459,7 +461,7 @@ export function App() {
     });
   }, [showTerminalInWorkspace, workspacesReady]);
 
-  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string, worktree = false) => {
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex"> | "deepseek", workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string, worktree = false) => {
     if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addAgentSession(
@@ -1476,16 +1478,16 @@ export function App() {
     const draft = newSessionDraftsByWorkspace[workspace.id] ?? "";
     const generation = newSessionGenerationRef.current;
     const parentSessionId = newSessionParent?.workspaceId === workspace.id ? newSessionParent.id : undefined;
-    if (newSessionKind === "plan") {
+    if (composerKind === "plan") {
       if (composerBlockedReason) return false;
       const submitted = await handleSubmitPrompt({ kind: "workspace", id: workspace.id, label: workspace.label }, draft, workspace);
       if (!submitted || newSessionGenerationRef.current !== generation) return false;
       handleSelectWorkspace(workspace.id);
       setActiveSurface("work");
-    } else if (newSessionKind === "terminal") {
+    } else if (composerKind === "terminal") {
       handleAddManualSession(workspace, parentSessionId);
     } else {
-      handleAddAgentSession(newSessionKind, workspace, draft.trim(), parentSessionId, worktree);
+      handleAddAgentSession(composerKind, workspace, draft.trim(), parentSessionId, worktree);
     }
     setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, workspace.id));
     return true;
@@ -1907,6 +1909,7 @@ export function App() {
         runtimeStatus: "starting",
         agentKind,
         command: agentKind,
+        // shortcut: a DeepSeek transcript resumed from History runs on Claude; carry its model once History records it.
         args: agentKind === "claude" ? ["--resume", resolved.sessionId] : ["resume", resolved.sessionId],
         resumeTarget: { agentKind, sessionId: resolved.sessionId, source: "external-session-index" },
         resumeMode: "exact",
@@ -2561,8 +2564,9 @@ export function App() {
                     onExpand={() => openNewSession()}
                     projects={workspaces}
                     projectId={composerProjectId}
-                    kind={newSessionKind === "plan" && !planAvailable ? "codex" : newSessionKind}
+                    kind={composerKind}
                     planAvailable={planAvailable}
+                    deepSeekAvailable={deepSeekAvailable}
                     parentTitle={newSessionParent?.workspaceId === composerProjectId ? newSessionParent.title : undefined}
                     draft={newSessionDraftsByWorkspace[composerProjectId] ?? ""}
                     claudeTrusted={claudeTrustByProject[composerProjectId]}

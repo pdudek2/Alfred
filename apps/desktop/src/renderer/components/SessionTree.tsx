@@ -201,8 +201,8 @@ function TreeItem({
   const focused = session.id === focusSessionId;
   const kind = sessionTileKind(session);
   const canPin = !focused && session.id !== pinnedSessionId;
-  const canAddWorker = parentTitle === undefined && (kind === "claude" || kind === "codex");
-  const agent = kind === "claude" || kind === "codex";
+  const canAddWorker = parentTitle === undefined && (kind === "claude" || kind === "codex" || kind === "deepseek");
+  const agent = kind === "claude" || kind === "codex" || kind === "deepseek";
   const preview = agent || PREVIEW_KINDS.has(status.kind) ? sessionPreviewLine(session, status) : null;
   const changes = agent && !ACTIVITY_FIRST_KINDS.has(status.kind) ? session.changeStats : undefined;
   const lead = changes ? <ChangeCounts {...changes} pages={agentPages(session.changedFiles).length} /> : preview && <span className="session-tree-preview">{preview}</span>;

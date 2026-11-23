@@ -20,6 +20,7 @@ import type {
 } from "../shared/terminal-ipc";
 import { normalizeSessionTitle, titleFromPrompt } from "../shared/session-title";
 import { extractLocalPreviewUrls } from "./preview-state";
+import { DEEPSEEK_MODEL } from "../shared/agent-command";
 
 export type SessionTile = {
   id: string;
@@ -147,7 +148,7 @@ export function addManualSession(
 
 export function addAgentSession(
   sessions: SessionTile[],
-  kind: Extract<AgentKind, "claude" | "codex">,
+  kind: Extract<AgentKind, "claude" | "codex"> | "deepseek",
   cwd: string,
   workspaceId = "A",
   prompt = "",
@@ -155,22 +156,23 @@ export function addAgentSession(
   reservedIds: Iterable<string> = [],
   worktree = false,
 ): SessionTile[] {
-  const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`, reservedIds);
+  const agentKind = kind === "deepseek" ? "claude" : kind;
+  const nextIndex = nextPrefixedSessionIndex(sessions, `${agentKind}-`, reservedIds);
   // A first prompt names the session; without one it keeps a generated title until you type one.
-  const title = titleFromPrompt(prompt) || nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : "Claude");
+  const title = titleFromPrompt(prompt) || nextGeneratedTitle(sessions, workspaceId, kind === "codex" ? "Codex" : kind === "deepseek" ? "DeepSeek" : "Claude");
   return [
     ...sessions,
     {
-      id: `${kind}-${nextIndex}`,
+      id: `${agentKind}-${nextIndex}`,
       title,
       workspaceId,
       cwd,
       source: "manual",
       stage: "live",
       runtimeStatus: "starting",
-      agentKind: kind,
-      command: kind,
-      args: [...(worktree ? ["--worktree"] : []), ...(prompt ? ["--", prompt] : [])],
+      agentKind,
+      command: agentKind,
+      args: [...(kind === "deepseek" ? ["--model", DEEPSEEK_MODEL] : []), ...(worktree ? ["--worktree"] : []), ...(prompt ? ["--", prompt] : [])],
       ...(parentSessionId ? { parentSessionId } : {}),
     },
   ];

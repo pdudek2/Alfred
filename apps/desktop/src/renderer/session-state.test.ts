@@ -26,6 +26,7 @@ import {
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import type { TerminalCreateResult, TerminalDataEvent, TerminalSessionSnapshot } from "../shared/terminal-ipc";
+import { isDeepSeekLaunch } from "../shared/agent-command";
 
 function restoreSessionWithResumeTarget(sessionId: string) {
   const restored = hydratePersistedTerminalSessions([
@@ -753,7 +754,7 @@ describe("desktop session state", () => {
     });
   });
 
-  it("resumes a worker on the model and effort it was launched with", () => {
+  it("resumes a worker on the model and effort it was launched with, so a DeepSeek one stays on DeepSeek", () => {
     const restored = hydratePersistedTerminalSessions([
       {
         clientId: "claude-2",
@@ -762,7 +763,7 @@ describe("desktop session state", () => {
         source: "manual",
         agentKind: "claude",
         command: "claude",
-        args: ["--model", "opus", "--effort", "high", "--", "Run the tests"],
+        args: ["--model", "deepseek-flash[1m]", "--effort", "high", "--", "Run the tests"],
         resumeTarget: { agentKind: "claude", sessionId: "conv-1", source: "agent-hook" },
         shell: "claude",
         buffer: "",
@@ -781,7 +782,8 @@ describe("desktop session state", () => {
     ]);
 
     const claude = relaunchRestoredSession(restored, "claude-2")[0]!;
-    expect(claude.args).toEqual(["--model", "opus", "--effort", "high", "--resume", "conv-1"]);
+    expect(claude.args).toEqual(["--model", "deepseek-flash[1m]", "--effort", "high", "--resume", "conv-1"]);
+    expect(isDeepSeekLaunch(claude.command, claude.args)).toBe(true);
     expect(relaunchRestoredSession([claude], "claude-2")[0]!.args).toEqual(claude.args);
     expect(relaunchRestoredSession(restored, "codex-2")[1]!.args)
       .toEqual(["resume", "-m", "gpt-6.1-sol", "-c", "model_reasoning_effort=\"xhigh\"", "--last"]);

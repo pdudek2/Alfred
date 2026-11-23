@@ -1496,6 +1496,28 @@ describe("terminal-manager IPC", () => {
     });
   });
 
+  it("points only a claude session on a DeepSeek model at DeepSeek, with the key and without an Anthropic key", async () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "synthetic-deepseek-key");
+    vi.stubEnv("ANTHROPIC_API_KEY", "synthetic-anthropic-key");
+    const spawn = vi.fn(() => new FakePty());
+    registerTerminalIpc({ appOnlyEnvKeys: new Set(["DEEPSEEK_API_KEY"]), loadNodePty: async () => ({ spawn }) as never });
+    const envOf = (call: number) => (spawn.mock.calls[call] as unknown as [string, string[], { env: Record<string, string> }])[2].env;
+
+    await invoke(terminalChannels.create, { agentKind: "claude", command: "claude", args: ["--model", "deepseek-flash[1m]", "--", "hi"], cols: 80, cwd: "/repo", rows: 24 });
+    await invoke(terminalChannels.create, { agentKind: "claude", command: "claude", args: ["--", "--model", "deepseek-flash"], cols: 80, cwd: "/repo", rows: 24 });
+
+    expect(envOf(0)).toMatchObject({ ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic", ANTHROPIC_AUTH_TOKEN: "synthetic-deepseek-key" });
+    expect(envOf(0)).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(envOf(0)).not.toHaveProperty("DEEPSEEK_API_KEY");
+    expect(envOf(1)).not.toHaveProperty("ANTHROPIC_BASE_URL");
+    expect(envOf(1)).toMatchObject({ ANTHROPIC_API_KEY: "synthetic-anthropic-key" });
+
+    vi.stubEnv("DEEPSEEK_API_KEY", "");
+    await expect(invoke(terminalChannels.create, { agentKind: "claude", command: "claude", args: ["--model", "deepseek-flash[1m]"], cols: 80, cwd: "/repo", rows: 24 }))
+      .rejects.toThrow("DEEPSEEK_API_KEY");
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
   it("hands each agent the event log's environment and arguments after its own", async () => {
     const spawn = vi.fn(() => new FakePty());
     registerTerminalIpc({

@@ -19,7 +19,7 @@ import {
   type TerminalOutputActivityChunkResult,
   type TerminalOutputActivityStreamState,
 } from "../shared/session-activity.js";
-import { normalizeAgentCommand } from "../shared/agent-command.js";
+import { DEEPSEEK_MODEL, isDeepSeekLaunch, normalizeAgentCommand } from "../shared/agent-command.js";
 import { normalizeSessionTitle } from "../shared/session-title.js";
 import { changedFiles, tallyTranscriptChanges, workingFolder, type ChangeTally } from "./agent-changes.js";
 import { runAgainWhileBusy } from "./run-again.js";
@@ -567,6 +567,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             : safeRequest.command === "codex" ? CODEX_LAUNCH_ARGS : []),
           ...(options.agentEvents?.launchArgs({ id, clientId: eventLogKey }, safeRequest.command) ?? []),
         ];
+        const deepSeek = deepSeekEnv(resolved.command, resolved.args);
         const pty = nodePty.spawn(resolved.command, [...launchArgs, ...resolved.args], {
           name: "xterm-256color",
           cols: normalizeDimension(request.cols, 80),
@@ -574,7 +575,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           cwd,
           env: {
             ...Object.fromEntries(
-              Object.entries(process.env).filter(([key]) => !options.appOnlyEnvKeys?.has(key)),
+              Object.entries(process.env).filter(([key]) => !options.appOnlyEnvKeys?.has(key)
+                // Claude Code prefers an Anthropic key over the token, and would send it to DeepSeek.
+                && !(deepSeek && key === "ANTHROPIC_API_KEY")),
             ),
             TERM: "xterm-256color",
             COLORTERM: "truecolor",
@@ -582,6 +585,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             FORCE_HYPERLINK: "1",
             ...options.agentSignals?.env(id, safeRequest.command),
             ...options.agentEvents?.env({ id, clientId: eventLogKey }, safeRequest.command),
+            ...deepSeek,
           },
         });
         session = {
@@ -2143,6 +2147,22 @@ async function isExactPersistedRestoredCwd(request: TerminalCreateRequest): Prom
       && requestedArgs[1] === snapshot.resumeTarget.sessionId;
   }
   return requestedArgs.length === 1 && requestedArgs[0] === "--continue";
+}
+
+function deepSeekEnv(command: string, args: readonly string[]): Record<string, string> | undefined {
+  if (!isDeepSeekLaunch(command, args)) return undefined;
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) throw new Error("Set DEEPSEEK_API_KEY in repo .env to start DeepSeek sessions.");
+  // Every model Claude Code picks on its own (plan mode, subagents, background calls) stays on DeepSeek's Flash.
+  return {
+    ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
+    ANTHROPIC_AUTH_TOKEN: key,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: DEEPSEEK_MODEL,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: DEEPSEEK_MODEL,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-flash",
+    CLAUDE_CODE_SUBAGENT_MODEL: "deepseek-flash",
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
+  };
 }
 
 function isTrustedAgentLaunch(request: TerminalCreateRequest): boolean {
