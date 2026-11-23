@@ -9,6 +9,7 @@ import {
 import { sessionPresentationText, sessionPresentationTitle } from "../shared/session-presentation";
 import { isFreeChatScope } from "./session-scope";
 import { canRelaunchRestoredSession, type SessionTile } from "./session-state";
+import { isDeepSeekLaunch } from "../shared/agent-command";
 
 export type ManagedSessionTarget = { workspaceId: string; sessionId: string };
 export type SessionsPrimaryAction =
@@ -223,7 +224,7 @@ function normalizeManagedSession(
     kind,
     title: sessionPresentationTitle(
       session.title,
-      kind === "codex" ? "Codex" : kind === "claude" ? "Claude" : "Terminal",
+      kind === "codex" ? "Codex" : isDeepSeekLaunch(session.command, session.args) ? "DeepSeek" : kind === "claude" ? "Claude" : "Terminal",
     ),
     project,
     locationLabel: displayLocation(session),

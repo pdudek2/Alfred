@@ -27,6 +27,7 @@ export function registerAlfredIpc(): void {
   trustedIpc.handle(alfredChannels.runtimeStatus, (): AlfredRuntimeStatus => ({
     model: DEFAULT_MODEL,
     openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+    deepSeekConfigured: Boolean(process.env.DEEPSEEK_API_KEY),
   }));
   trustedIpc.handle(alfredChannels.planGet, (): Promise<AlfredStagedPlanSnapshotResponse> => getStagedPlansSnapshot());
   trustedIpc.handle(

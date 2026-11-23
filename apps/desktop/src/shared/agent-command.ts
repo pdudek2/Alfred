@@ -61,3 +61,14 @@ function normalizeUnsupportedPromptFlag(args: string[]): string[] {
 
   return changed ? normalized : args;
 }
+
+export const DEEPSEEK_MODEL = "deepseek-flash[1m]";
+
+/** A `claude` session on a DeepSeek model: Alfred points it at DeepSeek's Anthropic-compatible API. */
+export function isDeepSeekLaunch(command: string | undefined, args: readonly string[] = []): boolean {
+  if (command !== "claude") return false;
+  const end = args.indexOf("--");
+  const flags = end === -1 ? args : args.slice(0, end);
+  const model = flags.indexOf("--model");
+  return model !== -1 && flags[model + 1]?.startsWith("deepseek-") === true;
+}

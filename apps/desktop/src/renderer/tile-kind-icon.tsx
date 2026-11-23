@@ -2,6 +2,7 @@ import { Server } from "lucide-react";
 import type { TileKind } from "./tile-kind";
 import claudeSparkUrl from "./assets/claude-spark.svg";
 import codexIconUrl from "./assets/codex-icon.png";
+import deepSeekMarkUrl from "./assets/deepseek-mark.svg";
 
 type TileKindIconProps = {
   kind: TileKind;
@@ -14,6 +15,8 @@ export function TileKindIcon({ kind, size = 13 }: TileKindIconProps) {
       return <img className="kind-brand-icon" src={claudeSparkUrl} alt="" aria-hidden="true" width={size} height={size} />;
     case "codex":
       return <img className="kind-brand-icon" src={codexIconUrl} alt="" aria-hidden="true" width={size} height={size} />;
+    case "deepseek":
+      return <img className="kind-brand-icon" src={deepSeekMarkUrl} alt="" aria-hidden="true" width={size} height={size} />;
     case "dev-server":
       return <Server aria-hidden="true" size={size} strokeWidth={1.9} />;
     case "manual":
