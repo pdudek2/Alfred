@@ -1527,18 +1527,19 @@ const CODEX_IMAGES_FRESH_MS = 1500;
 const IMAGE_PEEK_HEIGHT = 260;
 
 function TerminalImagePeek({ image, cwd }: { image: HoveredImage; cwd: string }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [thumbnail, setThumbnail] = useState<{ path: string; cwd: string; dataUrl: string } | null>(null);
   useEffect(() => {
     let current = true;
-    setDataUrl(null);
     void getDesktopWorkspaceApi()?.imageThumbnail({ path: image.path, cwd }).then((result) => {
-      if (current && result.ok) setDataUrl(result.dataUrl);
+      if (current && result.ok) setThumbnail({ path: image.path, cwd, dataUrl: result.dataUrl });
     });
     return () => {
       current = false;
     };
   }, [cwd, image.path]);
-  if (!dataUrl) return null;
+  // A file's name never shows over another file's thumbnail, and a redraw never blanks the one it shows.
+  if (thumbnail?.path !== image.path || thumbnail.cwd !== cwd) return null;
+  const { dataUrl } = thumbnail;
   // Below and right of the pointer, flipped to the other side near the tile's edge.
   const left = image.x + 14 + IMAGE_PEEK_WIDTH > image.width ? image.x - 14 - IMAGE_PEEK_WIDTH : image.x + 14;
   const top = image.y + 18 + IMAGE_PEEK_HEIGHT > image.height ? image.y - 8 - IMAGE_PEEK_HEIGHT : image.y + 18;

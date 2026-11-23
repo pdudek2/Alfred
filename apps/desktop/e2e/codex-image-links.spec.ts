@@ -54,9 +54,13 @@ test("tells screenshots sent on their own apart and keeps their preview while Co
   const frame = "\x1b[3;1H› kontynuuj\x1b[5;1H› [Image #1]\x1b[7;1H› [Image #1]\x1b[9;1H› Ask Codex to do anything";
   await appendFile(marker, `\x1b[?1049h\x1b[H\x1b[2J${MOUSE_TRACKING}${frame}`);
   let working = true;
+  let redrawn = 0;
+  let onRedraw: (() => void) | undefined;
   const redraws = (async () => {
     while (working) {
       await appendFile(marker, frame);
+      redrawn += 1;
+      onRedraw?.();
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
   })();
@@ -65,16 +69,28 @@ test("tells screenshots sent on their own apart and keeps their preview while Co
     const screenshots = sentRow(tile, /^›\s\[Image\s#1\]\s*$/);
     await expect(screenshots).toHaveCount(2);
     const peek = tile.locator(".terminal-image-peek");
+    // Every file the peek names, in order, so a preview that blinks off and on again shows as a repeat.
+    await tile.evaluate((element) => {
+      const shown: string[] = [];
+      (window as { alfredPeekShown?: string[] }).alfredPeekShown = shown;
+      new MutationObserver(() => {
+        const name = element.querySelector(".terminal-image-peek span")?.textContent ?? "none";
+        if (shown.at(-1) !== name) shown.push(name);
+      }).observe(element, { childList: true, subtree: true, characterData: true });
+    });
     await hoverPlaceholder(page, screenshots.first());
     await expect(peek).toContainText("second.png");
     await hoverPlaceholder(page, screenshots.last());
     await expect(peek).toContainText("third.png");
-    const visible: boolean[] = [];
-    for (let sample = 0; sample < 20; sample += 1) {
-      visible.push(await peek.isVisible());
-      await page.waitForTimeout(25);
-    }
-    expect(visible).toEqual(Array(20).fill(true));
+    await hoverPlaceholder(page, screenshots.first());
+    await expect(peek).toContainText("second.png");
+    await hoverPlaceholder(page, screenshots.last());
+    await expect(peek).toContainText("third.png");
+    // The peek has to hold over twenty more redraws.
+    const target = redrawn + 20;
+    await new Promise<void>((resolve) => { onRedraw = () => { if (redrawn >= target) resolve(); }; });
+    const shown = await page.evaluate(() => (window as { alfredPeekShown?: string[] }).alfredPeekShown);
+    expect(shown?.filter((name) => name !== "none")).toEqual(["second.png", "third.png", "second.png", "third.png"]);
 
     await page.keyboard.down("Meta");
     for (let click = 0; click < 5; click += 1) {
