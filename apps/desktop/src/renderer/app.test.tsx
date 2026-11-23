@@ -711,8 +711,10 @@ async function openPlan(user: ReturnType<typeof userEvent.setup>) {
 
 // New session is the composer under the terminal; ⌘N opens it, or focuses it when it is already open.
 async function openComposer(user: ReturnType<typeof userEvent.setup>) {
+  // ⌘N does nothing until the projects are loaded, which is when the composer's dock appears.
+  await waitFor(() => expect(document.querySelector(".new-session-dock")).not.toBeNull());
   await user.keyboard("{Meta>}n{/Meta}");
-  return screen.getByRole("form", { name: "New session" });
+  return screen.findByRole("form", { name: "New session" });
 }
 
 async function openNewPlan(user: ReturnType<typeof userEvent.setup>) {
