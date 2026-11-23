@@ -128,6 +128,10 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   };
   window.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
     const trusted = details.webContentsId === trustedContentsId;
+    if (/^(https|wss):\/\/(127\.0\.0\.1|localhost)/.test(details.url)) {
+      const frame = frameOf(details.frame);
+      process.stderr.write(`DIAG-REQ ${JSON.stringify({ url: details.url, type: details.resourceType, wc: details.webContentsId ?? null, trusted, frame, block: blocksPrivateRequest({ url: details.url, resourceType: details.resourceType, frame, trustedEntryUrls: trustedEntries() }) })}\n`);
+    }
     callback({
       cancel: trusted && (
         (details.resourceType === "subFrame" && trustedEntries().some((entry) => isTrustedDocumentOrigin(details.url, entry)))
