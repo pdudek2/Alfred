@@ -13,6 +13,7 @@ import {
   killAllTerminalSessions,
   registerTerminalIpc as registerTerminalIpcBase,
   resetTerminalPersistenceForTests,
+  terminalsQuietForRestart,
   savesTerminalData,
   waitForTerminalExits,
 } from "./terminal-manager.js";
@@ -3708,7 +3709,62 @@ describe("terminal-manager IPC", () => {
       await flushTerminalPersistence();
 
       expect((await store.getState()).restoredTerminalSessions.find((session) => session.clientId === "codex-1"))
-        .toMatchObject({ parentClientId: "claude-1" });
+        .toMatchObject({ parentClientId: "claude-1", startedByTool: true });
+
+      // The next Alfred resumes both: the worker's turn end still wakes the orchestrator it was started for.
+      resetTerminalPersistenceForTests();
+      configureTerminalPersistence(store, { debounceMs: 0 });
+      const { bridge, fire } = fakeBridge();
+      const leadPty = new FakePty();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => ({ spawn: vi.fn(() => new FakePty()).mockReturnValueOnce(leadPty) }) as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24, title: "Lead",
+      });
+      const worker = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", parentClientId: "claude-1", rows: 24, title: "Task 1",
+      });
+      vi.useFakeTimers();
+      try {
+        fire(lead.id, { state: "working" });
+        fire(lead.id, { state: "your-turn", detail: "Waiting." });
+        fire(worker.id, { state: "working" });
+        fire(worker.id, { state: "your-turn", detail: "Done." });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(leadPty.writes.join("")).toContain('your worker "Task 1" (codex-1) finished its turn.');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("is quiet for a restart only with no launch, worker start, wake or paste on its way and no draft being typed", async () => {
+      vi.useFakeTimers();
+      try {
+        const { fire, callTool, lead, workers } = await orchestratorWithWorkers(1);
+        expect(terminalsQuietForRestart()).toBe(true);
+        // A worker's turn end queues a wake for its orchestrator.
+        fire(workers[0]!.id, { state: "working" });
+        fire(workers[0]!.id, { state: "your-turn", detail: "Done." });
+        expect(terminalsQuietForRestart()).toBe(false);
+        await vi.advanceTimersByTimeAsync(2_000);
+        // The news is pasted; its Enter follows a moment later.
+        expect(terminalsQuietForRestart()).toBe(false);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(terminalsQuietForRestart()).toBe(true);
+        // A worker the orchestrator asked for, while its window has not added it yet.
+        fire(lead.id, { state: "working" });
+        const starting = callTool(lead.id, "start_worker", { agent: "codex", prompt: "More" });
+        expect(terminalsQuietForRestart()).toBe(false);
+        const request = sentEvents.filter((event) => event.channel === terminalChannels.workerRequest).at(-1)!.payload as TerminalWorkerRequest;
+        emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: "codex-2", title: "More" });
+        await starting;
+        expect(terminalsQuietForRestart()).toBe(true);
+        // You are typing a message to an agent.
+        fire(lead.id, { state: "your-turn", detail: "Ok." });
+        emit(terminalChannels.write, { id: lead.id, data: "half" });
+        expect(terminalsQuietForRestart()).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("releases the asleep workers of an asleep orchestrator you close", async () => {

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { desktopStateChannels } from "../shared/desktop-state-ipc.js";
-import { relaunchOptions, startPreviewDeploy, updateFor } from "./preview-deploy.js";
+import { relaunchOptions, startPreviewDeploy, takeRestartResume, updateFor } from "./preview-deploy.js";
 import { beginEntrySwitch, configureTrustedIpc, finishEntrySwitch, isTrustedEntry } from "./trusted-ipc.js";
 
 const handlers = vi.hoisted(() => new Map<string, (event: unknown, ...args: unknown[]) => unknown>());
@@ -64,7 +64,7 @@ describe("Alfred Preview releases", () => {
 
   it("does nothing without a deploy root, and tells the window there is no new version", async () => {
     const quit = vi.fn();
-    expect(startPreviewDeploy({ env: {}, appPath: "/x/apps/desktop", windowMaterialQuery: undefined, window: () => null, quit })).toBeNull();
+    expect(startPreviewDeploy({ env: {}, appPath: "/x/apps/desktop", windowMaterialQuery: undefined, window: () => null, quit, userDataPath: "/missing", quietForRestart: () => true })).toBeNull();
     const mainFrame = { url: "file:///own/index.html" };
     const contents = { mainFrame, once: vi.fn() };
     configureTrustedIpc(contents as never, mainFrame.url);
@@ -77,7 +77,7 @@ describe("Alfred Preview releases", () => {
     const { root } = deployRoot();
     const elsewhere = realpathSync(mkdtempSync(path.join(os.tmpdir(), "alfred-dev-")));
     roots.push(elsewhere);
-    expect(startPreviewDeploy({ env: { ALFRED_DEPLOY_ROOT: root }, appPath: path.join(elsewhere, "apps", "desktop"), windowMaterialQuery: undefined, window: () => null, quit: vi.fn() })).toBeNull();
+    expect(startPreviewDeploy({ env: { ALFRED_DEPLOY_ROOT: root }, appPath: path.join(elsewhere, "apps", "desktop"), windowMaterialQuery: undefined, window: () => null, quit: vi.fn(), userDataPath: elsewhere, quietForRestart: () => true })).toBeNull();
     expect(existsSync(path.join(root, "running.json"))).toBe(false);
   });
 
@@ -90,6 +90,8 @@ describe("Alfred Preview releases", () => {
       windowMaterialQuery: undefined,
       window: () => null,
       quit,
+      userDataPath: root,
+      quietForRestart: () => true,
     })!;
     expect(deploy).not.toBeNull();
     const mainFrame = { url: "file:///own/index.html" };
@@ -97,7 +99,8 @@ describe("Alfred Preview releases", () => {
     configureTrustedIpc(contents as never, mainFrame.url);
     const trusted = { sender: contents, senderFrame: mainFrame };
     const getUpdate = (_event: unknown) => handlers.get(desktopStateChannels.getUpdate)!(trusted);
-    const applyUpdate = (_event: unknown, action: string) => handlers.get(desktopStateChannels.applyUpdate)!(trusted, action);
+    const applyUpdate = (_event: unknown, action: string, restart?: unknown) => handlers.get(desktopStateChannels.applyUpdate)!(trusted, action, restart);
+    const takeResume = () => handlers.get(desktopStateChannels.takeRestartResume)!(trusted);
     expect(await getUpdate({})).toBeNull();
 
     // A ready.json naming a folder outside the releases, or an Electron outside its release, is not offered.
@@ -125,5 +128,62 @@ describe("Alfred Preview releases", () => {
     expect(deploy.relaunchIfArmed(relaunch, "/u")).toBe(true);
     expect(relaunch).toHaveBeenCalledWith({ execPath: path.join(next, "e", "Electron"), args: [path.join(next, "apps", "desktop"), "--user-data-dir=/u"] });
     expect(readlinkSync(path.join(root, "current"))).toBe(next);
+    // Nothing was asked back, so the next start resumes nothing.
+    expect(await takeResume()).toEqual([]);
+  });
+
+  it("waits for Alfred to be quiet, skips the quit question for that restart, and hands the agents to resume to the next start", async () => {
+    const { root, own } = deployRoot();
+    const quit = vi.fn();
+    let quiet = false;
+    const deploy = startPreviewDeploy({
+      env: { ALFRED_DEPLOY_ROOT: root, ALFRED_DEPLOY_RELEASE: own },
+      appPath: path.join(own, "apps", "desktop"),
+      windowMaterialQuery: undefined,
+      window: () => null,
+      quit,
+      userDataPath: root,
+      quietForRestart: () => quiet,
+    })!;
+    const mainFrame = { url: "file:///own/index.html" };
+    const contents = { mainFrame, once: vi.fn() };
+    configureTrustedIpc(contents as never, mainFrame.url);
+    const trusted = { sender: contents, senderFrame: mainFrame };
+    const applyUpdate = (restart: unknown) => handlers.get(desktopStateChannels.applyUpdate)!(trusted, "restart", restart);
+    const takeResume = () => handlers.get(desktopStateChannels.takeRestartResume)!(trusted);
+    const next = path.join(root, "releases", "next");
+    mkdirSync(path.join(next, "e"), { recursive: true });
+    writeFileSync(path.join(next, "e", "Electron"), "");
+    writeFileSync(path.join(root, "ready.json"), JSON.stringify({ ...release(next, "changed"), electron: path.join(next, "e", "Electron") }));
+
+    // A paste still to be submitted, a wake or a launch on its way: the window waits and asks again.
+    expect(await applyUpdate({ resume: ["claude-1"] })).toBe("busy");
+    expect(quit).not.toHaveBeenCalled();
+    // A cancelled restart writes nothing, so a later quit and start resume nothing.
+    await applyUpdate({ resume: ["claude-1"], now: true });
+    expect(deploy.restartSkipsQuitDialog()).toBe(false);
+    deploy.cancelRestart();
+    expect(await takeResume()).toEqual([]);
+
+    quiet = true;
+    await applyUpdate({ resume: ["claude-1", "codex-2", 7, "x".repeat(201)] });
+    expect(quit).toHaveBeenCalledTimes(2);
+    expect(deploy.restartSkipsQuitDialog()).toBe(true);
+    expect(deploy.relaunchIfArmed(vi.fn(), root)).toBe(true);
+    expect(await takeResume()).toEqual(["claude-1", "codex-2"]);
+    expect(await takeResume()).toEqual([]);
+  });
+
+  it("resumes nothing from a list a restart left long ago, or a broken one", () => {
+    const dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "alfred-resume-")));
+    roots.push(dir);
+    const file = path.join(dir, "restart-resume.json");
+    writeFileSync(file, JSON.stringify({ clientIds: ["claude-1"], writtenAt: 1_000 }));
+    expect(takeRestartResume(file, 1_000 + 10 * 60_000)).toEqual(["claude-1"]);
+    writeFileSync(file, JSON.stringify({ clientIds: ["claude-1"], writtenAt: 1_000 }));
+    expect(takeRestartResume(file, 1_001 + 10 * 60_000)).toEqual([]);
+    expect(existsSync(file)).toBe(false);
+    writeFileSync(file, "{");
+    expect(takeRestartResume(file)).toEqual([]);
   });
 });

@@ -18,6 +18,7 @@ import {
   flushTerminalPersistence,
   getTerminalSessionCount,
   killAllTerminalSessions,
+  terminalsQuietForRestart,
   registerTerminalIpc,
   savesTerminalData,
   waitForTerminalExits,
@@ -278,6 +279,8 @@ if (!hasSingleInstanceLock) {
       windowMaterialQuery: windowMaterialConfiguration().enabled ? { [WINDOW_MATERIAL_QUERY_KEY]: "native" } : undefined,
       window: () => BrowserWindow.getAllWindows()[0] ?? null,
       quit: () => app.quit(),
+      userDataPath: app.getPath("userData"),
+      quietForRestart: terminalsQuietForRestart,
     });
     await createWindow(persistedDesktopStateStore);
 
@@ -298,7 +301,7 @@ if (!hasSingleInstanceLock) {
   });
 
   app.on("before-quit", (event) => {
-    if (!terminalQuitConfirmed && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
+    if (!terminalQuitConfirmed && !previewDeploy?.restartSkipsQuitDialog() && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
       if (!confirmTerminalQuit()) {
         event.preventDefault();
         previewDeploy?.cancelRestart();
@@ -324,7 +327,8 @@ if (!hasSingleInstanceLock) {
           previewDeploy?.relaunchIfArmed((options) => {
             // The new process would take the keys this one loaded from .env for the user's own and pass them on.
             for (const key of appOnlyEnvKeys) delete process.env[key];
-            app.relaunch(options);
+            // The e2e harness starts the next Alfred itself, so it can drive and clean up both.
+            if (!process.env.ALFRED_E2E_EXTERNAL_RELAUNCH) app.relaunch(options);
           }, app.getPath("userData"));
         } catch (error) {
           // The sessions are already stopped; quitting without the restart beats staying half closed.

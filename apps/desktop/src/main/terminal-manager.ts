@@ -238,6 +238,10 @@ type WorkerNews = { title: string; ended: boolean };
 /** What each orchestrator has not been told yet about its workers, by worker. */
 const pendingWakes = new Map<string, Map<string, WorkerNews>>();
 const wakeTimers = new Map<string, NodeJS.Timeout>();
+// Work a restart must not cut short: launches and worker starts on their way, and pastes whose Enter is still to come.
+let launchesInFlight = 0;
+let workerStartsInFlight = 0;
+let pasteSubmitsPending = 0;
 /** Workers that finish close together reach their orchestrator in one message. */
 const WAKE_BATCH_MS = 2_000;
 /** A program that holds a shell's foreground this long names it; `ls` or `git status` names nothing. */
@@ -284,7 +288,28 @@ export function resetTerminalPersistenceForTests(): void {
   pendingWakes.clear();
   for (const timer of wakeTimers.values()) clearTimeout(timer);
   wakeTimers.clear();
+  launchesInFlight = 0;
+  workerStartsInFlight = 0;
+  pasteSubmitsPending = 0;
   persistDebounceMs = 250;
+}
+
+/** Nothing is on its way that a restart would cut short or lose, and nobody is typing into an agent. */
+export function terminalsQuietForRestart(): boolean {
+  return launchesInFlight === 0 && workerStartsInFlight === 0 && pasteSubmitsPending === 0
+    && pendingWakes.size === 0 && wakeTimers.size === 0
+    && ![...sessions.values()].some((session) => session.typingDraft);
+}
+
+function countingLaunch<A extends unknown[], R>(launch: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  return async (...args) => {
+    launchesInFlight += 1;
+    try {
+      return await launch(...args);
+    } finally {
+      launchesInFlight -= 1;
+    }
+  };
 }
 
 export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
@@ -505,7 +530,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   trustedIpc.handle(
     terminalChannels.create,
-    async (event, request: TerminalCreateRequest): Promise<TerminalCreateResult> => {
+    countingLaunch(async (event, request: TerminalCreateRequest): Promise<TerminalCreateResult> => {
       const window = BrowserWindow.fromWebContents(event.sender);
 
       if (!window) {
@@ -617,6 +642,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
       if (session.clientId) {
         forgottenClientIds.delete(session.clientId);
+        // A worker its orchestrator started stays that orchestrator's worker when it is resumed.
+        if (restoredSessionSnapshots.get(session.clientId)?.startedByTool) toolStartedWorkers.add(session.clientId);
       }
       rememberSessionSnapshot(session);
 
@@ -715,7 +742,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       });
 
       return toCreateResult(session);
-    },
+    }),
   );
 
   trustedIpc.on(terminalChannels.write, (event, request: TerminalWriteRequest) => {
@@ -1300,6 +1327,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.parentClientId === undefined ? {} : { parentClientId: session.parentClientId }),
     ...(session.namedByYou ? { namedByYou: true as const } : {}),
+    ...(session.clientId && toolStartedWorkers.has(session.clientId) ? { startedByTool: true as const } : {}),
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
@@ -1703,6 +1731,7 @@ async function requestWorker(
     throw new WorkerToolError("Alfred has no open window for this session, so it cannot add a worker.");
   }
   const requestId = randomUUID();
+  workerStartsInFlight += 1;
   const reply = await new Promise<TerminalWorkerReply>((resolve, reject) => {
     const timer = setTimeout(() => {
       replies.delete(requestId);
@@ -1715,6 +1744,8 @@ async function requestWorker(
     });
     const payload: TerminalWorkerRequest = { requestId, parentClientId, ...request };
     sendToSessionWindow(parent, terminalChannels.workerRequest, payload);
+  }).finally(() => {
+    workerStartsInFlight -= 1;
   });
   if ("error" in reply) throw new WorkerToolError(typeof reply.error === "string" ? reply.error : "Alfred could not add the worker.");
   const clientId = clientIdValue(reply.clientId);
@@ -1746,7 +1777,9 @@ function typeIntoAgent(session: TerminalSession, message: string): void {
   // eslint-disable-next-line no-control-regex
   const text = message.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
   session.pty.write(`\x1b[200~${text}\x1b[201~`);
+  pasteSubmitsPending += 1;
   setTimeout(() => {
+    pasteSubmitsPending -= 1;
     if (sessions.get(session.id) === session && session.agentSignal?.state !== "needs-you") session.pty.write("\r");
   }, PASTE_SUBMIT_DELAY_MS).unref();
   session.lastPromptSeq = ++turnSeq;

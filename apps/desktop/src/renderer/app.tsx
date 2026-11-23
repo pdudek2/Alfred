@@ -78,6 +78,7 @@ import {
   type SessionTile,
 } from "./session-state";
 import { isAgentSession, nextApprovalRevealAt, sessionState } from "./session-status";
+import { hasExactResumeTarget } from "./restored-session-action";
 import type { HistorySelection } from "./history-presentation";
 import { createInitialSessionsViewState } from "./sessions-view-state";
 import {
@@ -171,6 +172,9 @@ export function App() {
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdate | null>(null);
   const [laterUpdateSha, setLaterUpdateSha] = useState<string | null>(null);
+  // The release a "Restart when idle" waits to load, and a count bumped when Alfred was not quiet yet, to wait again.
+  const [restartWhenIdleSha, setRestartWhenIdleSha] = useState<string | null>(null);
+  const [restartAttempt, setRestartAttempt] = useState(0);
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [sessionsViewState, setSessionsViewState] = useState(createInitialSessionsViewState);
   const [historySelection, setHistorySelection] = useState<HistorySelection | null>(null);
@@ -331,6 +335,28 @@ export function App() {
     workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
   );
   const now = useSessionClock(terminalSessions);
+  // A restart waits for agents that work or wait for you; it stops running commands, which the banner names.
+  const restartWaitsFor = terminalSessions.filter((session) =>
+    isAgentSession(session) && ["working", "needs-you"].includes(sessionState(session, "ready", now).kind));
+  const restartStops = terminalSessions.filter((session) =>
+    !isAgentSession(session) && sessionState(session, "ready", now).kind === "running");
+  const restartQuiet = restartWaitsFor.length === 0;
+  const restartArmed = desktopUpdate !== null && restartWhenIdleSha === desktopUpdate.sha;
+  const restartAlfred = useCallback((immediately = false) => {
+    // Every running agent is asked back; the next start resumes those that can return to their own conversation.
+    const resume = terminalSessionsRef.current
+      .filter((session) => isAgentSession(session) && (session.runtimeStatus === "live" || session.runtimeStatus === "starting"))
+      .map((session) => session.id);
+    void getDesktopStateApi()?.applyUpdate("restart", { resume, ...(immediately ? { now: true } : {}) }).then((result) => {
+      if (result === "busy") setRestartAttempt((attempt) => attempt + 1);
+    }, () => undefined);
+  }, []);
+  useEffect(() => {
+    if (!restartArmed || !restartQuiet) return;
+    // Quiet has to hold: the moment the last agent stops is when Alfred hands its news to the orchestrator.
+    const timer = setTimeout(() => restartAlfred(), RESTART_QUIET_MS);
+    return () => clearTimeout(timer);
+  }, [restartArmed, restartQuiet, restartAttempt, restartAlfred]);
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions, now).filter((item) => {
     if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
     // A closed project's sessions wait in History, not in Needs you.
@@ -2187,8 +2213,9 @@ export function App() {
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
       layoutApi?.getLayouts() ?? Promise.resolve(emptyLayouts),
       workspaceApi?.getWorkspaceState() ?? Promise.resolve(null),
+      getDesktopStateApi()?.takeRestartResume().catch(() => []) ?? Promise.resolve([]),
     ])
-      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
+      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult, resumeAfterRestart]) => {
         if (cancelled) return;
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
@@ -2238,7 +2265,7 @@ export function App() {
         if (alreadyLaunchedStagedIds.length > 0) {
           void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLaunchedStagedIds });
         }
-        const hydratedSessions =
+        const startedSessions =
           liveSessions.length + restoredSessions.length + stagedSessions.length > 0
             ? [...liveSessions, ...restoredSessions, ...stagedSessions]
             : hydratedWorkspaceRootPath && !hydratedWorkspaceMissing
@@ -2247,6 +2274,18 @@ export function App() {
                   hydratedWorkspaceId,
                 )
               : [];
+        // The agents a restart from the update banner stopped go back to their own conversations, as Resume would.
+        const hydratedSessions = resumeAfterRestart.reduce((sessions, id) => {
+          const session = sessions.find((item) => item.id === id);
+          if (!session || !canRelaunchRestoredSession(session) || !hasExactResumeTarget(session) || !sessionRelaunchSafety(session).safe) {
+            return sessions;
+          }
+          return appendSessionActivity(relaunchRestoredSession(sessions, id), id, {
+            kind: "lifecycle",
+            title: "Resuming session",
+            detail: "Resumed after the update restart",
+          });
+        }, startedSessions);
         // Asleep sessions of a closed project wait in History; only running ones bring a project back.
         setWorkspaces((current) => ensureWorkspacesForSessions(
           workspaceStateResult?.workspaces ?? current,
@@ -2441,16 +2480,32 @@ export function App() {
           {desktopUpdate && desktopUpdate.sha !== laterUpdateSha && (
             <div className="desktop-save-banner" role="status" aria-label="New version">
               <div>
-                <strong>{desktopUpdate.reloadFailed ? "The new version did not load" : "New version ready"}</strong>
-                <span title={desktopUpdate.ref}>{desktopUpdate.sha.slice(0, 7)} {desktopUpdate.subject}</span>
+                <strong>
+                  {desktopUpdate.reloadFailed
+                    ? "The new version did not load"
+                    : restartArmed ? (restartQuiet ? "Restarting…" : "Restart waits for agents") : "New version ready"}
+                </strong>
+                {restartArmed && !restartQuiet
+                  ? <span>{restartWaitsFor.map((session) => session.title).join(", ")}</span>
+                  : <span title={desktopUpdate.ref}>{desktopUpdate.sha.slice(0, 7)} {desktopUpdate.subject}</span>}
+                {desktopUpdate.action === "restart" && restartStops.length > 0 && (
+                  <span>Stops {restartStops.map((session) => session.title).join(", ")}</span>
+                )}
               </div>
               <div className="desktop-update-actions">
                 {desktopUpdate.action === "reload" && !desktopUpdate.reloadFailed ? (
                   <button type="button" onClick={() => void getDesktopStateApi()?.applyUpdate("reload")}>Reload window</button>
+                ) : restartArmed ? (
+                  <>
+                    <button type="button" onClick={() => restartAlfred(true)}>Restart now</button>
+                    <button type="button" onClick={() => setRestartWhenIdleSha(null)}>Cancel</button>
+                  </>
                 ) : (
-                  <button type="button" onClick={() => void getDesktopStateApi()?.applyUpdate("restart")}>Restart Alfred</button>
+                  <button type="button" onClick={() => setRestartWhenIdleSha(desktopUpdate.sha)}>
+                    {restartQuiet ? "Restart Alfred" : "Restart when idle"}
+                  </button>
                 )}
-                <button type="button" onClick={() => setLaterUpdateSha(desktopUpdate.sha)}>Later</button>
+                {!restartArmed && <button type="button" onClick={() => setLaterUpdateSha(desktopUpdate.sha)}>Later</button>}
               </div>
             </div>
           )}
@@ -2971,6 +3026,9 @@ function workspacePlanContext(
  * never disagree. It ticks every 5 s for ages and decaying busy states, and at the moment an approval
  * stops being masked by recent output.
  */
+/** How long no agent may work before a waiting restart goes ahead. */
+const RESTART_QUIET_MS = 3_000;
+
 function useSessionClock(sessions: SessionTile[]): number {
   const [now, setNow] = useState(() => Date.now());
   const revealAt = nextApprovalRevealAt(sessions, now);

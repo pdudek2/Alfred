@@ -148,6 +148,7 @@ vi.mock("./terminal-manager.js", () => ({
   killAllTerminalSessions: mocks.killAllTerminalSessions,
   registerTerminalIpc: mocks.registerTerminalIpc,
   savesTerminalData: vi.fn(() => true),
+  terminalsQuietForRestart: vi.fn(() => true),
   waitForTerminalExits: mocks.waitForTerminalExits,
 }));
 
