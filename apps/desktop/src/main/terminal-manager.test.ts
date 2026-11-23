@@ -382,6 +382,12 @@ describe("terminal-manager IPC", () => {
       await invoke(terminalChannels.create, { clientId: "manual-3", command: "zsh", cols: 80, cwd: "/repo", rows: 24 });
       await vi.advanceTimersByTimeAsync(250);
       expect(state.restoredTerminalSessions.map((session) => session.clientId)).toContain("manual-3");
+
+      // Nor is an agent started in the shell, which its output is the first to show.
+      busy.process = "claude";
+      busy.onDataHandler?.("z");
+      await vi.advanceTimersByTimeAsync(250);
+      expect(state.restoredTerminalSessions.find((session) => session.clientId === "manual-1")).toMatchObject({ agentKind: "claude" });
     } finally {
       vi.useRealTimers();
     }

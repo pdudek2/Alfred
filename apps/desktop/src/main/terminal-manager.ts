@@ -216,7 +216,7 @@ let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
 // A terminal that never goes quiet must not hold back the save; the whole state file is rewritten, so not every chunk.
 const PERSIST_MAX_WAIT_MS = 2_000;
-// Output alone only grows scrollback, which a crash may lose; saving the ~1 MB file for it every 2 s cost CPU and disk.
+// Output alone only grows scrollback, which a crash may lose.
 const OUTPUT_PERSIST_WAIT_MS = 30_000;
 let persistDeadline = 0;
 let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
@@ -1313,9 +1313,12 @@ function rememberSessionSnapshot(session: TerminalSession, outputOnly = false): 
   if (!snapshot) return;
   if (forgottenClientIds.has(snapshot.clientId)) return;
 
+  // An agent started in a shell shows first in its output, and the session resumes as that agent.
+  const previous = restoredSessionSnapshots.get(snapshot.clientId);
+  const sameAgent = previous?.agentKind === snapshot.agentKind && previous?.command === snapshot.command;
   persistenceHydrationMutations?.set(snapshot.clientId, privacyClearGeneration);
   restoredSessionSnapshots.set(snapshot.clientId, snapshot);
-  scheduleTerminalPersistence(outputOnly);
+  scheduleTerminalPersistence(outputOnly && sameAgent);
 }
 
 function forgetPersistedSession(clientId: string): void {
