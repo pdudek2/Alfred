@@ -55,6 +55,8 @@ export type ElectronHarness = {
   close(): Promise<void>;
   /** Quits the app as a person would, so it saves its state, and opens it again on the same user data. */
   restart(): Promise<{ app: ElectronApplication; page: Page }>;
+  /** Lets Alfred quit itself for an update restart through `quit`, then opens it again on the same user data. */
+  restartFromApp(quit: () => Promise<void>): Promise<{ app: ElectronApplication; page: Page }>;
 };
 
 type Fixtures = {
@@ -284,6 +286,20 @@ export const test = base.extend<Fixtures>({
       return { app, page };
     };
 
+    const restartFromApp = async (quit: () => Promise<void>): Promise<{ app: ElectronApplication; page: Page }> => {
+      const mainPid = mainProcess.pid!;
+      const pids = [mainPid, ...await collectDescendants(mainPid)];
+      const closed = app.waitForEvent("close");
+      await quit();
+      await closed;
+      // The quit stopped its terminals itself; nothing of the old Alfred may be left behind.
+      expect(await waitUntilDead(pids, 5_000)).toBe(true);
+      app = await launchElectron();
+      mainProcess = app.process();
+      page = await openFirstWindow(app);
+      return { app, page };
+    };
+
     const close = (): Promise<void> => {
       if (closeAttempt !== null) return closeAttempt;
       closeAttempt = performClose().catch((error: unknown) => {
@@ -294,7 +310,7 @@ export const test = base.extend<Fixtures>({
     };
 
     try {
-      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, expectBlockedRequests, closeActiveTerminals, close, restart });
+      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, expectBlockedRequests, closeActiveTerminals, close, restart, restartFromApp });
       assertNoRuntimeErrors();
     } finally {
       if (testInfo.status !== testInfo.expectedStatus && !page.isClosed()) {
@@ -341,6 +357,7 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
     ZDOTDIR: paths.home,
     XDG_CONFIG_HOME: path.join(paths.home, ".config"),
     ALFRED_E2E_HIDDEN: "1",
+    ALFRED_E2E_EXTERNAL_RELAUNCH: "1",
     ALFRED_DESKTOP_WORKSPACE_CWD: paths.workspaceA,
     ALFRED_CODEX_HOME: path.join(paths.home, ".codex"),
     CODEX_HOME: path.join(paths.home, ".codex"),

@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "./support/electron-app";
+import { launchedAgent, sendHook } from "./support/fixture-agents";
 import { openNewSession } from "./support/work-layout";
 
 test.use({ fixtureOptions: { previewDeploy: true } });
@@ -66,5 +67,39 @@ test("loads a release that changes only the window with a reload, while the term
   await expect(banner).toHaveCount(0);
 
   harness.assertNoRuntimeErrors();
+  await harness.closeActiveTerminals();
+});
+
+test("restarts for a main-process release once Claude is idle, and resumes it in its conversation", async ({ harness }) => {
+  const { app, paths } = harness;
+  let { page } = harness;
+  const deployRoot = path.join(paths.root, "deploy");
+  const conversation = "6f1c2a4e-8b1d-4c3e-9f2a-0d5e7b8c9a10";
+
+  await openNewSession(page);
+  const sheet = page.getByRole("form", { name: "New session", exact: true });
+  await sheet.getByRole("radio", { name: /^Claude/ }).click();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(page.locator('[data-testid="terminal-tile"]:visible')).toContainText("claude fixture ready");
+  const launched = await launchedAgent(paths.root, "claude", (args) => !args.includes("--resume"));
+  // Its hooks name its conversation, then it starts working.
+  await sendHook(launched, "Stop", { session_id: conversation, last_assistant_message: "Ready." });
+  await sendHook(launched, "UserPromptSubmit", { session_id: conversation, prompt: "Refactor the parser" });
+
+  const banner = page.getByRole("status", { name: "New version" });
+  await release(deployRoot, "main-change", "other");
+  await banner.getByRole("button", { name: "Restart when idle" }).click();
+  await expect(banner).toContainText("Restart waits for agents");
+  // Quitting must not ask: answering "Cancel" would keep Alfred open and the test waiting.
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBoxSync = () => 0;
+  });
+
+  ({ page } = await harness.restartFromApp(() => sendHook(launched, "Stop", { session_id: conversation, last_assistant_message: "Done." })));
+
+  const resumed = await launchedAgent(paths.root, "claude", (args) => args.includes("--resume"));
+  expect(resumed.args.slice(-2)).toEqual(["--resume", conversation]);
+  await expect(page.locator('[data-testid="terminal-tile"]:visible')).toContainText("claude fixture ready");
+  expect(await realpath(path.join(deployRoot, "current"))).toBe(await realpath(path.join(deployRoot, "releases", "main-change")));
   await harness.closeActiveTerminals();
 });
