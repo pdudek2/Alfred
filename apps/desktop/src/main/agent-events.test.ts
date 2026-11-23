@@ -58,7 +58,7 @@ const codexBody = {
             { key: "success", value: { boolValue: true } },
           ],
         },
-        { timeUnixNano: "0", observedTimeUnixNano: "1792936349821001000", attributes: [text("event.name", "codex.sse_event"), int("cached_token_count", 512)] },
+        { timeUnixNano: "0", observedTimeUnixNano: "1792936349821001000", attributes: [text("event.name", "codex.sse_event"), int("cached_token_count", 512), text("input_token_count", "1200"), text("api_token", "123456")] },
         { timeUnixNano: "0", observedTimeUnixNano: "1792936349821001000", body: { stringValue: "flushing OTEL metrics" } },
       ],
     }],
@@ -93,7 +93,9 @@ describe("agentEventLines", () => {
     expect(lines[0]!.at).toBe("2026-10-25T13:52:29.821Z");
     expect(lines[0]!.attributes["output"]).toBe("x".repeat(2000) + "…");
     expect(lines[0]!.attributes).toMatchObject({ arguments: JSON.stringify({ cmd: "echo probe" }), success: true });
-    expect(lines[1]!.attributes).toMatchObject({ cached_token_count: 512 });
+    // Codex sends some counts as text; a secret under a token key stays blank.
+    expect(lines[1]!.attributes).toMatchObject({ cached_token_count: 512, input_token_count: 1200 });
+    expect(lines[1]!.attributes["api_token"]).not.toBe("123456");
   });
 
   it("ignores bodies that are not OTLP logs", () => {
