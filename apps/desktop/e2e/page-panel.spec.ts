@@ -14,11 +14,13 @@ const chartPage = (colour: string, port: number, udpPort: number, tlsPort: numbe
 <script>
   const local = "http://127.0.0.1:${port}/";
   // The page's CSP lets https: through, so only Alfred keeps it off local addresses there, from a worker too.
-  for (const host of ["127.0.0.1", "localhost"]) {
-    fetch("https://" + host + ":${tlsPort}/fetch", { mode: "no-cors" }).catch(() => {});
-    new Image().src = "https://" + host + ":${tlsPort}/img";
-  }
-  new Worker(URL.createObjectURL(new Blob(['fetch("https://127.0.0.1:${tlsPort}/worker", { mode: "no-cors" }).catch(() => {})'])));
+  const secure = (host) => "https://" + host + ":${tlsPort}/";
+  const fromWorker = new Promise((resolve) => {
+    const worker = new Worker(URL.createObjectURL(new Blob([
+      'fetch("' + secure("127.0.0.1") + 'worker", { mode: "no-cors" }).then(() => postMessage(false), () => postMessage(true))',
+    ])));
+    worker.onmessage = (event) => resolve(event.data);
+  });
   const failed = (promise) => promise.then(() => false, () => true);
   const loads = (tag, attribute) => new Promise((resolve) => {
     const element = document.createElement(tag);
@@ -53,6 +55,9 @@ const chartPage = (colour: string, port: number, udpPort: number, tlsPort: numbe
     failed(fetch("http://localhost:${port}/localhost", { mode: "no-cors" })),
     loads("img", "src"),
     loads("video", "src"),
+    failed(fetch(secure("127.0.0.1") + "fetch", { mode: "no-cors" })),
+    failed(fetch(secure("localhost") + "fetch", { mode: "no-cors" })),
+    fromWorker,
     ice,
     Promise.resolve(typeof Notification === "undefined" ? "denied" : Notification.requestPermission()).then((answer) => answer !== "granted"),
   ]).then((results) => {
@@ -270,6 +275,8 @@ test("shows a page an agent writes live beside its terminal, away from local ser
   expect(hits).toEqual([]);
   expect(dialogs).toBe(0);
   expect(await app.evaluate(() => (globalThis as { pageDownloads?: number }).pageDownloads)).toBe(0);
+  harness.expectBlockedRequests(`https://127.0.0.1:${tlsPort}/`);
+  harness.expectBlockedRequests(`https://localhost:${tlsPort}/`);
   harness.assertNoRuntimeErrors();
   // The width outlives a restart.
   const stateFile = resolveDesktopStateFilePath({ userDataPath: paths.userData });

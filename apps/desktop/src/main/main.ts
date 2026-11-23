@@ -116,10 +116,11 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   window.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback, details) => callback(details.isMainFrame));
   const trustedContentsId = window.webContents.id;
-  // A page's opaque frame sits right under the main frame; Preview's frames have the origin of the server they show.
+  // A page is an opaque srcdoc frame right under the main frame; a Preview frame shows its server's URL even when sandboxed.
   const isPageFrame = (frame: WebFrameMain | null | undefined): boolean => {
     try {
-      return frame?.origin === "null" && frame.parent === window.webContents.mainFrame;
+      return frame?.origin === "null" && (frame.url === "about:srcdoc" || frame.url === "about:blank")
+        && frame.parent === window.webContents.mainFrame;
     } catch {
       return false;
     }
