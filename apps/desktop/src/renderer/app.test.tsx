@@ -468,6 +468,8 @@ function installDesktopBridge(
       imageThumbnail,
       quickLookImage,
       readAgentPage: vi.fn().mockResolvedValue({ ok: false, error: "Page does not exist." }),
+      readFile: vi.fn().mockResolvedValue({ ok: false, error: "File does not exist." }),
+      imageSiblings: vi.fn().mockResolvedValue({ ok: true, images: [] }),
       revealPath,
       setWorkspaceState,
     },
@@ -653,6 +655,8 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       sessionsLoaded
       surfaceActive
       terminalFocusRequestKey={0}
+      terminalPasteRequest={null}
+      onOpenFile={() => {}}
       workspaceLabel="Alfred"
       workspaceRootPath="/Users/sample/Desktop/Alfred"
       {...callbacks}
@@ -4092,11 +4096,11 @@ describe("App integration", () => {
     );
   });
 
-  it("previews the image behind a terminal link while the pointer rests on it and opens it on ⌘-click", async () => {
+  it("previews the image behind a terminal link while the pointer rests on it and opens it beside the terminal on ⌘-click", async () => {
     type Link = { range: unknown; text: string; activate(event: MouseEvent): void; hover(event: MouseEvent): void; leave(): void };
     type Handler = { hover(event: MouseEvent, uri: string): void; leave(): void; activate(event: MouseEvent, uri: string): void };
     type Provider = { provideLinks(y: number, callback: (found?: Link[]) => void): void };
-    const { codexImages, imageThumbnail, quickLookImage } = installDesktopBridge(undefined, null, [manualLiveSnapshot("links", "Image links")]);
+    const { codexImages, imageThumbnail } = installDesktopBridge(undefined, null, [manualLiveSnapshot("links", "Image links")]);
     render(<App />);
     const tile = await screen.findByRole("article", { name: /Image links/i });
     await waitFor(() => expect(terminalLinkProviders).toHaveLength(2));
@@ -4115,9 +4119,10 @@ describe("App integration", () => {
 
     // A plain click only focuses the terminal.
     act(() => linkHandler.activate(new MouseEvent("click"), uri));
-    expect(quickLookImage).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "File 1.png" })).not.toBeInTheDocument();
     act(() => linkHandler.activate(new MouseEvent("click", { metaKey: true }), uri));
-    expect(quickLookImage).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/sample/Desktop/Alfred" });
+    expect(await screen.findByRole("region", { name: "File 1.png" })).toBeInTheDocument();
+    expect(window.alfredDesktop?.workspace?.readFile).toHaveBeenCalledWith({ path: imagePath, cwd: "/Users/sample/Desktop/Alfred" });
     // Web links and other files are not images.
     act(() => linkHandler.hover(pointer, "https://example.com/a.png"));
     act(() => linkHandler.hover(pointer, "file:///Users/p/notes.txt"));
@@ -4144,7 +4149,7 @@ describe("App integration", () => {
     act(() => codexLinks![0]!.hover(pointer));
     expect(await within(tile).findByText("shot 2.png")).toBeInTheDocument();
     act(() => codexLinks![0]!.activate(new MouseEvent("click", { metaKey: true })));
-    expect(quickLookImage).toHaveBeenLastCalledWith({ path: "/Users/p/Desktop/shot 2.png", cwd: "/Users/sample/Desktop/Alfred" });
+    expect(await screen.findByRole("region", { name: "File shot 2.png" })).toBeInTheDocument();
     // xterm asks again each time Codex redraws the row; the last answer comes back at once.
     let redrawnLinks: Link[] | undefined;
     (terminalLinkProviders[1] as Provider).provideLinks(1, (found) => { redrawnLinks = found; });

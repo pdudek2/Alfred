@@ -72,6 +72,8 @@ const workspaceChannels = {
   imageThumbnail: "alfred:workspace:image-thumbnail",
   quickLookImage: "alfred:workspace:quick-look-image",
   readAgentPage: "alfred:workspace:read-agent-page",
+  readFile: "alfred:workspace:read-file",
+  imageSiblings: "alfred:workspace:image-siblings",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
 } as const;
@@ -180,6 +182,9 @@ const workspace: WorkspaceApi = {
     ipcRenderer.invoke(workspaceChannels.quickLookImage, request) as ReturnType<WorkspaceApi["quickLookImage"]>,
   readAgentPage: (request) =>
     ipcRenderer.invoke(workspaceChannels.readAgentPage, request) as ReturnType<WorkspaceApi["readAgentPage"]>,
+  readFile: (request) => ipcRenderer.invoke(workspaceChannels.readFile, request) as ReturnType<WorkspaceApi["readFile"]>,
+  imageSiblings: (request) =>
+    ipcRenderer.invoke(workspaceChannels.imageSiblings, request) as ReturnType<WorkspaceApi["imageSiblings"]>,
   revealPath: (request) =>
     ipcRenderer.invoke(workspaceChannels.revealPath, request) as ReturnType<WorkspaceApi["revealPath"]>,
   claudeTrustsProject: (request) =>

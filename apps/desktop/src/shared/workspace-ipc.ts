@@ -52,10 +52,18 @@ export type WorkspaceQuickLookImageResult = { ok: true } | { ok: false; error: s
 
 export type WorkspaceReadAgentPageResult = { ok: true; text: string; modifiedAt: number } | { ok: false; error: string };
 
+export type WorkspaceReadFileResult = { ok: true; bytes: Uint8Array<ArrayBuffer>; modifiedAt: number } | { ok: false; error: string };
+
+/** The images in an image's folder, by absolute path, to compare it with. */
+export type WorkspaceImageSiblingsResult = { ok: true; images: string[] } | { ok: false; error: string };
+
 // The image types Claude Code attaches from a pasted path (its own check, as of 2.1.302).
 export const ATTACHABLE_IMAGE_PATH = /\.(?:png|jpe?g|gif|webp)$/i;
 // The pages agents draw diagrams, charts and mockups in, which the page panel shows.
 export const PAGE_PATH = /\.(?:svg|html?)$/i;
+// The files a terminal links to and the page panel shows beside the terminal: images and PDFs.
+export const VIEWABLE_FILE_PATH = /\.(?:png|jpe?g|gif|webp|pdf)$/i;
+export const PDF_PATH = /\.pdf$/i;
 
 export type WorkspaceOpenExternalTerminalRequest = {
   cwd: string;
@@ -84,6 +92,8 @@ export type WorkspaceApi = {
   imageThumbnail(request: WorkspaceImageRequest): Promise<WorkspaceImageThumbnailResult>;
   quickLookImage(request: WorkspaceImageRequest): Promise<WorkspaceQuickLookImageResult>;
   readAgentPage(request: WorkspaceImageRequest): Promise<WorkspaceReadAgentPageResult>;
+  readFile(request: WorkspaceImageRequest): Promise<WorkspaceReadFileResult>;
+  imageSiblings(request: WorkspaceImageRequest): Promise<WorkspaceImageSiblingsResult>;
   revealPath(request: WorkspaceRevealPathRequest): Promise<WorkspaceRevealPathResult>;
   setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot>;
 };
@@ -98,6 +108,8 @@ export const workspaceChannels = {
   imageThumbnail: "alfred:workspace:image-thumbnail",
   quickLookImage: "alfred:workspace:quick-look-image",
   readAgentPage: "alfred:workspace:read-agent-page",
+  readFile: "alfred:workspace:read-file",
+  imageSiblings: "alfred:workspace:image-siblings",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
 } as const;

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   ATTACHABLE_IMAGE_PATH,
+  PDF_PATH,
   PAGE_PATH,
   type WorkspaceRevealPathRequest,
   type WorkspaceRevealPathResult,
@@ -42,8 +43,8 @@ export async function resolveWorkspacePathForReveal(
 // ponytail: a cap so a hover never decodes a huge file; raise it if real screenshots hit it.
 const LINKED_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 
-/** Quick Look and Open in browser take an image or a page. */
-export const IMAGE_OR_PAGE_PATH = new RegExp(`${ATTACHABLE_IMAGE_PATH.source}|${PAGE_PATH.source}`, "i");
+/** Quick Look and Open in browser take an image, a PDF or a page. */
+export const IMAGE_OR_PAGE_PATH = new RegExp(`${ATTACHABLE_IMAGE_PATH.source}|${PAGE_PATH.source}|${PDF_PATH.source}`, "i");
 
 /**
  * An image a terminal links to, for its hover preview and Quick Look, or a page an agent changed, for the page panel.

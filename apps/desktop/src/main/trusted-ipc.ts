@@ -47,9 +47,16 @@ export function isTrustedDocumentUrl(actual: string, entryUrl: string): boolean 
  * A page an agent wrote runs in a sandboxed frame of the window's main frame, with an opaque origin. It may show its
  * own srcdoc and nothing else: navigating itself is how it would reach a local address its CSP blocks.
  */
-export function isPageFrameEscape(navigation: { url: string; frameOrigin: string | undefined; parentIsMainFrame: boolean }): boolean {
-  return navigation.parentIsMainFrame && navigation.frameOrigin === "null"
-    && navigation.url !== "about:srcdoc" && navigation.url !== "about:blank";
+export function isPageFrameEscape(navigation: {
+  url: string;
+  frameOrigin: string | undefined;
+  frameUrl?: string | undefined;
+  parentIsMainFrame: boolean;
+}): boolean {
+  if (!navigation.parentIsMainFrame) return false;
+  // A PDF beside the terminal is a blob of Alfred's own origin; a link in the document may not take its frame anywhere.
+  if (navigation.frameUrl?.startsWith("blob:") && !navigation.url.startsWith("blob:")) return true;
+  return navigation.frameOrigin === "null" && navigation.url !== "about:srcdoc" && navigation.url !== "about:blank";
 }
 
 /**

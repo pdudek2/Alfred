@@ -53,6 +53,11 @@ import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
 import { SESSION_VIEW_IDS } from "../tab-keys";
 import { isDeepSeekLaunch } from "../../shared/agent-command";
+import { ATTACHABLE_IMAGE_PATH } from "../../shared/workspace-ipc";
+import type { PanelFile } from "../page-panel-state";
+
+/** Text the page panel pastes into one session's terminal; a new key pastes again. */
+export type TerminalPasteRequest = { sessionId: string; text: string; key: number };
 
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
@@ -108,6 +113,8 @@ type TerminalDeskProps = {
   sessionsLoaded: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
+  terminalPasteRequest: TerminalPasteRequest | null;
+  onOpenFile: (sessionId: string, file: PanelFile) => void;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
@@ -148,6 +155,8 @@ export function TerminalDesk({
   sessionsLoaded,
   surfaceActive,
   terminalFocusRequestKey,
+  terminalPasteRequest,
+  onOpenFile,
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
@@ -299,6 +308,8 @@ export function TerminalDesk({
                 selected={inspectedSession?.id === session.id}
                 surfaceActive={surfaceActive}
                 terminalFocusRequestKey={terminalFocusRequestKey}
+                pasteRequest={terminalPasteRequest?.sessionId === session.id ? terminalPasteRequest : null}
+                onOpenFile={(file) => onOpenFile(session.id, file)}
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
                 onRestartSession={() => onRestartSession(session.id)}
@@ -557,6 +568,8 @@ function ManualTerminalTile({
   selected,
   surfaceActive,
   terminalFocusRequestKey,
+  pasteRequest,
+  onOpenFile,
   runtimeId,
   runtimeStatus,
   sessionKey,
@@ -617,6 +630,8 @@ function ManualTerminalTile({
   selected: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
+  pasteRequest: TerminalPasteRequest | null;
+  onOpenFile: (file: PanelFile) => void;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
   sessionKey: string;
@@ -663,6 +678,8 @@ function ManualTerminalTile({
   }, [tileHidden]);
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const resolvedCwdRef = useRef(resolvedCwd);
+  const openFileRef = useRef(onOpenFile);
+  openFileRef.current = onOpenFile;
   resolvedCwdRef.current = resolvedCwd;
   const tileRef = useRef<HTMLElement>(null);
   const [hoveredImage, setHoveredImage] = useState<HoveredImage | null>(null);
@@ -920,15 +937,16 @@ function ManualTerminalTile({
       return;
     }
 
-    // An image a terminal links to shows while the pointer rests on the link; ⌘-click opens it, as in Ghostty.
+    // An image a terminal links to shows while the pointer rests on the link; ⌘-click opens it, or a PDF, beside the terminal.
     const showImage = (path: string, event: MouseEvent) => {
+      if (!ATTACHABLE_IMAGE_PATH.test(path)) return;
       const tile = tileRef.current?.getBoundingClientRect();
       if (!tile) return;
       setHoveredImage({ path, x: event.clientX - tile.left, y: event.clientY - tile.top, width: tile.width, height: tile.height });
     };
     const hideImage = () => setHoveredImage(null);
     const openImage = (path: string, event: MouseEvent) => {
-      if (event.metaKey) void getDesktopWorkspaceApi()?.quickLookImage({ path, cwd: resolvedCwdRef.current });
+      if (event.metaKey) openFileRef.current({ path, cwd: resolvedCwdRef.current });
     };
     const terminal = new Terminal({
       allowProposedApi: false,
@@ -1378,6 +1396,15 @@ function ManualTerminalTile({
       terminalRef.current?.focus();
     }
   }, [selected, status, surfaceActive, terminalFocusRequestKey]);
+
+  // The page panel's "Paste path": typed at the prompt as a file drop types it, without Enter.
+  const pasteKey = pasteRequest?.key;
+  useEffect(() => {
+    if (!pasteRequest || status !== "ready") return;
+    terminalRef.current?.paste(pasteRequest.text);
+    terminalRef.current?.focus();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- each request pastes once
+  }, [pasteKey]);
 
   return (
     <article

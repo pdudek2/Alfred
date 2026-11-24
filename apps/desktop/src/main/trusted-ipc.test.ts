@@ -104,6 +104,11 @@ describe("trusted IPC boundary", () => {
     expect(isPageFrameEscape({ ...page, url: "about:blank" })).toBe(false);
     expect(isPageFrameEscape({ frameOrigin: "null", parentIsMainFrame: false, url: "http://127.0.0.1:5173/" })).toBe(false);
     expect(isPageFrameEscape({ frameOrigin: "http://localhost:5173", parentIsMainFrame: true, url: "http://localhost:5173/a" })).toBe(false);
+    // A PDF's frame holds a blob of Alfred's own origin: it may show another PDF, never a link's target.
+    const pdf = { frameOrigin: "file://", frameUrl: "blob:file:///a1b2", parentIsMainFrame: true };
+    expect(isPageFrameEscape({ ...pdf, url: "https://example.com/" })).toBe(true);
+    expect(isPageFrameEscape({ ...pdf, url: "file:///etc/hosts" })).toBe(true);
+    expect(isPageFrameEscape({ ...pdf, url: "blob:file:///c3d4" })).toBe(false);
   });
 
   it("keeps a page's subresources, and any whose frame is unknown, off private hosts; Alfred and Preview keep theirs", () => {
