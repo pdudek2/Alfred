@@ -7,7 +7,9 @@ import { moveTabFocus, SESSION_VIEW_IDS } from "../tab-keys";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
-export type PrimarySurface = "work" | "sessions" | "settings";
+export type PrimarySurface = "work" | "sessions" | "analytics" | "settings";
+
+const SURFACE_TITLES: Record<PrimarySurface, string> = { work: "Deck", sessions: "History", analytics: "Analytics", settings: "Settings" };
 
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
@@ -78,7 +80,7 @@ export function WorkbenchHeader({
           </>
         ) : (
           <span className="workbench-breadcrumb-current" title={onDeck ? projectDetail : undefined}>
-            <span className="workbench-surface-title">{onDeck ? projectLabel : activeSurface === "settings" ? "Settings" : "History"}</span>
+            <span className="workbench-surface-title">{onDeck ? projectLabel : SURFACE_TITLES[activeSurface]}</span>
           </span>
         )}
       </nav>

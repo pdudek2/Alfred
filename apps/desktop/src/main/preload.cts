@@ -4,6 +4,7 @@ import type { TerminalApi, TerminalDataEvent, TerminalExitEvent, TerminalWorkerR
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
 import type { SessionsApi, SessionsChannels } from "../shared/sessions-ipc.js";
+import type { AnalyticsApi, AnalyticsChannels } from "../shared/analytics-ipc.js";
 import type { DesktopStateApi, DesktopSaveStatus, DesktopUpdate } from "../shared/desktop-state-ipc.js";
 import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
@@ -82,6 +83,10 @@ const sessionsChannels = {
   readTranscriptPage: "alfred:sessions:read-transcript-page",
   getDiagnostics: "alfred:sessions:get-diagnostics",
 } as const satisfies SessionsChannels;
+
+const analyticsChannels = {
+  summary: "alfred:analytics:summary",
+} as const satisfies AnalyticsChannels;
 
 const desktopStateChannels = {
   getPrivacySettings: "alfred:desktop-state:get-privacy-settings",
@@ -195,6 +200,10 @@ const sessions: SessionsApi = {
   getDiagnostics: () => ipcRenderer.invoke(sessionsChannels.getDiagnostics) as ReturnType<SessionsApi["getDiagnostics"]>,
 };
 
+const analytics: AnalyticsApi = {
+  summary: (request) => ipcRenderer.invoke(analyticsChannels.summary, request) as ReturnType<AnalyticsApi["summary"]>,
+};
+
 const desktopState: DesktopStateApi = {
   getPrivacySettings: () =>
     ipcRenderer.invoke(desktopStateChannels.getPrivacySettings) as ReturnType<DesktopStateApi["getPrivacySettings"]>,
@@ -239,6 +248,7 @@ contextBridge.exposeInMainWorld("alfredDesktop", {
   layout,
   workspace,
   sessions,
+  analytics,
   // A dropped File carries no path in the page since Electron 32; only the preload can read it.
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   version: "desktop-launcher-v0",

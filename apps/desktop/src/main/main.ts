@@ -25,6 +25,7 @@ import {
   waitForTerminalExits,
 } from "./terminal-manager.js";
 import { createAgentEventLog } from "./agent-events.js";
+import { registerAnalyticsIpc } from "./analytics-ipc.js";
 import { createAgentSignalBridge } from "./agent-signals.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
@@ -236,8 +237,10 @@ if (!hasSingleInstanceLock) {
     configureLayoutPersistence(persistedDesktopStateStore);
     configureStagedPlanPersistence(persistedDesktopStateStore);
     configureTerminalPersistence(persistedDesktopStateStore);
+    const agentEventsDir = path.join(app.getPath("userData"), "agent-events");
+    registerAnalyticsIpc({ dir: agentEventsDir, isRecording: savesTerminalData });
     const agentEvents = await createAgentEventLog({
-      dir: path.join(app.getPath("userData"), "agent-events"),
+      dir: agentEventsDir,
       isRecording: savesTerminalData,
     }).catch((error: unknown) => {
       console.error("Agent events are not recorded.", error);

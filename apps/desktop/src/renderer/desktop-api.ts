@@ -3,6 +3,7 @@ import type { AlfredApi } from "../shared/alfred-ipc";
 import type { DesktopStateApi } from "../shared/desktop-state-ipc";
 import type { LayoutApi } from "../shared/layout-ipc";
 import type { SessionsApi } from "../shared/sessions-ipc";
+import type { AnalyticsApi } from "../shared/analytics-ipc";
 import type { WorkspaceApi } from "../shared/workspace-ipc";
 
 declare global {
@@ -13,6 +14,7 @@ declare global {
       desktopState?: DesktopStateApi;
       layout: LayoutApi;
       sessions?: SessionsApi;
+      analytics?: AnalyticsApi;
       workspace?: WorkspaceApi;
       pathForFile?: (file: File) => string;
       version: string;
@@ -43,6 +45,10 @@ export function getDesktopWorkspaceApi(): WorkspaceApi | null {
 /** The local path of a file dropped on the window, or "" when it has none (an image dragged from a browser). */
 export function getDesktopPathForFile(file: File): string {
   return window.alfredDesktop?.pathForFile?.(file) ?? "";
+}
+
+export function getDesktopAnalyticsApi(): AnalyticsApi | null {
+  return window.alfredDesktop?.analytics ?? null;
 }
 
 export function getDesktopSessionsApi(): SessionsApi | null {

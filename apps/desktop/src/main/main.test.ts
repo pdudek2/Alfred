@@ -136,6 +136,10 @@ vi.mock("./sessions-ipc.js", () => ({
   registerSessionsIpc: mocks.registerSessionsIpc,
 }));
 
+vi.mock("./analytics-ipc.js", () => ({
+  registerAnalyticsIpc: vi.fn(),
+}));
+
 vi.mock("./staged-plan-store.js", () => ({
   configureStagedPlanPersistence: mocks.configureStagedPlanPersistence,
   isStagedSessionLaunchAllowed: mocks.isStagedSessionLaunchAllowed,

@@ -5,6 +5,7 @@ import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
   getDesktopSessionsApi,
+  getDesktopAnalyticsApi,
   getDesktopStateApi,
   getDesktopTerminalApi,
   getDesktopWorkspaceApi,
@@ -20,6 +21,7 @@ import { NewSessionComposer, type NewSessionKind } from "./components/NewSession
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { ColumnResizeHandle } from "./components/ColumnResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
+import { AnalyticsPage } from "./components/AnalyticsPage";
 import { TerminalDesk, type TerminalStartAttempt } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
@@ -2664,6 +2666,11 @@ export function App() {
                 />
               </div>
             )}
+            {activeSurface === "analytics" && (
+              <div className="surface-panel active">
+                <AnalyticsPage api={getDesktopAnalyticsApi()} onLeave={handleExitToDeck} />
+              </div>
+            )}
             {activeSurface === "settings" && (
               <div className="surface-panel active">
                 <SettingsPage
@@ -2771,6 +2778,7 @@ export function App() {
             onOpenNeedsYou={handleOpenNeedsYou}
             onOpenContext={handleOpenContextFromCommandPalette}
             onOpenSettings={() => handleSelectPrimarySurface("settings")}
+            onOpenAnalytics={() => handleSelectPrimarySurface("analytics")}
             onPinSession={handlePinSession}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
