@@ -165,6 +165,7 @@ export function App() {
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   // At most one session per project kept under the focus (contract: Pin). It lasts for this run of the app.
   const [pinnedSessionIdsByWorkspace, setPinnedSessionIdsByWorkspace] = useState<Record<string, string>>({});
+  const [pinBeside, setPinBeside] = useState(false);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [shellActionError, setShellActionError] = useState<string | null>(null);
   const [pendingPlans, setPendingPlans] = useState<Record<string, SquadPlan>>({});
@@ -2590,6 +2591,8 @@ export function App() {
                     />
                   ) : null}
                   pinnedSessionId={activePinnedSessionId}
+                  pinBeside={pinBeside}
+                  onTogglePinBeside={() => setPinBeside((current) => !current)}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
                   surfaceActive={!workSurfaceHidden}

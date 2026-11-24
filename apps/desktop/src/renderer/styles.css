@@ -1658,6 +1658,22 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-row: 2;
 }
 
+/* v5 Split board: the pinned session beside the focus, half and half. */
+.terminal-grid.has-pin.pin-beside {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.terminal-grid.has-pin.pin-beside > .terminal-tile:not(.pinned) {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.terminal-grid.has-pin.pin-beside > .terminal-tile.pinned {
+  grid-row: 1;
+  grid-column: 2;
+}
+
 /* The pinned tile names itself in a header row instead of the session strip. */
 .terminal-tile.pinned {
   grid-template-rows: auto minmax(0, 1fr);
@@ -1693,7 +1709,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   font: 400 12px/16px var(--sans);
 }
 
-.terminal-pinned-unpin {
+.terminal-pinned-unpin,
+.terminal-pinned-place {
   margin-left: auto;
   height: 30px;
   padding: 0 12px;
@@ -1706,12 +1723,18 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   cursor: pointer;
 }
 
-.terminal-pinned-unpin:hover {
+.terminal-pinned-place + .terminal-pinned-unpin {
+  margin-left: 0;
+}
+
+.terminal-pinned-unpin,
+.terminal-pinned-place:hover {
   background: var(--surface-control);
   color: var(--text-primary);
 }
 
-.terminal-pinned-unpin:focus-visible {
+.terminal-pinned-unpin,
+.terminal-pinned-place:focus-visible {
   outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }

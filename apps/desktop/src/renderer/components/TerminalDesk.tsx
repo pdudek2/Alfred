@@ -107,6 +107,9 @@ type TerminalDeskProps = {
   /** The app's one session clock, shared with every other surface. */
   now: number;
   pinnedSessionId: string | null;
+  /** The pinned terminal sits beside the focus rather than under it. */
+  pinBeside: boolean;
+  onTogglePinBeside: () => void;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   /** False until the saved sessions are in; an empty deck says nothing before then. */
@@ -150,6 +153,8 @@ export function TerminalDesk({
   armedRecoverySessionIds,
   now,
   pinnedSessionId,
+  pinBeside,
+  onTogglePinBeside,
   selectedSessionId,
   sessions,
   sessionsLoaded,
@@ -246,7 +251,7 @@ export function TerminalDesk({
       <div className="terminal-stage-body">
         <div ref={gridColumnRef} className="terminal-grid-column">
           {hasDrafts && planLine}
-          <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""}`} data-testid="terminal-grid" ref={gridRef}>
+          <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""} ${pinnedSession && pinBeside ? "pin-beside" : ""}`} data-testid="terminal-grid" ref={gridRef}>
           {sessionsLoaded && liveSessions.length === 0 && (
             <EmptyWorkspaceState
               armedSessionIds={armedRecoverySessionIds}
@@ -316,6 +321,8 @@ export function TerminalDesk({
                 // Typing in the pinned terminal keeps the focus, the breadcrumb and Details where they are.
                 onSelectSession={pinned ? () => {} : () => onSelectSession(session.id)}
                 onUnpin={() => pinSession(null)}
+                pinBeside={pinBeside}
+                onTogglePinBeside={onTogglePinBeside}
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
@@ -564,6 +571,8 @@ function ManualTerminalTile({
   onOpenExternalTerminal,
   onRenameSession,
   onUnpin,
+  pinBeside = false,
+  onTogglePinBeside,
   pinned = false,
   selected,
   surfaceActive,
@@ -625,6 +634,8 @@ function ManualTerminalTile({
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onRenameSession: (sessionId: string, title: string, byYou?: boolean) => void;
   onUnpin: () => void;
+  pinBeside?: boolean;
+  onTogglePinBeside?: () => void;
   /** Shown under the focus with its own header instead of the session strip (v4 Pinned board). */
   pinned?: boolean;
   selected: boolean;
@@ -1446,6 +1457,14 @@ function ManualTerminalTile({
           <SessionStatusGlyph kind={displayStatus.kind} label={displayStatus.label} />
           <span className="terminal-pinned-title">{title}</span>
           <span className="terminal-pinned-kind">{kindMeta.label}</span>
+          <button
+            type="button"
+            className="terminal-pinned-place"
+            aria-label={`Show ${title} ${pinBeside ? "under" : "beside"} the focus`}
+            onClick={onTogglePinBeside}
+          >
+            {pinBeside ? "Below" : "Beside"}
+          </button>
           <button type="button" className="terminal-pinned-unpin" aria-label={`Unpin ${title}`} onClick={onUnpin}>Unpin</button>
         </header>
       ) : (stripNote || resumeAction) && (

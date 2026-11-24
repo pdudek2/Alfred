@@ -45,6 +45,17 @@ test("pins the shell under a Claude focus 3:2, types into it, and unpins it with
   await expect.poll(() => terminalBuffer(page, "manual-1")).toContain("pinned-input");
   await expect(breadcrumb).toContainText("Claude");
 
+  // Beside the focus, half and half (v5 Split), and back under it, without remounting either terminal.
+  await shellTile.getByRole("button", { name: /beside the focus$/ }).click();
+  await expect(page.getByTestId("terminal-grid")).toHaveClass(/pin-beside/);
+  const [leftBox, rightBox] = [await focusTile.boundingBox(), await shellTile.boundingBox()];
+  expect(leftBox!.x + leftBox!.width).toBeLessThan(rightBox!.x);
+  expect(Math.abs(leftBox!.width - rightBox!.width)).toBeLessThan(4);
+  await expectSameNode(focusHost, focusTile.getByTestId("xterm-host"));
+  await expectSameNode(shellHost, shellTile.getByTestId("xterm-host"));
+  await shellTile.getByRole("button", { name: /under the focus$/ }).click();
+  await expect(page.getByTestId("terminal-grid")).not.toHaveClass(/pin-beside/);
+
   await shellTile.getByRole("button", { name: /^Unpin / }).click();
   await expect(shellTile).toHaveAttribute("aria-hidden", "true");
   await expect(shellEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(1);
