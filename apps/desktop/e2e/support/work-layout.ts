@@ -10,7 +10,7 @@ export async function settleTerminalTileAnimations(page: Page): Promise<void> {
 }
 
 /** Deck, History and Settings live in the rail. */
-export function surfaceButton(page: Page, surface: "Work" | "History" | "Settings"): Locator {
+export function surfaceButton(page: Page, surface: "Work" | "History" | "Analytics" | "Settings"): Locator {
   const name = surface === "Work" ? "Deck" : surface;
   return page.getByTestId("project-navigator").getByRole("button", { name, exact: true });
 }

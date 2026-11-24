@@ -67,6 +67,7 @@ type CommandPaletteProps = {
   onOpenContext: () => void;
   onOpenNeedsYou: () => void;
   onOpenSettings: () => void;
+  onOpenAnalytics: () => void;
   onPinSession: (sessionId: string | null) => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -105,6 +106,7 @@ export function CommandPalette({
   onOpenContext,
   onOpenNeedsYou,
   onOpenSettings,
+  onOpenAnalytics,
   onPinSession,
   onRestartSession,
   onSelectWorkspace,
@@ -263,6 +265,12 @@ export function CommandPalette({
         run: () => onPinSession(null),
       })),
       {
+        id: "open-analytics",
+        label: "Analytics",
+        detail: "Cost, tokens and how you work with agents",
+        run: onOpenAnalytics,
+      },
+      {
         id: "open-settings",
         label: "Settings",
         detail: "Local Data & Privacy",
@@ -373,6 +381,7 @@ export function CommandPalette({
       onOpenContext,
       onOpenNeedsYou,
       onOpenSettings,
+      onOpenAnalytics,
       onPinSession,
       onRestartSession,
       onSelectWorkspace,

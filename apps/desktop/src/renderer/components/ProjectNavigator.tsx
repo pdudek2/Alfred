@@ -23,7 +23,7 @@ export type ProjectNavigatorWorkspace = {
   missionBrief?: WorkspaceMissionBrief;
 };
 
-export type ProjectNavigatorSurface = "work" | "sessions" | "settings";
+export type ProjectNavigatorSurface = "work" | "sessions" | "analytics" | "settings";
 
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
@@ -53,6 +53,7 @@ export type ProjectNavigatorProps = {
 const SURFACES: ReadonlyArray<{ id: ProjectNavigatorSurface; label: string }> = [
   { id: "work", label: "Deck" },
   { id: "sessions", label: "History" },
+  { id: "analytics", label: "Analytics" },
 ];
 
 export type ProjectRailState = "needs-you" | "your-turn" | "working" | "running";

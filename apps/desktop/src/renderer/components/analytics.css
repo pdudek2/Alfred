@@ -1,0 +1,469 @@
+/* Analytics: one page on the canvas, as the v5 board Analytics draws it. */
+
+.workspace-layout.surface-analytics .orchestrator-surface {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.analytics-page {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--text-secondary);
+  font: 400 13px/18px var(--sans);
+}
+
+.analytics-page > * {
+  max-width: 1040px;
+  margin-inline: auto;
+  padding-inline: 40px;
+}
+
+.analytics-header {
+  padding-top: 24px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.analytics-header h1 {
+  width: fit-content;
+  margin: 0;
+  color: var(--text-primary);
+  font: 600 22px/28px var(--sans);
+  letter-spacing: -0.018em;
+}
+
+.analytics-header h1:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.analytics-header p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.analytics-controls {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.analytics-segmented {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.analytics-segmented button {
+  height: 30px;
+  margin: 0 -6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: 400 13px/18px var(--sans);
+  white-space: nowrap;
+}
+
+.analytics-segmented button:hover {
+  color: var(--text-secondary);
+}
+
+.analytics-segmented button[aria-pressed="true"] {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.analytics-segmented button:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+.analytics-note {
+  margin-top: 20px;
+  color: var(--text-muted);
+}
+
+.analytics-body {
+  padding-top: 28px;
+  padding-bottom: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  transition: opacity 120ms ease;
+}
+
+.analytics-body.stale {
+  opacity: 0.55;
+}
+
+.analytics-page h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font: 500 13px/18px var(--sans);
+}
+
+.analytics-meta {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+}
+
+.analytics-faint {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.analytics-spend {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 40px;
+}
+
+.analytics-spend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.analytics-total {
+  color: var(--text-primary);
+  font: 600 32px/38px var(--sans);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-model dl {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analytics-model dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.analytics-model dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-model .analytics-meta {
+  margin-left: 16px;
+}
+
+.analytics-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.analytics-chart {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analytics-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.analytics-chart-svg text {
+  fill: var(--text-faint);
+  font: 400 11px var(--sans);
+}
+
+.analytics-chart-svg text.today {
+  fill: var(--text-primary);
+}
+
+.analytics-grid {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.analytics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analytics-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analytics-metrics {
+  margin: 0;
+  display: grid;
+  gap: 16px 24px;
+}
+
+.analytics-metrics.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.analytics-metrics.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.analytics-metrics dt {
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+}
+
+.analytics-metrics dd {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font: 600 20px/26px var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-metrics dd.analytics-meta {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+}
+
+.analytics-shares {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 48px;
+}
+
+.analytics-share {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.analytics-share-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.analytics-share-bar span {
+  height: 100%;
+  flex-grow: 0;
+  flex-shrink: 1;
+  border-radius: 2px;
+}
+
+.analytics-share ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font: 400 12px/16px var(--sans);
+}
+
+.analytics-share li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-table th {
+  padding: 8px 0 8px 24px;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-faint);
+  font: 400 12px/16px var(--sans);
+  text-align: right;
+}
+
+.analytics-table td {
+  padding: 10px 0 10px 24px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.analytics-table th:first-child,
+.analytics-table td:first-child {
+  padding-left: 8px;
+  text-align: left;
+}
+
+.analytics-table .wide {
+  width: 100%;
+  text-align: left;
+}
+
+.analytics-table-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analytics-table-bar {
+  display: block;
+  margin-top: 6px;
+  max-width: 192px;
+  height: 2px;
+}
+
+.analytics-table-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.analytics-part {
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.analytics-part h2 {
+  font: 500 15px/20px var(--sans);
+}
+
+.analytics-part p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.analytics-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.analytics-card {
+  min-width: 0;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.analytics-bars,
+.analytics-programs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px 28px;
+  font: 400 12px/16px var(--sans);
+}
+
+.analytics-programs {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.analytics-bars li,
+.analytics-programs li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-bars li > :last-child,
+.analytics-programs li > :last-child {
+  text-align: right;
+}
+
+.analytics-programs code {
+  overflow: hidden;
+  color: var(--text-primary);
+  font: 400 12px/16px ui-monospace, "SF Mono", Menlo, monospace;
+  text-overflow: ellipsis;
+}
+
+.analytics-bar {
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* The amber is the colour of you: these bars and the heat map measure you, not the agents. */
+.analytics-bar.you {
+  background: var(--signal);
+}
+
+.analytics-bar.shell {
+  height: 6px;
+  background: var(--signal-shell);
+  opacity: 0.8;
+}
+
+.analytics-heat {
+  display: grid;
+  grid-template-columns: 28px repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+
+.analytics-heat .analytics-faint {
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.analytics-heat-cell {
+  height: 14px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.analytics-heat-hour {
+  color: var(--text-faint);
+  font: 400 10px/12px var(--sans);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .analytics-spend,
+  .analytics-shares,
+  .analytics-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analytics-metrics.five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
