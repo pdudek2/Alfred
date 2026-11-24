@@ -655,6 +655,8 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       sessionsLoaded
       surfaceActive
       terminalFocusRequestKey={0}
+      pinBeside={false}
+      onTogglePinBeside={() => {}}
       terminalPasteRequest={null}
       onOpenFile={() => {}}
       workspaceLabel="Alfred"
