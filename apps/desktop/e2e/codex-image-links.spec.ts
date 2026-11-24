@@ -33,7 +33,7 @@ test("previews the file behind a sent Codex [Image #1] from the rollout its hook
 
 test("tells screenshots sent on their own apart and keeps their preview while Codex redraws", async ({ harness }) => {
   test.skip(process.platform !== "darwin", "Command-click opens Quick Look, which Alfred has only on macOS.");
-  const { app, page, paths } = harness;
+  const { page } = harness;
   // Screenshots sent with no words are all "[Image #1]"; the message before them pins which is which.
   const { marker, tile } = await startCodexWithSentMessages(harness, [
     { text: "[Image #1]", image: "first.png" },
@@ -41,14 +41,6 @@ test("tells screenshots sent on their own apart and keeps their preview while Co
     { text: "[Image #1]", image: "second.png" },
     { text: "[Image #1]", image: "third.png" },
   ]);
-  // Quick Look would open on screen; record what it was asked to show instead.
-  await app.evaluate(({ BrowserWindow }) => {
-    const shown: string[] = [];
-    (globalThis as { alfredQuickLook?: string[] }).alfredQuickLook = shown;
-    BrowserWindow.prototype.previewFile = (file: string) => {
-      shown.push(file);
-    };
-  });
 
   // Codex draws on its alternate screen and, while it works, redraws the rows around the messages many times a second.
   const frame = "\x1b[3;1H› kontynuuj\x1b[5;1H› [Image #1]\x1b[7;1H› [Image #1]\x1b[9;1H› Ask Codex to do anything";
@@ -100,8 +92,10 @@ test("tells screenshots sent on their own apart and keeps their preview while Co
       await page.waitForTimeout(60);
     }
     await page.keyboard.up("Meta");
-    await expect.poll(() => app.evaluate(() => (globalThis as { alfredQuickLook?: string[] }).alfredQuickLook))
-      .toEqual(Array(5).fill(path.join(paths.root, "third.png")));
+    // Each ⌘-click lands on the link Codex keeps redrawing: the screenshot opens beside the terminal, once.
+    const panel = page.getByRole("region", { name: "File third.png" });
+    await expect(panel.getByRole("tab", { name: "third.png" })).toHaveCount(1);
+    await expect(panel.getByRole("tab")).toHaveCount(1);
   } finally {
     working = false;
     await redraws;

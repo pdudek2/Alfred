@@ -13,7 +13,8 @@ import {
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
 import { PagePanel } from "./components/PagePanel";
-import { agentPages, pagePanelPage, pickedPage, type PagePanelChoice } from "./page-panel-state";
+import { agentPages, openedFile, pagePanelFile, pagePanelPage, pickedPage, type PagePanelChoice, type PanelFile } from "./page-panel-state";
+import { droppedPathsText } from "./dropped-paths";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { sessionFolder } from "./workspace-path-matching";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
@@ -22,7 +23,7 @@ import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./c
 import { ColumnResizeHandle } from "./components/ColumnResizeHandle";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { AnalyticsPage } from "./components/AnalyticsPage";
-import { TerminalDesk, type TerminalStartAttempt } from "./components/TerminalDesk";
+import { TerminalDesk, type TerminalPasteRequest, type TerminalStartAttempt } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
@@ -326,9 +327,13 @@ export function App() {
   // Details describes the deck's focused session. History has its own reader and no side column, and a project with
   // nothing running has nothing to describe (v4 Fresh board), so the empty deck takes the whole width.
   // A page the inspected session's agent wrote takes Details' column while it is open.
-  const activePage = activeSurface === "work" && activeInspectedSession
+  const activeFile = activeSurface === "work" && activeInspectedSession
+    ? pagePanelFile(activeInspectedSession.changedFiles, pagePanelChoices[activeInspectedSession.id])
+    : null;
+  const activePagePage = activeSurface === "work" && activeInspectedSession && !activeFile
     ? pagePanelPage(activeInspectedSession.changedFiles, pagePanelChoices[activeInspectedSession.id])
     : null;
+  const activePage = activeFile ?? activePagePage;
   const detailsVisible = activePage === null && activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
   // A project closes once nothing runs in it; its asleep and ended sessions stay in History.
   const canCloseActiveWorkspace =
@@ -697,7 +702,19 @@ export function App() {
   }, [activeWorkspace.id]);
 
   const handleOpenPage = useCallback((sessionId: string, files: TerminalFileChange[] | undefined, path: string) => {
-    setPagePanelChoices((current) => ({ ...current, [sessionId]: pickedPage(files, path) }));
+    setPagePanelChoices((current) => ({ ...current, [sessionId]: pickedPage(files, path, current[sessionId]) }));
+  }, []);
+
+  // An image or PDF a terminal links to opens beside it; the session's changed files say which page edit it outlasts.
+  const handleOpenFile = useCallback((sessionId: string, file: PanelFile) => {
+    const files = terminalSessionsRef.current.find((session) => session.id === sessionId)?.changedFiles;
+    setPagePanelChoices((current) => ({ ...current, [sessionId]: openedFile(files, current[sessionId], file) }));
+  }, []);
+
+  const [terminalPasteRequest, setTerminalPasteRequest] = useState<TerminalPasteRequest | null>(null);
+  const handlePastePath = useCallback((sessionId: string, path: string) => {
+    const text = droppedPathsText([path]);
+    if (text) setTerminalPasteRequest((current) => ({ sessionId, text, key: (current?.key ?? 0) + 1 }));
   }, []);
 
   const handleToggleContextDrawer = useCallback(() => {
@@ -2577,6 +2594,8 @@ export function App() {
                   sessions={terminalSessions}
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
+                  terminalPasteRequest={terminalPasteRequest}
+                  onOpenFile={handleOpenFile}
                   workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}
                   workspaceRootPath={activeWorkspace.rootPath}
@@ -2725,8 +2744,12 @@ export function App() {
                 agentLabel={tileKindMeta(sessionTileKind(activeInspectedSession)).label}
                 folder={sessionFolder(activeInspectedSession)}
                 now={now}
-                page={activePage}
+                page={activePagePage}
                 pages={agentPages(activeInspectedSession.changedFiles)}
+                file={activeFile}
+                files={activeFile || activePagePage ? pagePanelChoices[activeInspectedSession.id]?.files ?? [] : []}
+                onPickFile={(file) => handleOpenFile(activeInspectedSession.id, file)}
+                onPastePath={(path) => handlePastePath(activeInspectedSession.id, path)}
                 onClose={() => handleClosePagePanel(activeInspectedSession.id, false)}
                 onFocusTerminal={() => setTerminalFocusRequestKey((key) => key + 1)}
                 onPick={(path) => handleOpenPage(activeInspectedSession.id, activeInspectedSession.changedFiles, path)}

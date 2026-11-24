@@ -3,13 +3,17 @@ import { BrowserWindow, dialog, nativeImage, shell, type IpcMainInvokeEvent, typ
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  ATTACHABLE_IMAGE_PATH,
   PAGE_PATH,
+  VIEWABLE_FILE_PATH,
   workspaceChannels,
   type WorkspaceBindFolderRequest,
   type WorkspaceClaudeTrustRequest,
   type WorkspaceImageThumbnailResult,
   type WorkspaceQuickLookImageResult,
+  type WorkspaceImageSiblingsResult,
   type WorkspaceReadAgentPageResult,
+  type WorkspaceReadFileResult,
   type WorkspaceStateSetRequest,
   type WorkspaceStateSnapshot,
 } from "../shared/workspace-ipc.js";
@@ -23,6 +27,9 @@ import { claudeTrustsFolder } from "./claude-trust.js";
 
 // shortcut: a page goes to the renderer whole; past a few MB it is data, not a diagram.
 const AGENT_PAGE_MAX_BYTES = 5 * 1024 * 1024;
+// A PDF or screenshot goes to the renderer whole, to be drawn beside the terminal.
+const VIEWED_FILE_MAX_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGE_SIBLINGS = 200;
 
 type WorkspaceIpcOptions = {
   scratchRootPath?: string;
@@ -97,6 +104,27 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
       return { ok: true, text, modifiedAt: stat.mtimeMs };
     } catch {
       return { ok: false, error: "Page does not exist." };
+    }
+  });
+  trustedIpc.handle(workspaceChannels.readFile, async (_event, request): Promise<WorkspaceReadFileResult> => {
+    const result = await resolveLinkedImage(request, { accept: VIEWABLE_FILE_PATH, maxBytes: VIEWED_FILE_MAX_BYTES });
+    if (!result.ok) return result;
+    try {
+      const [bytes, stat] = await Promise.all([fs.readFile(result.resolvedPath), fs.stat(result.resolvedPath)]);
+      return { ok: true, bytes: new Uint8Array(bytes), modifiedAt: stat.mtimeMs };
+    } catch {
+      return { ok: false, error: "File does not exist." };
+    }
+  });
+  trustedIpc.handle(workspaceChannels.imageSiblings, async (_event, request): Promise<WorkspaceImageSiblingsResult> => {
+    const result = await resolveLinkedImage(request);
+    if (!result.ok) return result;
+    const folder = path.dirname(result.resolvedPath);
+    try {
+      const names = (await fs.readdir(folder)).filter((name) => ATTACHABLE_IMAGE_PATH.test(name)).sort();
+      return { ok: true, images: names.slice(0, MAX_IMAGE_SIBLINGS).map((name) => path.join(folder, name)) };
+    } catch {
+      return { ok: false, error: "Folder does not exist." };
     }
   });
   trustedIpc.handle(workspaceChannels.revealPath, async (_event, request) => {

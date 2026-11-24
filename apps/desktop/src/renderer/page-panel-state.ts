@@ -1,10 +1,18 @@
 import type { TerminalFileChange } from "../shared/terminal-ipc";
 import { PAGE_PATH } from "../shared/workspace-ipc";
 
-/** What the user did with a session's page panel: closed it, or picked a page while another one was edited last. */
+/** An image or PDF a terminal linked to, as it printed the path, with the folder a relative path starts from. */
+export type PanelFile = { path: string; cwd: string };
+
+/**
+ * What the user did with a session's page panel: closed it, picked a page while another one was edited last, or
+ * opened images and PDFs from the terminal (`files`, in the order opened; `file` is the one shown).
+ */
 export type PagePanelChoice = {
   closed?: boolean;
   picked?: { path: string; lastEdit: string };
+  files?: PanelFile[];
+  file?: { path: string; lastEdit: string };
 };
 
 /** The pages among a session's changed files, in the order of last edit (the one edited last at the end). */
@@ -33,8 +41,20 @@ export function pagePanelPage(
   return held ?? pages.at(-1)!;
 }
 
-export function pickedPage(files: readonly TerminalFileChange[] | undefined, path: string): PagePanelChoice {
-  return { picked: { path, lastEdit: lastPageEdit(agentPages(files)) } };
+export function pickedPage(files: readonly TerminalFileChange[] | undefined, path: string, choice?: PagePanelChoice): PagePanelChoice {
+  return { ...(choice?.files ? { files: choice.files } : {}), picked: { path, lastEdit: lastPageEdit(agentPages(files)) } };
+}
+
+/** The image or PDF the panel shows instead of a page; the agent's next page edit takes the panel back. */
+export function pagePanelFile(files: readonly TerminalFileChange[] | undefined, choice: PagePanelChoice | undefined): PanelFile | null {
+  if (!choice?.file || choice.closed || choice.file.lastEdit !== lastPageEdit(agentPages(files))) return null;
+  const shown = choice.file.path;
+  return choice.files?.find((file) => file.path === shown) ?? null;
+}
+
+export function openedFile(files: readonly TerminalFileChange[] | undefined, choice: PagePanelChoice | undefined, file: PanelFile): PagePanelChoice {
+  const opened = (choice?.closed ? [] : choice?.files ?? []).filter((item) => item.path !== file.path);
+  return { files: [...opened, file], file: { path: file.path, lastEdit: lastPageEdit(agentPages(files)) } };
 }
 
 export function fileName(filePath: string): string {

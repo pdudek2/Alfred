@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Code, ExternalLink, RotateCw, X } from "lucide-react";
+import { ClipboardPaste, Code, ExternalLink, FileText, Image as ImageIcon, RotateCw, X } from "lucide-react";
 import type { TerminalFileChange } from "../../shared/terminal-ipc";
 import { getDesktopWorkspaceApi } from "../desktop-api";
-import { fileName } from "../page-panel-state";
+import { fileName, type PanelFile } from "../page-panel-state";
+import { PDF_PATH } from "../../shared/workspace-ipc";
+import { FileView } from "./FileView";
 import "./page-panel.css";
 
 // Libraries come from a CDN over https; nothing over http, from localhost, from Alfred or from files next to the page.
@@ -26,46 +28,56 @@ export type PagePanelProps = {
   agentLabel: string;
   folder: string;
   now: number;
-  page: TerminalFileChange;
+  /** The page shown, unless an image or PDF is (`file`). */
+  page: TerminalFileChange | null;
   pages: TerminalFileChange[];
+  file: PanelFile | null;
+  files: PanelFile[];
   onClose: () => void;
   onFocusTerminal: () => void;
   onPick: (path: string) => void;
+  onPickFile: (file: PanelFile) => void;
+  onPastePath: (path: string) => void;
 };
 
-/** A page the session's agent wrote, live beside its terminal (board A). Its scripts run in a sandboxed frame. */
-export function PagePanel({ agentLabel, folder, now, page, pages, onClose, onFocusTerminal, onPick }: PagePanelProps) {
+/**
+ * A page the session's agent wrote, live beside its terminal (board A); its scripts run in a sandboxed frame. Images
+ * and PDFs a terminal linked to open here too.
+ */
+export function PagePanel({ agentLabel, file, files, folder, now, page, pages, onClose, onFocusTerminal, onPick, onPickFile, onPastePath }: PagePanelProps) {
   const [content, setContent] = useState<PageContent | null>(null);
-  const name = fileName(page.path);
 
   // An edit changes the counts, so the page is read again; the old text stays until the new one arrives.
-  const version = `${page.additions}\n${page.deletions}`;
+  const pagePath = page?.path;
+  const version = page ? `${page.additions}\n${page.deletions}` : "";
   useEffect(() => {
+    if (!pagePath) return;
     let current = true;
-    void getDesktopWorkspaceApi()?.readAgentPage({ path: page.path, cwd: folder })
+    void getDesktopWorkspaceApi()?.readAgentPage({ path: pagePath, cwd: folder })
       .catch(() => ({ ok: false as const }))
       .then((result) => {
-        if (current) setContent(result.ok ? { path: page.path, text: result.text, modifiedAt: result.modifiedAt } : { path: page.path, text: null });
+        if (current) setContent(result.ok ? { path: pagePath, text: result.text, modifiedAt: result.modifiedAt } : { path: pagePath, text: null });
       });
     return () => {
       current = false;
     };
-  }, [folder, page.path, version]);
+  }, [folder, pagePath, version]);
 
-  const shown = content?.path === page.path ? content : null;
-  const relativePath = page.path.startsWith(`${folder}/`) ? page.path.slice(folder.length + 1) : page.path;
+  const shown = !file && content?.path === pagePath ? content : null;
   const tabs = [...pages].sort((a, b) => fileName(a.path).localeCompare(fileName(b.path)));
+  const shownPath = file?.path ?? page?.path ?? "";
+  const shownCwd = file?.cwd ?? folder;
 
   return (
-    <section className="page-panel" aria-label={`Page ${name}`}>
+    <section className="page-panel" aria-label={`${file ? "File" : "Page"} ${fileName(shownPath)}`}>
       <header className="page-panel-top">
-        <div className="page-panel-tabs" role="tablist" aria-label="Pages">
+        <div className="page-panel-tabs" role="tablist" aria-label="Pages and files">
           {tabs.map((tab) => (
             <button
               key={tab.path}
               type="button"
               role="tab"
-              aria-selected={tab.path === page.path}
+              aria-selected={!file && tab.path === page?.path}
               className="page-panel-tab"
               title={tab.path}
               onClick={() => onPick(tab.path)}
@@ -74,14 +86,39 @@ export function PagePanel({ agentLabel, folder, now, page, pages, onClose, onFoc
               {fileName(tab.path)}
             </button>
           ))}
+          {files.map((tab) => (
+            <button
+              key={`${tab.cwd}\n${tab.path}`}
+              type="button"
+              role="tab"
+              aria-selected={tab.path === file?.path}
+              className="page-panel-tab"
+              title={tab.path}
+              onClick={() => onPickFile(tab)}
+            >
+              {PDF_PATH.test(tab.path) ? <FileText aria-hidden="true" size={13} /> : <ImageIcon aria-hidden="true" size={13} />}
+              {fileName(tab.path)}
+            </button>
+          ))}
         </div>
         {shown?.text != null && <span className="page-panel-age">{updatedLabel(shown.modifiedAt, now)}</span>}
+        {file && (
+          <button
+            type="button"
+            className="page-panel-icon"
+            aria-label="Paste path into the terminal"
+            title="Paste path into the terminal"
+            onClick={() => onPastePath(file.path)}
+          >
+            <ClipboardPaste aria-hidden="true" size={13} />
+          </button>
+        )}
         <button
           type="button"
           className="page-panel-icon"
-          aria-label="Open in browser"
-          title="Open in browser"
-          onClick={() => void getDesktopWorkspaceApi()?.quickLookImage({ path: page.path, cwd: folder })}
+          aria-label={file ? "Open in Quick Look" : "Open in browser"}
+          title={file ? "Open in Quick Look" : "Open in browser"}
+          onClick={() => void getDesktopWorkspaceApi()?.quickLookImage({ path: shownPath, cwd: shownCwd })}
         >
           <ExternalLink aria-hidden="true" size={13} />
         </button>
@@ -89,6 +126,25 @@ export function PagePanel({ agentLabel, folder, now, page, pages, onClose, onFoc
           <X aria-hidden="true" size={13} />
         </button>
       </header>
+      {file
+        ? <div className="page-panel-body"><FileView file={file} /></div>
+        : page && <PageBody agentLabel={agentLabel} folder={folder} page={page} shown={shown} onFocusTerminal={onFocusTerminal} />}
+    </section>
+  );
+}
+
+function PageBody({ agentLabel, folder, page, shown, onFocusTerminal }: {
+  agentLabel: string;
+  folder: string;
+  page: TerminalFileChange;
+  shown: PageContent | null;
+  onFocusTerminal: () => void;
+}) {
+  const name = fileName(page.path);
+  const relativePath = page.path.startsWith(`${folder}/`) ? page.path.slice(folder.length + 1) : page.path;
+
+  return (
+    <>
       <div className="page-panel-body">
         {/* A frame first shown with an empty srcdoc and then filled stays blank on screen, so it waits for the page. */}
         {shown?.text != null && (
@@ -107,7 +163,7 @@ export function PagePanel({ agentLabel, folder, now, page, pages, onClose, onFoc
         <span>Redraws when {agentLabel} edits it</span>
         <span className="page-panel-path" title={page.path}>{relativePath}</span>
       </footer>
-    </section>
+    </>
   );
 }
 

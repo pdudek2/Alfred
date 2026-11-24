@@ -157,3 +157,183 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Images and PDFs a terminal linked to, in the page panel. */
+.file-view-pdf {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--surface-panel);
+}
+
+.file-view {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font: 400 12px/16px var(--sans);
+}
+
+.file-view-segmented {
+  display: flex;
+  gap: 12px;
+}
+
+.file-view-segmented button {
+  height: 26px;
+  margin: 0 -5px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: 400 12px/16px var(--sans);
+}
+
+.file-view-segmented button:hover:not(:disabled) {
+  color: var(--text-secondary);
+}
+
+.file-view-segmented button[aria-pressed="true"] {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.file-view-segmented button:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.file-view-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.file-view-select select {
+  max-width: 220px;
+  height: 26px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 0 6px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: 400 12px/16px var(--sans);
+}
+
+.file-view-image {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 12px;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.file-view-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.file-view-image.actual {
+  place-items: start;
+  overflow: auto;
+  cursor: zoom-out;
+}
+
+.file-view-image.actual img {
+  max-width: none;
+  max-height: none;
+}
+
+.file-view-slider,
+.file-view-diff,
+.file-view-side {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.file-view-slider input {
+  width: 100%;
+  margin-top: 8px;
+  accent-color: var(--text-primary);
+}
+
+.file-view-stack {
+  position: relative;
+  display: grid;
+}
+
+.file-view-stack img {
+  grid-area: 1 / 1;
+  max-width: 100%;
+}
+
+.file-view-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text-primary);
+}
+
+.file-view-tag {
+  position: absolute;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text-secondary);
+  font: 400 11px/16px var(--sans);
+}
+
+.file-view-tag.before {
+  left: 8px;
+}
+
+.file-view-tag.after {
+  right: 8px;
+}
+
+.file-view-side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.file-view-side figure {
+  margin: 0;
+}
+
+.file-view-side img,
+.file-view-diff canvas {
+  max-width: 100%;
+}
+
+.file-view-side figcaption,
+.file-view-diff p {
+  margin: 6px 0;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+}

@@ -110,7 +110,12 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   configureTrustedIpc(window.webContents, rendererUrl.toString());
   const blockForeignNavigation = (details: { url: string; isMainFrame: boolean; frame: WebFrameMain | null; preventDefault(): void }) => {
     if (details.isMainFrame && !isTrustedEntry(details.url)) details.preventDefault();
-    const pageFrame = { url: details.url, frameOrigin: details.frame?.origin, parentIsMainFrame: details.frame?.parent === window.webContents.mainFrame };
+    const pageFrame = {
+      url: details.url,
+      frameOrigin: details.frame?.origin,
+      frameUrl: details.frame?.url,
+      parentIsMainFrame: details.frame?.parent === window.webContents.mainFrame,
+    };
     if (!details.isMainFrame && isPageFrameEscape(pageFrame)) details.preventDefault();
   };
   window.webContents.on("will-frame-navigate", blockForeignNavigation);
