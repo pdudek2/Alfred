@@ -1554,6 +1554,7 @@ describe("terminal-manager IPC", () => {
         env: (session, command) => (command === "claude" ? { OTEL_LOGS_EXPORTER: "otlp", EVENT_SESSION: `${session.clientId}/${session.id}` } : {}),
         launchArgs: (session, command) => (command === "codex" ? ["-c", `otel.session=${session.clientId}/${session.id}`] : []),
         programStatus: () => {},
+        workerStarted: () => {},
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
@@ -1585,6 +1586,7 @@ describe("terminal-manager IPC", () => {
         env: () => ({}),
         launchArgs: () => [],
         programStatus: (session, agent, report) => reports.push([session.clientId, agent, report]),
+        workerStarted: () => {},
       },
       loadNodePty: async () => ({ spawn: () => ptys[ptys.push(new FakePty()) - 1] }) as never,
     });
@@ -1626,6 +1628,7 @@ describe("terminal-manager IPC", () => {
         env: (session) => ({ EVENT_SESSION: session.clientId ?? "" }),
         launchArgs: () => [],
         programStatus: () => {},
+        workerStarted: () => {},
       },
       loadNodePty: async () => ({ spawn }) as never,
     });
@@ -3418,6 +3421,32 @@ describe("terminal-manager IPC", () => {
         agentSignal: { state: "your-turn", source: "hook", detail: "Created hello world.txt on the desktop." },
         activities: [expect.objectContaining({ kind: "output", detail: "Created hello world.txt on the desktop." })],
       });
+    });
+
+    it("marks a worker its orchestrator started in the event log", async () => {
+      const { bridge, callTool } = fakeBridge();
+      const marked: unknown[] = [];
+      const agentEvents = {
+        clear: async () => {}, close: async () => {}, env: () => ({}), launchArgs: () => [], programStatus: () => {},
+        workerStarted: (session: { clientId?: string | undefined }, agent: string) => marked.push([session.clientId, agent]),
+      };
+      registerTerminalIpc({ agentEvents, agentSignals: bridge, loadNodePty: async () => ({ spawn: () => new FakePty() }) as never });
+      const lead = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-1", cols: 80, command: "claude", cwd: "/repo", rows: 24,
+      });
+      const starting = callTool(lead.id, "start_worker", { agent: "claude", prompt: "Run the tests" });
+      const request = sentEvents.find((event) => event.channel === terminalChannels.workerRequest)?.payload as TerminalWorkerRequest;
+      emit(terminalChannels.workerReply, { requestId: request.requestId, clientId: "claude-2", title: "Claude" });
+      await starting;
+      await invoke(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-2", cols: 80, command: "claude", cwd: "/repo", parentClientId: "claude-1", rows: 24,
+      });
+      // A worker you add yourself is yours: its messages are yours.
+      await invoke(terminalChannels.create, {
+        agentKind: "claude", clientId: "claude-3", cols: 80, command: "claude", cwd: "/repo", parentClientId: "claude-1", rows: 24,
+      });
+
+      expect(marked).toEqual([[expect.stringMatching(/^claude-2\./), "claude"]]);
     });
 
     it("ends a hooked Claude's Working when Claude reports it is back at its prompt, and trusts nothing else it reports", async () => {
