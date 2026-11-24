@@ -46,6 +46,7 @@ const {
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
+    attachCustomKeyEventHandler = vi.fn();
     attachCustomWheelEventHandler = vi.fn();
     buffer = {
       active: {

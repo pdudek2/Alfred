@@ -9,6 +9,15 @@ export const MIN_PAGE_WIDTH = 360;
 /** The grid still narrows the panel first, so the terminal keeps 420px in any window. */
 export const MAX_PAGE_WIDTH = 1400;
 
+/** The shell drawer under the deck, its tab row included; the deck keeps its own minimum when it is dragged up. */
+export const DEFAULT_DRAWER_HEIGHT = 250;
+export const MIN_DRAWER_HEIGHT = 120;
+export const MAX_DRAWER_HEIGHT = 1200;
+
+export function clampDrawerHeight(height: unknown): number {
+  return clampWidth(height, MIN_DRAWER_HEIGHT, MAX_DRAWER_HEIGHT, DEFAULT_DRAWER_HEIGHT);
+}
+
 export function clampRailWidth(width: unknown): number {
   return clampWidth(width, DEFAULT_RAIL_WIDTH, MAX_RAIL_WIDTH, DEFAULT_RAIL_WIDTH);
 }
@@ -38,6 +47,7 @@ export type WorkspaceLayoutsSnapshot = {
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
   railWidth?: number;
   pageWidth?: number;
+  drawerHeight?: number;
 };
 
 export type WorkspaceLayoutRequest = {
@@ -53,6 +63,7 @@ export type LayoutApi = {
   setWorkspaceViewState(request: WorkspaceViewStateSetRequest): Promise<WorkspaceLayoutsSnapshot>;
   setRailWidth(width: number): Promise<void>;
   setPageWidth(width: number): Promise<void>;
+  setDrawerHeight(height: number): Promise<void>;
 };
 
 export const layoutChannels = {
@@ -60,4 +71,5 @@ export const layoutChannels = {
   setWorkspaceViewState: "alfred:layout:set-workspace-view-state",
   setRailWidth: "alfred:layout:set-rail-width",
   setPageWidth: "alfred:layout:set-page-width",
+  setDrawerHeight: "alfred:layout:set-drawer-height",
 } as const;

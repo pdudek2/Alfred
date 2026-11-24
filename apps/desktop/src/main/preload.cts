@@ -60,6 +60,7 @@ const layoutChannels = {
   setWorkspaceViewState: "alfred:layout:set-workspace-view-state",
   setRailWidth: "alfred:layout:set-rail-width",
   setPageWidth: "alfred:layout:set-page-width",
+  setDrawerHeight: "alfred:layout:set-drawer-height",
 } as const;
 
 const workspaceChannels = {
@@ -163,6 +164,8 @@ const layout: LayoutApi = {
     ipcRenderer.invoke(layoutChannels.setWorkspaceViewState, request) as ReturnType<LayoutApi["setWorkspaceViewState"]>,
   setRailWidth: (width) => ipcRenderer.invoke(layoutChannels.setRailWidth, width) as ReturnType<LayoutApi["setRailWidth"]>,
   setPageWidth: (width) => ipcRenderer.invoke(layoutChannels.setPageWidth, width) as ReturnType<LayoutApi["setPageWidth"]>,
+  setDrawerHeight: (height) =>
+    ipcRenderer.invoke(layoutChannels.setDrawerHeight, height) as ReturnType<LayoutApi["setDrawerHeight"]>,
 };
 
 const workspace: WorkspaceApi = {

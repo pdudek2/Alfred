@@ -143,7 +143,7 @@ function ComposerForm({ autoFocus = true, restRef, projects, projectId, kind, dr
           <span>{project?.label ?? "Choose project"}</span><ChevronDown aria-hidden="true" size={12} />
         </ChromeMenu>
       </header>
-      {kind === "terminal" ? <p className="new-session-shell">A shell opens in {project?.label ?? "the project"}’s folder.</p> : (
+      {kind === "terminal" ? <p className="new-session-shell">A shell opens in the drawer, in {project?.label ?? "the project"}’s folder.</p> : (
         <div className="new-session-prompt">
           <label className="visually-hidden" htmlFor="new-session-prompt">{kind === "plan" ? "Goal" : "First prompt"}</label>
           <textarea id="new-session-prompt" rows={2} required={kind === "plan"} value={draft} disabled={busy || disabled}

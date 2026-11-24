@@ -5,7 +5,7 @@ import { REDACTED, redactArgs, redactSecrets, redactText, redactUnknown } from "
 import { checkSafety } from "../shared/terminal-command-safety.js";
 import { terminalTail } from "../shared/terminal-tail.js";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import { clampPageWidth, clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
+import { clampDrawerHeight, clampPageWidth, clampRailWidth, type DispatchTargetSnapshot, type WorkspaceViewState } from "../shared/layout-ipc.js";
 import type {
   SessionActivityEvent,
   SessionActivityEventKind,
@@ -55,6 +55,7 @@ export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
   railWidth?: number;
   pageWidth?: number;
+  drawerHeight?: number;
   stagedPlans: Record<string, AlfredStagedPlanSnapshot>;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
   windowState: DesktopWindowState;
@@ -279,6 +280,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     ...(typeof value.railWidth === "number" ? { railWidth: clampRailWidth(value.railWidth) } : {}),
     ...(typeof value.pageWidth === "number" ? { pageWidth: clampPageWidth(value.pageWidth) } : {}),
+    ...(typeof value.drawerHeight === "number" ? { drawerHeight: clampDrawerHeight(value.drawerHeight) } : {}),
     stagedPlans: normalizeStagedPlans(value.stagedPlans, value.stagedPlan, activeWorkspaceId),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions, privacySettings),
     windowState: normalizeWindowState(value.windowState),
@@ -834,6 +836,7 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
     ),
     ...(state.railWidth === undefined ? {} : { railWidth: state.railWidth }),
     ...(state.pageWidth === undefined ? {} : { pageWidth: state.pageWidth }),
+    ...(state.drawerHeight === undefined ? {} : { drawerHeight: state.drawerHeight }),
     stagedPlans: Object.fromEntries(Object.entries(state.stagedPlans).map(([id, plan]) => [id, cloneStagedPlan(plan)])),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
     windowState: cloneWindowState(state.windowState),

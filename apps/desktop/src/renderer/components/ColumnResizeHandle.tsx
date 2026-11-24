@@ -5,9 +5,9 @@ const KEY_STEP = 16;
 
 export type ColumnResizeHandleProps = {
   label: string;
-  /** The column edge the handle sits on: dragging it outward widens the column. */
-  edge: "left" | "right";
-  /** The custom property on `.desktop-frame` that sizes the column. */
+  /** The edge the handle sits on: dragging it outward widens the column, or for "top" raises the row. */
+  edge: "left" | "right" | "top";
+  /** The custom property on `.desktop-frame` that sizes the column or row. */
   cssVariable: string;
   width: number;
   min: number;
@@ -20,8 +20,10 @@ export type ColumnResizeHandleProps = {
 };
 
 export function ColumnResizeHandle({ label, edge, cssVariable, width, min, max, initial, room, onChange }: ColumnResizeHandleProps) {
-  const drag = useRef<{ startX: number; start: number; width: number; max: number } | null>(null);
+  const drag = useRef<{ startAt: number; start: number; width: number; max: number } | null>(null);
   const outward = edge === "right" ? 1 : -1;
+  const vertical = edge === "top";
+  const pointerAt = (event: PointerEvent) => (vertical ? event.clientY : event.clientX);
   const widest = (handle: HTMLElement) => Math.max(min, Math.min(max, Math.floor(room?.(handle) ?? max)));
   const clamp = (next: number, upTo: number) => Math.min(upTo, Math.max(min, Math.round(next)));
   const frame = (element: Element) => element.closest<HTMLElement>(".desktop-frame");
@@ -33,12 +35,12 @@ export function ColumnResizeHandle({ label, edge, cssVariable, width, min, max, 
     frame(event.currentTarget)?.classList.add("column-resizing");
     // A column the window already narrowed starts from the width it shows.
     const upTo = widest(event.currentTarget);
-    drag.current = { startX: event.clientX, start: Math.min(width, upTo), width: Math.min(width, upTo), max: upTo };
+    drag.current = { startAt: pointerAt(event), start: Math.min(width, upTo), width: Math.min(width, upTo), max: upTo };
   };
   // The column moves directly during a drag: rendering the whole app on every pointer move would stall the terminals.
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (!drag.current) return;
-    drag.current.width = clamp(drag.current.start + (event.clientX - drag.current.startX) * outward, drag.current.max);
+    drag.current.width = clamp(drag.current.start + (pointerAt(event) - drag.current.startAt) * outward, drag.current.max);
     frame(event.currentTarget)?.style.setProperty(cssVariable, `${drag.current.width}px`);
   };
   const handleDragEnd = (event: PointerEvent<HTMLDivElement>) => {
@@ -51,12 +53,10 @@ export function ColumnResizeHandle({ label, edge, cssVariable, width, min, max, 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const upTo = widest(event.currentTarget);
     const shown = Math.min(width, upTo);
-    const next = {
-      ArrowLeft: shown - KEY_STEP * outward,
-      ArrowRight: shown + KEY_STEP * outward,
-      Home: min,
-      End: upTo,
-    }[event.key];
+    const steps: Record<string, number> = vertical
+      ? { ArrowUp: shown + KEY_STEP, ArrowDown: shown - KEY_STEP, Home: min, End: upTo }
+      : { ArrowLeft: shown - KEY_STEP * outward, ArrowRight: shown + KEY_STEP * outward, Home: min, End: upTo };
+    const next = steps[event.key];
     if (next === undefined) return;
     event.preventDefault();
     onChange(clamp(next, upTo));
@@ -67,7 +67,7 @@ export function ColumnResizeHandle({ label, edge, cssVariable, width, min, max, 
       className={`column-resize-handle edge-${edge}`}
       role="separator"
       aria-label={label}
-      aria-orientation="vertical"
+      aria-orientation={vertical ? "horizontal" : "vertical"}
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={width}

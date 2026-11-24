@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { SessionTile } from "../session-state";
 import { isRestartable, sessionState } from "../session-status";
+import { isShellSession } from "../session-scope";
 import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
@@ -251,9 +252,9 @@ export function CommandPalette({
           run: () => onFocusSessionInWorkspace(session.workspaceId, session.id),
         };
       }),
-      // Pinning is found by typing; listing it for every session would double the default list.
+      // Pinning is found by typing; listing it for every session would double the default list. Shells have the drawer.
       ...(normalizedQuery ? sessions : [])
-        .filter((session) => session.stage === "live" && session.id !== selectedSessionId && session.id !== pinnedSessionId)
+        .filter((session) => session.stage === "live" && !isShellSession(session) && session.id !== selectedSessionId && session.id !== pinnedSessionId)
         .map((session) => ({
           id: `pin-session-${session.id}`,
           label: `Pin ${session.title} under the focus`,

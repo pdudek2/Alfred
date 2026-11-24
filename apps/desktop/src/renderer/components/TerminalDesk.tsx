@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Check, Ellipsis } from "lucide-react";
+import { Check, Ellipsis, Plus } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -44,14 +44,16 @@ import { shortenPath } from "../path-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { sessionPresentationTitle } from "../../shared/session-presentation";
-import { deckFocusSession, deckSessions, isWorkSession } from "../session-scope";
+import { deckAgentSessions, deckFocusSession, drawerSessions, isWorkSession } from "../session-scope";
+import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { pathsReferToSameLocation, workTreeFolderLabel } from "../workspace-path-matching";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder, titleFromPrompt } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { externalTerminalLabel } from "./WorkspaceActionsMenu";
-import { SESSION_VIEW_IDS } from "../tab-keys";
+import { moveTabFocus, SESSION_VIEW_IDS } from "../tab-keys";
+import { DEFAULT_DRAWER_HEIGHT, MAX_DRAWER_HEIGHT, MIN_DRAWER_HEIGHT } from "../../shared/layout-ipc";
 import { isDeepSeekLaunch } from "../../shared/agent-command";
 import { ATTACHABLE_IMAGE_PATH } from "../../shared/workspace-ipc";
 import type { PanelFile } from "../page-panel-state";
@@ -106,6 +108,17 @@ type TerminalDeskProps = {
   armedRecoverySessionIds: Set<string>;
   /** The app's one session clock, shared with every other surface. */
   now: number;
+  /** The shell drawer under the deck: shown or hidden, its selected shell, and its height. */
+  drawerOpen: boolean;
+  drawerSessionId: string | null;
+  drawerHeight: number;
+  /** Bumped to hand the keyboard to the drawer's selected shell. */
+  drawerFocusRequestKey: number;
+  onDrawerHeightChange: (height: number) => void;
+  onNewShell: () => void;
+  onSelectDrawerSession: (sessionId: string) => void;
+  /** With no agent on the deck, an open file takes the deck's place above the drawer. */
+  filePane?: ReactNode;
   pinnedSessionId: string | null;
   /** The pinned terminal sits beside the focus rather than under it. */
   pinBeside: boolean;
@@ -152,6 +165,14 @@ export function TerminalDesk({
   activeWorkspaceId,
   armedRecoverySessionIds,
   now,
+  drawerOpen,
+  drawerSessionId,
+  drawerHeight,
+  drawerFocusRequestKey,
+  onDrawerHeightChange,
+  onNewShell,
+  onSelectDrawerSession,
+  filePane,
   pinnedSessionId,
   pinBeside,
   onTogglePinBeside,
@@ -197,11 +218,13 @@ export function TerminalDesk({
     (session) => session.workspaceId === activeWorkspaceId && session.runtimeStatus === "restored",
   );
   const workspaceUnavailable = workspaceRootStatus === "missing";
-  // Drafts live on the plan line, not on the deck.
-  const liveSessions = deckSessions(sessions, activeWorkspaceId);
+  // Drafts live on the plan line, not on the deck; shells live in the drawer.
+  const liveSessions = deckAgentSessions(sessions, activeWorkspaceId);
+  const shells = drawerSessions(sessions, activeWorkspaceId);
+  const drawerSession = drawerOpen ? shells.find((session) => session.id === drawerSessionId) ?? shells[0] ?? null : null;
   const hasDrafts = !workspaceUnavailable && activeSessions.some((session) => session.stage === "staged");
   const draftSelected = activeSessions.some((session) => session.id === selectedSessionId && session.stage === "staged");
-  // One focused terminal; the rest wait in the rail's session tree.
+  // One focused agent; the rest wait in the rail's session tree.
   const focusSession = deckFocusSession(liveSessions, selectedSessionId);
   // Opening the pinned session makes it the focus; its pin waits until the focus moves on.
   const pinnedSession = liveSessions.find((session) => session.id === pinnedSessionId && session.id !== focusSession?.id) ?? null;
@@ -251,12 +274,20 @@ export function TerminalDesk({
       <div className="terminal-stage-body">
         <div ref={gridColumnRef} className="terminal-grid-column">
           {hasDrafts && planLine}
-          <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""} ${pinnedSession && pinBeside ? "pin-beside" : ""}`} data-testid="terminal-grid" ref={gridRef}>
-          {sessionsLoaded && liveSessions.length === 0 && (
+          <div className={`terminal-grid ${pinnedSession ? "has-pin" : ""} ${pinnedSession && pinBeside ? "pin-beside" : ""} ${drawerOpen ? "has-drawer" : ""}`} data-testid="terminal-grid" ref={gridRef}>
+          {/* With no agent, Preview or an open file takes the deck's place above the drawer. */}
+          {sessionsLoaded && liveSessions.length === 0 && (previewPane ? (
+            <div className="terminal-deck-pane" id={SESSION_VIEW_IDS.previewPanel} role="tabpanel" aria-labelledby={SESSION_VIEW_IDS.previewTab}>
+              {previewPane}
+            </div>
+          ) : filePane ? (
+            <div className="terminal-deck-pane">{filePane}</div>
+          ) : (
             <EmptyWorkspaceState
               armedSessionIds={armedRecoverySessionIds}
               asleepSessions={asleepSessions}
               hasDrafts={hasDrafts}
+              hasShells={shells.length > 0}
               onBindWorkspace={onBindWorkspace}
               onOpenHistory={onOpenHistory}
               onResumeSession={onContinueRestoredSession}
@@ -264,12 +295,56 @@ export function TerminalDesk({
               workspaceRootPath={workspaceRootPath}
               workspaceRootStatus={workspaceRootStatus}
             />
+          ))}
+          {drawerOpen && (
+            <div className="shell-drawer-head" role="group" aria-label="Shell drawer">
+              <ColumnResizeHandle
+                label="Resize shell drawer"
+                edge="top"
+                cssVariable="--drawer-height"
+                width={drawerHeight}
+                min={MIN_DRAWER_HEIGHT}
+                max={MAX_DRAWER_HEIGHT}
+                initial={DEFAULT_DRAWER_HEIGHT}
+                room={drawerRoom}
+                onChange={onDrawerHeightChange}
+              />
+              <div className="shell-drawer-tabs" role="tablist" aria-label="Shells" onKeyDown={moveTabFocus}>
+                {shells.map((shell) => {
+                  const state = sessionState(shell, "ready", now);
+                  const selected = shell.id === drawerSession?.id;
+                  const port = servingPort(shell.servingUrl);
+                  return (
+                    <button
+                      type="button"
+                      role="tab"
+                      key={shell.id}
+                      id={`shell-tab-${shell.id}`}
+                      aria-selected={selected}
+                      aria-controls={selected ? SHELL_DRAWER_PANEL_ID : undefined}
+                      tabIndex={selected ? 0 : -1}
+                      data-session-id={shell.id}
+                      onClick={() => onSelectDrawerSession(shell.id)}
+                    >
+                      <SessionStatusGlyph kind={state.kind} label={state.label} size={12} />
+                      <span className="shell-drawer-tab-title">{shell.title}</span>
+                      {port && <span className="shell-drawer-tab-port">:{port}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" className="shell-drawer-new" aria-label="New shell" title="New shell" onClick={onNewShell}>
+                <Plus aria-hidden="true" size={14} />
+              </button>
+              <span className="shell-drawer-hint" aria-hidden="true">⌃` hides</span>
+            </div>
           )}
           {renderedSessions.map((session) => {
-            // Every live terminal stays mounted; switching focus or project only hides it.
+            // Every live terminal stays mounted; switching focus, project or drawer tab only hides it.
             const workspaceHidden = session.workspaceId !== activeWorkspaceId;
             const pinned = !workspaceHidden && session.id === pinnedSession?.id;
-            const layoutHidden = !workspaceHidden && session.id !== focusSession?.id && !pinned;
+            const inDrawer = !workspaceHidden && session.id === drawerSession?.id;
+            const layoutHidden = !workspaceHidden && session.id !== focusSession?.id && !pinned && !inDrawer;
             return (
               <ManualTerminalTile
                 cwd={session.cwd}
@@ -291,7 +366,9 @@ export function TerminalDesk({
                 layoutHidden={layoutHidden}
                 workspaceHidden={workspaceHidden}
                 pinned={pinned}
-                preview={workspaceHidden || layoutHidden || pinned ? null : previewPane}
+                inDrawer={inDrawer}
+                drawerFocusRequestKey={inDrawer ? drawerFocusRequestKey : 0}
+                preview={workspaceHidden || layoutHidden || pinned || inDrawer ? null : previewPane}
                 sessionMetaSlot={sessionMetaSlot}
                 source={session.source}
                 agentKind={session.agentKind}
@@ -318,8 +395,8 @@ export function TerminalDesk({
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
                 onRestartSession={() => onRestartSession(session.id)}
-                // Typing in the pinned terminal keeps the focus, the breadcrumb and Details where they are.
-                onSelectSession={pinned ? () => {} : () => onSelectSession(session.id)}
+                // Typing in the pinned terminal or the drawer keeps the focus, the breadcrumb and Details where they are.
+                onSelectSession={pinned || inDrawer ? () => {} : () => onSelectSession(session.id)}
                 onUnpin={() => pinSession(null)}
                 pinBeside={pinBeside}
                 onTogglePinBeside={onTogglePinBeside}
@@ -345,11 +422,28 @@ export function TerminalDesk({
 }
 
 const ASLEEP_ROW_LIMIT = 5;
+const SHELL_DRAWER_PANEL_ID = "shell-drawer-panel";
+/** The deck keeps this much height when the drawer is dragged up. */
+const MIN_DECK_HEIGHT = 160;
+
+function drawerRoom(handle: HTMLElement): number {
+  return (handle.closest(".terminal-grid")?.getBoundingClientRect().height ?? MAX_DRAWER_HEIGHT) - MIN_DECK_HEIGHT;
+}
+
+function servingPort(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).port || null;
+  } catch {
+    return null;
+  }
+}
 
 function EmptyWorkspaceState({
   armedSessionIds,
   asleepSessions,
   hasDrafts,
+  hasShells,
   onOpenHistory,
   onBindWorkspace,
   onResumeSession,
@@ -360,6 +454,7 @@ function EmptyWorkspaceState({
   armedSessionIds: Set<string>;
   asleepSessions: SessionTile[];
   hasDrafts: boolean;
+  hasShells: boolean;
   onOpenHistory: () => void;
   onBindWorkspace: () => void;
   onResumeSession: (sessionId: string) => void;
@@ -376,7 +471,9 @@ function EmptyWorkspaceState({
       ? "Launch the plan above, or start a session below."
       : asleep.length > 0
         ? "Start a session below, or pick up where you left off."
-        : bound
+        : hasShells
+          ? `No agent works in ${workspaceLabel}. Its shells are in the drawer.`
+          : bound
           ? "Start a session below. Each one runs in its own terminal here."
           : "Start a session below, or choose a project folder when repository context matters.";
 
@@ -387,7 +484,7 @@ function EmptyWorkspaceState({
       aria-label={missing ? "Unavailable project folder" : "Empty project"}
     >
       <div className="terminal-empty-copy">
-        <strong>{missing ? `Reconnect ${workspaceLabel}` : "Nothing is running"}</strong>
+        <strong>{missing ? `Reconnect ${workspaceLabel}` : hasShells ? "No agent is running" : "Nothing is running"}</strong>
         <p>{copy}</p>
       </div>
       {(missing || !bound) && (
@@ -574,6 +671,8 @@ function ManualTerminalTile({
   pinBeside = false,
   onTogglePinBeside,
   pinned = false,
+  inDrawer = false,
+  drawerFocusRequestKey = 0,
   selected,
   surfaceActive,
   terminalFocusRequestKey,
@@ -638,6 +737,10 @@ function ManualTerminalTile({
   onTogglePinBeside?: () => void;
   /** Shown under the focus with its own header instead of the session strip (v4 Pinned board). */
   pinned?: boolean;
+  /** The drawer's selected shell, shown under its tabs. */
+  inDrawer?: boolean;
+  /** Bumped while the tile is in the drawer to give it the keyboard. */
+  drawerFocusRequestKey?: number;
   selected: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
@@ -701,7 +804,7 @@ function ManualTerminalTile({
   const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
   const tileStatus = restoredTranscript ? "restored" : status;
   // The focused, unpinned tile holds the Terminal tab's panel, and Preview takes its place there.
-  const focusBox = !workspaceHidden && !layoutHidden && !pinned;
+  const focusBox = !workspaceHidden && !layoutHidden && !pinned && !inDrawer;
   // A file dragged over a connected terminal: its path is pasted at the prompt on drop, as Ghostty does.
   const [fileDragOver, setFileDragOver] = useState(false);
   const fileDragDepthRef = useRef(0);
@@ -1059,6 +1162,8 @@ function ManualTerminalTile({
         void fetchImages().then(answer, () => callback(undefined));
       },
     });
+    // Ctrl+` shows and hides the shell drawer; a terminal would send it to the program as NUL.
+    terminal.attachCustomKeyEventHandler((event) => !(event.ctrlKey && event.code === "Backquote"));
     terminal.attachCustomWheelEventHandler((event) => {
       // A program on the alternate screen, such as Codex, vim or less, or one that tracks the mouse scrolls itself:
       // xterm passes it the wheel as mouse reports or arrow keys, and keeps the event from the deck column.
@@ -1408,6 +1513,14 @@ function ManualTerminalTile({
     }
   }, [selected, status, surfaceActive, terminalFocusRequestKey]);
 
+  // Each drawer request focuses once, so coming back to the project does not take the keyboard from the deck.
+  const handledDrawerFocusKeyRef = useRef(0);
+  useEffect(() => {
+    if (!drawerFocusRequestKey || drawerFocusRequestKey === handledDrawerFocusKeyRef.current) return;
+    handledDrawerFocusKeyRef.current = drawerFocusRequestKey;
+    terminalRef.current?.focus();
+  }, [drawerFocusRequestKey]);
+
   // The page panel's "Paste path": typed at the prompt as a file drop types it, without Enter.
   const pasteKey = pasteRequest?.key;
   useEffect(() => {
@@ -1420,7 +1533,7 @@ function ManualTerminalTile({
   return (
     <article
       ref={tileRef}
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${pinned ? "pinned" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${pinned ? "pinned" : ""} ${inDrawer ? "in-drawer" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
       onDragEnter={(event) => {
@@ -1560,6 +1673,7 @@ function ManualTerminalTile({
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
         data-session-id={sessionKey}
         {...(focusBox ? { id: SESSION_VIEW_IDS.terminalPanel, role: "tabpanel", "aria-labelledby": SESSION_VIEW_IDS.terminalTab } : {})}
+        {...(inDrawer ? { id: SHELL_DRAWER_PANEL_ID, role: "tabpanel", "aria-labelledby": `shell-tab-${sessionKey}` } : {})}
         aria-hidden={preview ? "true" : undefined}
         inert={preview ? true : undefined}
         ref={containerRef}

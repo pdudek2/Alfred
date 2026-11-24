@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { SessionTile } from "./session-state";
 import {
+  deckAgentSessions,
+  deckFocusSession,
+  drawerSessions,
   isFreeChatPath,
   isFreeChatScope,
   isFreeChatSession,
   isNavigableLiveSession,
+  isShellSession,
 } from "./session-scope";
 
 function session(overrides: Partial<SessionTile> = {}): SessionTile {
@@ -22,6 +26,26 @@ function session(overrides: Partial<SessionTile> = {}): SessionTile {
 }
 
 describe("session scope", () => {
+  it("splits a project's live sessions into deck agents and drawer shells", () => {
+    const sessions = [
+      session({ id: "codex-1" }),
+      session({ id: "manual-1", agentKind: undefined }),
+      session({ id: "dev-1", agentKind: "dev-server", source: "alfred" }),
+      session({ id: "typed-1", agentKind: undefined, detectedAgentKind: "claude" }),
+      session({ id: "ended-shell", agentKind: undefined, runtimeStatus: "exited" }),
+      session({ id: "ended-codex", runtimeStatus: "exited" }),
+      session({ id: "asleep-shell", agentKind: undefined, runtimeStatus: "restored" }),
+      session({ id: "draft-1", stage: "staged" }),
+      session({ id: "other-project-shell", agentKind: undefined, workspaceId: "B" }),
+    ];
+
+    expect(deckAgentSessions(sessions, "A").map((item) => item.id)).toEqual(["codex-1", "typed-1", "ended-codex"]);
+    expect(drawerSessions(sessions, "A").map((item) => item.id)).toEqual(["manual-1", "dev-1"]);
+    expect(isShellSession(session({ agentKind: undefined, command: "claude" }))).toBe(false);
+    // A shell selected last never becomes the focus, which picks among agents.
+    expect(deckFocusSession(deckAgentSessions(sessions, "A"), "manual-1")?.id).toBe("codex-1");
+  });
+
   it("classifies a live Documents/Codex session as a Free Chat", () => {
     const freeChat = session({
       id: "free-chat",

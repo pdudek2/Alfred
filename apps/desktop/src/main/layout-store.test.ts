@@ -7,12 +7,20 @@ import {
   configureLayoutPersistence,
   getLayoutsSnapshot,
   resetLayoutPersistence,
+  setDrawerHeightSnapshot,
   setPageWidthSnapshot,
   setRailWidthSnapshot,
   setWorkspaceViewStateSnapshot,
 } from "./layout-store.js";
 import { DESKTOP_STATE_VERSION, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
-import { DEFAULT_PAGE_WIDTH, DEFAULT_RAIL_WIDTH, MAX_PAGE_WIDTH, MAX_RAIL_WIDTH, MIN_PAGE_WIDTH } from "../shared/layout-ipc.js";
+import {
+  DEFAULT_PAGE_WIDTH,
+  DEFAULT_RAIL_WIDTH,
+  MAX_DRAWER_HEIGHT,
+  MAX_PAGE_WIDTH,
+  MAX_RAIL_WIDTH,
+  MIN_PAGE_WIDTH,
+} from "../shared/layout-ipc.js";
 
 let temporaryDirectory: string | null = null;
 
@@ -78,8 +86,11 @@ describe("layout-store", () => {
     await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: DEFAULT_PAGE_WIDTH });
 
     await setPageWidthSnapshot(812.4);
+    await setDrawerHeightSnapshot(9000);
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ drawerHeight: MAX_DRAWER_HEIGHT });
+    await setDrawerHeightSnapshot(310);
     configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
-    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: 812 });
+    await expect(getLayoutsSnapshot()).resolves.toMatchObject({ pageWidth: 812, drawerHeight: 310 });
   });
 
   it("does not expose a retired context drawer value from persisted layout state", async () => {
