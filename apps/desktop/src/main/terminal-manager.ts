@@ -377,7 +377,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         : undefined;
     },
     workersOf,
-    startWorker: (parentClientId, request) => requestWorker(parentClientId, request, workerReplies),
+    startWorker: async (parentClientId, request) => {
+      const worker = await requestWorker(parentClientId, request, workerReplies);
+      const session = findLiveSessionByClientId(worker.clientId);
+      if (session) markToolWorker(session, options.agentEvents);
+      return worker;
+    },
     send: (clientId, text) => {
       const session = findLiveSessionByClientId(clientId);
       if (!session) throw new WorkerToolError("The worker has ended.");
@@ -663,6 +668,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         forgottenClientIds.delete(session.clientId);
         // A worker its orchestrator started stays that orchestrator's worker when it is resumed.
         if (restoredSessionSnapshots.get(session.clientId)?.startedByTool) toolStartedWorkers.add(session.clientId);
+        // Its terminal may open before or after Alfred learns the orchestrator started it, so both mark it.
+        if (toolStartedWorkers.has(session.clientId)) markToolWorker(session, options.agentEvents);
       }
       rememberSessionSnapshot(session);
 
@@ -1799,6 +1806,11 @@ async function requestWorker(
   });
   notifyWorkers();
   return { clientId, title };
+}
+
+function markToolWorker(session: TerminalSession, agentEvents: AgentEventLog | null | undefined): void {
+  const agent = session.command === "claude" || session.command === "codex" ? session.command : undefined;
+  if (agent) agentEvents?.workerStarted({ id: session.id, clientId: session.eventLogKey }, agent);
 }
 
 /** Pastes text into an agent's terminal and presses Enter: an orchestrator's message to its worker, or Alfred's news. */

@@ -171,9 +171,11 @@ describe("createAgentEventLog", () => {
 
     await post(first, JSON.stringify(claudeBody));
     log.programStatus({ id: SESSION, clientId: "claude-9" }, "claude", { state: "blocked", kind: "permission", msg: "Edit ~/secret-plan.md?", title: "Plan" });
+    log.workerStarted({ id: SESSION, clientId: "claude-10" }, "claude");
     await log.close();
 
-    const lines = await recorded();
+    const lines = (await recorded()).filter((line) => line.event !== "alfred.worker_started");
+    expect((await recorded()).at(-1)).toMatchObject({ agent: "claude", event: "alfred.worker_started", session: "claude-10", attributes: {} });
     expect(lines.map((line) => line.session)).toEqual(["claude-9", "claude-9", "claude-9"]);
     expect(lines.at(-1)).toMatchObject({ agent: "claude", event: "alfred.program_status", attributes: { state: "blocked", kind: "permission" } });
     expect(Object.keys(lines.at(-1)!.attributes)).toEqual(["state", "kind"]);
@@ -202,6 +204,7 @@ describe("createAgentEventLog", () => {
     expect(log.launchArgs({ id: SESSION }, "codex")).toEqual([]);
     expect((await post(url, JSON.stringify(claudeBody))).status).toBe(200);
     log.programStatus({ id: SESSION }, "codex", { state: "working" });
+    log.workerStarted({ id: SESSION }, "codex");
     await log.close();
 
     expect(await recorded()).toEqual([]);

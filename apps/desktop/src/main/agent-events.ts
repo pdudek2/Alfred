@@ -20,6 +20,8 @@ export type AgentEventLog = {
   launchArgs(session: AgentEventSession, command?: string): string[];
   /** Records what an agent reported about itself in its terminal (OSC 7501), next to its own events. */
   programStatus(session: AgentEventSession, agent: AgentEventLine["agent"], report: Record<string, unknown>): void;
+  /** Marks a session an orchestrator started: its messages come from the orchestrator, not from you. */
+  workerStarted(session: AgentEventSession, agent: AgentEventLine["agent"]): void;
 };
 
 /** A terminal session: its process id, and the Alfred session id it keeps when resumed. */
@@ -157,6 +159,10 @@ export async function createAgentEventLog(options: AgentEventLogOptions): Promis
       // What the agent says it is doing (msg, title) describes your work, so only the state goes on record.
       const { msg: _msg, title: _title, ...status } = report;
       write([{ agent, at: new Date().toISOString(), attributes: redacted(status), event: "alfred.program_status", session: logKey(session) }]);
+    },
+    workerStarted: (session, agent) => {
+      if (!options.isRecording()) return;
+      write([{ agent, at: new Date().toISOString(), attributes: {}, event: "alfred.worker_started", session: logKey(session) }]);
     },
   };
 }
