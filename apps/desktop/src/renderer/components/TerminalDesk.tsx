@@ -1534,7 +1534,7 @@ function ManualTerminalTile({
     <article
       ref={tileRef}
       className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${pinned ? "pinned" : ""} ${inDrawer ? "in-drawer" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
-      data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
+      data-testid={workspaceHidden ? "background-terminal-tile" : inDrawer ? "drawer-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
       onDragEnter={(event) => {
         if (!acceptsFileDrag(event)) return;
@@ -1670,7 +1670,7 @@ function ManualTerminalTile({
       {hoveredImage && <TerminalImagePeek image={hoveredImage} cwd={resolvedCwd} />}
       <div
         className="xterm-host"
-        data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
+        data-testid={workspaceHidden ? "background-xterm-host" : inDrawer ? "drawer-xterm-host" : "xterm-host"}
         data-session-id={sessionKey}
         {...(focusBox ? { id: SESSION_VIEW_IDS.terminalPanel, role: "tabpanel", "aria-labelledby": SESSION_VIEW_IDS.terminalTab } : {})}
         {...(inDrawer ? { id: SHELL_DRAWER_PANEL_ID, role: "tabpanel", "aria-labelledby": `shell-tab-${sessionKey}` } : {})}

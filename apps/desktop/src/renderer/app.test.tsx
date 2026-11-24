@@ -33,6 +33,7 @@ const {
   terminalDisposeCalls,
   terminalFocusSessionIds,
   terminalInputHandlers,
+  terminalKeyHandlers,
   terminalLines,
   terminalLinkProviders,
 } = vi.hoisted(() => ({
@@ -40,13 +41,16 @@ const {
   terminalDisposeCalls: [] as unknown[],
   terminalFocusSessionIds: [] as string[],
   terminalInputHandlers: [] as Array<(data: string) => void>,
+  terminalKeyHandlers: [] as Array<(event: KeyboardEvent) => boolean>,
   terminalLines: [] as string[],
   terminalLinkProviders: [] as unknown[],
 }));
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
-    attachCustomKeyEventHandler = vi.fn();
+    attachCustomKeyEventHandler = vi.fn((handler: (event: KeyboardEvent) => boolean) => {
+      terminalKeyHandlers.push(handler);
+    });
     attachCustomWheelEventHandler = vi.fn();
     buffer = {
       active: {
@@ -601,6 +605,7 @@ beforeEach(() => {
   terminalDisposeCalls.length = 0;
   terminalFocusSessionIds.length = 0;
   terminalInputHandlers.length = 0;
+  terminalKeyHandlers.length = 0;
   terminalLines.length = 0;
   terminalLinkProviders.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
@@ -650,6 +655,13 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       sessionMetaSlot={sessionMetaSlot}
       armedRecoverySessionIds={new Set()}
       now={Date.now()}
+      drawerOpen
+      drawerSessionId={null}
+      drawerHeight={250}
+      drawerFocusRequestKey={0}
+      onDrawerHeightChange={() => {}}
+      onNewShell={() => {}}
+      onSelectDrawerSession={() => {}}
       pinnedSessionId={null}
       selectedSessionId={selectedSessionId}
       sessions={nextSessions}
@@ -772,6 +784,19 @@ async function sessionMenuAction(user: ReturnType<typeof userEvent.setup>, title
   await user.click(screen.getByRole("menuitem", { name: action }));
 }
 
+/** A shell's tile while it is the drawer's selected tab. */
+function drawerTile(sessionId = "manual-1"): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`.terminal-tile.in-drawer[data-session-id="${sessionId}"]`);
+}
+
+// Shells have no session menu: ⌘W with the keyboard in the drawer closes its shell.
+async function closeDrawerShell(user: ReturnType<typeof userEvent.setup>, sessionId = "manual-1") {
+  const tile = drawerTile(sessionId);
+  if (!tile) throw new Error(`${sessionId} is not in the drawer`);
+  act(() => tile.focus());
+  await user.keyboard("{Meta>}w{/Meta}");
+}
+
 async function openNewTerminal(user: ReturnType<typeof userEvent.setup>) {
   await openComposer(user);
   await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
@@ -806,7 +831,8 @@ async function waitForTerminalStartsToSettle() {
 
 describe("App integration", () => {
   it("names the branch a project switched to once the window has focus again", async () => {
-    const bridge = installDesktopBridge();
+    // A project names its branch over its session tree, which lists agents.
+    const bridge = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     render(<App />);
     const project = await screen.findByRole("button", { name: "Alfred project" });
@@ -842,15 +868,15 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "zsh", /^Close/);
-    expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+    await closeDrawerShell(user);
+    expect(screen.queryByTestId("drawer-terminal-tile")).not.toBeInTheDocument();
 
     await act(async () => {
       pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
       await pending.promise;
     });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
-    expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("drawer-terminal-tile")).not.toBeInTheDocument();
   });
 
   it("starts no session until the saved sessions are in, since loading them replaces the list", async () => {
@@ -874,14 +900,16 @@ describe("App integration", () => {
       loading.resolve(saved);
       await loading.promise;
     });
-    expect(await screen.findByTestId("terminal-tile")).toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
+    expect(await screen.findByTestId("drawer-terminal-tile")).toBeInTheDocument();
+    // The first shell sits in the drawer, so the empty deck shows the composer.
+    expect(drawerTile()).not.toBeNull();
+    expect(screen.getByRole("form", { name: "New session" })).toBeInTheDocument();
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
   });
 
   it.each([
-    ["the command palette", "Open command palette", "Search commands"],
-    ["New session", "New session", "First prompt"],
+    ["the command palette", "{Meta>}k{/Meta}", "Search commands"],
+    ["New session", "{Meta>}n{/Meta}", "First prompt"],
   ])("leaves the keyboard in %s when the terminal behind it becomes ready", async (_, opener, field) => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
@@ -890,17 +918,17 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: new RegExp(`^${opener}$`) }));
+    await user.keyboard(opener);
     const search = screen.getByRole("textbox", { name: field });
     await user.click(search);
     expect(search).toHaveFocus();
     const focusCalls = terminalFocusSessionIds.length;
 
     await act(async () => {
-      pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
+      pending.resolve({ ...manualLiveSnapshot("manual-1", "zsh"), id: "late-runtime" });
       await pending.promise;
     });
-    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
+    await waitFor(() => expect(screen.getByTestId("drawer-terminal-tile")).toHaveClass("ready"));
     expect(terminalFocusSessionIds).toHaveLength(focusCalls);
     expect(search).toHaveFocus();
   });
@@ -913,7 +941,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "zsh", /^Close/);
+    await closeDrawerShell(user);
     await act(async () => {
       pending.reject(new Error("start rejected"));
       try { await pending.promise; } catch { /* expected */ }
@@ -923,7 +951,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-2" }));
-    expect(await screen.findByTestId("terminal-tile")).toBeInTheDocument();
+    expect(await screen.findByTestId("drawer-terminal-tile")).toBeInTheDocument();
     expect(bridge.killTerminal).not.toHaveBeenCalled();
   });
 
@@ -935,12 +963,12 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "zsh", /^Close/);
+    await closeDrawerShell(user);
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
-    const host = screen.getByTestId("xterm-host");
+    await waitFor(() => expect(screen.getByTestId("drawer-terminal-tile")).toHaveClass("ready"));
+    const host = screen.getByTestId("drawer-xterm-host");
 
     await act(async () => {
       pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
@@ -948,8 +976,8 @@ describe("App integration", () => {
     });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
     expect(bridge.killTerminal).not.toHaveBeenCalledWith({ id: "runtime-1" });
-    expect(screen.getByTestId("xterm-host")).toBe(host);
-    expect(screen.getByTestId("terminal-tile")).toHaveClass("ready");
+    expect(screen.getByTestId("drawer-xterm-host")).toBe(host);
+    expect(screen.getByTestId("drawer-terminal-tile")).toHaveClass("ready");
   });
 
   it("keeps a second close pending when the older start settles first", async () => {
@@ -961,11 +989,11 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "zsh", /^Close/);
+    await closeDrawerShell(user);
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
-    await sessionMenuAction(user, "zsh", /^Close/);
+    await closeDrawerShell(user, "manual-2");
 
     await act(async () => {
       first.resolve(liveSnapshot("manual-1", { id: "old-runtime" }));
@@ -977,7 +1005,7 @@ describe("App integration", () => {
     });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "old-runtime" });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "new-runtime" });
-    expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("drawer-terminal-tile")).not.toBeInTheDocument();
   });
 
   it("does not attach an old pending start to a new session in another workspace", async () => {
@@ -988,13 +1016,13 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await sessionMenuAction(user, "zsh", /^Close/);
+    await closeDrawerShell(user);
     await addScratchProject(user);
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-2", workspaceId: "W2" }));
-    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
+    await waitFor(() => expect(screen.getByTestId("drawer-terminal-tile")).toHaveClass("ready"));
 
     await act(async () => {
       pending.resolve(liveSnapshot("manual-1", { id: "late-runtime", workspaceId: "A" }));
@@ -1002,8 +1030,8 @@ describe("App integration", () => {
     });
     expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
     expect(screen.getByRole("button", { name: "Project 2 project" })).toHaveAttribute("aria-current", "location");
-    expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
-    expect(screen.getByTestId("terminal-tile")).toHaveClass("ready");
+    expect(screen.getAllByTestId("drawer-terminal-tile")).toHaveLength(1);
+    expect(screen.getByTestId("drawer-terminal-tile")).toHaveClass("ready");
   });
 
   it("shows a tile path only when it differs from the workspace root", () => {
@@ -1016,6 +1044,7 @@ describe("App integration", () => {
         source: "manual",
         stage: "live",
         runtimeStatus: "live",
+        agentKind: "codex",
       },
       {
         id: "nested-session",
@@ -1025,6 +1054,7 @@ describe("App integration", () => {
         source: "manual",
         stage: "live",
         runtimeStatus: "live",
+        agentKind: "codex",
       },
       ...([
         ["agent-in-root", { root: "/Users/sample/Desktop/Alfred", branch: "fix-in-place" }],
@@ -1073,50 +1103,86 @@ describe("App integration", () => {
 
     const liveTile = screen.getByRole("article", { name: "zsh" });
     expect(liveTile).toHaveClass("real-terminal");
-    expect(liveTile.querySelector("[data-testid='xterm-host']")).toBeInTheDocument();
+    expect(liveTile.querySelector("[data-testid='drawer-xterm-host']")).toBeInTheDocument();
     expect(within(screen.getByTestId("terminal-grid")).getAllByRole("article")).toEqual([liveTile]);
     expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="staged-1"]')).toBeNull();
   });
 
-  it("shows the Codex identity after launching codex inside a manual terminal", async () => {
-    const { emitData, renameTerminal } = installDesktopBridge();
+  it("moves a shell running an agent to the deck focus and back to the drawer at its prompt", async () => {
+    const { emitData, renameTerminal } = installDesktopBridge(undefined, null, [
+      liveSnapshot("codex-1", { title: "Reviewer" }),
+      manualLiveSnapshot("manual-1", "zsh"),
+    ]);
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
-    const kind = () => screen.getByTestId("workbench-header").querySelector(".session-meta-kind");
-    expect(kind()).toHaveTextContent("Terminal");
-    await waitForTerminalStartsToSettle();
+    const shellTile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    const host = shellTile.querySelector(".xterm-host");
+    const breadcrumb = () => screen.getByRole("navigation", { name: "Breadcrumb" });
+    await waitFor(() => expect(breadcrumb()).toHaveTextContent("Reviewer"));
+    expect(drawerTile("manual-1")).toBe(shellTile);
+    expect(within(railSessions()).queryByText("zsh")).not.toBeInTheDocument();
 
     await emitData({
-      id: "runtime-1",
+      id: "runtime-manual-1",
       clientId: "manual-1",
       data: "Ready\n",
-      activities: [],
-      foregroundAgentKind: "codex",
-    } as TerminalDataEvent);
-
-    expect(kind()).toHaveTextContent("Codex");
-    expect(await screen.findByRole("article", { name: "Codex" })).toBeInTheDocument();
-    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Codex" });
-
-    await emitData({
-      id: "runtime-1",
-      clientId: "manual-1",
-      data: "Claude ready\n",
       activities: [],
       foregroundAgentKind: "claude",
     } as TerminalDataEvent);
 
-    expect(await screen.findByRole("article", { name: "Claude" })).toBeInTheDocument();
+    // While claude runs in it, the shell is the deck's focus and a row in the tree; the tile never remounts.
+    expect(await screen.findByRole("article", { name: "Claude" })).toBe(shellTile);
+    expect(drawerTile("manual-1")).toBeNull();
+    expect(shellTile).not.toHaveAttribute("aria-hidden");
+    expect(shellTile.querySelector(".xterm-host")).toBe(host);
+    expect(screen.getByTestId("workbench-header").querySelector(".session-meta-kind")).toHaveTextContent("Claude");
+    expect(breadcrumb()).toHaveTextContent("Claude");
+    expect(within(railSessions()).getByText("Claude")).toBeInTheDocument();
     expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Claude" });
 
     await emitData({
-      id: "runtime-1",
+      id: "runtime-manual-1",
       clientId: "manual-1",
       data: "% ",
       activities: [],
     });
-    expect(kind()).toHaveTextContent("Terminal");
+    // Back at its prompt, it returns to the drawer and the focus to the agent focused before.
+    await waitFor(() => expect(drawerTile("manual-1")).toBe(shellTile));
+    expect(breadcrumb()).toHaveTextContent("Reviewer");
+    expect(shellTile.querySelector(".xterm-host")).toBe(host);
+  });
+
+  it("shows and hides the shell drawer with Ctrl+` and never types it into a terminal", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1"), manualLiveSnapshot("manual-1", "zsh")]);
+    render(<App />);
+
+    const shell = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    const host = shell.querySelector(".xterm-host");
+    expect(drawerTile()).toBe(shell);
+    await waitFor(() => expect(terminalKeyHandlers).toHaveLength(2));
+    // xterm leaves the chord to the app instead of sending NUL to the program.
+    for (const handler of terminalKeyHandlers) {
+      expect(handler(new KeyboardEvent("keydown", { key: "`", code: "Backquote", ctrlKey: true }))).toBe(false);
+      expect(handler(new KeyboardEvent("keydown", { key: "a", code: "KeyA" }))).toBe(true);
+    }
+
+    const toggle = (target: Element | Window = window) =>
+      fireEvent.keyDown(target, { key: "`", code: "Backquote", ctrlKey: true });
+    toggle(host!);
+    expect(screen.queryByRole("tablist", { name: "Shells" })).not.toBeInTheDocument();
+    expect(shell).toHaveAttribute("aria-hidden", "true");
+    toggle();
+    expect(drawerTile()).toBe(shell);
+    expect(shell.querySelector(".xterm-host")).toBe(host);
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Codex · codex-1");
+
+    // History hides the deck, so the chord does nothing there.
+    await selectSurface(user, "History");
+    toggle();
+    await selectSurface(user, "Work");
+    expect(drawerTile()).toBe(shell);
   });
 
   it("keeps a custom terminal title when an agent is detected", async () => {
@@ -1190,7 +1256,7 @@ describe("App integration", () => {
   });
 
   it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {
-    installDesktopBridge(undefined, null, [], undefined, undefined, {
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")], undefined, undefined, {
       workspaces: [
         {
           id: "A",
@@ -1216,15 +1282,15 @@ describe("App integration", () => {
 
   it("renders New session only on demand and restores focus to its launch trigger", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Codex · codex-1" })).toBeInTheDocument();
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(screen.queryByTestId("primary-nav-rail")).not.toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "New session" })).toHaveAttribute("aria-expanded", "false");
     const dispatch = await openNewPlan(user);
@@ -1253,21 +1319,27 @@ describe("App integration", () => {
     expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue("keep this draft");
   });
 
-  it("starts a global New session from Sessions and returns to the selected Work tile", async () => {
+  it("starts a New terminal from History into the drawer and leaves the deck's focus on its agent", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await selectSurface(user, "History");
     await openComposer(user);
     expect(screen.getByRole("textbox", { name: "First prompt" })).toHaveFocus();
     await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toHaveClass("selected");
+    const shell = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    expect(drawerTile("manual-1")).toBe(shell);
+    expect(within(screen.getByRole("tablist", { name: "Shells" })).getByRole("tab", { name: /zsh/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
+    expect(screen.getByRole("article", { name: "Codex · codex-1" })).toHaveClass("selected");
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Codex · codex-1");
+    expect(setWorkspaceViewState).not.toHaveBeenCalledWith(expect.objectContaining({ viewState: { selectedSessionId: "manual-1" } }));
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
   });
 
   it("restores the rail's width and changes it from the keyboard and by double click", async () => {
@@ -1328,10 +1400,10 @@ describe("App integration", () => {
 
   it("reaches every primary destination from the rail and the side column", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Codex · codex-1" })).toBeInTheDocument();
     await selectSurface(user, "History");
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
 
@@ -1355,15 +1427,16 @@ describe("App integration", () => {
     expect(screen.getByTestId("desk-runtime-surface")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("lists the active project's sessions under its row in the project navigator", async () => {
-    installDesktopBridge();
+  it("lists the active project's agents under its row in the project navigator, not its shells", async () => {
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1"), manualLiveSnapshot("manual-1", "zsh")]);
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     expect(within(panel).getByText("Projects")).toBeInTheDocument();
     expect(within(panel).getByRole("list", { name: /^projects$/i })).toBeInTheDocument();
-    expect(within(railSessions()).getByRole("button", { name: /^zsh/ })).toHaveAttribute("aria-current", "true");
+    expect(within(railSessions()).getByRole("button", { name: /^Codex · codex-1/ })).toHaveAttribute("aria-current", "true");
+    expect(within(railSessions()).queryByRole("button", { name: /^zsh/ })).not.toBeInTheDocument();
   });
 
   it("keeps Recovery out of the project signal and Needs you count", async () => {
@@ -1437,6 +1510,9 @@ describe("App integration", () => {
           workspaceId: "CLIENT",
           cwd: "/Users/sample/Documents/Codex/scratch-api-worker",
           shell: "/bin/zsh",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
           buffer: "",
         },
       ],
@@ -1801,7 +1877,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     const runtimeSurface = screen.getByTestId("desk-runtime-surface");
-    const xtermHost = screen.getByTestId("xterm-host");
+    const xtermHost = screen.getByTestId("drawer-xterm-host");
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
@@ -1830,9 +1906,9 @@ describe("App integration", () => {
     const legacyLayouts = {
       viewStateByWorkspace: { A: { previewDockOpen: false, contextDrawerOpen: false } },
     };
-    const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [], undefined, legacyLayouts);
+    const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")], undefined, legacyLayouts);
     const { unmount } = render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
 
     setWorkspaceViewState.mockClear();
@@ -1844,27 +1920,27 @@ describe("App integration", () => {
     await closeDetails(user);
     unmount();
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
   it("hands the keyboard to the focused terminal when Details closes with nothing to return to", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     terminalFocusSessionIds.length = 0;
     within(screen.getByRole("complementary", { name: "Details" })).getByRole("heading", { name: "Details" }).focus();
     await user.keyboard("{Meta>}i{/Meta}");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("codex-1"));
   });
 
   it("keeps Details open on Escape, which stays with the focused element", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     const palette = screen.getByRole("button", { name: "Open command palette" });
     palette.focus();
     await user.keyboard("{Escape}");
@@ -1877,9 +1953,9 @@ describe("App integration", () => {
 
   it("leaves Escape typed in a terminal to the terminal while Details is open", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await waitForTerminalStartsToSettle();
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     // xterm takes keys through a textarea inside its host.
@@ -1898,9 +1974,9 @@ describe("App integration", () => {
 
   it("closes an open project menu on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     await user.click(screen.getByRole("button", { name: /^Project menu for / }));
     expect(screen.getByRole("dialog", { name: "Project actions" })).toBeInTheDocument();
@@ -1911,9 +1987,9 @@ describe("App integration", () => {
 
   it("returns focus to the previous element after opening Details with Command I", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await closeDetails(user);
     const previous = screen.getByRole("button", { name: "Open command palette" });
     previous.focus();
@@ -1926,9 +2002,9 @@ describe("App integration", () => {
   });
 
   it("toggles Details with Command I and hands the keyboard to the terminal when it closes", async () => {
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     fireEvent.keyDown(window, { key: "i", metaKey: true });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
@@ -1939,12 +2015,12 @@ describe("App integration", () => {
     terminalFocusSessionIds.length = 0;
     fireEvent.keyDown(heading, { key: "i", metaKey: true });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("codex-1"));
   });
 
   it("uses Details as a right column beside the terminals", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
     const workbench = await screen.findByTestId("workbench-surface");
@@ -1961,7 +2037,7 @@ describe("App integration", () => {
 
   it("closes the Command palette on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
     await screen.findByTestId("project-navigator");
@@ -1976,10 +2052,10 @@ describe("App integration", () => {
 
   it("closes New session on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await selectSurface(user, "Details");
     await openNewPlan(user);
 
@@ -2072,10 +2148,10 @@ describe("App integration", () => {
 
   it("leaves Settings on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await selectSurface(user, "Details");
     await selectSurface(user, "Settings");
 
@@ -2087,10 +2163,10 @@ describe("App integration", () => {
 
   it("closes workspace actions on Escape and keeps Details open", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await selectSurface(user, "Details");
     await user.click(screen.getByRole("button", { name: "Project menu for Alfred" }));
 
@@ -2102,10 +2178,10 @@ describe("App integration", () => {
 
   it("keeps workspace navigation focus across a round trip to a workspace with open Details", async () => {
     const user = userEvent.setup();
-    // Details describes a session, so ClientApp has one running.
+    // Details describes an agent, so ClientApp has one running.
     installDesktopBridge(undefined, null, [{
-      id: "runtime-client", clientId: "manual-9", title: "zsh", source: "manual", workspaceId: "W2",
-      cwd: "/Users/sample/ClientApp", shell: "/bin/zsh", buffer: "",
+      id: "runtime-client", clientId: "codex-9", title: "Codex", source: "manual", workspaceId: "W2",
+      cwd: "/Users/sample/ClientApp", shell: "/bin/zsh", agentKind: "codex", command: "codex", args: [], buffer: "",
     }], undefined, undefined, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
@@ -2184,14 +2260,14 @@ describe("App integration", () => {
 
   it("keeps xterm hosts mounted across Work, History, Details, and Focus", async () => {
     const user = userEvent.setup();
-    const bridge = installDesktopBridge();
+    const bridge = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    const tile = await screen.findByRole("article", { name: "Codex · codex-1" });
     await openComposer(user);
-    await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
+    await user.click(screen.getByRole("radio", { name: /^Claude/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
-    await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: /^Claude/ });
     const initialHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
     expect(initialHosts.length).toBeGreaterThan(0);
     const initialHost = initialHosts[0];
@@ -2219,14 +2295,14 @@ describe("App integration", () => {
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    // The new terminal took focus; the first one waits in the rail's tree and comes back as the same node.
-    await user.click(within(railSessions()).getByRole("button", { name: /^zsh(?! \d)/ }));
-    expect(screen.getByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBe(tile);
-    expect(within(railSessions()).getByRole("button", { name: /^zsh 2(?! \d)/ })).toBeInTheDocument();
+    // The new agent took focus; the first one waits in the rail's tree and comes back as the same node.
+    await user.click(within(railSessions()).getByRole("button", { name: /^Codex · codex-1/ }));
+    expect(screen.getByRole("article", { name: "Codex · codex-1" })).toBe(tile);
+    expect(within(railSessions()).getByRole("button", { name: /^Claude/ })).toBeInTheDocument();
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    await bridge.emitData({ id: "runtime-1", data: "keep-alive output\n", activities: [] });
+    await bridge.emitData({ id: "runtime-codex-1", data: "keep-alive output\n", activities: [] });
     expect(tile).toHaveTextContent("keep-alive output");
 
     const finalHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
@@ -2586,6 +2662,7 @@ describe("App integration", () => {
       id: "manual-menu",
       runtimeId: "runtime-manual-menu",
       title: "Manual · menu",
+      agentKind: "codex",
       source: "manual",
       workspaceId: "A",
       cwd: "/Users/sample/Desktop/Alfred",
@@ -2627,6 +2704,7 @@ describe("App integration", () => {
       id: "manual-menu",
       runtimeId: "runtime-manual-menu",
       title: "Manual · menu",
+      agentKind: "codex",
       source: "manual",
       workspaceId: "A",
       cwd: "/Users/sample/Desktop/Alfred",
@@ -2647,12 +2725,12 @@ describe("App integration", () => {
 
   it("reaches the session menu by Tab before the terminal takes the keyboard", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
     const tile = await screen.findByTestId("terminal-tile");
-    const menu = within(screen.getByTestId("workbench-header")).getByRole("button", { name: "More actions for zsh" });
+    const menu = within(screen.getByTestId("workbench-header")).getByRole("button", { name: "More actions for Codex · codex-1" });
     await screen.findByRole("button", { name: "Alfred project" });
 
     await act(async () => {
@@ -2668,11 +2746,11 @@ describe("App integration", () => {
 
   it("uses a Dispatch bar with explicit workspace planning instead of a workspace chat composer", async () => {
     const user = userEvent.setup();
-    const { requestPlan } = installDesktopBridge();
+    const { requestPlan } = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Codex · codex-1" })).toBeInTheDocument();
     const dispatch = await openNewPlan(user);
     expect(dispatch).toHaveAccessibleName("New session");
     expect(screen.queryByRole("form", { name: /alfred composer/i })).not.toBeInTheDocument();
@@ -2690,7 +2768,7 @@ describe("App integration", () => {
           label: "Alfred",
         }),
         workspace: expect.objectContaining({
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "zsh" })]),
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "Codex · codex-1" })]),
         }),
       }),
     );
@@ -2707,6 +2785,9 @@ describe("App integration", () => {
         id: "runtime-a",
         clientId: "manual-a",
         title: "Manual · failed",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         source: "manual",
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
@@ -2946,7 +3027,7 @@ describe("App integration", () => {
         activityEvents: finalSnapshot.activityEvents,
       }),
     );
-    const output = screen.getByTestId("xterm-host").textContent ?? "";
+    const output = screen.getByTestId("drawer-xterm-host").textContent ?? "";
     expect(output).toContain("failed before attach");
     expect(output.match(/\[process exited with code 7\]/g)).toHaveLength(1);
   });
@@ -2994,7 +3075,7 @@ describe("App integration", () => {
     });
 
     expect(callbacks.onRuntimeSessionExited).toHaveBeenCalledOnce();
-    const output = screen.getByTestId("xterm-host").textContent ?? "";
+    const output = screen.getByTestId("drawer-xterm-host").textContent ?? "";
     expect(output.match(/\[process exited with code 3\]/g)).toHaveLength(1);
   });
 
@@ -3231,7 +3312,7 @@ describe("App integration", () => {
     const { resizeTerminal } = installDesktopBridge();
 
     render(<App />);
-    const host = await screen.findByTestId("xterm-host");
+    const host = await screen.findByTestId("drawer-xterm-host");
     await waitFor(() => expect(resizeTerminal).toHaveBeenCalledTimes(1));
 
     hostWidth = 420;
@@ -4070,12 +4151,15 @@ describe("App integration", () => {
     expect(await within(preview).findByText("Preview is offline")).toBeInTheDocument();
     expect(within(preview).queryByTitle("Preview of http://localhost:5173/")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+    // With no agent on the deck, Preview takes the deck's place above the drawer, whose shell keeps running below it.
+    expect(preview.closest(".terminal-deck-pane")).not.toBeNull();
+    expect(drawerTile("manual-dev")).not.toBeNull();
 
     await user.click(within(preview).getByRole("button", { name: "Open in browser" }));
 
     expect(openExternalUrl).toHaveBeenCalledWith({ url: "http://localhost:5173/" });
 
-    await sessionMenuAction(user, "Manual · dev server", /^Close/);
+    await closeDrawerShell(user, "manual-dev");
 
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
   });
@@ -4169,7 +4253,7 @@ describe("App integration", () => {
     const { writeTerminal } = installDesktopBridge(undefined, null, [manualLiveSnapshot("drop", "Drop target")]);
     window.alfredDesktop!.pathForFile = (file) => file.name === "from-browser.png" ? "" : `/Users/p/Desktop/${file.name}`;
     render(<App />);
-    const host = within(await screen.findByRole("article", { name: /Drop target/i })).getByTestId("xterm-host");
+    const host = within(await screen.findByRole("article", { name: /Drop target/i })).getByTestId("drawer-xterm-host");
     await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
     const files = [new File(["png"], "Screenshot 11.52.png"), new File(["png"], "from-browser.png")];
     const dataTransfer = { types: ["Files"], files, dropEffect: "none" };
@@ -4276,7 +4360,7 @@ describe("App integration", () => {
     expect(screen.getByRole("tab", { name: "Terminal" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("shows the new session's terminal when a session is started during Preview", async () => {
+  it("shows the new agent's terminal when it is started during Preview, while a new shell leaves Preview open", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [
       liveSnapshot("preview-server", { buffer: "Ready at http://localhost:5173/\n" }),
@@ -4286,6 +4370,12 @@ describe("App integration", () => {
     await user.click(await screen.findByRole("tab", { name: "Preview" }));
     expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
     await openNewTerminal(user);
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(drawerTile("manual-1")).not.toBeNull());
+    expect(screen.getByLabelText("Project preview")).toBeInTheDocument();
+
+    await openComposer(user);
+    await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     await waitFor(() => expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument());
@@ -5178,20 +5268,18 @@ describe("App integration", () => {
     expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    ["New terminal", "zsh 2"],
-    ["New Codex session", "Codex"],
-  ] as const)("focuses a newly added %s and records it as selected", async (menuItem, title) => {
+  // A new terminal goes to the drawer instead (see "starts a New terminal from History into the drawer").
+  it("focuses a newly added Codex session and records it as selected", async () => {
     const user = userEvent.setup();
     const { setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
 
     await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     await openComposer(user);
-    await user.click(screen.getByRole("radio", { name: menuItem.includes("Codex") ? /^Codex/ : /^Terminal/ }));
+    await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    const added = await screen.findByRole("article", { name: new RegExp(title, "i") });
+    const added = await screen.findByRole("article", { name: /Codex/i });
     expect(added).not.toHaveAttribute("aria-hidden", "true");
     expect(added).toHaveStyle({ gridColumn: "" });
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith(
@@ -5379,6 +5467,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "alpha output\n",
       },
       {
@@ -5389,6 +5480,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "beta output\n",
       },
     ]);
@@ -5463,7 +5557,9 @@ describe("App integration", () => {
 
   it("does not auto-relaunch a failed live agent when focus moves away and back", async () => {
     const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge();
+    const { createTerminal } = installDesktopBridge(undefined, null, [
+      liveSnapshot("claude-9", { agentKind: "claude", command: "claude", title: "Reviewer" }),
+    ]);
     createTerminal.mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
       if (request.clientId === "codex-1") {
         return Promise.reject(new Error("spawn failed"));
@@ -5485,7 +5581,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Reviewer" })).toBeInTheDocument();
     await openComposer(user);
     await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -5496,7 +5592,7 @@ describe("App integration", () => {
     });
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
 
-    await user.click(within(railSessions()).getByRole("button", { name: /^zsh(?! \d)(?! ·)/ }));
+    await user.click(within(railSessions()).getByRole("button", { name: /^Reviewer/ }));
     await user.click(within(railSessions()).getByRole("button", { name: /^Codex(?! \d)(?! ·)/ }));
 
     expect(await screen.findByRole("article", { name: /(?<!\/)Codex(?! \d)(?! ·)/i })).toHaveTextContent("spawn failed");
@@ -5506,15 +5602,15 @@ describe("App integration", () => {
 
   it("shows the focused session's activity in Details and keeps it open on Escape", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await selectSurface(user, "Details");
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
-    // Starting a plain session is not work, so nothing is listed yet.
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · codex-1");
+    // A session that has done nothing yet lists no activity.
     expect(within(screen.getByLabelText("Agent activity")).queryByRole("region", { name: "Activity" })).toBeNull();
 
     screen.getByRole("heading", { name: "Details" }).focus();
@@ -5525,11 +5621,11 @@ describe("App integration", () => {
 
   it("opens Details from the command palette and returns focus to its surviving trigger", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await closeDetails(user);
     const paletteTrigger = screen.getByRole("button", { name: "Open command palette" });
     await user.click(paletteTrigger);
@@ -5554,6 +5650,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "",
       },
       {
@@ -5564,6 +5663,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "",
       },
     ]);
@@ -5590,8 +5692,8 @@ describe("App integration", () => {
 
   it("focuses a project session picked in the rail", async () => {
     const { setWorkspaceViewState } = installDesktopBridge(undefined, null, [
-      manualLiveSnapshot("manual-1", "zsh"),
-      manualLiveSnapshot("manual-2", "zsh 2"),
+      liveSnapshot("manual-1", { title: "zsh" }),
+      liveSnapshot("manual-2", { title: "zsh 2" }),
     ]);
 
     render(<App />);
@@ -5610,7 +5712,7 @@ describe("App integration", () => {
     });
   });
 
-  it("selects a new terminal immediately while Focus mode is active", async () => {
+  it("selects a new session immediately while Focus mode is active", async () => {
     const user = userEvent.setup();
     const { setWorkspaceViewState } = installDesktopBridge(
       undefined,
@@ -5624,6 +5726,9 @@ describe("App integration", () => {
           workspaceId: "A",
           cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
           buffer: "",
         },
         {
@@ -5634,6 +5739,9 @@ describe("App integration", () => {
           workspaceId: "A",
           cwd: "/Users/sample/Desktop/Alfred",
           shell: "/bin/zsh",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
           buffer: "",
         },
       ],
@@ -5648,17 +5756,18 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
-    await openNewTerminal(user);
+    await openComposer(user);
+    await user.click(screen.getByRole("radio", { name: /^Codex/ }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
-    const newTerminal = await screen.findByRole("article", { name: /(?<!\/)zsh 3(?! \d)(?! ·)/i });
-    expect(newTerminal).toHaveStyle({ gridColumn: "", gridRow: "" });
+    const newSession = await screen.findByRole("article", { name: /^Codex/ });
+    expect(newSession).toHaveStyle({ gridColumn: "", gridRow: "" });
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 3");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
-      viewState: { selectedSessionId: "manual-3" },
+      viewState: { selectedSessionId: "codex-1" },
     });
   });
 
@@ -5678,11 +5787,14 @@ describe("App integration", () => {
 
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
-    const { createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();
+    const { createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge(undefined, null, [
+      liveSnapshot("codex-1"),
+      liveSnapshot("codex-2"),
+    ]);
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Codex · codex-1" })).toBeInTheDocument();
 
     await user.keyboard("{Meta>}k{/Meta}");
 
@@ -5693,7 +5805,7 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
     await waitForTerminalStartsToSettle();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -5725,14 +5837,19 @@ describe("App integration", () => {
       );
     });
 
+    // A shell opens the drawer on its tab; the deck's focus and Details stay on the agent.
+    fireEvent.keyDown(window, { key: "`", code: "Backquote", ctrlKey: true });
+    expect(screen.queryByRole("tablist", { name: "Shells" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "zsh 2");
+    await submitCommandPalette(user, "zsh");
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh 2");
+    expect(drawerTile("manual-1")).not.toBeNull();
+    expect(screen.getByRole("tab", { name: /zsh/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · codex-1");
 
     fireEvent.keyDown(window, { key: "[", code: "BracketLeft", metaKey: true, shiftKey: true });
 
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · codex-2");
   });
 
   it("does not offer saved memory as a command-palette Work target", async () => {
@@ -6310,14 +6427,12 @@ describe("App integration", () => {
   });
 
   it("surfaces a masked approval on every surface at the same moment", async () => {
-    const user = userEvent.setup();
     const bridge = installDesktopBridge(undefined, null, [manualLiveSnapshot("asks", "Asking shell")]);
     render(<App />);
     const tile = await screen.findByRole("article", { name: /Asking shell/i });
     await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
-    await selectSurface(user, "Details");
-    const details = screen.getByRole("complementary", { name: "Details" });
-    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    // A shell shows its state on its drawer tab, where an agent has the breadcrumb and Details.
+    const tabs = screen.getByRole("tablist", { name: "Shells" });
     const project = within(screen.getByTestId("project-navigator")).getByRole("button", { name: "Alfred project" });
 
     vi.useFakeTimers();
@@ -6340,13 +6455,12 @@ describe("App integration", () => {
         bridge.emitDataNow({ id: "runtime-asks", data: "^[", at: askedAt + 50, activities: [] });
       });
       const surfacesNeedingYou = () => [
-        within(breadcrumb).queryByLabelText("status needs you") !== null,
+        within(tabs).queryByLabelText("status needs you") !== null,
         screen.queryByRole("button", { name: /^Needs you, / }) !== null,
         document.getElementById(project.getAttribute("aria-describedby") ?? "")?.textContent === "needs you",
-        within(details).queryByLabelText("status needs you") !== null,
       ];
-      expect(within(breadcrumb).getByLabelText("status running")).toBeInTheDocument();
-      expect(surfacesNeedingYou()).toEqual([false, false, false, false]);
+      expect(within(tabs).getByLabelText("status running")).toBeInTheDocument();
+      expect(surfacesNeedingYou()).toEqual([false, false, false]);
 
       // Each tick renders before the next one is scheduled, so the clock advances a second at a time.
       for (let second = 1; second <= 16; second += 1) {
@@ -6355,7 +6469,7 @@ describe("App integration", () => {
         expect(new Set(states).size, `surfaces disagree after ${second} s: ${states.join(", ")}`).toBe(1);
       }
 
-      expect(surfacesNeedingYou()).toEqual([true, true, true, true]);
+      expect(surfacesNeedingYou()).toEqual([true, true, true]);
       // The terminal shows the question itself; the tile adds no line repeating it.
       expect(within(tile).queryByRole("note")).toBeNull();
       expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
@@ -6424,7 +6538,7 @@ describe("App integration", () => {
       ],
     };
     await bridge.emitData(earlyEvent);
-    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="alfred-early-waiting"]')).toHaveAttribute(
+    expect(document.querySelector('[data-testid="drawer-terminal-tile"][data-session-id="alfred-early-waiting"]')).toHaveAttribute(
       "aria-label",
       "Early approval, Asked: Approval required: continue?",
     );
@@ -6564,6 +6678,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "",
       },
     ]);
@@ -6599,7 +6716,7 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
 
-    await sessionMenuAction(user, "zsh", /^Close/);
+    await closeDrawerShell(user);
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
     expect(emptyState).toHaveTextContent("Start a session below.");
@@ -6630,6 +6747,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "",
       },
     ]);
@@ -6908,8 +7028,9 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "newer", workspaceId: "A" }));
     });
-    expect(await screen.findByRole("article", { name: /Slide deck outline/i })).toBeInTheDocument();
-    expect(screen.queryByRole("status", { name: "Empty project" })).not.toBeInTheDocument();
+    // A resumed shell runs in the drawer; with no agent, the deck above it stays empty.
+    expect(await screen.findByRole("article", { name: /Slide deck outline/i })).toBe(drawerTile("newer"));
+    expect(screen.getByRole("status", { name: "Empty project" })).toBeInTheDocument();
     await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("newer"));
   });
 
@@ -7119,6 +7240,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "alpha output\n",
       },
     ]);
@@ -7296,6 +7420,9 @@ describe("App integration", () => {
         workspaceId: "A",
         cwd: "/Users/sample/Desktop/Alfred",
         shell: "/bin/zsh",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
         buffer: "",
       },
     ]);
@@ -7376,16 +7503,16 @@ describe("App integration", () => {
   });
 
   it("hydrates the saved selected session", async () => {
-    installDesktopBridge(undefined, null, [], undefined, {
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")], undefined, {
       viewStateByWorkspace: {
-        A: { selectedSessionId: "manual-1" },
+        A: { selectedSessionId: "two" },
       },
     });
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i })).toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
+    expect(await screen.findByRole("article", { name: "Codex · two" })).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · two");
   });
 
   it("moves a session that starts waiting to the top of the rail tree without taking focus", async () => {
@@ -7489,8 +7616,10 @@ describe("App integration", () => {
       "Claude · claude: needs-you",
       "Codex · one: your-turn",
       "Codex · two: your-turn",
-      "zsh: running",
     ]));
+    // The busy shell shows its state on its drawer tab, not in the tree.
+    const shellRunning = () => within(screen.getByRole("tablist", { name: "Shells" })).getByLabelText("status running");
+    expect(shellRunning()).toBeInTheDocument();
     // A signal the main process sent after the list was read, which the list then lacks.
     await bridge.emitData({
       id: "runtime-two",
@@ -7502,7 +7631,7 @@ describe("App integration", () => {
     // A start screen is read off the terminal, which the list never carries either.
     terminalLines.splice(0, terminalLines.length, "  Folder access", "  Trust this folder?", "  enter continue · esc quit");
     await bridge.emitData({ id: "runtime-one", clientId: "one", data: "  Folder access", activities: [] });
-    const waiting = ["Codex · one: needs-you", "Claude · claude: needs-you", "Codex · two: needs-you", "zsh: running"];
+    const waiting = ["Codex · one: needs-you", "Claude · claude: needs-you", "Codex · two: needs-you"];
     await waitFor(() => expect(railRows()).toEqual(waiting));
 
     const listed = list.mock.calls.length;
@@ -7513,6 +7642,7 @@ describe("App integration", () => {
 
     // The refreshed list must not reset them: no output arrives that would bring them back.
     expect(railRows()).toEqual(waiting);
+    expect(shellRunning()).toBeInTheDocument();
   });
 
   it("starts a worker from an agent's rail row and hangs it under that agent", async () => {
@@ -7526,12 +7656,12 @@ describe("App integration", () => {
     const sheet = screen.getByRole("form", { name: "New session" });
     expect(sheet).toHaveTextContent("Worker of Codex · lead");
     expect(within(sheet).queryByRole("radio", { name: /^Plan with Alfred/ })).not.toBeInTheDocument();
-    await user.click(within(sheet).getByRole("radio", { name: /^Terminal/ }));
+    await user.click(within(sheet).getByRole("radio", { name: /^Claude/ }));
     await user.click(within(sheet).getByRole("button", { name: "Start" }));
 
     await waitFor(() => expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ parentClientId: "lead" })));
     const workers = within(railSessions()).getByRole("list", { name: "Workers of Codex · lead" });
-    expect(within(workers).getByRole("button", { name: /^zsh/ })).toHaveAccessibleDescription(/Worker of Codex · lead/);
+    expect(within(workers).getByRole("button", { name: /^Claude/ })).toHaveAccessibleDescription(/Worker of Codex · lead/);
   });
 
   it("adds the worker an orchestrator asks for under it, and leaves your focus where it is", async () => {
@@ -7615,7 +7745,7 @@ describe("App integration", () => {
 
   it("turns the first Alfred prompt into plan line drafts outside the terminal grid", async () => {
     const user = userEvent.setup();
-    const { requestPlan, setStagedPlan } = installDesktopBridge();
+    const { requestPlan, setStagedPlan } = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
 
     render(<App />);
 
@@ -7629,7 +7759,7 @@ describe("App integration", () => {
         workspace: expect.objectContaining({
           id: "A",
           label: "Alfred",
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "zsh" })]),
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "Codex · codex-1" })]),
         }),
       }),
     );
@@ -7644,7 +7774,7 @@ describe("App integration", () => {
 
     expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
     await selectSurface(user, "Details");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("zsh");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · codex-1");
 
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalledWith(
@@ -7704,6 +7834,9 @@ describe("App integration", () => {
       cwd: "/repo",
       createdAt: 100,
       shell: "/bin/zsh",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
       buffer: "",
     }]);
     bridge.requestPlan.mockReturnValueOnce(planResponse.promise);
@@ -8127,7 +8260,8 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "clean-desktop" }));
     });
     expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
+    // A shell resumes into the drawer, under a deck with no agent.
+    expect(await screen.findByRole("article", { name: /Clean Desktop/i })).toBe(drawerTile("clean-desktop"));
   });
 
   it("relaunches unsafe restored sessions once after one review warning in StrictMode", async () => {
@@ -8242,34 +8376,6 @@ describe("App integration", () => {
       expect(within(list).getAllByRole("option").at(-1)).toHaveAttribute("aria-selected", "true");
     });
     expect(list).toHaveFocus();
-  });
-
-  it("keeps Work restart confirmation until confirm, Escape, or navigation", async () => {
-    const user = userEvent.setup();
-    const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{ ...manualLiveSnapshot("work-restart", "Work restart"),
-      command: "/bin/sh", args: ["-c", "rm -rf dist"],
-    }]);
-    createTerminal.mockRejectedValueOnce(new Error("expected restart failure"));
-    render(<StrictMode><App /></StrictMode>);
-    await screen.findByRole("article", { name: /Work restart/ });
-    await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
-    await emitExit({ id: "runtime-work-restart", exitCode: 1 });
-    const review = () => screen.getByRole("button", { name: "Review resume Work restart" });
-    const confirm = () => screen.getByRole("button", { name: "Confirm resume Work restart" });
-    await user.click(review());
-    expect(confirm()).toBeVisible();
-    expect(createTerminal).not.toHaveBeenCalled();
-    await user.keyboard("{Escape}");
-    expect(review()).toBeVisible();
-    await user.click(review());
-    await selectSurface(user, "History");
-    // Recovery navigation disarms first, then allows leaving.
-    if (!screen.queryByRole("region", { name: "History" })) await selectSurface(user, "History");
-    await selectSurface(user, "Work");
-    expect(review()).toBeVisible();
-    await user.click(review());
-    await user.click(confirm());
-    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
   });
 
   it.each([true, false])("keeps Free Chat decisions in Needs you without project attention (freeChat=%s)", async (freeChat) => {
@@ -9057,7 +9163,8 @@ describe("App integration", () => {
 
     expect(requestPlan).toHaveBeenCalledOnce();
     expect(blockedSend).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
+    // The deck has no agent, so its empty state is a status of its own.
+    expect(within(screen.getByRole("form", { name: "New session" })).getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
   });
 
   it("does not send whitespace-only Alfred prompts", async () => {
@@ -9243,9 +9350,9 @@ describe("App integration", () => {
     await openPlan(user);
     expect(screen.queryByRole("listitem", { name: /Draft Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "Draft Risky task" })).toBeInTheDocument();
-    // Launching does not steal focus; the new session joins the rail's tree.
-    expect(within(railSessions())
-      .getByRole("button", { name: /^Safe task/ })).toBeInTheDocument();
+    // Launching does not steal focus; the new shell joins the drawer's tabs.
+    expect(within(screen.getByRole("tablist", { name: "Shells" }))
+      .getByRole("tab", { name: /Safe task/ })).toBeInTheDocument();
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Risky task");
     expect(clearStagedPlan).not.toHaveBeenCalled();
@@ -9663,9 +9770,9 @@ describe("App integration", () => {
   });
   it("remembers the last kind with command N and keeps command T direct", async () => {
     const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge();
+    const { createTerminal } = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await user.keyboard("{Meta>}n{/Meta}");
     expect(screen.getByRole("radio", { name: /^Codex/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /^Claude/ }));
@@ -9675,7 +9782,10 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
     await user.keyboard("{Meta>}t{/Meta}");
     expect(screen.queryByRole("form", { name: "New session" })).not.toBeInTheDocument();
-    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    // ⌘T's shell opens in the drawer; the deck keeps its agent.
+    expect(drawerTile("manual-1")).not.toBeNull();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Codex · codex-1");
   });
 
   it.each([
@@ -9751,9 +9861,9 @@ describe("App integration", () => {
 
   it("reopens an existing sheet from a palette command and restores a stable focus target", async () => {
     const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge();
+    const { createTerminal } = installDesktopBridge(undefined, null, [liveSnapshot("codex-1")]);
     render(<App />);
-    await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/ });
+    await screen.findByRole("article", { name: "Codex · codex-1" });
     await openComposer(user);
     expect(screen.getByRole("radio", { name: /^Codex/ })).toBeChecked();
     await user.keyboard("{Meta>}k{/Meta}");
@@ -9761,7 +9871,7 @@ describe("App integration", () => {
     expect(screen.getByRole("radio", { name: /^Claude/ })).toBeChecked();
     await user.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "New session" })).toHaveFocus();
-    expect(createTerminal).toHaveBeenCalledTimes(1);
+    expect(createTerminal).not.toHaveBeenCalled();
   });
 
   it("keeps a newer sheet and draft when a cancelled plan request finishes", async () => {

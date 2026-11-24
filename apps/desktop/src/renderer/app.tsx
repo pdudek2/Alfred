@@ -1318,7 +1318,8 @@ export function App() {
         detail: "Resumed",
       }),
     );
-  }, [armedRecoverySessionIds]);
+    if (isShellSession(session)) revealShell(session.workspaceId, sessionId);
+  }, [armedRecoverySessionIds, revealShell]);
 
   const handleRestartSession = useCallback((sessionId: string) => {
     const sessions = terminalSessionsRef.current;
@@ -1345,7 +1346,8 @@ export function App() {
         detail: "Resumed",
       }),
     );
-  }, [armedRecoverySessionIds]);
+    if (isShellSession(session)) revealShell(session.workspaceId, sessionId);
+  }, [armedRecoverySessionIds, revealShell]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string, byYou = false) => {
     const normalizedTitle = normalizeSessionTitle(title);
