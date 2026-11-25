@@ -6,7 +6,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
 import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
-import { openNewSession } from "./support/work-layout";
+import { fixtureAgentOutput } from "./support/fixture-agents";
+import { openNewSession, startAgent } from "./support/work-layout";
 
 // Fixture item 1 is a blocked draft in Alpha (Needs you); Beta gets a Codex session kept busy;
 // the five folderless projects fold into Sandboxes.
@@ -43,7 +44,8 @@ test("the rail shows one state glyph per project and folds rootless projects int
     keepBusy = setInterval(() => void appendFile(path.join(paths.root, markers[0]!), "working\n"), 1_000);
 
     await alpha.click();
-    await startSession(page, /^Terminal/);
+    // An agent gives Alpha its tree; a project with only shells has none, and its row keeps the glyph.
+    await startAgent(page, "claude-1");
 
     // The open project's tree shows its states; the row keeps the summary for assistive tech only.
     await expect(alpha.locator(".project-row-state")).toHaveCount(0);
@@ -69,9 +71,7 @@ test("the rail shows one state glyph per project and folds rootless projects int
 
     // The rail keeps its canvas width and full labels even with Preview open at the minimum window.
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
-    const input = page.locator('[data-testid="terminal-tile"]:visible').getByRole("textbox", { name: "Terminal input" });
-    await input.fill(`printf 'Ready at ${url}\\n'`);
-    await input.press("Enter");
+    await appendFile(await fixtureAgentOutput(paths.root, "claude"), `Ready at ${url}\n`);
     await setWindowSize(app, page, 1120, 720);
     await page.getByRole("tab", { name: "Preview" }).click();
     await expect(page.getByLabel("Project preview")).toBeVisible();

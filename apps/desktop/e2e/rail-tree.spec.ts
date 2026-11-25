@@ -30,7 +30,8 @@ test("starts workers from their parent's row and keeps them under the parent acr
   const sheet = page.getByRole("form", { name: "New session", exact: true });
   await expect(sheet.getByText(`Worker of ${parentTitle}`)).toBeVisible();
   await expect(sheet.getByRole("radio", { name: /^Plan with Alfred/ })).toHaveCount(0);
-  await sheet.getByRole("radio", { name: /^Terminal/ }).click();
+  // Shells sit in the drawer, not the tree, so the workers here are agents.
+  await sheet.getByRole("radio", { name: /^Claude/ }).click();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
   await expect(sheet).toHaveCount(0);
 
@@ -39,7 +40,7 @@ test("starts workers from their parent's row and keeps them under the parent acr
   await expect(workers.locator(".session-tree-row")).toHaveCount(1);
   const workerId = (await workerRow.getAttribute("data-session-id"))!;
   await expect(workerRow).toHaveAccessibleDescription(`Worker of ${parentTitle}`);
-  // An agent worker goes through the agent launch path and carries its parent the same way.
+  // A Codex worker carries its parent the same way.
   await parent.hover();
   await page.getByRole("button", { name: `New worker for ${parentTitle}` }).click();
   await sheet.getByRole("radio", { name: /^Codex/ }).click();
@@ -107,7 +108,7 @@ test("starts workers from their parent's row and keeps them under the parent acr
 
   // After a restart the sessions come back asleep with their link; resumed, the workers hang under the parent again.
   // Unique names tell the asleep sessions apart in History, where generated titles lose their numbers.
-  const names: Record<string, string> = { [parentId]: "Lead agent", [workerId]: "Shell worker", [codexWorkerId]: "Codex worker" };
+  const names: Record<string, string> = { [parentId]: "Lead agent", [workerId]: "Claude worker", [codexWorkerId]: "Codex worker" };
   await page.evaluate(async (entries) => {
     for (const [clientId, title] of entries) await (window as DesktopTerminalWindow).alfredDesktop!.terminal.rename({ clientId, title });
   }, Object.entries(names));

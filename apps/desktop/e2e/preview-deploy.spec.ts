@@ -27,14 +27,11 @@ test("loads a release that changes only the window with a reload, while the term
   const { page, paths } = harness;
   const deployRoot = path.join(paths.root, "deploy");
 
-  await openNewSession(page);
-  const sheet = page.getByRole("form", { name: "New session", exact: true });
-  await sheet.getByRole("radio", { name: /^Terminal/ }).click();
-  await sheet.getByRole("button", { name: "Start", exact: true }).click();
-  const tile = page.locator('[data-testid="terminal-tile"]:visible');
+  // The project's first shell, in the drawer.
+  const tile = page.locator('.terminal-tile[data-session-id="manual-1"]');
   // Keys typed before the shell draws its prompt can be dropped while it starts its line editor.
   await expect(tile).toContainText(/[%$#]/);
-  await tile.getByTestId("xterm-host").click();
+  await tile.locator(".xterm-host").click();
   await page.keyboard.type("echo PID:$$");
   await page.keyboard.press("Enter");
   await expect(tile).toContainText(/PID:\d+/);
@@ -50,8 +47,8 @@ test("loads a release that changes only the window with a reload, while the term
   // The window now shows the other release's renderer, and the shell it reattached to is the same process.
   await expect(page.locator('meta[name="alfred-release"]')).toHaveAttribute("content", "next");
   await expect(banner).toHaveCount(0);
-  const reloaded = page.locator('[data-testid="terminal-tile"]:visible');
-  await reloaded.getByTestId("xterm-host").click();
+  const reloaded = page.locator('.terminal-tile[data-session-id="manual-1"]');
+  await reloaded.locator(".xterm-host").click();
   await page.keyboard.type("echo AGAIN:$$");
   await page.keyboard.press("Enter");
   await expect(reloaded).toContainText(`AGAIN:${pid}`);

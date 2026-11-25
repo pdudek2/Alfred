@@ -45,10 +45,10 @@ test("opens a PDF and screenshots a terminal links to beside it, compares a befo
   await writeFile(path.join(dir, "shot-after.png"), Buffer.from(after, "base64"));
   await writeFile(path.join(dir, "report.pdf"), pdf("Audit report"));
 
-  const tile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  const tile = page.locator('.terminal-tile[data-session-id="manual-1"]');
   const rows = tile.locator(".xterm-rows > div");
   await expect(rows.filter({ hasText: /%\s*$/ }).first()).toBeVisible();
-  await tile.getByTestId("xterm-host").click();
+  await tile.locator(".xterm-host").click();
   await page.keyboard.type(`printf '%s\\n' ${dir}/shot-after.png ${dir}/report.pdf`);
   await page.keyboard.press("Enter");
   const row = (name: string) => rows.filter({ hasText: new RegExp(`^${escape(`${dir}/${name}`)}\\s*$`) });

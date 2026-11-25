@@ -1,5 +1,7 @@
+import { appendFile } from "node:fs/promises";
 import { expect, test } from "./support/electron-app";
-import { openDetails, treeRow, openNewSession } from "./support/work-layout";
+import { fixtureAgentOutput } from "./support/fixture-agents";
+import { openDetails, startAgent, treeRow, openNewSession } from "./support/work-layout";
 
 test("each session names its kind in the top bar and the deck keeps one terminal beside Details", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -7,19 +9,20 @@ test("each session names its kind in the top bar and the deck keeps one terminal
   await addSession(page, "New Claude session");
 
   const tiles = page.getByTestId("terminal-tile");
-  await expect(tiles).toHaveCount(3);
-  // The focused session names its kind in the top bar; the other two wait in the rail's tree and keep theirs while hidden.
+  await expect(tiles).toHaveCount(2);
+  // The focused session names its kind in the top bar; the other waits in the rail's tree and keeps its kind while hidden.
   const kind = page.getByTestId("workbench-header").locator(".session-meta-kind");
   await expect(kind).toHaveText("Claude");
   await expect(page.locator(".terminal-tile.kind-codex")).toHaveCount(1);
 
-  const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
-  await treeRow(page, "manual-1").click();
-  await expect(manualTile).not.toHaveAttribute("aria-hidden", "true");
+  // codex typed in the drawer's shell brings it to the deck as the focus, named by the agent it runs.
+  const manualTile = page.locator('.terminal-tile[data-session-id="manual-1"]');
+  await expect(manualTile).toHaveClass(/in-drawer/);
   const manualInput = manualTile.getByRole("textbox", { name: "Terminal input" });
   await manualInput.fill("codex");
   await manualInput.press("Enter");
   await expect(kind).toHaveText("Codex");
+  await expect(tiles).toHaveCount(3);
   await expect.poll(() => tiles.evaluateAll(
     (nodes) => nodes.every((node) => node.classList.contains("ready")),
   )).toBe(true);
@@ -49,20 +52,19 @@ test("each session names its kind in the top bar and the deck keeps one terminal
 });
 
 test("scrolls the focused terminal, not the deck column, under the wheel", async ({ harness }) => {
-  const { app, page } = harness;
-  const terminalTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
-  const input = terminalTile.getByRole("textbox", { name: "Terminal input" });
-  await input.fill("seq 1 240");
-  await input.press("Enter");
+  const { app, page, paths } = harness;
+  const terminalTile = await startAgent(page, "claude-1");
+  // Whatever is appended to the fixture agent's file, it prints.
+  await appendFile(await fixtureAgentOutput(paths.root, "claude"), `${Array.from({ length: 240 }, (_, index) => index + 1).join("\n")}\n`);
 
   const host = terminalTile.getByTestId("xterm-host");
   await expect(host).toContainText("240");
   const initialTerminalRowCount = await host.locator(".xterm-rows > div").count();
   expect(initialTerminalRowCount).toBeGreaterThan(0);
-  for (let index = 0; index < 5; index += 1) {
-    await addSession(page, "New terminal");
+  for (let index = 1; index <= 5; index += 1) {
+    await startAgent(page, `codex-${index}`);
   }
-  await treeRow(page, "manual-1").click();
+  await treeRow(page, "claude-1").click();
   await expect(terminalTile).not.toHaveAttribute("aria-hidden", "true");
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
@@ -118,7 +120,7 @@ test("scrolls the focused terminal, not the deck column, under the wheel", async
 
 test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {
   const { page } = harness;
-  const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  const manualTile = page.locator('.terminal-tile[data-session-id="manual-1"]');
   const manualInput = manualTile.getByRole("textbox", { name: "Terminal input" });
 
   await manualInput.fill("claude");

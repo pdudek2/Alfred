@@ -1,13 +1,13 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { treeRow } from "./support/work-layout";
 
 test("plain terminals report Idle at the prompt and Running while a program holds the foreground", async ({ harness }) => {
   const { page } = harness;
-  // The focused session's state is the glyph beside its title in the breadcrumb.
-  const status = page.getByRole("navigation", { name: "Breadcrumb" }).locator(".session-status-glyph");
-  const input = page.getByRole("textbox", { name: "Terminal input" }).first();
+  // A shell's state is the glyph on its drawer tab.
+  const status = shellTab(page).locator(".session-status-glyph");
+  const input = shellInput(page);
 
   // Fresh shell: no output timing involved, the shell itself is in the foreground.
   await expect(status).toHaveAttribute("aria-label", "status idle");
@@ -21,28 +21,28 @@ test("plain terminals report Idle at the prompt and Running while a program hold
 
 test("a plain terminal goes by the program it runs and says where it serves, then by its own name at the prompt", async ({ harness }) => {
   const { page, paths } = harness;
-  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
-  const status = breadcrumb.locator(".session-status-glyph");
-  const input = page.getByRole("textbox", { name: "Terminal input" }).first();
-  const row = treeRow(page, "manual-1");
+  // A shell is named on its drawer tab, which also carries the port it serves on.
+  const tab = shellTab(page);
+  const port = tab.locator(".shell-drawer-tab-port");
+  const status = tab.locator(".session-status-glyph");
+  const input = shellInput(page);
   await writeFile(path.join(paths.root, "serve.js"), [
     "const server = require('node:http').createServer((_request, response) => response.end('<h1>served</h1>'));",
     "server.listen(0, '127.0.0.1', () => console.log(`Local: http://127.0.0.1:${server.address().port}/`));",
   ].join("\n"));
-  await expect(breadcrumb).toContainText("zsh");
+  await expect(tab).toContainText("zsh");
 
   // A program that ends at once names nothing.
   await input.fill("sleep 0.2");
   await input.press("Enter");
   await expect(status).toHaveAttribute("aria-label", "status idle");
   await page.waitForTimeout(1_500);
-  await expect(breadcrumb).not.toContainText("sleep");
+  await expect(tab).not.toContainText("sleep");
 
   await input.fill(`cd '${paths.root}' && '${process.execPath}' serve.js`);
   await input.press("Enter");
-  await expect(breadcrumb).toContainText("node serve.js");
-  await expect(row).toContainText("node serve.js");
-  await expect(row).toContainText(/Serving on port \d+/);
+  await expect(tab).toContainText("node serve.js");
+  await expect(port).toHaveText(/^:\d+$/);
   await page.getByRole("tab", { name: "Preview" }).click();
   await expect(page.locator(".workspace-preview-source")).toHaveText("from node serve.js");
   // Leaving Preview removes its frame; a frame removed while its process starts makes Chromium log an error.
@@ -51,9 +51,17 @@ test("a plain terminal goes by the program it runs and says where it serves, the
 
   await input.press("Control+C");
   await expect(status).toHaveAttribute("aria-label", "status idle");
-  await expect(breadcrumb).not.toContainText("node serve.js");
-  await expect(row).toContainText("zsh");
-  await expect(row).not.toContainText("Serving");
+  await expect(tab).not.toContainText("node serve.js");
+  await expect(tab).toContainText("zsh");
+  await expect(port).toHaveCount(0);
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 });
+
+function shellTab(page: Page): Locator {
+  return page.getByRole("tablist", { name: "Shells" }).locator('[role="tab"][data-session-id="manual-1"]');
+}
+
+function shellInput(page: Page): Locator {
+  return page.locator('.terminal-tile[data-session-id="manual-1"]').getByRole("textbox", { name: "Terminal input" });
+}

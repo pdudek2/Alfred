@@ -1,6 +1,7 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { listMainProcessTerminals } from "./support/app-state";
 import { openPlan } from "./support/plan-line";
-import { surfaceButton } from "./support/work-layout";
 
 test.describe("blocked launch geometry", () => {
   test.use({ fixtureOptions: { stagedItems: 1, blockedStagedItem: 1, activeWorkspaceId: "A" } });
@@ -29,23 +30,26 @@ test.describe("blocked launch geometry", () => {
 
 test.describe("Work restart", () => {
   test.use({ fixtureOptions: { restoredSessions: 1, unsafeRecoveryItem: 1 } });
-  test("keeps unsafe restart confirmation until the second click", async ({ harness }, testInfo) => {
+  // An ended shell leaves the deck for History, so the deck's asleep list is where Work arms an unsafe resume.
+  test("keeps unsafe resume confirmation until the second click", async ({ harness }, testInfo) => {
     const { page } = harness;
-    await surfaceButton(page, "History").click();
-    const history = page.getByRole("region", { name: "History" });
-    await history.getByRole("option", { name: /Restored fixture 1/ }).click();
-    await history.getByRole("button", { name: "Review resume" }).click();
-    await history.getByRole("button", { name: "Confirm resume" }).click();
-    const tile = page.locator('article[data-session-id="restored-1"]');
-    const review = tile.getByRole("button", { name: "Review resume Restored fixture 1", exact: true });
-    const confirm = tile.getByRole("button", { name: "Confirm resume Restored fixture 1", exact: true });
+    const row = page.getByRole("region", { name: "Asleep sessions" }).locator('li[data-session-id="restored-1"]');
+    const review = row.getByRole("button", { name: "Review resume: Restored fixture 1", exact: true });
+    const confirm = row.getByRole("button", { name: "Confirm resume: Restored fixture 1", exact: true });
     await review.click();
     await expect(confirm).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("work-restart-confirmation.png") });
     await page.keyboard.press("Escape");
     await expect(review).toBeVisible();
+    expect(await sentinelCount(page)).toBe(0);
     await review.click();
     await confirm.click();
-    await expect(review).toBeVisible();
+    await expect.poll(() => sentinelCount(page)).toBe(1);
   });
 });
+
+async function sentinelCount(page: Page): Promise<number> {
+  const listed = await listMainProcessTerminals(page);
+  const session = [...listed.sessions, ...(listed.restoredSessions ?? [])].find((candidate) => candidate.clientId === "restored-1");
+  return session?.buffer?.match(/unsafe recovery confirmed/g)?.length ?? 0;
+}

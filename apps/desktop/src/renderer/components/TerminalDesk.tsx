@@ -1513,13 +1513,14 @@ function ManualTerminalTile({
     }
   }, [selected, status, surfaceActive, terminalFocusRequestKey]);
 
-  // Each drawer request focuses once, so coming back to the project does not take the keyboard from the deck.
+  // Each drawer request focuses once, so coming back to the project does not take the keyboard from the deck. A new
+  // shell takes it once connected, after New session has handed focus back on closing.
   const handledDrawerFocusKeyRef = useRef(0);
   useEffect(() => {
-    if (!drawerFocusRequestKey || drawerFocusRequestKey === handledDrawerFocusKeyRef.current) return;
+    if (!drawerFocusRequestKey || drawerFocusRequestKey === handledDrawerFocusKeyRef.current || status === "connecting") return;
     handledDrawerFocusKeyRef.current = drawerFocusRequestKey;
     terminalRef.current?.focus();
-  }, [drawerFocusRequestKey]);
+  }, [drawerFocusRequestKey, status]);
 
   // The page panel's "Paste path": typed at the prompt as a file drop types it, without Enter.
   const pasteKey = pasteRequest?.key;

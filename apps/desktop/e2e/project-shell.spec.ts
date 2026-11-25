@@ -1,14 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ElementHandle, Locator, Page } from "@playwright/test";
-import type {
-  TerminalApi,
-  TerminalSnapshotResult,
-} from "../src/shared/terminal-ipc";
+import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
 import { listMainProcessTerminals, requiredHandle, setWindowSize } from "./support/app-state";
-import { openDetails, openNewTerminalSheet } from "./support/work-layout";
+import { fixtureAgentOutput } from "./support/fixture-agents";
+import { openDetails, startAgent } from "./support/work-layout";
 import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
@@ -75,20 +73,19 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(projectButtons).toHaveCount(7);
   await expect(navigator.getByRole("button", { name: `${longProjectLabel} project` })).toBeVisible();
 
-  await openNewTerminalSheet(page);
-  const sheet = page.getByRole("form", { name: "New session", exact: true });
-  await expect(sheet).toBeVisible();
-  await sheet.getByRole("button", { name: "Start", exact: true }).click();
-  await expect(page.locator('article[data-session-id="manual-1"] .xterm-screen')).toBeAttached();
+  const agent = await startAgent(page, "claude-1");
   await seedProjectShellTerminals(page, harness.paths.workspaceA);
   await switchProject(page, "Fixture Beta");
   await switchProject(page, "Fixture Alpha");
 
-  // The active project lists all six of its sessions, the focus included, in its tree; Free Chats keep their rows.
+  // The active project lists its agent, the focus, in its tree and its five shells on the drawer's tabs;
+  // Free Chats keep their rows.
   await expect(navigator.locator(".project-session[data-session-id^='manual-']")).toHaveCount(0);
   const activeSessionGroup = page.getByRole("list", { name: "Sessions in Fixture Alpha" });
-  await expect(activeSessionGroup.locator(".session-tree-row")).toHaveCount(6);
-  await expect(activeSessionGroup.getByRole("button", { name: new RegExp(longSessionLabel) })).toBeVisible();
+  await expect(activeSessionGroup.locator(".session-tree-row")).toHaveCount(1);
+  const shellTabs = page.getByRole("tablist", { name: "Shells" });
+  await expect(shellTabs.getByRole("tab")).toHaveCount(5);
+  await expect(shellTabs.getByRole("tab", { name: new RegExp(longSessionLabel) })).toBeVisible();
   const freeChats = navigator.getByRole("group", { name: "Free Chats" });
   await expect(freeChats.getByRole("button")).toHaveCount(4);
   await expect(activeSessionGroup.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
@@ -99,7 +96,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   // Free Chats in Beta's scope put no state glyph on the Beta row.
   await expect(navigator.getByRole("button", { name: "Fixture Beta project" }).locator(".project-row-state")).toHaveCount(0);
 
-  const alphaScreen = page.locator('article[data-session-id="manual-1"] .xterm-screen');
+  const alphaScreen = agent.locator(".xterm-screen");
   const before = await requiredHandle(alphaScreen, "Alpha xterm screen");
   // Details holds the right column and starts open; ⌘I hides it and the focused terminal takes the room.
   await openContext(page);
@@ -134,7 +131,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await openContext(page);
 
   await switchProject(page, "Fixture Beta");
-  const backgroundMarker = await writeBackgroundMarker(page, "manual-1");
+  // Output the agent prints while its project is in the background is on its screen when the project comes back.
+  const backgroundMarker = `ALFRED_E2E_BACKGROUND_${randomUUID()}`;
+  await appendFile(await fixtureAgentOutput(harness.paths.root, "claude"), `${backgroundMarker}\n`);
   await switchProject(page, "Fixture Alpha");
   const sameConnectedAlphaScreen = await isSameConnectedNode(before, alphaScreen);
   expect(sameConnectedAlphaScreen).toBe(true);
@@ -293,43 +292,6 @@ async function switchProject(page: Page, label: "Fixture Alpha" | "Fixture Beta"
     .getByRole("button", { name: `${label} project` });
   await destination.click();
   await expect(destination).toHaveAttribute("aria-current", "location");
-}
-
-async function writeBackgroundMarker(page: Page, clientId: string): Promise<string> {
-  const sessions = await listMainProcessTerminals(page);
-  const runtime = sessions.sessions.find((session) => session.clientId === clientId);
-  if (!runtime) throw new Error(`Main-process terminal ${clientId} is missing.`);
-
-  const marker = `ALFRED_E2E_BACKGROUND_${randomUUID()}`;
-  await page.evaluate(({ runtimeId, command }) => {
-    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
-    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
-    terminalApi.write({ id: runtimeId, data: `${command}\r` });
-  }, { runtimeId: runtime.id, command: encodedPrintCommand(marker) });
-  await expect
-    .poll(async () => (await snapshotMainProcessTerminal(page, runtime.id)).buffer)
-    .toContain(marker);
-  return marker;
-}
-
-function encodedPrintCommand(value: string): string {
-  const hex = Buffer.from(value, "utf8").toString("hex");
-  const command = `printf '${hex}' | /usr/bin/xxd -r -p; printf '\\n'`;
-  if (command.includes(value)) throw new Error("Encoded marker command exposed the marker.");
-  return command;
-}
-
-async function snapshotMainProcessTerminal(
-  page: Page,
-  id: string,
-): Promise<NonNullable<TerminalSnapshotResult>> {
-  const snapshot = await page.evaluate(async (runtimeId) => {
-    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
-    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
-    return terminalApi.snapshot({ id: runtimeId });
-  }, id);
-  if (snapshot === null) throw new Error(`Main-process terminal ${id} is missing.`);
-  return snapshot;
 }
 
 async function terminalGridRect(page: Page): Promise<GridRect> {
