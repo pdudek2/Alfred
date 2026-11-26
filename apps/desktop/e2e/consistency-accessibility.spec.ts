@@ -2,7 +2,7 @@ import { realpath } from "node:fs/promises";
 import type { ElectronApplication, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle, setWindowSize } from "./support/app-state";
-import { openDetails, openNewTerminalSheet, settleTerminalTileAnimations, surfaceButton, treeRow } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet, settleTerminalTileAnimations, startAgent, surfaceButton, treeRow } from "./support/work-layout";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import { privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -22,10 +22,12 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(page.getByRole("form", { name: "New session", exact: true })).toBeVisible();
   await page.getByRole("form", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
-  const workScreen = page.locator(".xterm-screen").first();
+  // The shell runs in the drawer; an agent holds the deck and the top bar's session details.
+  const workScreen = page.locator('.terminal-tile[data-session-id="manual-1"] .xterm-screen');
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");
-  await expectFixedCellTerminalFont(page.locator(".xterm-rows").first(), "13px");
+  await expectFixedCellTerminalFont(page.locator('.terminal-tile[data-session-id="manual-1"] .xterm-rows'), "13px");
+  await startAgent(page, "codex-1");
   await expectSansFont(page.getByTestId("workbench-header").locator(".session-meta-kind"));
 
   const runtimeId = await page.evaluate(async () => {
@@ -58,7 +60,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await page.getByRole("form", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
   // The new terminal claims focus once it starts; let that settle before driving menus.
-  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')
+  await expect(page.locator('[data-testid="drawer-terminal-tile"][data-session-id="manual-2"]')
     .getByRole("textbox", { name: "Terminal input" })).toBeFocused();
 
   const workspaceTrigger = page.getByRole("button", { name: "Project menu for Fixture Alpha" });
@@ -220,23 +222,26 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expectSansFont(needsYou);
   await page.keyboard.press("Escape");
   await expect(needsYou).toBeHidden();
-  // Focus zsh 2 from the rail's tree.
-  await treeRow(page, "manual-2").click();
-  const hiddenFirstTerminal = page.locator(
-    'article[data-testid="terminal-tile"][data-session-id="manual-1"]',
-  );
-  await expect(hiddenFirstTerminal).toHaveAttribute("aria-hidden", "true");
-  expect(await hiddenFirstTerminal.evaluate((node) => (
+  // Swap the deck's focus from the rail's tree; the hidden agent keeps no inline grid placement.
+  await startAgent(page, "codex-2");
+  await treeRow(page, "codex-1").click();
+  const hiddenAgent = page.locator('article[data-testid="terminal-tile"][data-session-id="codex-2"]');
+  await expect(hiddenAgent).toHaveAttribute("aria-hidden", "true");
+  expect(await hiddenAgent.evaluate((node) => (
     node instanceof HTMLElement ? node.style.gridRow : ""
   ))).toBe("");
-  await treeRow(page, "manual-1").click();
-  const firstTerminalScreen = hiddenFirstTerminal.locator(".xterm-screen");
-  await expect(hiddenFirstTerminal).not.toHaveAttribute("aria-hidden", "true");
+  await treeRow(page, "codex-2").click();
+  await expect(hiddenAgent).not.toHaveAttribute("aria-hidden", "true");
+  await expect.poll(() => hiddenAgent.evaluate((node) => (
+    node instanceof HTMLElement ? node.style.gridRow : ""
+  ))).toBe("");
+  // The first shell comes back on its drawer tab with the screen it drew.
+  await page.getByRole("tab").and(page.locator('[data-session-id="manual-1"]')).click();
+  const firstTerminal = page.locator('.terminal-tile[data-session-id="manual-1"]');
+  const firstTerminalScreen = firstTerminal.locator(".xterm-screen");
+  await expect(firstTerminal).toHaveClass(/in-drawer/);
   await expect(firstTerminalScreen).toBeVisible();
   await expect(firstTerminalScreen).toContainText(terminalEvidence);
-  await expect.poll(() => hiddenFirstTerminal.evaluate((node) => (
-    node instanceof HTMLElement ? node.style.gridRow : ""
-  ))).toBe("");
   await firstTerminalScreen.locator(".xterm-helper-textarea").focus();
   await page.evaluate(() => new Promise<void>((resolve) => {
     let remainingFrames = 8;
@@ -258,13 +263,13 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     screenAfter,
   )).toBe(true);
 
-  await setLongSessionTitle(page, "manual-1");
+  await setLongSessionTitle(page, "codex-2");
   await setWindowSize(app, page, 1440, 900);
-  await expectStableSessionChrome(page, "manual-1", paths.workspaceA, false);
+  await expectStableSessionChrome(page, "codex-2", paths.workspaceA, false);
 
   // At the minimum window the breadcrumb has to cut the title.
   await setWindowSize(app, page, 1120, 720);
-  await expectStableSessionChrome(page, "manual-1", paths.workspaceA, true);
+  await expectStableSessionChrome(page, "codex-2", paths.workspaceA, true);
 
 });
 

@@ -12,7 +12,7 @@ test("previews an image behind an OSC 8 link or a printed path while the pointer
   const dir = await mkdtemp(path.join(os.tmpdir(), "alfred-image-link-"));
   const image = path.join(dir, "shot.png");
   await writeFile(image, PIXEL_PNG);
-  const tile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  const tile = page.locator('.terminal-tile[data-session-id="manual-1"]');
   await expect(tile).not.toHaveAttribute("aria-hidden", "true");
   const rows = tile.locator(".xterm-rows > div");
   const peek = tile.locator(".terminal-image-peek");
@@ -20,7 +20,7 @@ test("previews an image behind an OSC 8 link or a printed path while the pointer
   // Keys typed before zsh draws its prompt lose the start of the line under load.
   await expect(rows.filter({ hasText: /%\s*$/ }).first()).toBeVisible();
   // The link Claude Code prints for a sent [Image #1], then the same file as a bare path.
-  await tile.getByTestId("xterm-host").click();
+  await tile.locator(".xterm-host").click();
   await page.keyboard.type(`printf '\\e]8;;file://${image}\\e\\\\[Image #1]\\e]8;;\\e\\\\\\n%s\\n' ${image}`);
   await page.keyboard.press("Enter");
   // xterm draws spaces as no-break spaces, which \s matches.

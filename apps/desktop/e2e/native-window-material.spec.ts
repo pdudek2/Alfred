@@ -9,7 +9,7 @@ test("shows bounded macOS material or its reduced-transparency fallback while ke
   );
 
   await expect(page.getByTestId("workbench-header")).toBeVisible();
-  await expect(page.getByTestId("xterm-host").first()).toBeVisible();
+  await expect(page.getByTestId("drawer-xterm-host")).toBeVisible();
 
   const windowState = await app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
@@ -35,7 +35,7 @@ test("shows bounded macOS material or its reduced-transparency fallback while ke
   }
 
   await expectAlphaOne(page.getByTestId("workbench-surface"), "Work");
-  await expectAlphaOne(page.getByTestId("xterm-host").first(), "terminal");
+  await expectAlphaOne(page.getByTestId("drawer-xterm-host"), "terminal");
 });
 
 async function expectAlphaBelowOne(locator: Locator, label: string): Promise<void> {

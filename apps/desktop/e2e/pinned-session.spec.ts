@@ -1,67 +1,65 @@
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
-import { treeRow, openNewSession } from "./support/work-layout";
+import { startAgent, treeRow } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
 };
 
-test("pins the shell under a Claude focus 3:2, types into it, and unpins it without remounting", async ({ harness }) => {
+test("pins an agent under a Claude focus 3:2, types into it, and unpins it without remounting", async ({ harness }) => {
   const { page } = harness;
-  await openNewSession(page);
-  await page.getByRole("radio", { name: /^Claude/ }).click();
-  await page.getByRole("button", { name: "Start" }).click();
-  const focusTile = page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]');
-  const shellTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  // Only agents pin; the first one waits while the second takes the focus.
+  const pinTile = await startAgent(page, "claude-1");
+  const focusTile = await startAgent(page, "claude-2");
   await expect(focusTile).not.toHaveAttribute("aria-hidden", "true");
-  await expect(shellTile).toHaveAttribute("aria-hidden", "true");
+  await expect(pinTile).toHaveAttribute("aria-hidden", "true");
   const focusHost = await handle(focusTile.getByTestId("xterm-host"));
-  const shellHost = await handle(shellTile.getByTestId("xterm-host"));
+  const pinHost = await handle(pinTile.getByTestId("xterm-host"));
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(breadcrumb).toContainText("Claude");
 
-  // Pin sits on the shell's row in the rail's tree; the pinned row stays listed but offers no second Pin.
-  const shellRow = treeRow(page, "manual-1");
-  const shellEntry = shellRow.locator("xpath=..");
-  await shellRow.hover();
-  await shellEntry.getByRole("button", { name: "Pin under the focus" }).click();
+  // Pin sits on the agent's row in the rail's tree; the pinned row stays listed but offers no second Pin.
+  const pinRow = treeRow(page, "claude-1");
+  const pinEntry = pinRow.locator("xpath=..");
+  await pinRow.hover();
+  await pinEntry.getByRole("button", { name: "Pin under the focus" }).click();
 
-  await expect(shellTile).not.toHaveAttribute("aria-hidden", "true");
-  await expect(shellTile).toHaveAttribute("aria-label", /^Pinned: /);
-  await expect(shellEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(0);
-  await expect(shellTile.getByRole("button", { name: /^Unpin / })).toBeFocused();
-  const [focusBox, shellBox] = [await focusTile.boundingBox(), await shellTile.boundingBox()];
-  expect(focusBox && shellBox && focusBox.y + focusBox.height < shellBox.y).toBe(true);
-  expect(focusBox!.height / shellBox!.height).toBeGreaterThan(1.4);
-  expect(focusBox!.height / shellBox!.height).toBeLessThan(1.6);
+  await expect(pinTile).not.toHaveAttribute("aria-hidden", "true");
+  await expect(pinTile).toHaveAttribute("aria-label", /^Pinned: /);
+  await expect(pinEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(0);
+  await expect(pinTile.getByRole("button", { name: /^Unpin / })).toBeFocused();
+  const [focusBox, pinBox] = [await focusTile.boundingBox(), await pinTile.boundingBox()];
+  expect(focusBox && pinBox && focusBox.y + focusBox.height < pinBox.y).toBe(true);
+  expect(focusBox!.height / pinBox!.height).toBeGreaterThan(1.4);
+  expect(focusBox!.height / pinBox!.height).toBeLessThan(1.6);
   await expectSameNode(focusHost, focusTile.getByTestId("xterm-host"));
-  await expectSameNode(shellHost, shellTile.getByTestId("xterm-host"));
+  await expectSameNode(pinHost, pinTile.getByTestId("xterm-host"));
 
-  // Typing in the pinned shell reaches its PTY and leaves the focus on Claude.
-  await shellTile.getByTestId("xterm-host").click();
+  // Typing in the pinned agent reaches its PTY and leaves the focus where it was.
+  await pinTile.getByTestId("xterm-host").click();
   await page.keyboard.type("echo pinned-input");
   await page.keyboard.press("Enter");
-  await expect.poll(() => terminalBuffer(page, "manual-1")).toContain("pinned-input");
+  await expect.poll(() => terminalBuffer(page, "claude-1")).toContain("pinned-input");
   await expect(breadcrumb).toContainText("Claude");
 
   // Beside the focus, half and half (v5 Split), and back under it, without remounting either terminal.
-  await shellTile.getByRole("button", { name: /beside the focus$/ }).click();
+  await pinTile.getByRole("button", { name: /beside the focus$/ }).click();
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/pin-beside/);
-  const [leftBox, rightBox] = [await focusTile.boundingBox(), await shellTile.boundingBox()];
+  const [leftBox, rightBox] = [await focusTile.boundingBox(), await pinTile.boundingBox()];
   expect(leftBox!.x + leftBox!.width).toBeLessThan(rightBox!.x);
   expect(Math.abs(leftBox!.width - rightBox!.width)).toBeLessThan(4);
   await expectSameNode(focusHost, focusTile.getByTestId("xterm-host"));
-  await expectSameNode(shellHost, shellTile.getByTestId("xterm-host"));
-  await shellTile.getByRole("button", { name: /under the focus$/ }).click();
+  await expectSameNode(pinHost, pinTile.getByTestId("xterm-host"));
+  await pinTile.getByRole("button", { name: /under the focus$/ }).click();
   await expect(page.getByTestId("terminal-grid")).not.toHaveClass(/pin-beside/);
 
-  await shellTile.getByRole("button", { name: /^Unpin / }).click();
-  await expect(shellTile).toHaveAttribute("aria-hidden", "true");
-  await expect(shellEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(1);
+  await pinTile.getByRole("button", { name: /^Unpin / }).click();
+  await expect(pinTile).toHaveAttribute("aria-hidden", "true");
+  await expect(pinEntry.getByRole("button", { name: "Pin under the focus" })).toHaveCount(1);
   await expect(focusTile).toBeFocused();
   await expectSameNode(focusHost, focusTile.getByTestId("xterm-host"));
-  await expectSameNode(shellHost, shellTile.getByTestId("xterm-host"));
+  await expectSameNode(pinHost, pinTile.getByTestId("xterm-host"));
 });
 
 async function handle(locator: Locator): Promise<ElementHandle<HTMLElement>> {

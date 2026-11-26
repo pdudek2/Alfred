@@ -1448,7 +1448,128 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   overflow: visible;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  /* The deck's rows, then the shell drawer's while it shows. */
+  grid-template-rows: var(--deck-rows, minmax(0, 1fr)) var(--drawer-rows,);
+}
+
+/* v5 Shell drawer boards: the project's shells under the deck, in the same grid so a shell never remounts. Its tab
+   row and its selected shell take the last two rows, across every column. */
+.terminal-grid.has-drawer {
+  --drawer-rows: 35px calc(var(--drawer-height, 250px) - 35px);
+}
+
+.terminal-grid > .terminal-empty-state,
+.terminal-grid > .terminal-deck-pane {
+  grid-row: 1;
+}
+
+.terminal-grid > .shell-drawer-head {
+  grid-row: -3 / -2;
+  grid-column: 1 / -1;
+}
+
+.terminal-grid > .terminal-tile.in-drawer {
+  grid-row: -2 / -1;
+  grid-column: 1 / -1;
+}
+
+.terminal-deck-pane {
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-terminal);
+}
+
+.terminal-deck-pane > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.shell-drawer-head {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-terminal);
+}
+
+.shell-drawer-tabs {
+  min-width: 0;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.shell-drawer-tabs [role="tab"] {
+  flex: none;
+  max-width: 240px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.shell-drawer-tabs [role="tab"]:hover {
+  color: var(--text-primary);
+}
+
+.shell-drawer-tabs [role="tab"][aria-selected="true"] {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.shell-drawer-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-drawer-tab-port {
+  color: var(--text-faint);
+}
+
+.shell-drawer-new {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.shell-drawer-new:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.shell-drawer-tabs [role="tab"]:focus-visible,
+.shell-drawer-new:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+.shell-drawer-hide {
+  margin-left: auto;
 }
 
 /* v4 canvas, "Project with nothing running": the empty state sits on the same surface a terminal would. */
@@ -1643,28 +1764,28 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-area: 1 / 1;
 }
 
-/* v4 Pinned board: a second session kept under the focus, 3:2. The tiles keep their DOM order and only
-   change rows, so pinning never remounts a terminal. */
+/* v4 Pinned board: a second session kept under the focus, 3:2, a 12px track apart. The tiles keep their DOM order
+   and only change rows, so pinning never remounts a terminal. */
 .terminal-grid.has-pin {
-  grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
-  gap: 12px;
+  --deck-rows: minmax(0, 3fr) 12px minmax(0, 2fr);
 }
 
-.terminal-grid.has-pin > .terminal-tile:not(.pinned) {
+.terminal-grid.has-pin > .terminal-tile:not(.pinned, .in-drawer) {
   grid-row: 1;
 }
 
 .terminal-grid.has-pin > .terminal-tile.pinned {
-  grid-row: 2;
+  grid-row: 3;
 }
 
 /* v5 Split board: the pinned session beside the focus, half and half. */
 .terminal-grid.has-pin.pin-beside {
-  grid-template-rows: minmax(0, 1fr);
+  --deck-rows: minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 12px;
 }
 
-.terminal-grid.has-pin.pin-beside > .terminal-tile:not(.pinned) {
+.terminal-grid.has-pin.pin-beside > .terminal-tile:not(.pinned, .in-drawer) {
   grid-row: 1;
   grid-column: 1;
 }

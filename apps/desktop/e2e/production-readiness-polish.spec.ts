@@ -3,7 +3,7 @@ import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle, setWindowSize } from "./support/app-state";
-import { openDetails, openNewTerminalSheet, sessionTree, surfaceButton, openNewSession } from "./support/work-layout";
+import { openDetails, openNewTerminalSheet, sessionTree, startAgent, surfaceButton, openNewSession } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -25,21 +25,29 @@ test("keeps the production Work story trustworthy across every utility surface",
   await captureAuditScreenshot(page, "work-staged-wide");
   await planLine.getByRole("button", { name: "Launch 1 ready draft" }).click();
   await expect(planLine).toHaveCount(0);
-  const screen = page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"] .xterm-screen');
+  // The fixture's draft is a shell, so it runs in the drawer under the empty deck.
+  const screen = page.locator('.terminal-tile[data-session-id="fixture-item-1"] .xterm-screen');
   await expect(screen).toBeAttached();
   const screenBefore = await requiredHandle(screen, "launched fixture xterm");
   await expectFixedCellFont(page.locator(".xterm-rows").first());
-  await expectSans(page.getByTestId("workbench-header").locator(".session-meta-kind"));
 
-  // The deck always shows one terminal; every added session lands in focus and joins the rail's tree.
+  // Every added shell opens on its own drawer tab and stays off the deck and the rail's tree.
   const tree = sessionTree(page);
+  const shellTabs = page.getByRole("tablist", { name: "Shells" }).getByRole("tab");
+  const initialShells = await shellTabs.count();
   for (let added = 1; added <= 4; added += 1) {
     await addTerminal(page);
-    await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(1);
-    await expect(tree.locator(".session-tree-row")).toHaveCount(added + 1);
+    await expect(shellTabs).toHaveCount(initialShells + added);
+    await expect(shellTabs.last()).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(0);
+    await expect(tree.locator(".session-tree-row")).toHaveCount(0);
   }
 
   await createRuntimeBlockers(page, paths.root);
+  // The deck always shows one terminal; each agent lands in focus and joins the rail's tree.
+  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(1);
+  await expect(tree.locator(".session-tree-row")).toHaveCount(2);
+  await expectSans(page.getByTestId("workbench-header").locator(".session-meta-kind"));
   const identityText = await page.locator(".project-session-title, .workbench-session-title").allTextContents();
   expect(identityText.join("\n")).not.toContain("\u001b");
   expect(identityText.join("\n")).not.toContain("hidden-title");
@@ -145,8 +153,8 @@ test.describe("captures protective empty and missing project evidence", () => {
     // Nothing runs here, so Details has nothing to describe and the empty deck takes its width (Fresh board).
     await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
     await captureAuditScreenshot(page, "empty-workspace-narrow");
-    // A session gives it something to describe; below 1200 px it still waits for ⌘I.
-    await addTerminal(page);
+    // An agent gives it something to describe; below 1200 px it still waits for ⌘I.
+    await startAgent(page, "claude-1");
     await expect(page.getByTestId("context-column")).toHaveClass(/\bclosed\b/);
     await openDetails(page);
     await harness.closeActiveTerminals();

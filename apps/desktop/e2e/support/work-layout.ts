@@ -49,6 +49,17 @@ export async function openNewSession(page: Page): Promise<Locator> {
   return composer;
 }
 
+/** Starts a fixture agent through the New session composer; `sessionId` (claude-N or codex-N) names its kind. */
+export async function startAgent(page: Page, sessionId: string): Promise<Locator> {
+  const kind = sessionId.startsWith("codex") ? "Codex" : "Claude";
+  const composer = await openNewSession(page);
+  await composer.getByRole("radio", { name: new RegExp(`^${kind}`) }).click();
+  await composer.getByRole("button", { name: "Start" }).click();
+  const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]`);
+  await expect(tile).toContainText(`${kind.toLowerCase()} fixture ready`);
+  return tile;
+}
+
 /** Starts a plain terminal in the active project through the New session composer. */
 export async function addManualTerminal(page: Page): Promise<void> {
   await openNewTerminalSheet(page);

@@ -1,23 +1,24 @@
 import type { ElementHandle, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle } from "./support/app-state";
-import { addManualTerminal, sessionTree, surfaceButton, treeRow } from "./support/work-layout";
+import { sessionTree, startAgent, surfaceButton, treeRow } from "./support/work-layout";
 
 test("swaps the focused terminal from the rail's tree without remounting any xterm", async ({ harness }) => {
   const { page } = harness;
 
-  await addManualTerminal(page);
-  await addManualTerminal(page);
-  await addManualTerminal(page);
+  await startAgent(page, "claude-1");
+  await startAgent(page, "codex-1");
+  await startAgent(page, "claude-2");
 
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
+  // The first shell waits in the drawer; the deck holds the agents.
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(1);
-  // The tree lists every session, the focus included, which it marks as current.
+  // The tree lists every agent, the focus included, which it marks as current.
   const rows = sessionTree(page).locator(".session-tree-row");
-  await expect(rows).toHaveCount(4);
+  await expect(rows).toHaveCount(3);
   await expect(sessionTree(page).locator('.session-tree-row[aria-current="true"]')).toHaveCount(1);
 
-  const beforeHosts = await captureHosts(page, 4);
+  const beforeHosts = await captureHosts(page, 3);
   const focusedBefore = await visibleSessionId(page);
   const target = sessionTree(page).locator('.session-tree-row:not([aria-current])').first();
   const targetId = await target.getAttribute("data-session-id");
@@ -44,20 +45,21 @@ test("swaps the focused terminal from the rail's tree without remounting any xte
 });
 
 test.describe("draft plan line", () => {
-  test.use({ fixtureOptions: { stagedItems: 1 } });
+  // The fixture's drafts are shells; the waiting one keeps running after launch.
+  test.use({ fixtureOptions: { stagedItems: 1, waitingStagedItem: 1 } });
 
-  test("keeps drafts off the deck until launched, then lists the launched session in the tree", async ({ harness }) => {
+  test("keeps drafts off the deck until launched, then lists the launched shell in the drawer", async ({ harness }) => {
     const { page } = harness;
 
-    await addManualTerminal(page);
+    await startAgent(page, "claude-1");
     await expect(page.locator(".plan-line")).toBeVisible();
     await expect(page.getByTestId("terminal-grid").locator('[data-session-id="fixture-item-1"]')).toHaveCount(0);
 
     await page.locator(".plan-line").getByRole("button", { name: "Launch 1 ready draft" }).click();
-    // Launching does not take focus; the launched session waits in the rail's tree.
-    await expect(treeRow(page, "fixture-item-1")).toBeVisible();
-    await expect(page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]'))
-      .toHaveAttribute("aria-hidden", "true");
+    // Launching does not take focus; the launched shell joins the drawer's tabs, not the rail's tree.
+    await expect(page.getByRole("tablist", { name: "Shells" }).getByRole("tab", { name: /Fixture item 1/ })).toBeVisible();
+    await expect(treeRow(page, "fixture-item-1")).toHaveCount(0);
+    await expect(treeRow(page, "claude-1")).toHaveAttribute("aria-current", "true");
   });
 });
 

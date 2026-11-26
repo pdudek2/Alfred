@@ -42,3 +42,28 @@
   left: 3px;
   right: auto;
 }
+
+/* The shell drawer's handle lies along its top edge and drags the drawer up and down. */
+.column-resize-handle.edge-top {
+  top: -3px;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: 6px;
+  cursor: row-resize;
+}
+
+.column-resize-handle.edge-top::after {
+  top: 2px;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: 1px;
+}
+
+.column-resize-handle.edge-top:focus-visible::after {
+  width: auto;
+  height: 2px;
+}

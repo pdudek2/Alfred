@@ -38,6 +38,8 @@
   color: var(--text-primary);
   font: 400 13px/18px var(--sans);
 }
+/* The shell drawer stays in sight under the open composer. */
+.desk-surface-panel:has(.terminal-grid.has-drawer) .new-session-composer { bottom: calc(100% + var(--drawer-height, 250px) + 10px); }
 
 .new-session-target {
   display: flex;

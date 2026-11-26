@@ -1,4 +1,5 @@
 import {
+  clampDrawerHeight,
   clampPageWidth,
   clampRailWidth,
   type WorkspaceLayoutsSnapshot,
@@ -10,6 +11,7 @@ import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 const viewStateByWorkspace = new Map<string, WorkspaceViewState>();
 let railWidth: number | undefined;
 let pageWidth: number | undefined;
+let drawerHeight: number | undefined;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 
 export function configureLayoutPersistence(store: PersistedDesktopStateStore): void {
@@ -17,6 +19,7 @@ export function configureLayoutPersistence(store: PersistedDesktopStateStore): v
   viewStateByWorkspace.clear();
   railWidth = undefined;
   pageWidth = undefined;
+  drawerHeight = undefined;
 }
 
 export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
@@ -26,6 +29,7 @@ export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
       viewStateByWorkspace: cloneViewStateByWorkspace(state.viewStateByWorkspace),
       ...(state.railWidth === undefined ? {} : { railWidth: state.railWidth }),
       ...(state.pageWidth === undefined ? {} : { pageWidth: state.pageWidth }),
+      ...(state.drawerHeight === undefined ? {} : { drawerHeight: state.drawerHeight }),
     };
   }
 
@@ -35,6 +39,7 @@ export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
     ),
     ...(railWidth === undefined ? {} : { railWidth }),
     ...(pageWidth === undefined ? {} : { pageWidth }),
+    ...(drawerHeight === undefined ? {} : { drawerHeight }),
   };
 }
 
@@ -54,6 +59,15 @@ export async function setPageWidthSnapshot(width: unknown): Promise<void> {
     return;
   }
   pageWidth = next;
+}
+
+export async function setDrawerHeightSnapshot(height: unknown): Promise<void> {
+  const next = clampDrawerHeight(height);
+  if (persistedStateStore) {
+    await persistedStateStore.updateState((current) => ({ ...current, drawerHeight: next }));
+    return;
+  }
+  drawerHeight = next;
 }
 
 export async function setWorkspaceViewStateSnapshot(
@@ -97,6 +111,7 @@ export function resetLayoutPersistence(): void {
   viewStateByWorkspace.clear();
   railWidth = undefined;
   pageWidth = undefined;
+  drawerHeight = undefined;
 }
 
 function cloneViewStateByWorkspace(

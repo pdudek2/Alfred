@@ -33,12 +33,13 @@ test("launches and discards drafts from the plan line without touching live term
   await capture(page, "drafts-only");
 
   await openNewSession(page);
-  await page.getByRole("radio", { name: /^Terminal/ }).click();
+  // An agent holds the deck; a new shell would go to the drawer under it.
+  await page.getByRole("radio", { name: /^Codex/ }).click();
   await page.getByRole("button", { name: "Start" }).click();
-  const manualId = await page.getByTestId("terminal-tile").first().getAttribute("data-session-id");
-  const xtermHost = page.locator(`[data-session-id="${manualId}"] [data-testid="xterm-host"]`);
+  const liveId = await page.getByTestId("terminal-tile").first().getAttribute("data-session-id");
+  const xtermHost = page.locator(`[data-session-id="${liveId}"] [data-testid="xterm-host"]`);
   await expect(xtermHost.locator(".xterm-screen")).toBeAttached();
-  const hostBefore = await requiredHandle(xtermHost, "manual xterm host");
+  const hostBefore = await requiredHandle(xtermHost, "live xterm host");
   await settleTerminalTileAnimations(page);
   // With a session in focus the plan line stays above the terminals.
   await expect(page.locator(".terminal-grid-column > .plan-line")).toHaveCount(1);

@@ -91,7 +91,7 @@ import {
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { deckSessions, isAsleepOrEnded, isFreeChatScope, isWorkSession } from "./session-scope";
+import { deckAgentSessions, drawerSessions, isAsleepOrEnded, isFreeChatScope, isShellSession, isWorkSession } from "./session-scope";
 import type { AgentStartScreen } from "./agent-start-screen";
 import { sessionExitSentence } from "../shared/activity-presentation";
 import { normalizeSessionTitle } from "../shared/session-title";
@@ -115,8 +115,10 @@ import type {
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
 import {
+  clampDrawerHeight,
   clampPageWidth,
   clampRailWidth,
+  DEFAULT_DRAWER_HEIGHT,
   DEFAULT_PAGE_WIDTH,
   DEFAULT_RAIL_WIDTH,
   MAX_PAGE_WIDTH,
@@ -196,6 +198,13 @@ export function App() {
   const workspacesReady = workspaceHydrationStatus.status === "ready";
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
   const [pageWidth, setPageWidth] = useState(DEFAULT_PAGE_WIDTH);
+  const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT);
+  // Per project for this run: the drawer shown or hidden by you (else shown when it has shells) and its selected shell.
+  const [drawerOpenByWorkspace, setDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
+  const [drawerSessionIdsByWorkspace, setDrawerSessionIdsByWorkspace] = useState<Record<string, string>>({});
+  const [drawerFocusRequestKey, setDrawerFocusRequestKey] = useState(0);
+  // A shell where you started claude or codex: the deck's focus while the agent runs, without replacing your selection.
+  const [promotedShellIdsByWorkspace, setPromotedShellIdsByWorkspace] = useState<Record<string, string>>({});
   const [externalSessions, setExternalSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalSessionsError, setExternalSessionsError] = useState<string | null>(null);
   const [externalSessionsLoading, setExternalSessionsLoading] = useState<boolean>(false);
@@ -227,25 +236,8 @@ export function App() {
   const [newSessionParentId, setNewSessionParentId] = useState<string | null>(null);
   const [newSessionOpening, setNewSessionOpening] = useState(0);
   const newSessionGenerationRef = useRef(0);
-  // An empty deck shows the composer expanded but unfocused; elsewhere it opens only on ⌘N or a click.
-  const composerExpanded = workspacesReady && (newSessionOpen || (activeSurface === "work" && deckSessions(terminalSessions, activeWorkspaceId).length === 0));
   const composerProjectId = newSessionOpen ? newSessionProjectId : activeWorkspaceId;
   const [claudeTrustByProject, setClaudeTrustByProject] = useState<Record<string, boolean>>({});
-  // Asked on every opening: you may have trusted the folder in Claude since.
-  useEffect(() => {
-    const workspaceApi = getDesktopWorkspaceApi();
-    if (!composerExpanded || (newSessionKind !== "claude" && newSessionKind !== "deepseek") || !workspaceApi?.claudeTrustsProject) return;
-    let current = true;
-    void workspaceApi.claudeTrustsProject({ workspaceId: composerProjectId }).then(
-      (trusted) => {
-        if (current) setClaudeTrustByProject((known) => ({ ...known, [composerProjectId]: trusted }));
-      },
-      () => undefined,
-    );
-    return () => {
-      current = false;
-    };
-  }, [composerExpanded, newSessionOpening, newSessionKind, composerProjectId]);
   const closeNewSession = useCallback(() => {
     newSessionGenerationRef.current += 1;
     setNewSessionOpen(false);
@@ -291,8 +283,6 @@ export function App() {
   const workSessions = terminalSessions.filter(isWorkSession);
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activeWorkSessions = workSessions.filter((session) => session.workspaceId === activeWorkspace.id);
-  // Terminals in the grid; drafts sit on the plan line instead.
-  const activeTerminalSessions = activeWorkSessions.filter((session) => session.stage !== "staged");
   const activeDrafts = activeWorkSessions.filter((session) => session.stage === "staged");
   const activeSavedSessions = activeSessions.filter((session) => !isWorkSession(session));
   const activeSavedSessionCount = buildSessionsProjection({
@@ -317,25 +307,54 @@ export function App() {
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activePinnedSessionId = pinnedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const newSessionParent = newSessionParentId === null || !newSessionOpen ? null : terminalSessions.find((session) => session.id === newSessionParentId) ?? null;
-  const activeInspectedSession =
-    activeSelectedSessionId
-      ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null
-      : activeTerminalSessions[0] ?? null;
+  const activeDeckAgents = deckAgentSessions(terminalSessions, activeWorkspace.id);
+  const activeDrawerShells = drawerSessions(terminalSessions, activeWorkspace.id);
+  const activeDrawerOpen = drawerOpenByWorkspace[activeWorkspace.id] ?? activeDrawerShells.length > 0;
+  const activeDrawerShell =
+    activeDrawerShells.find((session) => session.id === drawerSessionIdsByWorkspace[activeWorkspace.id]) ?? activeDrawerShells[0] ?? null;
+  const activePromotedShellId = promotedShellIdsByWorkspace[activeWorkspace.id];
+  // The deck's focus: a shell you started an agent in, while the agent runs; else your pick.
+  const activeFocusSessionId = activePromotedShellId && activeDeckAgents.some((session) => session.id === activePromotedShellId)
+    ? activePromotedShellId
+    : activeSelectedSessionId;
+  // Drawer shells never take the focus, the breadcrumb or Details; an opened draft does.
+  const activeFocusableSessions = activeWorkSessions.filter((session) => session.stage === "staged" || activeDeckAgents.includes(session));
   const activeSelectedSession =
-    activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
+    activeFocusableSessions.find((session) => session.id === activeFocusSessionId) ?? activeDeckAgents[0] ?? null;
+  const activeInspectedSession = activeSelectedSession;
   // Details holds the column the session stack had, so it starts open in a wide window; ⌘I hides it.
   const activeContextDrawerOpen = isDetailsOpen(detailsColumn, activeWorkspace.id);
   // Details describes the deck's focused session. History has its own reader and no side column, and a project with
   // nothing running has nothing to describe (v4 Fresh board), so the empty deck takes the whole width.
-  // A page the inspected session's agent wrote takes Details' column while it is open.
-  const activeFile = activeSurface === "work" && activeInspectedSession
-    ? pagePanelFile(activeInspectedSession.changedFiles, pagePanelChoices[activeInspectedSession.id])
-    : null;
-  const activePagePage = activeSurface === "work" && activeInspectedSession && !activeFile
-    ? pagePanelPage(activeInspectedSession.changedFiles, pagePanelChoices[activeInspectedSession.id])
+  // A page the inspected session's agent wrote takes Details' column while it is open. With no agent, a file opened
+  // from the drawer's shell takes the deck's place above the drawer instead.
+  const pageSession = activeSurface === "work" ? activeInspectedSession ?? activeDrawerShell : null;
+  const activeFile = pageSession ? pagePanelFile(pageSession.changedFiles, pagePanelChoices[pageSession.id]) : null;
+  const activePagePage = pageSession && !activeFile
+    ? pagePanelPage(pageSession.changedFiles, pagePanelChoices[pageSession.id])
     : null;
   const activePage = activeFile ?? activePagePage;
-  const detailsVisible = activePage === null && activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
+  const pageInColumn = activePage !== null && activeInspectedSession !== null;
+  const detailsVisible = !pageInColumn && activeContextDrawerOpen && activeSurface === "work" && activeInspectedSession !== null;
+  // An empty deck shows the composer expanded but unfocused, unless Preview or a file fills it; elsewhere it opens only
+  // on ⌘N or a click.
+  const composerExpanded = workspacesReady && (newSessionOpen
+    || (activeSurface === "work" && activeDeckAgents.length === 0 && !activePreviewDockOpen && activePage === null));
+  // Asked on every opening: you may have trusted the folder in Claude since.
+  useEffect(() => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (!composerExpanded || (newSessionKind !== "claude" && newSessionKind !== "deepseek") || !workspaceApi?.claudeTrustsProject) return;
+    let current = true;
+    void workspaceApi.claudeTrustsProject({ workspaceId: composerProjectId }).then(
+      (trusted) => {
+        if (current) setClaudeTrustByProject((known) => ({ ...known, [composerProjectId]: trusted }));
+      },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [composerExpanded, newSessionOpening, newSessionKind, composerProjectId]);
   // A project closes once nothing runs in it; its asleep and ended sessions stay in History.
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.every(isAsleepOrEnded);
@@ -477,6 +496,16 @@ export function App() {
     });
   }, [previewDockOpenByWorkspace]);
 
+  // A shell shows in the drawer, on its tab and with the keyboard; the deck's focus and Preview stay as they are.
+  const revealShell = useCallback((workspaceId: string, sessionId: string) => {
+    setNeedsYouOpen(false);
+    setActiveSurface("work");
+    setActiveWorkspaceId(workspaceId);
+    setDrawerOpenByWorkspace((current) => ({ ...current, [workspaceId]: true }));
+    setDrawerSessionIdsByWorkspace((current) => ({ ...current, [workspaceId]: sessionId }));
+    setDrawerFocusRequestKey((key) => key + 1);
+  }, []);
+
   const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
     const addedSession = nextSessions.at(-1);
     if (!addedSession || !workspacesReady) return;
@@ -484,6 +513,10 @@ export function App() {
 
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
+    if (isShellSession(addedSession)) {
+      revealShell(addedSession.workspaceId, addedSession.id);
+      return;
+    }
     setNeedsYouOpen(false);
     setActiveSurface("work");
     showTerminalInWorkspace(addedSession.workspaceId);
@@ -496,7 +529,7 @@ export function App() {
       workspaceId: addedSession.workspaceId,
       viewState: { selectedSessionId: addedSession.id },
     });
-  }, [showTerminalInWorkspace, workspacesReady]);
+  }, [revealShell, showTerminalInWorkspace, workspacesReady]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex"> | "deepseek", workspace: Workspace = activeWorkspace, prompt = "", parentSessionId?: string, worktree = false) => {
     if (workspace.rootStatus === "missing") return;
@@ -708,14 +741,38 @@ export function App() {
 
   // An image or PDF a terminal links to opens beside it; the session's changed files say which page edit it outlasts.
   const handleOpenFile = useCallback((sessionId: string, file: PanelFile) => {
-    const files = terminalSessionsRef.current.find((session) => session.id === sessionId)?.changedFiles;
-    setPagePanelChoices((current) => ({ ...current, [sessionId]: openedFile(files, current[sessionId], file) }));
+    const sessions = terminalSessionsRef.current;
+    const session = sessions.find((item) => item.id === sessionId);
+    setPagePanelChoices((current) => ({ ...current, [sessionId]: openedFile(session?.changedFiles, current[sessionId], file) }));
+    // With no agent, Preview and the file share the deck's place: the file just opened comes first.
+    if (session && deckAgentSessions(sessions, session.workspaceId).length === 0) {
+      setPreviewDockOpenByWorkspace((current) => (current[session.workspaceId] ? { ...current, [session.workspaceId]: false } : current));
+      void getDesktopLayoutApi()?.setWorkspaceViewState({ workspaceId: session.workspaceId, viewState: { previewDockOpen: false } });
+    }
   }, []);
 
   const [terminalPasteRequest, setTerminalPasteRequest] = useState<TerminalPasteRequest | null>(null);
   const handlePastePath = useCallback((sessionId: string, path: string) => {
     const text = droppedPathsText([path]);
     if (text) setTerminalPasteRequest((current) => ({ sessionId, text, key: (current?.key ?? 0) + 1 }));
+  }, []);
+
+  const handleToggleDrawer = useCallback(() => {
+    const open = !activeDrawerOpen;
+    setDrawerOpenByWorkspace((current) => ({ ...current, [activeWorkspace.id]: open }));
+    if (open) setDrawerFocusRequestKey((key) => key + 1);
+    // Hiding the drawer that has the keyboard hands it back to the deck.
+    else if (document.activeElement?.closest(".terminal-tile.in-drawer, .shell-drawer-head")) setTerminalFocusRequestKey((key) => key + 1);
+  }, [activeDrawerOpen, activeWorkspace.id]);
+
+  const handleSelectDrawerSession = useCallback((sessionId: string) => {
+    setDrawerSessionIdsByWorkspace((current) => ({ ...current, [activeWorkspace.id]: sessionId }));
+    setDrawerFocusRequestKey((key) => key + 1);
+  }, [activeWorkspace.id]);
+
+  const handleDrawerHeightChange = useCallback((height: number) => {
+    setDrawerHeight(height);
+    void getDesktopLayoutApi()?.setDrawerHeight(height);
   }, []);
 
   const handleToggleContextDrawer = useCallback(() => {
@@ -942,7 +999,17 @@ export function App() {
     persistActiveWorkspaceViewState({ previewDockOpen: true });
   }, [activePreviewDockOpen, activeWorkspace.id, handleClosePreviewDock, persistActiveWorkspaceViewState, previewVisible]);
 
+  // Picking an agent ends a typed agent's turn as the focus; picking that shell keeps your pick for when it returns.
+  const takeFocusFromPromotedShell = useCallback((workspaceId: string, sessionId: string): boolean => {
+    if (promotedShellIdsByWorkspace[workspaceId] === sessionId) return false;
+    if (promotedShellIdsByWorkspace[workspaceId] !== undefined) {
+      setPromotedShellIdsByWorkspace((current) => omitWorkspaceRecord(current, workspaceId));
+    }
+    return true;
+  }, [promotedShellIdsByWorkspace]);
+
   const handleSelectSession = useCallback((sessionId: string) => {
+    if (!takeFocusFromPromotedShell(activeWorkspace.id, sessionId)) return;
     if (selectedSessionIdsByWorkspace[activeWorkspace.id] === sessionId) return;
 
     const layoutApi = getDesktopLayoutApi();
@@ -951,7 +1018,7 @@ export function App() {
       workspaceId: activeWorkspace.id,
       viewState: { selectedSessionId: sessionId },
     });
-  }, [activeWorkspace.id, selectedSessionIdsByWorkspace]);
+  }, [activeWorkspace.id, selectedSessionIdsByWorkspace, takeFocusFromPromotedShell]);
 
   const handleAddManualSession = useCallback((workspace: Workspace = activeWorkspace, parentSessionId?: string) => {
     if (workspace.rootStatus === "missing") return;
@@ -976,8 +1043,13 @@ export function App() {
     });
   }, [activeWorkspace.id]);
   const handleFocusSession = useCallback((sessionId: string) => {
+    if (isDrawerShell(terminalSessionsRef.current, sessionId)) {
+      revealShell(activeWorkspace.id, sessionId);
+      return;
+    }
     setActiveSurface("work");
     showTerminalInWorkspace(activeWorkspace.id);
+    if (!takeFocusFromPromotedShell(activeWorkspace.id, sessionId)) return;
     setSelectedSessionIdsByWorkspace((current) => {
       if (current[activeWorkspace.id] === sessionId) return current;
       return {
@@ -991,7 +1063,7 @@ export function App() {
         viewState: { selectedSessionId: sessionId },
       });
     }
-  }, [activeWorkspace.id, selectedSessionIdsByWorkspace, showTerminalInWorkspace]);
+  }, [activeWorkspace.id, revealShell, selectedSessionIdsByWorkspace, showTerminalInWorkspace, takeFocusFromPromotedShell]);
   // The deck links to History for this project and for what Alfred ran here: ended sessions can be
   // resumed too, not only asleep ones.
   const openProjectHistory = useCallback((selectedSessionKey: string | null = null) => {
@@ -1019,17 +1091,17 @@ export function App() {
   const handleOpenRecoveryHistory = useCallback(() => openProjectHistory(), [openProjectHistory]);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
-    if (activeTerminalSessions.length === 0) return;
+    if (activeDeckAgents.length === 0) return;
     const currentIndex = Math.max(
       0,
-      activeTerminalSessions.findIndex((session) => session.id === activeSelectedSessionId),
+      activeDeckAgents.findIndex((session) => session.id === activeSelectedSession?.id),
     );
-    const nextIndex = (currentIndex + delta + activeTerminalSessions.length) % activeTerminalSessions.length;
-    const nextSession = activeTerminalSessions[nextIndex];
+    const nextIndex = (currentIndex + delta + activeDeckAgents.length) % activeDeckAgents.length;
+    const nextSession = activeDeckAgents[nextIndex];
     if (nextSession) {
       handleFocusSession(nextSession.id);
     }
-  }, [activeSelectedSessionId, activeTerminalSessions, handleFocusSession]);
+  }, [activeDeckAgents, activeSelectedSession?.id, handleFocusSession]);
 
   const refreshLiveSessions = useCallback(async () => {
     const terminalApi = getDesktopTerminalApi();
@@ -1053,9 +1125,15 @@ export function App() {
       (session) => session.workspaceId === workspaceId && session.id === sessionId,
     );
     if (!targetExists) return;
+    if (isDrawerShell(terminalSessionsRef.current, sessionId)) {
+      revealShell(workspaceId, sessionId);
+      void refreshLiveSessions();
+      return;
+    }
 
     setActiveSurface("work");
     setActiveWorkspaceId(workspaceId);
+    if (!takeFocusFromPromotedShell(workspaceId, sessionId)) return;
     setSelectedSessionIdsByWorkspace((current) =>
       current[workspaceId] === sessionId ? current : { ...current, [workspaceId]: sessionId },
     );
@@ -1064,13 +1142,18 @@ export function App() {
       viewState: { selectedSessionId: sessionId },
     });
     void refreshLiveSessions();
-  }, [refreshLiveSessions]);
+  }, [refreshLiveSessions, revealShell, takeFocusFromPromotedShell]);
 
   const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
     const targetExists = terminalSessionsRef.current.some((session) => (
       session.workspaceId === workspaceId && (isWorkSession(session) || session.id === sessionId)
     ));
     if (!targetExists) return;
+    if (isDrawerShell(terminalSessionsRef.current, sessionId)) {
+      revealShell(workspaceId, sessionId);
+      void refreshLiveSessions();
+      return;
+    }
 
     const layoutApi = getDesktopLayoutApi();
     const viewStateChanged = selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
@@ -1080,6 +1163,7 @@ export function App() {
     if (activeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
+    if (!takeFocusFromPromotedShell(workspaceId, sessionId)) return;
     setSelectedSessionIdsByWorkspace((current) =>
       current[workspaceId] === sessionId ? current : { ...current, [workspaceId]: sessionId },
     );
@@ -1093,8 +1177,10 @@ export function App() {
   }, [
     activeWorkspaceId,
     refreshLiveSessions,
+    revealShell,
     selectedSessionIdsByWorkspace,
     showTerminalInWorkspace,
+    takeFocusFromPromotedShell,
   ]);
 
   useEffect(() => {
@@ -1111,11 +1197,11 @@ export function App() {
       const currentId = current[activeWorkspace.id];
       // A pick made after this render (a new session) is checked by the next render, whose lists hold it.
       if ((currentId ?? null) !== activeSelectedSessionId) return current;
-      if (currentId && activeWorkSessions.some((session) => session.id === currentId)) {
+      if (currentId && activeFocusableSessions.some((session) => session.id === currentId)) {
         return current;
       }
-      // Fall back to a terminal only; a draft is selected when someone opens it.
-      const fallbackId = activeTerminalSessions[0]?.id;
+      // Fall back to an agent only; a draft is selected when someone opens it, and shells live in the drawer.
+      const fallbackId = activeDeckAgents[0]?.id;
       if (!fallbackId) {
         if (!currentId) return current;
         const next = { ...current };
@@ -1127,7 +1213,7 @@ export function App() {
         [activeWorkspace.id]: fallbackId,
       };
     });
-  }, [activeSelectedSessionId, activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
+  }, [activeSelectedSessionId, activeDeckAgents, activeFocusableSessions, activeWorkspace.id]);
 
   const handleCloseSession = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
@@ -1232,7 +1318,8 @@ export function App() {
         detail: "Resumed",
       }),
     );
-  }, [armedRecoverySessionIds]);
+    if (isShellSession(session)) revealShell(session.workspaceId, sessionId);
+  }, [armedRecoverySessionIds, revealShell]);
 
   const handleRestartSession = useCallback((sessionId: string) => {
     const sessions = terminalSessionsRef.current;
@@ -1259,7 +1346,8 @@ export function App() {
         detail: "Resumed",
       }),
     );
-  }, [armedRecoverySessionIds]);
+    if (isShellSession(session)) revealShell(session.workspaceId, sessionId);
+  }, [armedRecoverySessionIds, revealShell]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string, byYou = false) => {
     const normalizedTitle = normalizeSessionTitle(title);
@@ -1285,20 +1373,12 @@ export function App() {
     void getDesktopLayoutApi()?.setPageWidth(width);
   }, []);
 
+  // In the drawer ⌘W closes its shell; elsewhere the deck's focus.
   const handleCloseSelectedSession = useCallback(() => {
-    const selectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id];
-    const currentWorkspaceSessions = terminalSessionsRef.current.filter(
-      (session) => session.workspaceId === activeWorkspace.id && isWorkSession(session),
-    );
-    const session =
-      (selectedSessionId
-        ? currentWorkspaceSessions.find((item) => item.id === selectedSessionId)
-        : null) ??
-      currentWorkspaceSessions[0] ??
-      activeSelectedSession;
-    if (!session) return;
-    void handleCloseSession(session.id);
-  }, [activeSelectedSession, activeWorkspace.id, handleCloseSession, selectedSessionIdsByWorkspace]);
+    const drawerSessionId = document.activeElement?.closest<HTMLElement>(".terminal-tile.in-drawer")?.dataset.sessionId;
+    const sessionId = drawerSessionId ?? activeSelectedSession?.id;
+    if (sessionId) void handleCloseSession(sessionId);
+  }, [activeSelectedSession, handleCloseSession]);
 
   const handleRuntimeSessionStarting = useCallback((tileId: string, attempt: TerminalStartAttempt): boolean => {
     const current = startingSessionIdsRef.current.get(tileId);
@@ -1392,6 +1472,14 @@ export function App() {
   const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
     const session = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (session) {
+      // A shell where you start claude or codex leads the deck while the agent runs; back at its prompt it returns to
+      // the drawer, and the focus to your pick.
+      const agentNow = !isShellSession({ ...session, detectedAgentKind: event.foregroundAgentKind });
+      if (agentNow !== !isShellSession(session)) {
+        setPromotedShellIdsByWorkspace((current) => agentNow
+          ? { ...current, [session.workspaceId]: session.id }
+          : current[session.workspaceId] === session.id ? omitWorkspaceRecord(current, session.workspaceId) : current);
+      }
       const generatedTitle = generatedTitleForDetectedAgent(terminalSessionsRef.current, session, event.foregroundAgentKind);
       if (generatedTitle !== session.title) {
         void getDesktopTerminalApi()?.rename({ clientId: session.id, title: generatedTitle });
@@ -2076,6 +2164,11 @@ export function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       // On a Mac, Control keys edit text (Control W deletes a word), so only Command takes app shortcuts.
       const primary = navigator.platform.includes("Mac") ? event.metaKey : event.ctrlKey;
+      if (primary && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        if (activeSurface === "work" && !commandPaletteOpen) handleToggleDrawer();
+        return;
+      }
       if (commandPaletteOpen) {
         const key = event.key.toLowerCase();
         const appShortcut =
@@ -2208,6 +2301,7 @@ export function App() {
     handleSelectWorkspaceFromRail,
     handleToggleNeedsYou,
     handleToggleContextDrawer,
+    handleToggleDrawer,
     workspaceMenuOpen,
     workspaces,
   ]);
@@ -2243,6 +2337,7 @@ export function App() {
         setRuntimeStatus(runtimeStatusResult);
         setRailWidth(clampRailWidth(layoutResult.railWidth));
         setPageWidth(clampPageWidth(layoutResult.pageWidth));
+        setDrawerHeight(clampDrawerHeight(layoutResult.drawerHeight));
         const hydratedSelectedSessionIds = Object.fromEntries(
           Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
             viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
@@ -2353,6 +2448,28 @@ export function App() {
   }, [activeWorkspaceId, closedWorkspaces, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
+  const focusPageTerminal = pageInColumn
+    ? () => setTerminalFocusRequestKey((key) => key + 1)
+    : () => setDrawerFocusRequestKey((key) => key + 1);
+  const pagePanel = activePage && pageSession ? (
+    <PagePanel
+      agentLabel={tileKindMeta(sessionTileKind(pageSession)).label}
+      folder={sessionFolder(pageSession)}
+      now={now}
+      page={activePagePage}
+      pages={agentPages(pageSession.changedFiles)}
+      file={activeFile}
+      files={pagePanelChoices[pageSession.id]?.files ?? []}
+      onPickFile={(file) => handleOpenFile(pageSession.id, file)}
+      onPastePath={(path) => handlePastePath(pageSession.id, path)}
+      onClose={() => {
+        handleClosePagePanel(pageSession.id, false);
+        if (!pageInColumn) focusPageTerminal();
+      }}
+      onFocusTerminal={focusPageTerminal}
+      onPick={(path) => handleOpenPage(pageSession.id, pageSession.changedFiles, path)}
+    />
+  ) : null;
 
   return (
     <main
@@ -2389,11 +2506,11 @@ export function App() {
       </div>
       <section
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
-        style={{ "--rail-width": `${railWidth}px`, "--page-width": `${pageWidth}px` } as CSSProperties}
+        style={{ "--rail-width": `${railWidth}px`, "--page-width": `${pageWidth}px`, "--drawer-height": `${drawerHeight}px` } as CSSProperties}
         aria-label="Alfred Agent Space desktop shell"
       >
         <ProjectNavigator
-          activeSessionId={activeSelectedSessionId}
+          activeSessionId={activeFocusSessionId}
           asleepCount={activeSavedSessionCount}
           activeSurface={activeSurface}
           activeWorkspaceId={activeWorkspace.id}
@@ -2562,7 +2679,7 @@ export function App() {
             `surface-${activeSurface}`,
             activePreviewDockOpen ? "preview-visible" : "",
             detailsVisible ? "context-visible" : "",
-            activePage ? "page-visible" : "",
+            pageInColumn ? "page-visible" : "",
           ].filter(Boolean).join(" ")}
           data-testid="workbench-shell"
         >
@@ -2590,10 +2707,19 @@ export function App() {
                       onSelectUrl={handleSelectPreviewUrl}
                     />
                   ) : null}
+                  drawerOpen={activeDrawerOpen}
+                  drawerSessionId={activeDrawerShell?.id ?? null}
+                  drawerHeight={drawerHeight}
+                  drawerFocusRequestKey={drawerFocusRequestKey}
+                  onDrawerHeightChange={handleDrawerHeightChange}
+                  onNewShell={() => handleAddManualSession()}
+                  onHideDrawer={handleToggleDrawer}
+                  onSelectDrawerSession={handleSelectDrawerSession}
+                  filePane={pageInColumn ? null : pagePanel}
                   pinnedSessionId={activePinnedSessionId}
                   pinBeside={pinBeside}
                   onTogglePinBeside={() => setPinBeside((current) => !current)}
-                  selectedSessionId={activeSelectedSessionId}
+                  selectedSessionId={activeFocusSessionId}
                   sessions={terminalSessions}
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
@@ -2730,7 +2856,7 @@ export function App() {
               } : {}),
             }}
           />
-          {activePage && activeInspectedSession && (
+          {pageInColumn && (
             <div className="page-column">
               <ColumnResizeHandle
                 label="Resize page"
@@ -2743,20 +2869,7 @@ export function App() {
                 room={pageColumnRoom}
                 onChange={handlePageWidthChange}
               />
-              <PagePanel
-                agentLabel={tileKindMeta(sessionTileKind(activeInspectedSession)).label}
-                folder={sessionFolder(activeInspectedSession)}
-                now={now}
-                page={activePagePage}
-                pages={agentPages(activeInspectedSession.changedFiles)}
-                file={activeFile}
-                files={activeFile || activePagePage ? pagePanelChoices[activeInspectedSession.id]?.files ?? [] : []}
-                onPickFile={(file) => handleOpenFile(activeInspectedSession.id, file)}
-                onPastePath={(path) => handlePastePath(activeInspectedSession.id, path)}
-                onClose={() => handleClosePagePanel(activeInspectedSession.id, false)}
-                onFocusTerminal={() => setTerminalFocusRequestKey((key) => key + 1)}
-                onPick={(path) => handleOpenPage(activeInspectedSession.id, activeInspectedSession.changedFiles, path)}
-              />
+              {pagePanel}
             </div>
           )}
         </div>
@@ -2778,7 +2891,7 @@ export function App() {
             pinnedSessionId={activePinnedSessionId}
             query={commandQuery}
             reviewQueuePreview={reviewQueuePreview}
-            selectedSessionId={activeSelectedSessionId}
+            selectedSessionId={activeSelectedSession?.id ?? null}
             sessions={activeWorkSessions}
             shortcutModifier={shortcutModifier}
             workspaces={workspaces}
@@ -2846,6 +2959,11 @@ function createStagedPlanSnapshot({
     prompt,
     sessions: planSessions,
   };
+}
+
+function isDrawerShell(sessions: readonly SessionTile[], sessionId: string): boolean {
+  const session = sessions.find((item) => item.id === sessionId);
+  return session !== undefined && drawerSessions(sessions, session.workspaceId).includes(session);
 }
 
 function removePendingPlanSession(plans: Record<string, SquadPlan>, sessionId: string): Record<string, SquadPlan> {

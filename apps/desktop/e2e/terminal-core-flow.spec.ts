@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle } from "./support/app-state";
-import { addManualTerminal, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
+import { addManualTerminal, startAgent, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -13,35 +13,38 @@ type TerminalNodeHandles = {
 test("terminal core flow preserves the real xterm and deck geometry", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
   await expect(page.getByTestId("workbench-header")).toBeVisible();
-  const firstInput = page.getByRole("textbox", { name: "Terminal input" }).first();
+  // The first shell, in the drawer, runs the marker command and stays mounted under the agents' deck throughout.
+  const shell = page.locator('.terminal-tile[data-session-id="manual-1"]');
+  const firstInput = shell.getByRole("textbox", { name: "Terminal input" });
   await expect(firstInput).toBeVisible();
   const markerHex = Buffer.from(marker, "utf8").toString("hex");
   const markerCommand = `printf '${markerHex}' | /usr/bin/xxd -r -p; printf '\\n'`;
   expect(markerCommand).not.toContain(marker);
   await firstInput.fill(markerCommand);
   await firstInput.press("Enter");
-  await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
+  await expect(shell.locator(".xterm-host")).toContainText(marker);
 
-  await addManualTerminal(page);
+  await startAgent(page, "claude-1");
+  await startAgent(page, "codex-1");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
-  // Both runtimes must exist in the main process before the renderer reloads.
+  // Every runtime must exist in the main process before the renderer reloads.
   await expect.poll(() => page.evaluate(async () =>
-    (await window.alfredDesktop?.terminal.list())?.sessions.length ?? 0)).toBe(2);
+    (await window.alfredDesktop?.terminal.list())?.sessions.length ?? 0)).toBe(3);
 
   await page.reload();
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   const survivorNodes = await captureTerminalNodes(page, 2);
 
-  await addManualTerminal(page);
+  await startAgent(page, "claude-2");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
   // A new session takes focus; the others stay mounted and wait in the rail's tree.
-  const addedTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-3"]');
+  const addedTile = page.locator('[data-testid="terminal-tile"][data-session-id="claude-2"]');
   await expect(addedTile).toHaveClass(/selected/);
   await expect(addedTile).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
   await expect.poll(async () => page.evaluate(() => {
     const owner = document.querySelector(".terminal-grid-column");
-    const tile = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"]');
+    const tile = document.querySelector('[data-testid="terminal-tile"][data-session-id="claude-2"]');
     if (!(owner instanceof HTMLElement) || !(tile instanceof HTMLElement)) return false;
     const ownerRect = owner.getBoundingClientRect();
     const tileRect = tile.getBoundingClientRect();
@@ -66,11 +69,11 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   identityTransitions.push("History→Work");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Work restored"));
 
-  await treeRow(page, "manual-1").click();
-  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
+  await treeRow(page, "claude-1").click();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="claude-1"]')).not.toHaveAttribute("aria-hidden", "true");
   await expectTerminalNodes(terminalNodes, page, "tree swap");
-  identityTransitions.push("tree swap to manual-1 (2 hidden mounted)");
-  await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
+  identityTransitions.push("tree swap to claude-1 (2 hidden mounted)");
+  await expect(shell.locator(".xterm-host")).toContainText(marker);
   await captureReviewScreenshot(page, testInfo, "deck-swap-1440x920");
 
   const initialGridFit = await proveGridFit(page, "Initial deck");
@@ -94,7 +97,7 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   await captureReviewScreenshot(page, testInfo, "deck-3-1120x720");
   const narrowGridFit = await proveGridFit(page, "1120×720 deck");
 
-  await addManualTerminal(page);
+  await startAgent(page, "codex-2");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(1);
   await captureReviewScreenshot(page, testInfo, "deck-4-1120x720");
@@ -129,20 +132,22 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   for (const geometry of surfaceGeometries) assertSurfaceGeometry(geometry);
 });
 
-test("a new terminal takes focus while another terminal streams output", async ({ harness }) => {
+test("a new terminal takes the drawer and the keyboard while another terminal streams output", async ({ harness }) => {
   const { page } = harness;
-  const firstInput = page.getByRole("textbox", { name: "Terminal input" }).first();
+  const streaming = page.locator('.terminal-tile[data-session-id="manual-1"]');
+  const firstInput = streaming.getByRole("textbox", { name: "Terminal input" });
   await expect(firstInput).toBeVisible();
   // Output renders often, so one lands between a Start click and the render that shows the new terminal.
   await firstInput.fill("while :; do echo tick; sleep 0.003; done");
   await firstInput.press("Enter");
   for (let index = 2; index <= 9; index += 1) {
     await addManualTerminal(page);
-    await expect(page.locator(`[data-testid="terminal-tile"][data-session-id="manual-${index}"]`)).toHaveClass(/selected/);
+    const added = page.locator(`.terminal-tile[data-session-id="manual-${index}"]`);
+    await expect(added).toHaveClass(/in-drawer/);
+    await expect(added.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   }
   // Stop the stream: the harness closes idle terminals.
-  await treeRow(page, "manual-1").click();
-  const streaming = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  await shellTab(page, "manual-1").click();
   await streaming.getByRole("textbox", { name: "Terminal input" }).press("Control+C");
   await expect(streaming).toHaveClass(/session-idle/);
 });
@@ -152,10 +157,10 @@ test("runs a dozen terminals without one IPC listener per terminal", async ({ ha
   await expect(page.getByRole("textbox", { name: "Terminal input" }).first()).toBeVisible();
   for (let index = 2; index <= 12; index += 1) {
     await addManualTerminal(page);
-    await expect(page.locator(`[data-testid="terminal-tile"][data-session-id="manual-${index}"]`)).toHaveClass(/selected/);
+    await expect(shellTab(page, `manual-${index}`)).toHaveAttribute("aria-selected", "true");
   }
   // The harness fails the test on Node's MaxListenersExceededWarning when it closes the app.
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(12);
+  await expect(page.locator(".terminal-tile")).toHaveCount(12);
 });
 
 test("starts a new agent right after you close one of its kind", async ({ harness }) => {
@@ -364,4 +369,8 @@ function assertTerminalGeometry(geometry: Awaited<ReturnType<typeof readTerminal
     expect(tile.rightOverflow, evidence).toBeLessThanOrEqual(2);
   }
   expect(geometry.documentOverflow, evidence).toBeLessThanOrEqual(0);
+}
+
+function shellTab(page: Page, sessionId: string): Locator {
+  return page.getByRole("tablist", { name: "Shells" }).locator(`[role="tab"][data-session-id="${sessionId}"]`);
 }

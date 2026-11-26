@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
-import { deckFocusSession, deckSessions, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
+import { deckAgentSessions, deckFocusSession, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
 import { SESSION_STATE_LABELS, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -132,7 +132,8 @@ export function ProjectNavigator({
   const [sandboxesOpen, setSandboxesOpen] = useState(activeIsSandbox);
   // Parents whose workers are hidden; kept while the window is open, across project switches.
   const [collapsedParentIds, setCollapsedParentIds] = useState<ReadonlySet<string>>(() => new Set());
-  const activeDeckSessions = deckSessions(sessions, activeWorkspaceId);
+  // The tree lists agents; shells sit in the drawer, though a running one still sets the project's state.
+  const activeDeckSessions = deckAgentSessions(sessions, activeWorkspaceId);
   const focusSessionId = deckFocusSession(activeDeckSessions, activeSessionId)?.id ?? null;
   const toggleWorkers = (parentSessionId: string) => setCollapsedParentIds((current) => {
     const next = new Set(current);

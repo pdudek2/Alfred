@@ -26,8 +26,8 @@ test("workspace switch keeps the same xterm node and streams background output",
 }) => {
   const { marker, page, paths } = harness;
   const terminalInput = page.getByRole("textbox", { name: "Terminal input" });
-  const terminalHost = page.getByTestId("xterm-host");
-  const terminalTiles = page.getByTestId("terminal-tile");
+  const terminalHost = page.getByTestId("drawer-xterm-host");
+  const terminalTiles = page.getByTestId("drawer-terminal-tile");
   const firstMarkerCommand = encodedPrintCommand(marker);
 
   expect(firstMarkerCommand).not.toContain(marker);

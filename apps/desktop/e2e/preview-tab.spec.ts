@@ -1,10 +1,13 @@
+import { appendFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { ElementHandle, Locator } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { fixtureAgentOutput } from "./support/fixture-agents";
+import { startAgent } from "./support/work-layout";
 
 test("Preview takes the terminal's place, keeps Details beside it, and preserves xterm while loaded and offline", async ({ harness }, testInfo) => {
-  const { app, page } = harness;
+  const { app, page, paths } = harness;
   let server: Server | null = createServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     response.end("<!doctype html><title>Alfred Preview Fixture</title><main>Preview fixture ready</main>");
@@ -18,13 +21,13 @@ test("Preview takes the terminal's place, keeps Details beside it, and preserves
     if (!server) throw new Error("Preview server did not start.");
     const address = server.address() as AddressInfo;
     const url = `http://127.0.0.1:${address.port}/`;
-    const xterm = page.getByTestId("xterm-host").first();
+    // An agent holds the deck's focus and prints where its server is ready.
+    const agent = await startAgent(page, "claude-1");
+    const xterm = agent.getByTestId("xterm-host");
     const xtermHandle = await xterm.elementHandle();
-    if (!xtermHandle) throw new Error("Expected the first xterm host.");
-
-    const input = page.getByRole("textbox", { name: "Terminal input" }).first();
-    await input.fill(`printf 'Ready at ${url}\\n'`);
-    await input.press("Enter");
+    if (!xtermHandle) throw new Error("Expected the agent's xterm host.");
+    const input = agent.getByRole("textbox", { name: "Terminal input" });
+    await appendFile(await fixtureAgentOutput(paths.root, "claude"), `Ready at ${url}\n`);
 
     const previewTab = page.getByRole("tab", { name: "Preview" });
     const terminalTab = page.getByRole("tab", { name: "Terminal" });

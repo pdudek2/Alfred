@@ -25,7 +25,9 @@ test("keeps New session and global session actions continuous across surfaces", 
   await selectSurface(page, "History");
   await openLaunchItem(page, "New terminal");
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/surface-work/);
-  await expect(page.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toHaveClass(/selected/);
+  // The new shell opens on its own tab in the drawer.
+  await expect(page.getByRole("article", { name: /(?<!\/)zsh 2(?! \d)(?! ·)/i })).toHaveClass(/in-drawer/);
+  await expect(page.getByRole("tablist", { name: "Shells" }).locator('[data-session-id="manual-2"]')).toHaveAttribute("aria-selected", "true");
 
   await selectSurface(page, "History");
   await page.getByRole("button", { name: "Open command palette" }).click();

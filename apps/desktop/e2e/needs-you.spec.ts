@@ -188,7 +188,8 @@ test.describe("mixed Needs you actions", () => {
       await page.keyboard.press("Escape");
       await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
       await expectSameNode(before, screen, "History→Work replaced the xterm screen");
-      await expect(screen.locator("textarea")).toBeFocused();
+      // The launched shell runs in the drawer, with no agent above it on the deck.
+      await expect(page.locator('.terminal-tile.in-drawer[data-session-id="fixture-item-2"]')).toBeVisible();
       await settleTerminalTileAnimations(page);
       const gridBefore = await elementGeometry(grid);
 

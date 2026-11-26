@@ -25,7 +25,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 import { openPlan } from "./support/plan-line";
-import { addManualTerminal, openDetails, sessionTree, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
+import { addManualTerminal, openDetails, sessionTree, startAgent, surfaceButton, treeRow, openNewSession } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -247,7 +247,7 @@ test.describe("New session composer layout", () => {
 
   test("opens over the terminal without resizing it", async ({ harness }) => {
     const { page } = harness;
-    await addManualTerminal(page);
+    await startAgent(page, "codex-1");
     const host = page.locator('[data-testid="terminal-tile"]:visible').getByTestId("xterm-host");
     await expect(host).toBeVisible();
     await expect(page.getByRole("form", { name: "New session", exact: true })).toHaveCount(0);
@@ -272,12 +272,12 @@ test.describe("work session and project identity", () => {
     await openNewSession(page);
     await page.getByRole("radio", { name: /^Codex/ }).click();
     await page.getByRole("button", { name: "Start" }).click();
-    for (let index = 0; index < 4; index += 1) await addManualTerminal(page);
-    await expect(page.getByTestId("xterm-host")).toHaveCount(6);
+    for (let index = 2; index <= 5; index += 1) await startAgent(page, `codex-${index}`);
+    await expect(page.locator(".xterm-host")).toHaveCount(6);
 
-    // One session holds focus; all six are listed in the rail's tree, none hidden silently.
+    // One agent holds focus; all five are listed in the rail's tree, none hidden silently, and the shell has the drawer.
     const treeRows = sessionTree(page).locator(".session-tree-row");
-    await expect(treeRows).toHaveCount(6);
+    await expect(treeRows).toHaveCount(5);
     await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Fixture Alpha");
     await expect(page.locator(".session-location-meta")).toHaveCount(0);
 
@@ -292,9 +292,9 @@ test.describe("work session and project identity", () => {
     expect(expandedGeometry.navigatorWidth).toBe(264);
     expect(expandedGeometry.scrollWidth).toBeLessThanOrEqual(expandedGeometry.clientWidth);
 
-    const selectedTile = page.locator("[data-testid='terminal-tile'].selected:not([aria-hidden='true'])");
+    const selectedTile = page.locator(".terminal-tile.in-drawer");
     const selectedInput = selectedTile.getByRole("textbox", { name: "Terminal input" });
-    const selectedHost = selectedTile.getByTestId("xterm-host");
+    const selectedHost = selectedTile.locator(".xterm-host");
     const canonicalWorkspacePath = await realpath(paths.workspaceA);
     await selectedInput.fill("pwd -P");
     await selectedInput.press("Enter");
@@ -315,7 +315,7 @@ test.describe("work session and project identity", () => {
     await expect(activeProject.locator(".project-row-state")).toHaveCount(0);
 
     await setWindowSize(app, page, 1120, 720);
-    await expect(treeRows).toHaveCount(6);
+    await expect(treeRows).toHaveCount(5);
     await expect(treeRows.last()).toBeInViewport();
     await page.screenshot({
       path: testInfo.outputPath("session-and-project-identity-1120x720.png"),
@@ -371,23 +371,23 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await asleep.getByRole("button", { name: /^Review resume/ }).click();
   await expect(asleep.locator(".terminal-empty-asleep-warning")).toBeVisible();
   await recordPrivacyMaskCoverage();
+  // An agent holds the deck; the shell that carries the marker runs in the drawer.
+  await startAgent(page, "codex-1");
   await addManualTerminal(page);
-  await addManualTerminal(page);
-  await expect(page.getByTestId("xterm-host")).toHaveCount(2);
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
+  await expect(page.locator(".xterm-host")).toHaveCount(2);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(1);
   await expectDeck(page);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
   await recordPrivacyMaskCoverage();
 
-  // The newest terminal holds focus, so the marker goes to manual-2 and is tracked there.
-  const firstHost = page.locator('[data-testid="xterm-host"][data-session-id="manual-2"]');
+  const firstHost = page.locator('.xterm-host[data-session-id="manual-1"]');
   const firstScreen = firstHost.locator(".xterm-screen");
   await expect(firstScreen).toBeAttached();
   const hostHandle = await requiredHandle(firstHost, "initial xterm host");
   const screenHandle = await requiredHandle(firstScreen, "initial xterm screen");
 
-  const terminalInput = page.getByRole("textbox", { name: "Terminal input" }).first();
+  const terminalInput = page.locator('.terminal-tile[data-session-id="manual-1"]').getByRole("textbox", { name: "Terminal input" });
   const markerHex = Buffer.from(marker, "utf8").toString("hex");
   const markerCommand = `printf '${markerHex}' | /usr/bin/xxd -r -p; printf '\\n'`;
   expect(markerCommand).not.toContain(marker);
@@ -395,13 +395,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await terminalInput.press("Enter");
   await expect(firstHost).toContainText(marker);
 
-  await addManualTerminal(page);
-  await expect(page.getByTestId("xterm-host")).toHaveCount(3);
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  await startAgent(page, "codex-2");
+  await expect(page.locator(".xterm-host")).toHaveCount(3);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   await expectDeck(page);
-  await addManualTerminal(page);
-  await expect(page.getByTestId("xterm-host")).toHaveCount(4);
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
+  await startAgent(page, "codex-3");
+  await expect(page.locator(".xterm-host")).toHaveCount(4);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
   await expectDeck(page);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
 
@@ -415,8 +415,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByRole("textbox", { name: "First prompt" }).press("Escape");
   await expect(page.getByRole("form", { name: "New session" })).toHaveCount(0);
 
-  await treeRow(page, "manual-1").click();
-  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
+  await treeRow(page, "codex-1").click();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="codex-1"]')).not.toHaveAttribute("aria-hidden", "true");
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "tree swap");
   await expectDeck(page);
   await capture("deck-swap", [...frameProbes, ...terminalProbes]);
@@ -469,8 +469,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
   // Below 1200 px Details starts hidden so the terminal keeps its width; ⌘I brings it back for the context captures.
-  await addManualTerminal(page);
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
+  await startAgent(page, "codex-4");
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expectDeck(page);
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow deck");
@@ -612,20 +612,20 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.evaluate(async (cwd) => {
     const terminal = window.alfredDesktop?.terminal;
     if (!terminal) throw new Error("Terminal API is missing");
-    await terminal.create({ clientId: "nested-location", title: "Nested location", workspaceId: "A", cwd, cols: 80, rows: 24 });
+    await terminal.create({ clientId: "nested-location", title: "Nested location", workspaceId: "A", agentKind: "codex", cwd, cols: 80, rows: 24 });
     // A scratch-root chat in another project shows under Free Chats, the rail's only session rows.
     await terminal.create({ clientId: "privacy-free-chat", title: "Privacy free chat", source: "manual", workspaceId: "B", cols: 80, rows: 24 });
   }, nestedCwd);
   await page.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
   await page.getByRole("button", { name: "Fixture Alpha project", exact: true }).click();
-  // Leave a busy shell with reported progress in the tree so its second line is masked too.
-  const busyTile = page.locator('[data-testid="terminal-tile"]:visible');
+  // Leave the nested agent busy with reported progress, so its tree row's second line is masked too.
+  await treeRow(page, "nested-location").click();
+  const busyTile = page.locator('[data-testid="terminal-tile"][data-session-id="nested-location"]');
+  await expect(busyTile).not.toHaveAttribute("aria-hidden", "true");
   const busyInput = busyTile.getByRole("textbox", { name: "Terminal input" });
   await busyInput.fill("printf 'Build complete\\n'; sleep 30");
   await busyInput.press("Enter");
   await expect(busyTile.getByTestId("xterm-host")).toContainText("Build complete");
-  await treeRow(page, "nested-location").click();
-  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="nested-location"]')).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.getByTestId("workbench-header").locator(".session-location-value")).toBeVisible();
   await expect(page.locator(".session-tree-meta").first()).toBeVisible();
   await expect(page.getByRole("group", { name: "Free Chats" }).locator(".project-session-title")).toBeVisible();
@@ -721,6 +721,9 @@ async function readShellOwnerGeometry(page: Page): Promise<{
 async function expectDeck(page: Page, { details: detailsShown = true } = {}): Promise<void> {
   const geometry = await page.getByTestId("terminal-grid").evaluate((grid) => {
     const gridBounds = grid.getBoundingClientRect();
+    // The shell drawer's rows sit under the deck; the focused terminal fills what is left.
+    const drawerHeight = Array.from(grid.querySelectorAll<HTMLElement>(":scope > .shell-drawer-head, :scope > .in-drawer"))
+      .reduce((sum, element) => sum + element.getBoundingClientRect().height, 0);
     const tiles = Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
       .filter((tile) => tile.getAttribute("aria-hidden") !== "true")
       .map((tile) => {
@@ -731,7 +734,7 @@ async function expectDeck(page: Page, { details: detailsShown = true } = {}): Pr
     const details = column?.getBoundingClientRect() ?? null;
     return {
       documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      grid: { height: gridBounds.height, width: gridBounds.width },
+      grid: { height: gridBounds.height - drawerHeight, width: gridBounds.width },
       details: details ? { left: details.left, width: details.width } : null,
       tiles,
     };
@@ -756,7 +759,7 @@ async function proveFirstXtermIdentity(
   screenBefore: ElementHandle<HTMLElement>,
   transition: string,
 ): Promise<void> {
-  const host = page.locator(`[data-testid="xterm-host"][data-session-id="${await hostBefore.getAttribute("data-session-id")}"]`);
+  const host = page.locator(`.xterm-host[data-session-id="${await hostBefore.getAttribute("data-session-id")}"]`);
   const hostNow = await requiredHandle(host, `${transition}: xterm host`);
   const screenNow = await requiredHandle(host.locator(".xterm-screen"), `${transition}: xterm screen`);
   expect(await hostBefore.evaluate((node, current) => node.isSameNode(current) && node.isConnected, hostNow),

@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { setWindowSize } from "./support/app-state";
-import { openNewTerminalSheet, treeRow } from "./support/work-layout";
+import { startAgent, treeRow } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -12,18 +12,15 @@ test.use({
 
 test("uses one visible keyboard focus ring across Work controls", async ({ harness }, testInfo) => {
   const { app, page } = harness;
-  // Initial xterm startup claims focus asynchronously; begin after that handoff.
-  await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   // A narrow focus column folds Close into the overflow menu; either way one tile control takes the ring.
   const tileUtility = page.getByTestId("workbench-header")
-    .getByRole("button", { name: /^(Close|More actions for) zsh/ }).first();
-  // A second terminal takes the focus; the first one waits in the rail's tree.
-  await openNewTerminalSheet(page);
-  await page.getByRole("button", { name: "Start", exact: true }).click();
-  // Like the first one, the new terminal claims focus once it starts; let that settle first.
-  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]').getByRole("textbox", { name: "Terminal input" }))
-    .toBeFocused();
-  const treeCard = treeRow(page, "manual-1");
+    .getByRole("button", { name: /^(Close|More actions for) Claude/ }).first();
+  // A second agent takes the focus; the first one waits in the rail's tree.
+  await startAgent(page, "claude-1");
+  const second = await startAgent(page, "claude-2");
+  // The new terminal claims focus once it starts; let that settle first.
+  await expect(second.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
+  const treeCard = treeRow(page, "claude-1");
   await expect(treeCard).toBeVisible();
 
   const controls = [

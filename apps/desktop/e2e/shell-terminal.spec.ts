@@ -5,7 +5,7 @@ import type { ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
 import { requiredHandle, setWindowSize } from "./support/app-state";
-import { addManualTerminal, openDetails, surfaceButton, treeRow } from "./support/work-layout";
+import { openDetails, startAgent, surfaceButton, treeRow } from "./support/work-layout";
 import {
   collectControlOverflowEvidence,
   type ControlOverflowViolation,
@@ -44,8 +44,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const topBar = page.getByTestId("workbench-header");
   await expect(topBar).toBeVisible();
 
+  // The first shell waits in the drawer; Claude takes the deck.
+  await expect(page.getByTestId("drawer-xterm-host")).toHaveCount(1);
+  const firstScreen = page.locator('.xterm-host[data-session-id="manual-1"] .xterm-screen');
+  await startAgent(page, "claude-1");
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
-  const firstScreen = page.getByTestId("xterm-host").first().locator(".xterm-screen");
   await expect(firstScreen).toBeAttached();
   const firstScreenHandle = await requiredHandle(firstScreen, "first xterm screen");
 
@@ -57,7 +60,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     `R0 shell geometry: ${JSON.stringify(r0)}`,
   ).toBe(r0.workspaceLayoutHeight);
   const wideTile = visibleTerminalTiles(page).first();
-  await expect(page.getByTestId("workbench-header").getByRole("button", { name: "More actions for zsh" })).toBeVisible();
+  await expect(page.getByTestId("workbench-header").getByRole("button", { name: "More actions for Claude" })).toBeVisible();
   await expect(wideTile.locator("header")).toHaveCount(0);
   const bannerAlert = await proveBannerAlertGeometry(page);
   expect(bannerAlert.alertStackHeight).toBeGreaterThan(0);
@@ -68,11 +71,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const diagnosticScreenshotHashes: Record<string, string> = {};
   diagnosticScreenshotHashes["r0-one-session.png"] = await captureEvidence(page, "r0-one-session.png");
 
-  await addManualTerminal(page);
+  await startAgent(page, "codex-1");
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
-  // New terminal takes focus; the first session waits in the rail's tree.
-  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')).not.toHaveAttribute("aria-hidden", "true");
-  await expect(treeRow(page, "manual-1")).toBeVisible();
+  // The new agent takes focus; the first waits in the rail's tree.
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="codex-1"]')).not.toHaveAttribute("aria-hidden", "true");
+  await expect(treeRow(page, "claude-1")).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   // A running tile is only its terminal: its agent, age and menu sit in the top bar.
   await expect(visibleTerminalTiles(page).locator(".session-strip")).toHaveCount(0);
@@ -92,8 +95,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     "r1-focus-two-sessions.png",
   );
 
-  await treeRow(page, "manual-1").click();
-  await expect(visibleTerminalTiles(page).first()).toHaveAttribute("data-session-id", "manual-1");
+  await treeRow(page, "claude-1").click();
+  await expect(visibleTerminalTiles(page).first()).toHaveAttribute("data-session-id", "claude-1");
   const identityTransitions: Record<string, boolean> = {
     "R0→zsh 2→tree→zsh 1": await isSameConnectedNode(firstScreenHandle, firstScreen),
   };
