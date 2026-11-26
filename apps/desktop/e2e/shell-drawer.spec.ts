@@ -11,7 +11,7 @@ type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
 };
 
-test("keeps a shell's terminal mounted through Ctrl+`, tab switches and a typed agent's trip to the deck", async ({ harness }) => {
+test("keeps a shell's terminal mounted through Command B, tab switches and a typed agent's trip to the deck", async ({ harness }) => {
   const { page } = harness;
   const grid = page.getByTestId("terminal-grid");
   const shell = page.locator('.terminal-tile[data-session-id="manual-1"]');
@@ -22,20 +22,20 @@ test("keeps a shell's terminal mounted through Ctrl+`, tab switches and a typed 
   const shellHost = await handle(shell.locator(".xterm-host"));
   await expect(shell.locator(".xterm-rows > div").filter({ hasText: /%\s*$/ }).first()).toBeVisible();
 
-  // Ctrl+` from inside the terminal hides and shows the drawer, and the shell never receives it.
+  // Command B from inside the terminal hides and shows the drawer, and the shell never receives it.
   await shell.locator(".xterm-host").click();
   await page.keyboard.type("cat -v");
   await page.keyboard.press("Enter");
-  await page.keyboard.press("Control+Backquote");
+  await page.keyboard.press("Meta+KeyB");
   await expect(grid).not.toHaveClass(/has-drawer/);
   await expect(shell).toHaveClass(/focus-hidden/);
-  await page.keyboard.press("Control+Backquote");
+  await page.keyboard.press("Meta+KeyB");
   await expect(grid).toHaveClass(/has-drawer/);
   await expect(shell.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   await page.keyboard.type("after-toggle");
   await page.keyboard.press("Enter");
   await expect.poll(() => terminalBuffer(page, "manual-1")).toMatch(/after-toggle\r?\n.*after-toggle/s);
-  expect(await terminalBuffer(page, "manual-1")).not.toContain("^@");
+  expect(await terminalBuffer(page, "manual-1")).not.toMatch(/\^|bafter-toggle/);
   await page.keyboard.press("Control+C");
   await expectSameNode(shellHost, shell.locator(".xterm-host"));
 
@@ -100,7 +100,7 @@ test("starts a New session terminal in the drawer and leaves the agent focused o
 
   // Hiding the drawer gives its rows to the agent's terminal, which fits once to the new size.
   const rowsWithDrawer = await agentRows.count();
-  await page.keyboard.press("Control+Backquote");
+  await page.keyboard.press("Meta+KeyB");
   await expect(shell).toHaveClass(/focus-hidden/);
   await expect.poll(() => agentRows.count()).toBeGreaterThan(rowsWithDrawer);
   await expect(agent.getByRole("textbox", { name: "Terminal input" })).toBeFocused();

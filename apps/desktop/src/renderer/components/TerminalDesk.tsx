@@ -338,7 +338,7 @@ export function TerminalDesk({
               <button type="button" className="shell-drawer-new" aria-label="New shell" title="New shell" onClick={onNewShell}>
                 <Plus aria-hidden="true" size={14} />
               </button>
-              <button type="button" className="shell-drawer-new shell-drawer-hide" aria-label="Hide shells" title="Hide shells (⌃`)" onClick={onHideDrawer}>
+              <button type="button" className="shell-drawer-new shell-drawer-hide" aria-label="Hide shells" title="Hide shells (⌘B)" onClick={onHideDrawer}>
                 <ChevronDown aria-hidden="true" size={14} />
               </button>
             </div>
@@ -1166,8 +1166,6 @@ function ManualTerminalTile({
         void fetchImages().then(answer, () => callback(undefined));
       },
     });
-    // Ctrl+` shows and hides the shell drawer; a terminal would send it to the program as NUL.
-    terminal.attachCustomKeyEventHandler((event) => !(event.ctrlKey && event.code === "Backquote"));
     terminal.attachCustomWheelEventHandler((event) => {
       // A program on the alternate screen, such as Codex, vim or less, or one that tracks the mouse scrolls itself:
       // xterm passes it the wheel as mouse reports or arrow keys, and keeps the event from the deck column.

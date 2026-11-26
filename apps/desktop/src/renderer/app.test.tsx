@@ -33,7 +33,6 @@ const {
   terminalDisposeCalls,
   terminalFocusSessionIds,
   terminalInputHandlers,
-  terminalKeyHandlers,
   terminalLines,
   terminalLinkProviders,
 } = vi.hoisted(() => ({
@@ -41,16 +40,12 @@ const {
   terminalDisposeCalls: [] as unknown[],
   terminalFocusSessionIds: [] as string[],
   terminalInputHandlers: [] as Array<(data: string) => void>,
-  terminalKeyHandlers: [] as Array<(event: KeyboardEvent) => boolean>,
   terminalLines: [] as string[],
   terminalLinkProviders: [] as unknown[],
 }));
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
-    attachCustomKeyEventHandler = vi.fn((handler: (event: KeyboardEvent) => boolean) => {
-      terminalKeyHandlers.push(handler);
-    });
     attachCustomWheelEventHandler = vi.fn();
     buffer = {
       active: {
@@ -611,7 +606,6 @@ beforeEach(() => {
   terminalDisposeCalls.length = 0;
   terminalFocusSessionIds.length = 0;
   terminalInputHandlers.length = 0;
-  terminalKeyHandlers.length = 0;
   terminalLines.length = 0;
   terminalLinkProviders.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
@@ -1159,7 +1153,7 @@ describe("App integration", () => {
     expect(shellTile.querySelector(".xterm-host")).toBe(host);
   });
 
-  it("shows and hides the shell drawer with Ctrl+` or its button and never types the chord into a terminal", async () => {
+  it("shows and hides the shell drawer with Command B or its button", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("codex-1"), manualLiveSnapshot("manual-1", "zsh")]);
     render(<App />);
@@ -1167,15 +1161,9 @@ describe("App integration", () => {
     const shell = await screen.findByRole("article", { name: /(?<!\/)zsh(?! \d)(?! ·)/i });
     const host = shell.querySelector(".xterm-host");
     expect(drawerTile()).toBe(shell);
-    await waitFor(() => expect(terminalKeyHandlers).toHaveLength(2));
-    // xterm leaves the chord to the app instead of sending NUL to the program.
-    for (const handler of terminalKeyHandlers) {
-      expect(handler(new KeyboardEvent("keydown", { key: "`", code: "Backquote", ctrlKey: true }))).toBe(false);
-      expect(handler(new KeyboardEvent("keydown", { key: "a", code: "KeyA" }))).toBe(true);
-    }
 
     const toggle = (target: Element | Window = window) =>
-      fireEvent.keyDown(target, { key: "`", code: "Backquote", ctrlKey: true });
+      fireEvent.keyDown(target, { key: "b", code: "KeyB", metaKey: true });
     toggle(host!);
     expect(screen.queryByRole("tablist", { name: "Shells" })).not.toBeInTheDocument();
     expect(shell).toHaveAttribute("aria-hidden", "true");
@@ -5851,7 +5839,7 @@ describe("App integration", () => {
     });
 
     // A shell opens the drawer on its tab; the deck's focus and Details stay on the agent.
-    fireEvent.keyDown(window, { key: "`", code: "Backquote", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "b", code: "KeyB", metaKey: true });
     expect(screen.queryByRole("tablist", { name: "Shells" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "zsh");

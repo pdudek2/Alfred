@@ -2162,14 +2162,13 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Ctrl+` (as in VS Code) is the one Control shortcut: no terminal program needs the NUL it would send.
-      if (event.ctrlKey && !event.metaKey && !event.altKey && event.code === "Backquote") {
+      // On a Mac, Control keys edit text (Control W deletes a word), so only Command takes app shortcuts.
+      const primary = navigator.platform.includes("Mac") ? event.metaKey : event.ctrlKey;
+      if (primary && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "b") {
         event.preventDefault();
         if (activeSurface === "work" && !commandPaletteOpen) handleToggleDrawer();
         return;
       }
-      // On a Mac, Control keys edit text (Control W deletes a word), so only Command takes app shortcuts.
-      const primary = navigator.platform.includes("Mac") ? event.metaKey : event.ctrlKey;
       if (commandPaletteOpen) {
         const key = event.key.toLowerCase();
         const appShortcut =
