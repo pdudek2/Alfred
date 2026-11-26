@@ -667,6 +667,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       drawerFocusRequestKey={0}
       onDrawerHeightChange={() => {}}
       onNewShell={() => {}}
+      onHideDrawer={() => {}}
       onSelectDrawerSession={() => {}}
       pinnedSessionId={null}
       selectedSessionId={selectedSessionId}
@@ -1158,7 +1159,7 @@ describe("App integration", () => {
     expect(shellTile.querySelector(".xterm-host")).toBe(host);
   });
 
-  it("shows and hides the shell drawer with Ctrl+` and never types it into a terminal", async () => {
+  it("shows and hides the shell drawer with Ctrl+` or its button and never types the chord into a terminal", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("codex-1"), manualLiveSnapshot("manual-1", "zsh")]);
     render(<App />);
@@ -1183,6 +1184,12 @@ describe("App integration", () => {
     expect(shell.querySelector(".xterm-host")).toBe(host);
     await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Codex · codex-1");
+
+    // The drawer's own button hides it too and hands the keyboard back to the deck.
+    await user.click(screen.getByRole("button", { name: "Hide shells" }));
+    expect(screen.queryByRole("tablist", { name: "Shells" })).not.toBeInTheDocument();
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("codex-1"));
+    toggle();
 
     // History hides the deck, so the chord does nothing there.
     await selectSurface(user, "History");

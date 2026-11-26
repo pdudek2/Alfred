@@ -762,7 +762,7 @@ export function App() {
     setDrawerOpenByWorkspace((current) => ({ ...current, [activeWorkspace.id]: open }));
     if (open) setDrawerFocusRequestKey((key) => key + 1);
     // Hiding the drawer that has the keyboard hands it back to the deck.
-    else if (document.activeElement?.closest(".terminal-tile.in-drawer")) setTerminalFocusRequestKey((key) => key + 1);
+    else if (document.activeElement?.closest(".terminal-tile.in-drawer, .shell-drawer-head")) setTerminalFocusRequestKey((key) => key + 1);
   }, [activeDrawerOpen, activeWorkspace.id]);
 
   const handleSelectDrawerSession = useCallback((sessionId: string) => {
@@ -2714,6 +2714,7 @@ export function App() {
                   drawerFocusRequestKey={drawerFocusRequestKey}
                   onDrawerHeightChange={handleDrawerHeightChange}
                   onNewShell={() => handleAddManualSession()}
+                  onHideDrawer={handleToggleDrawer}
                   onSelectDrawerSession={handleSelectDrawerSession}
                   filePane={pageInColumn ? null : pagePanel}
                   pinnedSessionId={activePinnedSessionId}

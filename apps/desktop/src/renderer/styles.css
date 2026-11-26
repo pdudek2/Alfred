@@ -1568,13 +1568,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   outline-offset: -2px;
 }
 
-.shell-drawer-hint {
-  flex: none;
+.shell-drawer-hide {
   margin-left: auto;
-  padding-left: 12px;
-  color: var(--text-faint);
-  font: 400 12px/16px var(--sans);
-  white-space: nowrap;
 }
 
 /* v4 canvas, "Project with nothing running": the empty state sits on the same surface a terminal would. */

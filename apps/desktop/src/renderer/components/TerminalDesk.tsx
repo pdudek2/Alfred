@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Check, Ellipsis, Plus } from "lucide-react";
+import { Check, ChevronDown, Ellipsis, Plus } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -116,6 +116,7 @@ type TerminalDeskProps = {
   drawerFocusRequestKey: number;
   onDrawerHeightChange: (height: number) => void;
   onNewShell: () => void;
+  onHideDrawer: () => void;
   onSelectDrawerSession: (sessionId: string) => void;
   /** With no agent on the deck, an open file takes the deck's place above the drawer. */
   filePane?: ReactNode;
@@ -171,6 +172,7 @@ export function TerminalDesk({
   drawerFocusRequestKey,
   onDrawerHeightChange,
   onNewShell,
+  onHideDrawer,
   onSelectDrawerSession,
   filePane,
   pinnedSessionId,
@@ -336,7 +338,9 @@ export function TerminalDesk({
               <button type="button" className="shell-drawer-new" aria-label="New shell" title="New shell" onClick={onNewShell}>
                 <Plus aria-hidden="true" size={14} />
               </button>
-              <span className="shell-drawer-hint" aria-hidden="true">⌃` hides</span>
+              <button type="button" className="shell-drawer-new shell-drawer-hide" aria-label="Hide shells" title="Hide shells (⌃`)" onClick={onHideDrawer}>
+                <ChevronDown aria-hidden="true" size={14} />
+              </button>
             </div>
           )}
           {renderedSessions.map((session) => {
